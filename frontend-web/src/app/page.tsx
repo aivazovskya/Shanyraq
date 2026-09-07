@@ -1,20 +1,24 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Building2, ShieldCheck, KeyRound, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Building2, ShieldCheck, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL, saveSession } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [login, setLogin] = useState('+77001000001');
-  const [password, setPassword] = useState('Shanyraq2026!');
-  const [role, setRole] = useState('HOA_ADMIN');
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!login.trim() || !password.trim()) {
+      setError('Введите телефон/email и пароль');
+      return;
+    }
+
     setError(null);
     setIsLoading(true);
 
@@ -22,7 +26,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_BASE_URL}/auth/login-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ login: login.trim(), password }),
       });
 
       if (!res.ok) {
@@ -76,29 +80,6 @@ export default function LoginPage() {
           <form className="space-y-5" onSubmit={handleLogin}>
             <div>
               <label className="block text-sm font-medium text-slate-700">
-                Быстрый выбор тестовой роли
-              </label>
-              <select
-                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white py-2 px-3 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 text-sm"
-                value={role}
-                onChange={(e) => {
-                  const r = e.target.value;
-                  setRole(r);
-                  if (r === 'HOA_ADMIN') setLogin('+77001000001');
-                  if (r === 'HOA_CHAIRMAN') setLogin('+77001000002');
-                  if (r === 'DISPATCHER') setLogin('+77001000003');
-                  if (r === 'SECURITY') setLogin('+77001000004');
-                }}
-              >
-                <option value="HOA_ADMIN">Управляющая компания (Администратор)</option>
-                <option value="HOA_CHAIRMAN">Председатель ОСИ</option>
-                <option value="DISPATCHER">Диспетчер Service Desk</option>
-                <option value="SECURITY">Сотрудник охраны (КПП)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
                 Телефон или Email
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -107,7 +88,7 @@ export default function LoginPage() {
                   value={login}
                   onChange={(e) => setLogin(e.target.value)}
                   className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
-                  placeholder="+7 (7XX) XXX-XX-XX"
+                  placeholder="+7 (7XX) XXX-XX-XX или email"
                   required
                 />
               </div>
@@ -121,6 +102,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
+                  placeholder="••••••••"
                   required
                 />
               </div>
@@ -147,7 +129,7 @@ export default function LoginPage() {
               <ShieldCheck className="w-4 h-4" />
               <span>Защищенный шлюз с разграничением прав доступа (RBAC)</span>
             </div>
-            <p>Пилотный объект: ЖК «Шаңырақ Премиум», г. Астана</p>
+            <p>Доступ открыт только авторизованным сотрудникам ОСИ и УК</p>
           </div>
         </div>
       </div>

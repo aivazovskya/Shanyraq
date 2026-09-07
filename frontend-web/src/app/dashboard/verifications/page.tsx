@@ -14,7 +14,7 @@ import {
   RefreshCw,
   Loader2,
 } from 'lucide-react';
-import { apiRequest, ensureAuthSession } from '@/lib/api';
+import { apiRequest, getStoredSession } from '@/lib/api';
 
 interface VerificationItem {
   id: string;
@@ -64,9 +64,9 @@ export default function VerificationsPage() {
     try {
       setLoading(true);
       setError(null);
-      const session = await ensureAuthSession();
-      if (!session.user.tenantId) {
-        throw new Error('Пользователь не привязан к жилому комплексу');
+      const session = getStoredSession();
+      if (!session || !session.user || !session.user.tenantId) {
+        throw new Error('Пользователь не авторизован или не привязан к жилому комплексу');
       }
       if (session.user.tenantName) {
         setTenantName(session.user.tenantName);

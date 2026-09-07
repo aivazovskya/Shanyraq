@@ -1,22 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Building2,
   LayoutDashboard,
   Vote,
   Wrench,
   KeyRound,
-  Users,
   Bell,
   LogOut,
   UserCheck,
+  Loader2,
 } from 'lucide-react';
+import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const navigation = [
     { name: 'Сводка и аналитика', href: '/dashboard', icon: LayoutDashboard },
@@ -27,23 +31,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Оповещения и новости', href: '/dashboard/announcements', icon: Bell },
   ];
 
-  const [user, setUser] = React.useState<any>(null);
+  useEffect(() => {
+    const session = getStoredSession();
+    if (!session || !session.token || !session.user) {
+      router.push('/');
+    } else {
+      setUser(session.user);
+      setIsCheckingAuth(false);
+    }
+  }, [router]);
 
-  React.useEffect(() => {
-    import('@/lib/api').then(({ ensureAuthSession }) => {
-      ensureAuthSession().then((session) => {
-        if (session?.user) {
-          setUser(session.user);
-        }
-      });
-    });
-  }, []);
-
-  const handleLogout = () => {
-    import('@/lib/api').then(({ clearSession }) => {
-      clearSession();
-    });
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    clearSession();
+    router.push('/');
   };
+
+  // Если сессия не проверена или отсутствует, предотвращаем рендер приватного контента
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
+          <p className="text-sm font-medium text-slate-500">Проверка авторизации...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 flex">
@@ -91,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-white truncate max-w-[150px]">
-                {user ? `${user.firstName} ${user.lastName}` : 'Алихан Бокейханов'}
+                {user ? `${user.firstName} ${user.lastName}` : 'Сотрудник'}
               </div>
               <div className="text-xs text-slate-400">
                 {user?.role === 'SUPERADMIN'
@@ -105,14 +119,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   : 'Управляющая компания'}
               </div>
             </div>
-            <Link
-              href="/"
+            <button
               onClick={handleLogout}
-              title="Выйти"
-              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg"
+              title="Выйти из системы"
+              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
             >
               <LogOut className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
