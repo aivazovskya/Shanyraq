@@ -338,7 +338,8 @@ model AccessPoint {
   type             AccessPointType   @default(BARRIER)
   controllerType   String            @default("PAL_ES") // PAL_ES, MQTT_RELAY, RTSP_CAMERA
   endpointUrl      String?           // URL API контроллера
-  rtspStreamUrl    String?           // RTSP поток для go2rtc
+  rtspStreamUrl    String?           // RTSP поток для go2rtc (конфиденциально, скрыто от жителей)
+  streamName       String?           // Имя потока в go2rtc (например, courtyard_cam_1)
   isActive         Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt

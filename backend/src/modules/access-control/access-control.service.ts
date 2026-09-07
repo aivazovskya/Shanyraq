@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 import { OpenBarrierDto, CreateGuestPassDto } from './dto/access-control.dto';
 import { AccessPointType, UserRole } from '@prisma/client';
 
@@ -19,13 +25,93 @@ export class MockBarrierAdapter implements IBarrierAdapter {
 export class AccessControlService {
   private barrierAdapter: IBarrierAdapter = new MockBarrierAdapter();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+  ) {}
 
-  async getAccessPoints(tenantId: string) {
-    return this.prisma.accessPoint.findMany({
+  async getAccessPoints(tenantId: string, userRole: UserRole) {
+    const points = await this.prisma.accessPoint.findMany({
       where: { tenantId, isActive: true },
       orderBy: { type: 'asc' },
     });
+
+    const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(userRole);
+
+    // Аудит безопасности: скрываем сырые RTSP-креды и адреса внутренних контроллеров от обычных жителей
+    if (!isPrivilegedStaff) {
+      return points.map((p) => ({
+        id: p.id,
+        tenantId: p.tenantId,
+        name: p.name,
+        type: p.type,
+        controllerType: p.controllerType,
+        streamName: p.streamName,
+        isActive: p.isActive,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      }));
+    }
+
+    return points;
+  }
+
+  async getCameraStream(userId: string, userRole: UserRole, accessPointId: string) {
+    const accessPoint = await this.prisma.accessPoint.findUnique({
+      where: { id: accessPointId },
+    });
+
+    if (!accessPoint || !accessPoint.isActive) {
+      throw new NotFoundException('Камера не найдена или отключена');
+    }
+
+    if (accessPoint.type !== AccessPointType.CAMERA) {
+      throw new BadRequestException('Указанная точка доступа не является видеокамерой');
+    }
+
+    const isStaff = ([
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.SECURITY,
+      UserRole.DISPATCHER,
+    ] as UserRole[]).includes(userRole);
+
+    if (!isStaff) {
+      // Validate resident has verified apartment in this tenant
+      const verifiedOwnership = await this.prisma.unitOwnership.findFirst({
+        where: {
+          userId,
+          isVerified: true,
+          unit: {
+            building: {
+              tenantId: accessPoint.tenantId,
+            },
+          },
+        },
+      });
+
+      if (!verifiedOwnership) {
+        throw new ForbiddenException('У вас нет подтвержденного доступа к видеокамерам данного жилого комплекса');
+      }
+    }
+
+    const streamName = accessPoint.streamName || accessPoint.id;
+    const go2rtcBaseUrl = this.configService.get<string>('GO2RTC_API_URL', 'http://localhost:1984');
+    const wsBaseUrl = go2rtcBaseUrl.replace(/^http/, 'ws');
+
+    return {
+      accessPointId: accessPoint.id,
+      name: accessPoint.name,
+      streamName,
+      // Безопасные endpoints go2rtc: сырой RTSP с логином и паролем камеры на клиента не отдается
+      endpoints: {
+        webrtcWs: `${wsBaseUrl}/api/ws?src=${streamName}`,
+        hls: `${go2rtcBaseUrl}/api/stream.m3u8?src=${streamName}`,
+        mp4: `${go2rtcBaseUrl}/api/frame.mp4?src=${streamName}`,
+        webPlayer: `${go2rtcBaseUrl}/stream.html?src=${streamName}`,
+      },
+    };
   }
 
   async openBarrier(userId: string, userRole: UserRole, dto: OpenBarrierDto) {
@@ -46,7 +132,6 @@ export class AccessControlService {
     let verifiedUnitId: string | null = null;
 
     if (!isStaff) {
-      // Find actual verified apartment of user in this residential complex
       const verifiedOwnership = await this.prisma.unitOwnership.findFirst({
         where: {
           userId,
@@ -60,7 +145,6 @@ export class AccessControlService {
       });
 
       if (!verifiedOwnership) {
-        // Record denied access attempt in audit log
         await this.prisma.accessLog.create({
           data: {
             accessPointId: accessPoint.id,
@@ -73,20 +157,16 @@ export class AccessControlService {
         throw new ForbiddenException('У вас нет активного права доступа к шлагбауму данного жилого комплекса');
       }
 
-      // Аудит безопасности: берем проверенный unitId из базы, исключая подмену через клиентский DTO
       verifiedUnitId = verifiedOwnership.unitId;
     } else {
-      // For staff, optionally associate with unit if provided and valid
       verifiedUnitId = dto.unitId || null;
     }
 
-    // Trigger hardware controller via adapter
     await this.barrierAdapter.triggerOpen(
       accessPoint.endpointUrl || 'local://relay',
       accessPoint.controllerType,
     );
 
-    // Record success in immutable audit log
     const log = await this.prisma.accessLog.create({
       data: {
         accessPointId: accessPoint.id,
@@ -106,7 +186,6 @@ export class AccessControlService {
   }
 
   async createGuestPass(user: { id: string; role: UserRole; tenantId?: string | null }, dto: CreateGuestPassDto) {
-    // Аудит безопасности: IDOR защита — житель может выписывать пропуск только для СВОЕЙ квартиры
     if (user.role !== UserRole.SUPERADMIN) {
       const ownership = await this.prisma.unitOwnership.findFirst({
         where: {
@@ -123,7 +202,6 @@ export class AccessControlService {
       }
     }
 
-    // Generate 6-digit random code
     const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     return this.prisma.guestPass.create({

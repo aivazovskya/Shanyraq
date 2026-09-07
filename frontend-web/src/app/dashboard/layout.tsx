@@ -12,6 +12,7 @@ import {
   Users,
   Bell,
   LogOut,
+  UserCheck,
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Сводка и аналитика', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Голосования ОСС', href: '/dashboard/votings', icon: Vote },
     { name: 'Service Desk (Заявки)', href: '/dashboard/requests', icon: Wrench },
-    { name: 'Жилой фонд и квартиры', href: '/dashboard/properties', icon: Users },
+    { name: 'Верификация прав', href: '/dashboard/verifications', icon: UserCheck },
     { name: 'СКУД и шлагбаумы', href: '/dashboard/access', icon: KeyRound },
     { name: 'Оповещения и новости', href: '/dashboard/announcements', icon: Bell },
   ];

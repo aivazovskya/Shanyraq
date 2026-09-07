@@ -2,10 +2,10 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsBoolean, IsOptional } from 'class-validator';
 
 export class CreateAnnouncementDto {
-  @ApiProperty({ example: 'tenant-uuid' })
-  @IsNotEmpty()
+  @ApiProperty({ example: 'tenant-uuid', required: false, description: 'ID ЖК (для суперадмина; для сотрудников УК берется из токена)' })
+  @IsOptional()
   @IsString()
-  tenantId: string;
+  tenantId?: string;
 
   @ApiProperty({ example: 'Плановое отключение горячего водоснабжения' })
   @IsNotEmpty()

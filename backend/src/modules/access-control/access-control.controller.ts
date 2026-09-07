@@ -17,11 +17,18 @@ export class AccessControlController {
   constructor(private readonly accessControlService: AccessControlService) {}
 
   @Get('tenant/:tenantId/points')
-  @ApiOperation({ summary: 'Список доступных шлагбаумов, ворот и камер ЖК (только своего ЖК)' })
+  @ApiOperation({ summary: 'Список доступных шлагбаумов, ворот и камер ЖК (RTSP скрыт от жителей)' })
   async getAccessPoints(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
     // Аудит безопасности: BOLA защита — житель или сотрудник видит только инфраструктуру своего ЖК
     assertUserBelongsToTenant(user, tenantId, 'точек доступа');
-    return this.accessControlService.getAccessPoints(tenantId);
+    return this.accessControlService.getAccessPoints(tenantId, user.role);
+  }
+
+  @Get('points/:id/stream')
+  @ApiOperation({ summary: 'Получить безопасный WebRTC/HLS видеопоток камеры через go2rtc' })
+  async getCameraStream(@Param('id') accessPointId: string, @CurrentUser() user: any) {
+    // Доступно только для жителей и персонала данного ЖК; отдает go2rtc WebRTC/HLS endpoints
+    return this.accessControlService.getCameraStream(user.id, user.role, accessPointId);
   }
 
   @Post('open-barrier')

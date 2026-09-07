@@ -21,15 +21,15 @@ export class AnnouncementsService {
     });
   }
 
-  async createAnnouncement(authorId: string, dto: CreateAnnouncementDto) {
-    const tenant = await this.prisma.tenant.findUnique({ where: { id: dto.tenantId } });
+  async createAnnouncement(authorId: string, tenantId: string, dto: CreateAnnouncementDto) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException('Жилой комплекс не найден');
     }
 
     const announcement = await this.prisma.announcement.create({
       data: {
-        tenantId: dto.tenantId,
+        tenantId,
         authorId,
         title: dto.title,
         content: dto.content,

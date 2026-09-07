@@ -246,6 +246,7 @@ async function main() {
       type: AccessPointType.CAMERA,
       controllerType: 'RTSP_CAMERA',
       rtspStreamUrl: 'rtsp://admin:CameraPass2026@192.168.1.100:554/live/ch0',
+      streamName: 'courtyard_cam_1',
       isActive: true,
     },
   });
