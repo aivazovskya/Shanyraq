@@ -1,0 +1,13 @@
+api:
+  listen: ":1984"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+
+# Sample RTSP streams (example: pilot residential complex cameras)
+streams:
+  courtyard_cam_1: "rtsp://localhost:8554/live/courtyard"
+  barrier_entry: "rtsp://localhost:8554/live/barrier"

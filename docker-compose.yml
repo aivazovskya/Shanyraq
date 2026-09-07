@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shanyraq-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shanyraq_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shanyraq_secure_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-shanyraq_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shanyraq_admin} -d ${POSTGRES_DB:-shanyraq_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: shanyraq-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    container_name: shanyraq-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-shanyraq_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-shanyraq_minio_secret_key}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: shanyraq-go2rtc
+    restart: unless-stopped
+    ports:
+      - "1984:1984" # Web UI / API
+      - "8554:8554" # RTSP
+      - "8555:8555" # WebRTC
+    volumes:
+      - ./infra/go2rtc.yaml:/config/go2rtc.yaml:ro
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
