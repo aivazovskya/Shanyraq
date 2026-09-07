@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
+import '@/i18n';
+import { changeWebLanguage, SupportedLocale, SUPPORTED_LOCALES } from '@/i18n';
 import {
   Building2,
   LayoutDashboard,
@@ -14,23 +17,31 @@ import {
   UserCheck,
   Users,
   Loader2,
+  Globe,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
+
+const LANGUAGE_LABELS: Record<SupportedLocale, string> = {
+  kk: 'Қазақша',
+  ru: 'Русский',
+  en: 'English',
+};
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t, i18n } = useTranslation();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const navigation = [
-    { name: 'Сводка и аналитика', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Голосования ОСС', href: '/dashboard/votings', icon: Vote },
-    { name: 'Service Desk (Заявки)', href: '/dashboard/requests', icon: Wrench },
-    { name: 'Верификация прав', href: '/dashboard/verifications', icon: UserCheck },
-    { name: 'Жильцы', href: '/dashboard/residents', icon: Users },
-    { name: 'СКУД и шлагбаумы', href: '/dashboard/access', icon: KeyRound },
-    { name: 'Оповещения и новости', href: '/dashboard/announcements', icon: Bell },
+    { name: t('navigation.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: t('navigation.votings'), href: '/dashboard/votings', icon: Vote },
+    { name: t('navigation.requests'), href: '/dashboard/requests', icon: Wrench },
+    { name: t('navigation.verifications'), href: '/dashboard/verifications', icon: UserCheck },
+    { name: t('navigation.residents'), href: '/dashboard/residents', icon: Users },
+    { name: t('navigation.access'), href: '/dashboard/access', icon: KeyRound },
+    { name: t('navigation.announcements'), href: '/dashboard/announcements', icon: Bell },
   ];
 
   useEffect(() => {
@@ -49,13 +60,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
+  const currentLang = (i18n.language?.slice(0, 2) as SupportedLocale) || 'ru';
+
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextLang = e.target.value as SupportedLocale;
+    changeWebLanguage(nextLang);
+  };
+
+  const getRoleLabel = (role?: string) => {
+    switch (role) {
+      case 'SUPERADMIN':
+        return t('roles.superadmin');
+      case 'HOA_CHAIRMAN':
+        return t('roles.hoa_chairman');
+      case 'DISPATCHER':
+        return t('roles.dispatcher');
+      case 'SECURITY':
+        return t('roles.security');
+      default:
+        return t('roles.management_company');
+    }
+  };
+
   // Если сессия не проверена или отсутствует, предотвращаем рендер приватного контента
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
-          <p className="text-sm font-medium text-slate-500">Проверка авторизации...</p>
+          <p className="text-sm font-medium text-slate-500">{t('dashboard.authChecking')}</p>
         </div>
       </div>
     );
@@ -74,7 +107,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <div className="font-bold text-base tracking-wide text-white">Shanyraq</div>
               <div className="text-[11px] text-sky-400 font-medium truncate max-w-[140px]">
-                {user?.tenantName || 'ЖК «Шаңырақ Премиум»'}
+                {user?.tenantName || t('dashboard.defaultComplex')}
               </div>
             </div>
           </div>
@@ -107,23 +140,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-white truncate max-w-[150px]">
-                {user ? `${user.firstName} ${user.lastName}` : 'Сотрудник'}
+                {user ? `${user.firstName} ${user.lastName}` : t('roles.employee')}
               </div>
               <div className="text-xs text-slate-400">
-                {user?.role === 'SUPERADMIN'
-                  ? 'Суперадминистратор'
-                  : user?.role === 'HOA_CHAIRMAN'
-                  ? 'Председатель ОСИ'
-                  : user?.role === 'DISPATCHER'
-                  ? 'Диспетчер'
-                  : user?.role === 'SECURITY'
-                  ? 'Служба охраны'
-                  : 'Управляющая компания'}
+                {getRoleLabel(user?.role)}
               </div>
             </div>
             <button
               onClick={handleLogout}
-              title="Выйти из системы"
+              title={t('dashboard.logoutTitle')}
               className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
             >
               <LogOut className="w-4 h-4" />
@@ -138,17 +163,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-              ● Система онлайн
+              {t('dashboard.systemOnline')}
             </span>
             <span className="text-xs text-slate-500">
-              г. Астана, ул. Достык, 15/1 • 140 квартир • 12 500 м²
+              {t('dashboard.complexAddressInfo')}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
-              Казахстанский стандарт ОСС
+              {t('dashboard.standardBadge')}
             </span>
+
+            {/* Language Switcher Dropdown */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+              <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <select
+                value={currentLang}
+                onChange={handleLanguageChange}
+                className="bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer pr-1"
+                aria-label={t('common.language')}
+              >
+                {SUPPORTED_LOCALES.map((code) => (
+                  <option key={code} value={code}>
+                    {LANGUAGE_LABELS[code]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </header>
 

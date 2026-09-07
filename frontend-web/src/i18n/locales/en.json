@@ -1,0 +1,53 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "error": "Error",
+    "success": "Success",
+    "language": "Language"
+  },
+  "navigation": {
+    "dashboard": "Analytics & Overview",
+    "votings": "General Meetings (HOA)",
+    "requests": "Service Desk (Tickets)",
+    "verifications": "Rights Verification",
+    "residents": "Residents",
+    "access": "Access Control & Barriers",
+    "announcements": "Announcements & News"
+  },
+  "roles": {
+    "superadmin": "Superadministrator",
+    "hoa_chairman": "HOA Chairman",
+    "dispatcher": "Dispatcher",
+    "security": "Security Service",
+    "management_company": "Property Management Co.",
+    "employee": "Employee"
+  },
+  "auth": {
+    "title": "Shanyraq",
+    "subtitle": "Web management console for HOA, Management Co. and Dispatch service",
+    "loginLabel": "Phone or Email",
+    "loginPlaceholder": "+7 (7XX) XXX-XX-XX or email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "••••••••",
+    "loginButton": "Log In",
+    "loggingIn": "Signing in...",
+    "loginRequired": "Please enter phone/email and password",
+    "invalidCredentials": "Invalid login or password",
+    "connectionError": "Authorization server connection error",
+    "rbacNote": "Secure gateway with role-based access control (RBAC)",
+    "accessNote": "Access restricted to authorized HOA and Management staff only"
+  },
+  "dashboard": {
+    "systemOnline": "● System Online",
+    "complexAddressInfo": "Astana, 15/1 Dostyk Str. • 140 units • 12,500 m²",
+    "standardBadge": "Kazakhstan HOA Standard",
+    "defaultComplex": "Shanyraq Premium RC",
+    "authChecking": "Checking authorization...",
+    "logoutTitle": "Log out of system"
+  }
+}

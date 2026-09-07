@@ -12,14 +12,16 @@ import { RequestDetailScreen } from '../screens/requests/RequestDetailScreen';
 import { AnnouncementsScreen } from '../screens/announcements/AnnouncementsScreen';
 import { PinSetupScreen } from '../screens/access/PinSetupScreen';
 import { LoadingState } from '../components/common/LoadingState';
+import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
+  const { t } = useTranslation();
   const { isLoading, isAuthenticated, hasOwnership } = useAuth();
 
   if (isLoading) {
-    return <LoadingState message="Инициализация приложения Шаңырақ..." />;
+    return <LoadingState message={t('common.loading')} />;
   }
 
   return (

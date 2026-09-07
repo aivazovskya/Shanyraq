@@ -1,0 +1,53 @@
+{
+  "common": {
+    "loading": "Загрузка...",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "language": "Язык"
+  },
+  "navigation": {
+    "dashboard": "Сводка и аналитика",
+    "votings": "Голосования ОСС",
+    "requests": "Service Desk (Заявки)",
+    "verifications": "Верификация прав",
+    "residents": "Жильцы",
+    "access": "СКУД и шлагбаумы",
+    "announcements": "Оповещения и новости"
+  },
+  "roles": {
+    "superadmin": "Суперадминистратор",
+    "hoa_chairman": "Председатель ОСИ",
+    "dispatcher": "Диспетчер",
+    "security": "Служба охраны",
+    "management_company": "Управляющая компания",
+    "employee": "Сотрудник"
+  },
+  "auth": {
+    "title": "Shanyraq",
+    "subtitle": "Веб-панель управления ОСИ, УК и диспетчерской службы",
+    "loginLabel": "Телефон или Email",
+    "loginPlaceholder": "+7 (7XX) XXX-XX-XX или email",
+    "passwordLabel": "Пароль",
+    "passwordPlaceholder": "••••••••",
+    "loginButton": "Войти в систему",
+    "loggingIn": "Авторизация...",
+    "loginRequired": "Введите телефон/email и пароль",
+    "invalidCredentials": "Неверный логин или пароль",
+    "connectionError": "Ошибка подключения к серверу авторизации",
+    "rbacNote": "Защищенный шлюз с разграничением прав доступа (RBAC)",
+    "accessNote": "Доступ открыт только авторизованным сотрудникам ОСИ и УК"
+  },
+  "dashboard": {
+    "systemOnline": "● Система онлайн",
+    "complexAddressInfo": "г. Астана, ул. Достык, 15/1 • 140 квартир • 12 500 м²",
+    "standardBadge": "Казахстанский стандарт ОСС",
+    "defaultComplex": "ЖК «Шаңырақ Премиум»",
+    "authChecking": "Проверка авторизации...",
+    "logoutTitle": "Выйти из системы"
+  }
+}

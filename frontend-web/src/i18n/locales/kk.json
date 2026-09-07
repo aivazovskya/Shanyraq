@@ -1,0 +1,53 @@
+{
+  "common": {
+    "loading": "Жүктелуде...",
+    "save": "Сақтау",
+    "cancel": "Бас тарту",
+    "confirm": "Растау",
+    "delete": "Жою",
+    "edit": "Өңдеу",
+    "error": "Қате",
+    "success": "Сәтті",
+    "language": "Тіл"
+  },
+  "navigation": {
+    "dashboard": "Жиынтық және талдау",
+    "votings": "ОСС дауыс берулері",
+    "requests": "Service Desk (Өтінімдер)",
+    "verifications": "Құқықтарды тексеру",
+    "residents": "Тұрғындар",
+    "access": "ҚБЖЖ және шлагбаумдар",
+    "announcements": "Хабарландырулар мен жаңалықтар"
+  },
+  "roles": {
+    "superadmin": "Суперадминистратор",
+    "hoa_chairman": "МТБ төрағасы",
+    "dispatcher": "Диспетчер",
+    "security": "Күзет қызметі",
+    "management_company": "Басқарушы компания",
+    "employee": "Қызметкер"
+  },
+  "auth": {
+    "title": "Shanyraq",
+    "subtitle": "МТБ, БК және диспетчерлік қызметті басқарудың веб-панелі",
+    "loginLabel": "Телефон немесе Email",
+    "loginPlaceholder": "+7 (7XX) XXX-XX-XX немесе email",
+    "passwordLabel": "Құпия сөз",
+    "passwordPlaceholder": "••••••••",
+    "loginButton": "Жүйеге кіру",
+    "loggingIn": "Авторизация...",
+    "loginRequired": "Телефон/email және құпия сөзді енгізіңіз",
+    "invalidCredentials": "Қате логин немесе құпия сөз",
+    "connectionError": "Авторизация серверіне қосылу қатесі",
+    "rbacNote": "Қолжетімділік құқықтары шектелген қауіпсіз шлюз (RBAC)",
+    "accessNote": "Қолжетімділік тек МТБ және БК өкілетті қызметкерлеріне ашық"
+  },
+  "dashboard": {
+    "systemOnline": "● Жүйе байланыста",
+    "complexAddressInfo": "Астана қ., Достық к-сі, 15/1 • 140 пәтер • 12 500 м²",
+    "standardBadge": "Қазақстандық ОСС стандарты",
+    "defaultComplex": "«Шаңырақ Премиум» ТК",
+    "authChecking": "Авторизацияны тексеру...",
+    "logoutTitle": "Жүйеден шығу"
+  }
+}

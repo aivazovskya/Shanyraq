@@ -1,5 +1,6 @@
-﻿import React from 'react';
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useTranslation } from 'react-i18next';
 import { MainTabsParamList } from './types';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
 import { VotingsListScreen } from '../screens/votings/VotingsListScreen';
@@ -12,6 +13,8 @@ import { Home, Vote, ShieldCheck, Wrench, User } from 'lucide-react-native';
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 
 export const MainTabs: React.FC = () => {
+  const { t } = useTranslation();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -35,7 +38,7 @@ export const MainTabs: React.FC = () => {
         name="DashboardTab"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Главная',
+          tabBarLabel: t('navigation.home'),
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
@@ -43,7 +46,7 @@ export const MainTabs: React.FC = () => {
         name="VotingsTab"
         component={VotingsListScreen}
         options={{
-          tabBarLabel: 'ОСС',
+          tabBarLabel: t('navigation.votings'),
           tabBarIcon: ({ color, size }) => <Vote color={color} size={size} />,
         }}
       />
@@ -51,7 +54,7 @@ export const MainTabs: React.FC = () => {
         name="AccessTab"
         component={AccessScreen}
         options={{
-          tabBarLabel: 'Доступ',
+          tabBarLabel: t('navigation.access'),
           tabBarIcon: ({ color, size }) => <ShieldCheck color={color} size={size} />,
         }}
       />
@@ -59,7 +62,7 @@ export const MainTabs: React.FC = () => {
         name="RequestsTab"
         component={RequestsListScreen}
         options={{
-          tabBarLabel: 'Заявки',
+          tabBarLabel: t('navigation.requests'),
           tabBarIcon: ({ color, size }) => <Wrench color={color} size={size} />,
         }}
       />
@@ -67,7 +70,7 @@ export const MainTabs: React.FC = () => {
         name="ProfileTab"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Профиль',
+          tabBarLabel: t('navigation.profile'),
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
         }}
       />

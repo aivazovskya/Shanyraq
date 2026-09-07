@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { AuthStackParamList } from '../../navigation/types';
 import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
@@ -24,6 +25,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'OtpVerify'>;
 export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
   const { phone } = route.params;
   const { login } = useAuth();
+  const { t } = useTranslation();
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,7 +45,7 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleVerify = async () => {
     if (code.length !== 6) {
-      setError('Введите 6-значный код из SMS');
+      setError(t('auth.otpValidation'));
       return;
     }
 
@@ -73,7 +75,7 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
       const res = await AuthApi.requestOtp(phone);
       setCountdown(60);
       if (res.devCode) {
-        Alert.alert('Тестовый SMS-код', `Для быстрого входа в dev-режиме: ${res.devCode}`);
+        Alert.alert(t('auth.testSmsTitle'), t('auth.testSmsBody', { code: res.devCode }));
       }
     } catch (err: any) {
       setError(getApiErrorMessage(err));
@@ -93,23 +95,23 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
           onPress={() => navigation.goBack()}
         >
           <ArrowLeft color={Colors.text} size={24} />
-          <Text style={styles.backText}>Сменить номер</Text>
+          <Text style={styles.backText}>{t('auth.changeNumber')}</Text>
         </TouchableOpacity>
 
         <View style={styles.header}>
           <View style={styles.iconCircle}>
             <KeyRound color="#FFFFFF" size={32} />
           </View>
-          <Text style={styles.title}>Введите SMS-код</Text>
+          <Text style={styles.title}>{t('auth.otpTitle')}</Text>
           <Text style={styles.subtitle}>
-            Мы отправили 6-значный код подтверждения на номер{'\n'}
+            {t('auth.otpSubtitle')}{'\n'}
             <Text style={styles.phoneHighlight}>{phone}</Text>
           </Text>
         </View>
 
         <View style={styles.form}>
           <Input
-            label="Код из SMS"
+            label={t('auth.otpLabel')}
             value={code}
             onChangeText={(val) => {
               setError('');
@@ -119,12 +121,12 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
             maxLength={6}
             placeholder="000000"
             error={error}
-            helper="У вас есть 3 попытки ввода перед временной блокировкой"
+            helper={t('auth.otpHelper')}
             style={styles.otpInput}
           />
 
           <Button
-            title="Войти в приложение"
+            title={t('auth.loginButton')}
             onPress={handleVerify}
             loading={loading}
             size="lg"
@@ -134,12 +136,12 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
           <View style={styles.resendContainer}>
             {countdown > 0 ? (
               <Text style={styles.timerText}>
-                Запросить повторный код через {countdown} сек.
+                {t('auth.resendTimer', { count: countdown })}
               </Text>
             ) : (
               <TouchableOpacity onPress={handleResend} disabled={resending}>
                 <Text style={styles.resendText}>
-                  {resending ? 'Отправка...' : 'Отправить код повторно'}
+                  {resending ? t('auth.resending') : t('auth.resendButton')}
                 </Text>
               </TouchableOpacity>
             )}

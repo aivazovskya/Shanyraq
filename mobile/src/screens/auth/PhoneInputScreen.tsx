@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { AuthStackParamList } from '../../navigation/types';
 import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
@@ -20,6 +21,7 @@ import { Building2, Phone } from 'lucide-react-native';
 type Props = NativeStackScreenProps<AuthStackParamList, 'PhoneInput'>;
 
 export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const [phone, setPhone] = useState('+7');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,7 +46,7 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSendOtp = async () => {
     if (phone.length < 12) {
-      setError('Введите полный номер телефона (10 цифр после +7)');
+      setError(t('auth.phoneValidation'));
       return;
     }
 
@@ -54,7 +56,7 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const res = await AuthApi.requestOtp(phone);
       if (res.devCode) {
-        Alert.alert('Тестовый SMS-код', `Для быстрого входа в dev-режиме: ${res.devCode}`);
+        Alert.alert(t('auth.testSmsTitle'), t('auth.testSmsBody', { code: res.devCode }));
       }
       navigation.navigate('OtpVerify', { phone });
     } catch (err: any) {
@@ -75,26 +77,24 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.logoCircle}>
             <Building2 color="#FFFFFF" size={36} />
           </View>
-          <Text style={styles.title}>Шаңырақ</Text>
-          <Text style={styles.subtitle}>
-            Единое мобильное приложение для собственников и жителей жилых комплексов
-          </Text>
+          <Text style={styles.title}>{t('auth.title')}</Text>
+          <Text style={styles.subtitle}>{t('auth.subtitle')}</Text>
         </View>
 
         <View style={styles.form}>
           <Input
-            label="Номер телефона"
+            label={t('auth.phoneLabel')}
             value={phone}
             onChangeText={handlePhoneChange}
             keyboardType="phone-pad"
-            placeholder="+7 701 123 45 67"
+            placeholder={t('auth.phonePlaceholder')}
             error={error}
-            helper="На указанный номер поступит SMS с одноразовым кодом"
+            helper={t('auth.phoneHelper')}
             leftIcon={<Phone color={Colors.textMuted} size={20} />}
           />
 
           <Button
-            title="Получить код по SMS"
+            title={t('auth.getCodeButton')}
             onPress={handleSendOtp}
             loading={loading}
             size="lg"
