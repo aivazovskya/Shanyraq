@@ -2,10 +2,14 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateServiceRequestDto, UpdateRequestStatusDto, AddCommentDto, RateRequestDto } from './dto/service-requests.dto';
 import { RequestStatus, UserRole } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ServiceRequestsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async createRequest(userId: string, dto: CreateServiceRequestDto) {
     const unit = await this.prisma.unit.findUnique({
@@ -115,7 +119,7 @@ export class ServiceRequestsService {
       throw new NotFoundException('Заявка не найдена');
     }
 
-    return this.prisma.serviceRequest.update({
+    const updated = await this.prisma.serviceRequest.update({
       where: { id: requestId },
       data: {
         status: dto.status,
@@ -127,6 +131,28 @@ export class ServiceRequestsService {
         },
       },
     });
+
+    // Push notification to the resident who created the service request
+    const statusLabels: Record<string, string> = {
+      PENDING: 'В очереди',
+      ASSIGNED: 'Назначен мастер',
+      IN_PROGRESS: 'В работе',
+      RESOLVED: 'Выполнена (требуется оценка)',
+      REJECTED: 'Отклонена',
+      CLOSED: 'Закрыта',
+    };
+
+    const statusText = statusLabels[dto.status] || dto.status;
+    await this.notificationsService.sendToUser(request.creatorId, {
+      title: `🛠️ Статус заявки №${request.id.slice(0, 8)} обновлен`,
+      body: `Заявка "${request.title}": ${statusText}`,
+      data: {
+        requestId: request.id,
+        status: dto.status,
+      },
+    });
+
+    return updated;
   }
 
   async addComment(requestId: string, authorId: string, dto: AddCommentDto) {
@@ -135,7 +161,7 @@ export class ServiceRequestsService {
       throw new NotFoundException('Заявка не найдена');
     }
 
-    return this.prisma.requestComment.create({
+    const comment = await this.prisma.requestComment.create({
       data: {
         requestId,
         authorId,
@@ -148,6 +174,20 @@ export class ServiceRequestsService {
         },
       },
     });
+
+    // Notify creator if someone else (e.g. dispatcher/staff) commented publicly
+    if (request.creatorId !== authorId && !dto.isInternal) {
+      await this.notificationsService.sendToUser(request.creatorId, {
+        title: `💬 Сообщение по заявке "${request.title}"`,
+        body: dto.text.length > 100 ? `${dto.text.slice(0, 97)}...` : dto.text,
+        data: {
+          requestId: request.id,
+          commentId: comment.id,
+        },
+      });
+    }
+
+    return comment;
   }
 
   async rateRequest(requestId: string, userId: string, dto: RateRequestDto) {

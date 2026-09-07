@@ -149,11 +149,43 @@ describe('AuthService (Аудит безопасности авторизаци�
         isActive: true,
         role: UserRole.RESIDENT_OWNER,
         tenantId: 'tenant-1',
+        tokenVersion: 1,
       });
 
       const res = await service.refreshToken({ refreshToken: 'jwt_refresh_token_user-1' });
       expect(res.accessToken).toBe('jwt_access_token_user-1');
       expect(res.refreshToken).toBe('jwt_refresh_token_user-1');
+    });
+
+    it('должен отклонять refresh-токен с устаревшим tokenVersion после логаута', async () => {
+      jwtServiceMock.verify.mockReturnValueOnce({
+        sub: 'user-1',
+        type: 'refresh',
+        tokenVersion: 1,
+      });
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        isActive: true,
+        tokenVersion: 2, // Пользователь выполнил логаут, версия инкрементировалась
+      });
+
+      await expect(
+        service.refreshToken({ refreshToken: 'jwt_refresh_token_user-1_old' }),
+      ).rejects.toThrow('Сессия завершена (токен отозван)');
+    });
+  });
+
+  describe('logout', () => {
+    it('должен инкрементировать tokenVersion пользователя для отзыва сессии', async () => {
+      prismaMock.user.update = jest.fn().mockResolvedValue({ id: 'user-1', tokenVersion: 2 });
+
+      const res = await service.logout('user-1');
+      expect(res.success).toBe(true);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { tokenVersion: { increment: 1 } },
+      });
     });
   });
 });

@@ -26,6 +26,85 @@ export class PropertiesService {
     });
   }
 
+  async searchTenants(query?: string) {
+    const whereClause =
+      query && query.trim().length > 0
+        ? {
+            OR: [
+              { name: { contains: query.trim(), mode: 'insensitive' as const } },
+              { address: { contains: query.trim(), mode: 'insensitive' as const } },
+              { city: { contains: query.trim(), mode: 'insensitive' as const } },
+            ],
+          }
+        : {};
+
+    const tenants = await this.prisma.tenant.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        _count: {
+          select: {
+            buildings: true,
+          },
+        },
+      },
+      take: 20,
+    });
+
+    return tenants.map((t) => ({
+      id: t.id,
+      name: t.name,
+      address: t.address,
+      city: t.city,
+      buildingsCount: t._count.buildings,
+    }));
+  }
+
+  async getTenantStructure(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: {
+        buildings: {
+          include: {
+            units: {
+              select: {
+                id: true,
+                unitNumber: true,
+                floor: true,
+                entrance: true,
+                type: true,
+                area: true,
+              },
+              orderBy: { unitNumber: 'asc' },
+            },
+          },
+          orderBy: { blockName: 'asc' },
+        },
+      },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Жилой комплекс не найден');
+    }
+
+    return {
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      address: tenant.address,
+      city: tenant.city,
+      buildings: tenant.buildings.map((b) => ({
+        id: b.id,
+        blockName: b.blockName,
+        floorsCount: b.floorsCount,
+        entrancesCount: b.entrancesCount,
+        units: b.units,
+      })),
+    };
+  }
+
   async getTenantById(id: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id },

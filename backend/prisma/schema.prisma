@@ -161,6 +161,7 @@ model User {
   tenantId         String?
   isActive         Boolean           @default(true)
   isVerified       Boolean           @default(false)
+  tokenVersion     Int               @default(1)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -173,8 +174,22 @@ model User {
   accessLogs       AccessLog[]
   createdPasses    GuestPass[]
   announcements    Announcement[]
+  deviceTokens     DeviceToken[]
 
   @@map("users")
+}
+
+model DeviceToken {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  platform   String   // "ios" | "android" | "expo"
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("device_tokens")
 }
 
 model UnitOwnership {

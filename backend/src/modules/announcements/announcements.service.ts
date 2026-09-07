@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAnnouncementDto } from './dto/announcements.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AnnouncementsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationsService: NotificationsService,
+  ) {}
 
   async getAnnouncements(tenantId: string) {
     return this.prisma.announcement.findMany({
@@ -42,9 +46,16 @@ export class AnnouncementsService {
       },
     });
 
-    if (announcement.isUrgent) {
-      console.log(`[PUSH-NOTIFICATION] 🚨 Отправлен экстренный Push всем жильцам ЖК "${tenant.name}": "${announcement.title}"`);
-    }
+    // Send push notification to all devices registered in this tenant
+    await this.notificationsService.sendToTenant(tenantId, {
+      title: announcement.isUrgent ? `🚨 Экстренное сообщение: ${announcement.title}` : `📢 ${announcement.title}`,
+      body: announcement.content.length > 120 ? `${announcement.content.slice(0, 117)}...` : announcement.content,
+      data: {
+        announcementId: announcement.id,
+        tenantId,
+        isUrgent: announcement.isUrgent,
+      },
+    });
 
     return announcement;
   }

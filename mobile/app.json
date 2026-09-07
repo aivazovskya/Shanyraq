@@ -1,0 +1,31 @@
+﻿{
+  "expo": {
+    "name": "Shanyraq",
+    "slug": "shanyraq-resident",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#059669"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "kz.shanyraq.resident"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#059669"
+      },
+      "package": "kz.shanyraq.resident"
+    },
+    "plugins": [
+      [
+        "expo-secure-store"
+      ]
+    ]
+  }
+}

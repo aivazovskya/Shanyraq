@@ -49,4 +49,14 @@ export class AuthController {
   async getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
   }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Выйти из системы и отозвать все выданные токены сессии' })
+  @ApiResponse({ status: 200, description: 'Успешный выход из системы' })
+  async logout(@CurrentUser('id') userId: string) {
+    return this.authService.logout(userId);
+  }
 }

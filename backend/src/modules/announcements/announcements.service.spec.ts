@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnnouncementsService } from './announcements.service';
 import { AnnouncementsController } from './announcements.controller';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
@@ -9,6 +10,7 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
   let service: AnnouncementsService;
   let controller: AnnouncementsController;
   let prismaMock: any;
+  let notificationsMock: any;
 
   beforeEach(async () => {
     prismaMock = {
@@ -21,11 +23,17 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
       },
     };
 
+    notificationsMock = {
+      sendToTenant: jest.fn().mockResolvedValue({ sent: 1 }),
+      sendToUser: jest.fn().mockResolvedValue({ sent: 1 }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AnnouncementsController],
       providers: [
         AnnouncementsService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: NotificationsService, useValue: notificationsMock },
       ],
     }).compile();
 

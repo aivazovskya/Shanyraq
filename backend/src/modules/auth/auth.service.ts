@@ -166,7 +166,7 @@ export class AuthService {
       });
     }
 
-    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId);
+    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
 
     return {
       user: {
@@ -240,7 +240,7 @@ export class AuthService {
       throw new UnauthorizedException('Неверный логин или пароль');
     }
 
-    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId);
+    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
 
     return {
       user: {
@@ -280,7 +280,25 @@ export class AuthService {
       throw new UnauthorizedException('Пользователь заблокирован или не найден');
     }
 
-    return this.generateTokens(user.id, user.phone, user.role, user.tenantId);
+    if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+      throw new UnauthorizedException('Сессия завершена (токен отозван). Пожалуйста, войдите снова.');
+    }
+
+    return this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
+  }
+
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Вы успешно вышли из системы. Все сессии и refresh-токены отозваны.',
+    };
   }
 
   async getMe(userId: string) {
@@ -307,13 +325,14 @@ export class AuthService {
     return user;
   }
 
-  private generateTokens(userId: string, phone: string, role: string, tenantId?: string | null) {
+  private generateTokens(userId: string, phone: string, role: string, tenantId?: string | null, tokenVersion?: number) {
     const accessPayload: JwtPayload = {
       sub: userId,
       phone,
       role,
       tenantId,
       type: 'access',
+      tokenVersion,
     };
 
     const refreshPayload: JwtPayload = {
@@ -322,6 +341,7 @@ export class AuthService {
       role,
       tenantId,
       type: 'refresh',
+      tokenVersion,
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {

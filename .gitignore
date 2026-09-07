@@ -45,4 +45,5 @@ Thumbs.db
 
 # MinIO / Storage local data
 .minio/
-uploads/
+/uploads/
+/backend/uploads/

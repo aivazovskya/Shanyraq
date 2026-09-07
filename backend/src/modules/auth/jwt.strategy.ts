@@ -10,6 +10,7 @@ export interface JwtPayload {
   role: string;
   tenantId?: string | null;
   type: 'access' | 'refresh';
+  tokenVersion?: number;
 }
 
 @Injectable()
@@ -58,6 +59,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Пользователь заблокирован или не найден');
+    }
+
+    if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+      throw new UnauthorizedException('Сессия завершена (токен отозван). Пожалуйста, войдите снова.');
     }
 
     return user;

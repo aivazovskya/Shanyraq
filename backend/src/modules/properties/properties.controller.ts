@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
 import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto } from './dto/properties.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -15,6 +15,19 @@ import { UserRole } from '@prisma/client';
 @ApiBearerAuth()
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
+
+  @Get('search')
+  @ApiOperation({ summary: 'Поиск жилых комплексов по названию, городу или адресу (для онбординга жильца)' })
+  @ApiQuery({ name: 'query', required: false, description: 'Поисковая строка' })
+  async searchTenants(@Query('query') query?: string) {
+    return this.propertiesService.searchTenants(query);
+  }
+
+  @Get('tenants/:id/structure')
+  @ApiOperation({ summary: 'Получить структуру ЖК: список блоков (домов) и квартир для выбора жильцом' })
+  async getTenantStructure(@Param('id') id: string) {
+    return this.propertiesService.getTenantStructure(id);
+  }
 
   @Get('tenants')
   @ApiOperation({ summary: 'Список жилых комплексов' })
