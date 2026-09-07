@@ -358,4 +358,55 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       );
     });
   });
+
+  describe('createGuestPass (CSPRNG 6-значный код доступа и IDOR защита)', () => {
+    it('должен генерировать криптографически стойкий 6-значный цифровой код доступа', async () => {
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'ownership-1',
+        userId: 'resident-1',
+        unitId: 'unit-1',
+        isVerified: true,
+      });
+
+      let capturedData: any = null;
+      prismaMock.guestPass.create.mockImplementation((args: any) => {
+        capturedData = args.data;
+        return Promise.resolve({ id: 'pass-1', ...args.data });
+      });
+
+      const res = await service.createGuestPass(
+        { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+        {
+          unitId: 'unit-1',
+          guestName: 'Курьер Доставка',
+          validFrom: '2026-09-07T12:00:00Z',
+          validTo: '2026-09-07T14:00:00Z',
+        },
+      );
+
+      expect(res.id).toBe('pass-1');
+      expect(capturedData).toBeDefined();
+      expect(capturedData.accessCode).toMatch(/^\d{6}$/);
+      expect(parseInt(capturedData.accessCode, 10)).toBeGreaterThanOrEqual(100000);
+      expect(parseInt(capturedData.accessCode, 10)).toBeLessThan(1000000);
+      expect(capturedData.qrCodeUrl).toBe(`https://api.shanyraq.kz/qr/pass-${capturedData.accessCode}`);
+    });
+
+    it('должен блокировать создание гостевого пропуска для неподтвержденной квартиры (IDOR)', async () => {
+      prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createGuestPass(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          {
+            unitId: 'unit-alien',
+            guestName: 'Гость',
+            validFrom: '2026-09-07T12:00:00Z',
+            validTo: '2026-09-07T14:00:00Z',
+          },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });
+

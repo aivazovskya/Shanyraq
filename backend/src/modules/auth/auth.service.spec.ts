@@ -5,17 +5,42 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import { RedisService } from '../../redis/redis.service';
 
 describe('AuthService (Аудит безопасности авторизации и OTP)', () => {
   let service: AuthService;
   let prismaMock: any;
   let jwtServiceMock: any;
   let configServiceMock: any;
+  let redisMock: any;
+  let redisStore: Map<string, { value: string; expiresAt?: number }>;
 
   const mockAccessSecret = 'test_access_secret_12345678901234567890';
   const mockRefreshSecret = 'test_refresh_secret_12345678901234567890';
 
   beforeEach(async () => {
+    redisStore = new Map();
+    redisMock = {
+      get: jest.fn().mockImplementation(async (key: string) => {
+        const item = redisStore.get(key);
+        if (!item) return null;
+        if (item.expiresAt && Date.now() > item.expiresAt) {
+          redisStore.delete(key);
+          return null;
+        }
+        return item.value;
+      }),
+      set: jest.fn().mockImplementation(async (key: string, value: string, ttlSeconds?: number) => {
+        const expiresAt = ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined;
+        redisStore.set(key, { value, expiresAt });
+        return 'OK';
+      }),
+      del: jest.fn().mockImplementation(async (key: string) => {
+        const existed = redisStore.delete(key);
+        return existed ? 1 : 0;
+      }),
+    };
+
     prismaMock = {
       user: {
         findUnique: jest.fn(),
@@ -53,6 +78,7 @@ describe('AuthService (Аудит безопасности авторизаци�
         { provide: PrismaService, useValue: prismaMock },
         { provide: JwtService, useValue: jwtServiceMock },
         { provide: ConfigService, useValue: configServiceMock },
+        { provide: RedisService, useValue: redisMock },
       ],
     }).compile();
 
@@ -122,16 +148,61 @@ describe('AuthService (Аудит безопасности авторизаци�
 
       expect(authResult.accessToken).toBe('jwt_access_token_user-77');
       expect(authResult.refreshToken).toBe('jwt_refresh_token_user-77');
+      expect(authResult.expiresIn).toBe(900); // 15 minutes in seconds
 
-      // Проверка генерации двух разных типов токенов
+      // Проверка генерации двух разных типов токенов с TTL 15 минут для access
       expect(jwtServiceMock.sign).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'access', sub: 'user-77' }),
-        expect.anything(),
+        expect.objectContaining({ expiresIn: '15m' }),
       );
       expect(jwtServiceMock.sign).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'refresh', sub: 'user-77' }),
-        expect.anything(),
+        expect.objectContaining({ expiresIn: '30d' }),
       );
+    });
+  });
+
+  describe('Redis OTP & Lockout Storage', () => {
+    it('должен сохранять OTP в Redis с TTL 300 сек и удалять после успешной верификации', async () => {
+      process.env.NODE_ENV = 'test';
+      const phone = '+77013334455';
+      const res = await service.requestOtp({ phone });
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `otp:${phone}`,
+        expect.any(String),
+        300,
+      );
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-33',
+        phone,
+        firstName: 'Тест',
+        lastName: 'Тестов',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        isVerified: true,
+        ownerships: [],
+      });
+
+      await service.verifyOtp({ phone, code: res.devCode! });
+      expect(redisMock.del).toHaveBeenCalledWith(`otp:${phone}`);
+    });
+
+    it('должен блокировать номер в Redis на 600 сек (10 минут) после 3 неверных попыток', async () => {
+      const phone = '+77019991122';
+      await service.requestOtp({ phone });
+
+      for (let i = 0; i < 2; i++) {
+        await expect(service.verifyOtp({ phone, code: '000000' })).rejects.toThrow();
+      }
+
+      await expect(service.verifyOtp({ phone, code: '000000' })).rejects.toThrow('Номер заблокирован на 10 минут');
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `otp:lockout:${phone}`,
+        expect.any(String),
+        600,
+      );
+      expect(redisMock.del).toHaveBeenCalledWith(`otp:${phone}`);
     });
   });
 

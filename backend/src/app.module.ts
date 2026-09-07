@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PropertiesModule } from './modules/properties/properties.module';
 import { VotingsModule } from './modules/votings/votings.module';
@@ -17,6 +18,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
       envFilePath: ['.env', '../.env'],
     }),
     PrismaModule,
+    RedisModule,
     NotificationsModule,
     UploadsModule,
     AuthModule,

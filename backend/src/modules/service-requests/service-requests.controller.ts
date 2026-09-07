@@ -41,21 +41,26 @@ export class ServiceRequestsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Детальная информация о заявке, включая историю переписки' })
-  async getRequestById(@Param('id') id: string, @CurrentUser('role') role: UserRole) {
-    return this.serviceRequestsService.getRequestById(id, role);
+  async getRequestById(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.serviceRequestsService.getRequestById(id, user);
   }
 
   @Patch(':id/status')
   @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
   @ApiOperation({ summary: 'Изменить статус заявки / назначить мастера (Диспетчер)' })
-  async updateStatus(@Param('id') id: string, @Body() dto: UpdateRequestStatusDto) {
-    return this.serviceRequestsService.updateStatus(id, dto);
+  async updateStatus(@Param('id') id: string, @Body() dto: UpdateRequestStatusDto, @CurrentUser() user: any) {
+    return this.serviceRequestsService.updateStatus(id, dto, user);
   }
 
   @Post(':id/comments')
   @ApiOperation({ summary: 'Добавить комментарий / сообщение в чат заявки' })
-  async addComment(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() dto: AddCommentDto) {
-    return this.serviceRequestsService.addComment(id, userId, dto);
+  async addComment(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: AddCommentDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.serviceRequestsService.addComment(id, userId, dto, user);
   }
 
   @Post(':id/rate')

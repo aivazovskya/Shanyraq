@@ -78,7 +78,10 @@ export class ServiceRequestsService {
     });
   }
 
-  async getRequestById(requestId: string, userRole: UserRole) {
+  async getRequestById(
+    requestId: string,
+    requestingUser?: { id?: string; role?: UserRole; tenantId?: string },
+  ) {
     const request = await this.prisma.serviceRequest.findUnique({
       where: { id: requestId },
       include: {
@@ -92,9 +95,11 @@ export class ServiceRequestsService {
           select: { firstName: true, lastName: true, phone: true },
         },
         comments: {
-          where: userRole === UserRole.RESIDENT_OWNER || userRole === UserRole.RESIDENT_TENANT
-            ? { isInternal: false } // Hide internal dispatcher notes from residents
-            : {},
+          where:
+            requestingUser &&
+            (requestingUser.role === UserRole.RESIDENT_OWNER || requestingUser.role === UserRole.RESIDENT_TENANT)
+              ? { isInternal: false } // Hide internal dispatcher notes from residents
+              : {},
           include: {
             author: {
               select: { firstName: true, lastName: true, role: true },
@@ -110,13 +115,44 @@ export class ServiceRequestsService {
       throw new NotFoundException('Заявка не найдена');
     }
 
+    if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
+      const isStaff = ([UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER] as UserRole[]).includes(
+        requestingUser.role as UserRole,
+      );
+      if (isStaff) {
+        if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
+          throw new ForbiddenException('Доступ к заявке другого ЖК запрещен');
+        }
+      } else {
+        if (request.creatorId !== requestingUser.id) {
+          throw new ForbiddenException('Доступ к чужой заявке запрещен');
+        }
+      }
+    }
+
     return request;
   }
 
-  async updateStatus(requestId: string, dto: UpdateRequestStatusDto) {
+  async updateStatus(
+    requestId: string,
+    dto: UpdateRequestStatusDto,
+    requestingUser?: { id?: string; role?: UserRole; tenantId?: string },
+  ) {
     const request = await this.prisma.serviceRequest.findUnique({ where: { id: requestId } });
     if (!request) {
       throw new NotFoundException('Заявка не найдена');
+    }
+
+    if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
+      const isStaff = ([UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER] as UserRole[]).includes(
+        requestingUser.role as UserRole,
+      );
+      if (!isStaff) {
+        throw new ForbiddenException('Недостаточно прав для изменения статуса заявки');
+      }
+      if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
+        throw new ForbiddenException('Редактирование заявки другого ЖК запрещено');
+      }
     }
 
     const updated = await this.prisma.serviceRequest.update({
@@ -155,18 +191,44 @@ export class ServiceRequestsService {
     return updated;
   }
 
-  async addComment(requestId: string, authorId: string, dto: AddCommentDto) {
+  async addComment(
+    requestId: string,
+    authorId: string,
+    dto: AddCommentDto,
+    requestingUser?: { id?: string; role?: UserRole; tenantId?: string },
+  ) {
     const request = await this.prisma.serviceRequest.findUnique({ where: { id: requestId } });
     if (!request) {
       throw new NotFoundException('Заявка не найдена');
     }
+
+    if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
+      const isStaff = ([UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER] as UserRole[]).includes(
+        requestingUser.role as UserRole,
+      );
+      if (isStaff) {
+        if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
+          throw new ForbiddenException('Добавление комментариев к заявкам другого ЖК запрещено');
+        }
+      } else {
+        if (request.creatorId !== requestingUser.id) {
+          throw new ForbiddenException('Добавление комментариев к чужой заявке запрещено');
+        }
+      }
+    }
+
+    const isStaffOrAdmin =
+      requestingUser?.role === UserRole.SUPERADMIN ||
+      ([UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER] as UserRole[]).includes(
+        requestingUser?.role as UserRole,
+      );
 
     const comment = await this.prisma.requestComment.create({
       data: {
         requestId,
         authorId,
         text: dto.text,
-        isInternal: dto.isInternal || false,
+        isInternal: isStaffOrAdmin ? dto.isInternal || false : false,
       },
       include: {
         author: {

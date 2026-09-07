@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { OpenBarrierDto, CreateGuestPassDto } from './dto/access-control.dto';
@@ -232,7 +233,7 @@ export class AccessControlService {
       }
     }
 
-    const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const accessCode = crypto.randomInt(100000, 1000000).toString();
 
     return this.prisma.guestPass.create({
       data: {

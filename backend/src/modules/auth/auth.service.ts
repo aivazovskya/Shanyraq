@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { UserRole } from '@prisma/client';
 import { JwtPayload } from './jwt.strategy';
+import { RedisService } from '../../redis/redis.service';
 
 interface OtpEntry {
   code: string;
@@ -19,13 +20,15 @@ interface OtpEntry {
   attempts: number;
 }
 
+const OTP_KEY_PREFIX = 'otp:';
+const LOCKOUT_KEY_PREFIX = 'otp:lockout:';
+const OTP_TTL_SECONDS = 5 * 60; // 5 minutes
+const LOCKOUT_TTL_SECONDS = 10 * 60; // 10 minutes
+const ACCESS_TOKEN_EXPIRES_IN = '15m';
+const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes in seconds
+
 @Injectable()
 export class AuthService {
-  // In-memory OTP storage with rate-limit and brute-force tracking
-  private otpStorage = new Map<string, OtpEntry>();
-  // Temporary lockouts for brute force protection (phone -> lockedUntil timestamp)
-  private lockoutStorage = new Map<string, number>();
-
   private readonly accessSecret: string;
   private readonly refreshSecret: string;
 
@@ -33,6 +36,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private redisService: RedisService,
   ) {
     this.accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
     this.refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
@@ -49,33 +53,49 @@ export class AuthService {
     const now = Date.now();
 
     // 1. Check if number is currently locked due to brute force
-    const lockedUntil = this.lockoutStorage.get(phone);
-    if (lockedUntil && lockedUntil > now) {
-      const waitMinutes = Math.ceil((lockedUntil - now) / 60000);
-      throw new BadRequestException(
-        `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
-      );
+    const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
+    if (lockoutVal) {
+      const lockedUntil = parseInt(lockoutVal, 10);
+      if (lockedUntil > now) {
+        const waitMinutes = Math.ceil((lockedUntil - now) / 60000);
+        throw new BadRequestException(
+          `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
+        );
+      }
     }
 
     // 2. Rate limiting: maximum 1 SMS per 60 seconds per phone
-    const existing = this.otpStorage.get(phone);
-    if (existing && now - existing.lastRequestedAt < 60000) {
-      const waitSeconds = Math.ceil((60000 - (now - existing.lastRequestedAt)) / 1000);
-      throw new BadRequestException(
-        `Слишком частый запрос кода. Повторная отправка SMS возможна через ${waitSeconds} сек.`,
-      );
+    const existingRaw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    if (existingRaw) {
+      try {
+        const existing: OtpEntry = JSON.parse(existingRaw);
+        if (now - existing.lastRequestedAt < 60000) {
+          const waitSeconds = Math.ceil((60000 - (now - existing.lastRequestedAt)) / 1000);
+          throw new BadRequestException(
+            `Слишком частый запрос кода. Повторная отправка SMS возможна через ${waitSeconds} сек.`,
+          );
+        }
+      } catch (err: any) {
+        if (err instanceof BadRequestException) throw err;
+      }
     }
 
     // 3. Generate cryptographically secure 6-digit random code (100000 - 999999)
     const code = crypto.randomInt(100000, 1000000).toString();
-    const expiresAt = now + 5 * 60 * 1000; // 5 minutes TTL
+    const expiresAt = now + OTP_TTL_SECONDS * 1000;
 
-    this.otpStorage.set(phone, {
+    const otpData: OtpEntry = {
       code,
       expiresAt,
       lastRequestedAt: now,
       attempts: 0,
-    });
+    };
+
+    await this.redisService.set(
+      `${OTP_KEY_PREFIX}${phone}`,
+      JSON.stringify(otpData),
+      OTP_TTL_SECONDS,
+    );
 
     console.log(`[SECURE-SMS] 📨 SMS отправлен на ${phone}: "Код подтверждения Shanyraq: ${code}"`);
 
@@ -92,14 +112,29 @@ export class AuthService {
     const now = Date.now();
 
     // 1. Check lockout
-    const lockedUntil = this.lockoutStorage.get(phone);
-    if (lockedUntil && lockedUntil > now) {
-      throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+    const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
+    if (lockoutVal) {
+      const lockedUntil = parseInt(lockoutVal, 10);
+      if (lockedUntil > now) {
+        throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+      }
     }
 
-    const record = this.otpStorage.get(phone);
-    if (!record || record.expiresAt < now) {
-      this.otpStorage.delete(phone);
+    const raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    if (!raw) {
+      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+    }
+
+    let record: OtpEntry;
+    try {
+      record = JSON.parse(raw);
+    } catch {
+      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+    }
+
+    if (record.expiresAt < now) {
+      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
       throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
     }
 
@@ -111,19 +146,33 @@ export class AuthService {
     if (!isMatch) {
       record.attempts += 1;
       if (record.attempts >= 3) {
-        this.otpStorage.delete(phone);
-        this.lockoutStorage.set(phone, now + 10 * 60 * 1000); // 10 minutes lockout
+        await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+        const lockedUntil = now + LOCKOUT_TTL_SECONDS * 1000; // 10 minutes lockout
+        await this.redisService.set(
+          `${LOCKOUT_KEY_PREFIX}${phone}`,
+          lockedUntil.toString(),
+          LOCKOUT_TTL_SECONDS,
+        );
         throw new BadRequestException(
           'Превышено максимальное количество попыток ввода кода (3). Номер заблокирован на 10 минут.',
         );
       }
+
+      // Preserve remaining TTL
+      const remainingSeconds = Math.max(1, Math.ceil((record.expiresAt - now) / 1000));
+      await this.redisService.set(
+        `${OTP_KEY_PREFIX}${phone}`,
+        JSON.stringify(record),
+        remainingSeconds,
+      );
+
       throw new BadRequestException(
         `Неверный SMS-код. Осталось попыток: ${3 - record.attempts}`,
       );
     }
 
     // OTP verified successfully -> clear state
-    this.otpStorage.delete(phone);
+    await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
 
     // Find or create resident user
     let user = await this.prisma.user.findUnique({
@@ -184,8 +233,36 @@ export class AuthService {
   }
 
   async verifyVoteOtp(phone: string, code: string): Promise<boolean> {
-    const record = this.otpStorage.get(phone);
-    if (!record || record.expiresAt < Date.now()) {
+    const now = Date.now();
+
+    // 1. Check lockout
+    const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
+    if (lockoutVal) {
+      const lockedUntil = parseInt(lockoutVal, 10);
+      if (lockedUntil > now) {
+        throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+      }
+    }
+
+    const raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    if (!raw) {
+      throw new BadRequestException(
+        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      );
+    }
+
+    let record: OtpEntry;
+    try {
+      record = JSON.parse(raw);
+    } catch {
+      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+      throw new BadRequestException(
+        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      );
+    }
+
+    if (record.expiresAt < now) {
+      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
       throw new BadRequestException(
         'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
       );
@@ -198,15 +275,28 @@ export class AuthService {
     if (!isMatch) {
       record.attempts += 1;
       if (record.attempts >= 3) {
-        this.otpStorage.delete(phone);
-        this.lockoutStorage.set(phone, Date.now() + 10 * 60 * 1000);
+        await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+        const lockedUntil = now + LOCKOUT_TTL_SECONDS * 1000;
+        await this.redisService.set(
+          `${LOCKOUT_KEY_PREFIX}${phone}`,
+          lockedUntil.toString(),
+          LOCKOUT_TTL_SECONDS,
+        );
         throw new BadRequestException('Превышено количество попыток ввода. Номер заблокирован.');
       }
+
+      const remainingSeconds = Math.max(1, Math.ceil((record.expiresAt - now) / 1000));
+      await this.redisService.set(
+        `${OTP_KEY_PREFIX}${phone}`,
+        JSON.stringify(record),
+        remainingSeconds,
+      );
+
       throw new BadRequestException(`Неверный SMS-код подтверждения голоса. Осталось попыток: ${3 - record.attempts}`);
     }
 
     // Code consumed
-    this.otpStorage.delete(phone);
+    await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
     return true;
   }
 
@@ -346,7 +436,7 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(accessPayload, {
       secret: this.accessSecret,
-      expiresIn: '7d',
+      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
     });
 
     const refreshToken = this.jwtService.sign(refreshPayload, {
@@ -358,7 +448,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       tokenType: 'Bearer',
-      expiresIn: 604800, // 7 days in seconds
+      expiresIn: ACCESS_TOKEN_TTL_SECONDS,
     };
   }
 }
