@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,11 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+import { AuthApi } from '../../api/auth';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -21,11 +23,23 @@ import {
   LogOut,
   PlusCircle,
   Bell,
+  KeyRound,
+  ChevronRight,
 } from 'lucide-react-native';
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { user, logout } = useAuth();
+  const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (isFocused) {
+      AuthApi.getPinStatus()
+        .then((res) => setIsPinSet(res.isPinSet))
+        .catch((err) => console.warn('Failed to fetch PIN status:', err));
+    }
+  }, [isFocused]);
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -135,6 +149,25 @@ export const ProfileScreen: React.FC = () => {
             </View>
             <Badge label="Включено" variant="info" />
           </View>
+
+          <View style={styles.separator} />
+
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => navigation.navigate('PinSetup')}
+            activeOpacity={0.7}
+          >
+            <KeyRound color={Colors.primary} size={20} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingTitle}>PIN-код доступа (СКУД)</Text>
+              <Text style={styles.settingSub}>2FA защита открытия шлагбаумов и ворот</Text>
+            </View>
+            <Badge
+              label={isPinSet === true ? 'Настроен' : isPinSet === false ? 'Не настроен' : '...'}
+              variant={isPinSet ? 'success' : 'warning'}
+            />
+            <ChevronRight color={Colors.textMuted} size={18} />
+          </TouchableOpacity>
         </Card>
 
         {/* Logout Button */}

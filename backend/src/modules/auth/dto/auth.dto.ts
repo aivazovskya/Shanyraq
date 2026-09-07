@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Matches, Length } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, Length, IsOptional } from 'class-validator';
 
 export class RequestOtpDto {
   @ApiProperty({ example: '+77015550101', description: 'Номер телефона в международном формате (+7XXXXXXXXXX)' })
@@ -40,4 +40,31 @@ export class RefreshTokenDto {
   @IsNotEmpty()
   @IsString()
   refreshToken: string;
+}
+
+export class SetPinDto {
+  @ApiProperty({ example: '8392', description: 'Новый PIN-код доступа (4 или 6 цифр)' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}$|^\d{6}$/, { message: 'PIN-код должен состоять ровно из 4 или 6 цифр' })
+  newPin: string;
+
+  @ApiProperty({ example: '1234', description: 'Текущий PIN-код (обязателен, если PIN уже установлен)', required: false })
+  @IsOptional()
+  @IsString()
+  currentPin?: string;
+}
+
+export class ResetPinConfirmDto {
+  @ApiProperty({ example: '123456', description: '6-значный код подтверждения из SMS' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'SMS-код должен состоять ровно из 6 цифр' })
+  otpCode: string;
+
+  @ApiProperty({ example: '8392', description: 'Новый PIN-код доступа (4 или 6 цифр)' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}$|^\d{6}$/, { message: 'PIN-код должен состоять ровно из 4 или 6 цифр' })
+  newPin: string;
 }

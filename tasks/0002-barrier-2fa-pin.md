@@ -1,6 +1,6 @@
 # Task 0002: 2FA (PIN) before physical access actions
 
-**Status:** Ready for implementation
+**Status:** Completed (Subtasks A, B, C implemented and tested; Subtask D deferred per spec)
 **Assignee:** Antigravity
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 **Depends on:** [0001-security-hardening.md](0001-security-hardening.md) Subtask 3

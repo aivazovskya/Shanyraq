@@ -1,11 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsOptional, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsDateString, Matches } from 'class-validator';
 
 export class OpenBarrierDto {
   @ApiProperty({ description: 'ID точки доступа (шлагбаума или ворот)' })
   @IsNotEmpty()
   @IsString()
   accessPointId: string;
+
+  @ApiProperty({ example: '8392', description: 'PIN-код доступа (4 или 6 цифр)' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}$|^\d{6}$/, { message: 'PIN-код должен состоять ровно из 4 или 6 цифр' })
+  pin: string;
 
   @ApiProperty({ description: 'ID квартиры жителя', required: false })
   @IsOptional()

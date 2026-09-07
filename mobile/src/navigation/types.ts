@@ -1,4 +1,4 @@
-﻿import { NavigatorScreenParams } from '@react-navigation/native';
+import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type AuthStackParamList = {
   PhoneInput: undefined;
@@ -21,4 +21,5 @@ export type RootStackParamList = {
   CreateRequest: undefined;
   RequestDetail: { requestId: string };
   Announcements: undefined;
+  PinSetup: { returnTo?: string } | undefined;
 };

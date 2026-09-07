@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, UnauthorizedException, ServiceUnavailableException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { RedisService } from '../../redis/redis.service';
 
 describe('AuthService (Аудит безопасности авторизации и OTP)', () => {
@@ -46,6 +47,7 @@ describe('AuthService (Аудит безопасности авторизаци�
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
       },
     };
 
@@ -288,4 +290,120 @@ describe('AuthService (Аудит безопасности авторизаци�
       });
     });
   });
+
+  describe('PIN Management (2FA для СКУД)', () => {
+    it('должен возвращать isPinSet: false, если PIN не установлен', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        accessPinHash: null,
+      });
+
+      const res = await service.getPinStatus('user-pin-1');
+      expect(res.isPinSet).toBe(false);
+    });
+
+    it('должен возвращать isPinSet: true, если PIN установлен', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        accessPinHash: '$2a$10$abcdefghijklmnopqrstuv',
+      });
+
+      const res = await service.getPinStatus('user-pin-1');
+      expect(res.isPinSet).toBe(true);
+    });
+
+    it('должен успешно устанавливать PIN в первый раз без currentPin', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        accessPinHash: null,
+      });
+      prismaMock.user.update.mockResolvedValue({ id: 'user-pin-1' });
+
+      const res = await service.setPin('user-pin-1', { newPin: '8392' });
+      expect(res.success).toBe(true);
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'user-pin-1' },
+          data: expect.objectContaining({
+            accessPinHash: expect.any(String),
+            accessPinSetAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('должен отклонять слабые PIN-коды (одинаковые цифры, простые последовательности, неверная длина)', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        accessPinHash: null,
+      });
+
+      // Неверная длина
+      await expect(service.setPin('user-pin-1', { newPin: '123' })).rejects.toThrow('ровно из 4 или 6 цифр');
+      await expect(service.setPin('user-pin-1', { newPin: '12345' })).rejects.toThrow('ровно из 4 или 6 цифр');
+
+      // Одинаковые цифры
+      await expect(service.setPin('user-pin-1', { newPin: '0000' })).rejects.toThrow('одинаковые цифры');
+      await expect(service.setPin('user-pin-1', { newPin: '111111' })).rejects.toThrow('одинаковые цифры');
+
+      // Простые последовательности из блок-листа
+      await expect(service.setPin('user-pin-1', { newPin: '1234' })).rejects.toThrow('Слишком простой или предсказуемый');
+      await expect(service.setPin('user-pin-1', { newPin: '654321' })).rejects.toThrow('Слишком простой или предсказуемый');
+    });
+
+    it('должен требовать currentPin при повторной смене PIN-кода и проверять его', async () => {
+      const currentPinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        accessPinHash: currentPinHash,
+      });
+
+      // Без currentPin
+      await expect(service.setPin('user-pin-1', { newPin: '9482' })).rejects.toThrow('необходимо указать текущий PIN-код');
+
+      // С неверным currentPin
+      await expect(service.setPin('user-pin-1', { newPin: '9482', currentPin: '0001' })).rejects.toThrow('Неверный текущий PIN-код');
+
+      // С верным currentPin
+      prismaMock.user.update.mockResolvedValue({ id: 'user-pin-1' });
+      const res = await service.setPin('user-pin-1', { newPin: '9482', currentPin: '8392' });
+      expect(res.success).toBe(true);
+      expect(res.message).toBe('PIN-код успешно изменен');
+    });
+
+    it('должен отправлять SMS-OTP для сброса PIN-кода (requestPinReset)', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        phone: '+77014445566',
+      });
+
+      const res = await service.requestPinReset('user-pin-1');
+      expect(res.success).toBe(true);
+    });
+
+    it('должен подтверждать сброс PIN-кода по OTP (confirmPinReset)', async () => {
+      process.env.NODE_ENV = 'test';
+      const phone = '+77014445566';
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-pin-1',
+        phone,
+      });
+
+      const otpRes = await service.requestOtp({ phone });
+      const validOtp = otpRes.devCode!;
+
+      prismaMock.user.update.mockResolvedValue({ id: 'user-pin-1' });
+
+      // Неверный OTP
+      await expect(
+        service.confirmPinReset('user-pin-1', { otpCode: '000000', newPin: '8392' }),
+      ).rejects.toThrow();
+
+      // Верный OTP
+      const res = await service.confirmPinReset('user-pin-1', { otpCode: validOtp, newPin: '8392' });
+      expect(res.success).toBe(true);
+      expect(res.message).toBe('PIN-код успешно сброшен и обновлен');
+    });
+  });
 });
+

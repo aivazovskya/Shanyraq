@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
@@ -10,6 +10,7 @@ import { VotingDetailsScreen } from '../screens/votings/VotingDetailsScreen';
 import { CreateRequestScreen } from '../screens/requests/CreateRequestScreen';
 import { RequestDetailScreen } from '../screens/requests/RequestDetailScreen';
 import { AnnouncementsScreen } from '../screens/announcements/AnnouncementsScreen';
+import { PinSetupScreen } from '../screens/access/PinSetupScreen';
 import { LoadingState } from '../components/common/LoadingState';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,6 +40,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="RequestDetail" component={RequestDetailScreen} />
             <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
             <Stack.Screen name="ClaimUnit" component={ClaimUnitScreen} />
+            <Stack.Screen name="PinSetup" component={PinSetupScreen} />
           </>
         )}
       </Stack.Navigator>

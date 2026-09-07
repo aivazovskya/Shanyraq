@@ -162,6 +162,8 @@ model User {
   isActive         Boolean           @default(true)
   isVerified       Boolean           @default(false)
   tokenVersion     Int               @default(1)
+  accessPinHash    String?           // bcrypt hash of 4-6 digit access PIN
+  accessPinSetAt   DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

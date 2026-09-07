@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,9 @@ import {
   Alert,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
+import { AuthApi } from '../../api/auth';
 import {
   AccessApi,
   AccessPoint,
@@ -25,6 +27,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Badge } from '../../components/common/Badge';
 import { HoldToOpenButton } from '../../components/access/HoldToOpenButton';
+import { PinEntryModal } from '../../components/access/PinEntryModal';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
 import {
@@ -36,9 +39,13 @@ import {
   Clock,
   Car,
   CheckCircle2,
+  KeyRound,
+  ChevronRight,
 } from 'lucide-react-native';
 
 export const AccessScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { user } = useAuth();
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
@@ -48,6 +55,13 @@ export const AccessScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [openingPointId, setOpeningPointId] = useState<string | null>(null);
+
+  // 2FA PIN states
+  const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [selectedBarrier, setSelectedBarrier] = useState<AccessPoint | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [openingWithPin, setOpeningWithPin] = useState(false);
 
   // Guest Pass modal
   const [guestModalVisible, setGuestModalVisible] = useState(false);
@@ -61,6 +75,15 @@ export const AccessScreen: React.FC = () => {
   const [selectedStream, setSelectedStream] = useState<StreamEndpoints | null>(null);
   const [loadingStream, setLoadingStream] = useState(false);
 
+  const fetchPinStatus = async () => {
+    try {
+      const res = await AuthApi.getPinStatus();
+      setIsPinSet(res.isPinSet);
+    } catch (err) {
+      console.warn('Failed to load PIN status:', err);
+    }
+  };
+
   const fetchPoints = async () => {
     if (!tenantId) {
       setLoading(false);
@@ -68,7 +91,10 @@ export const AccessScreen: React.FC = () => {
     }
 
     try {
-      const data = await AccessApi.getAccessPoints(tenantId);
+      const [data] = await Promise.all([
+        AccessApi.getAccessPoints(tenantId),
+        fetchPinStatus(),
+      ]);
       setPoints(data);
     } catch (err) {
       console.warn('Failed to load access points:', err);
@@ -82,12 +108,18 @@ export const AccessScreen: React.FC = () => {
     fetchPoints();
   }, [tenantId]);
 
+  useEffect(() => {
+    if (isFocused) {
+      fetchPinStatus();
+    }
+  }, [isFocused]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchPoints();
   };
 
-  const handleOpenBarrier = async (pointId: string) => {
+  const handleTriggerOpenBarrier = (barrier: AccessPoint) => {
     if (!isVerified) {
       Alert.alert(
         'Доступ ограничен',
@@ -96,14 +128,52 @@ export const AccessScreen: React.FC = () => {
       return;
     }
 
-    setOpeningPointId(pointId);
+    if (isPinSet === false) {
+      Alert.alert(
+        'PIN-код не установлен',
+        'Для безопасного открытия шлагбаума (2FA) необходимо сначала установить PIN-код доступа.',
+        [
+          { text: 'Отмена', style: 'cancel' },
+          { text: 'Установить PIN', onPress: () => navigation.navigate('PinSetup') },
+        ],
+      );
+      return;
+    }
+
+    setSelectedBarrier(barrier);
+    setPinError(null);
+    setPinModalVisible(true);
+  };
+
+  const handleConfirmPin = async (pin: string) => {
+    if (!selectedBarrier) return;
+
+    setOpeningWithPin(true);
+    setPinError(null);
+
     try {
-      const res = await AccessApi.openBarrier(pointId, primaryUnitId);
+      const res = await AccessApi.openBarrier(selectedBarrier.id, pin, primaryUnitId);
+      setPinModalVisible(false);
+      setSelectedBarrier(null);
       Alert.alert('Успешно', res.message || 'Шлагбаум открыт на 20 секунд');
     } catch (e: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(e));
+      const msg = getApiErrorMessage(e);
+      if (msg.includes('PIN_NOT_SET')) {
+        setIsPinSet(false);
+        setPinModalVisible(false);
+        Alert.alert(
+          'PIN-код не установлен',
+          'Сначала установите PIN-код доступа в настройках профиля',
+          [
+            { text: 'Позже', style: 'cancel' },
+            { text: 'Установить PIN', onPress: () => navigation.navigate('PinSetup') },
+          ],
+        );
+      } else {
+        setPinError(msg);
+      }
     } finally {
-      setOpeningPointId(null);
+      setOpeningWithPin(false);
     }
   };
 
@@ -202,6 +272,23 @@ export const AccessScreen: React.FC = () => {
           </View>
         )}
 
+        {isPinSet === false && (
+          <TouchableOpacity
+            style={styles.pinWarningBanner}
+            onPress={() => navigation.navigate('PinSetup')}
+            activeOpacity={0.8}
+          >
+            <KeyRound color="#B45309" size={20} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pinWarningTitle}>2FA защита: установите PIN-код</Text>
+              <Text style={styles.pinWarningSub}>
+                Для безопасного открытия шлагбаумов настройте PIN-код доступа в профиле.
+              </Text>
+            </View>
+            <ChevronRight color="#B45309" size={18} />
+          </TouchableOpacity>
+        )}
+
         {/* Section: Barriers */}
         <Text style={styles.sectionHeading}>Шлагбаумы и въездные ворота</Text>
 
@@ -225,8 +312,8 @@ export const AccessScreen: React.FC = () => {
               <View style={styles.buttonWrapper}>
                 <HoldToOpenButton
                   title="Удерживайте для открытия"
-                  onConfirmed={() => handleOpenBarrier(b.id)}
-                  loading={openingPointId === b.id}
+                  onConfirmed={() => handleTriggerOpenBarrier(b)}
+                  loading={openingWithPin && selectedBarrier?.id === b.id}
                   disabled={!isVerified}
                 />
               </View>
@@ -392,6 +479,24 @@ export const AccessScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* 2FA PIN ENTRY MODAL */}
+      <PinEntryModal
+        visible={pinModalVisible}
+        accessPointName={selectedBarrier?.name || 'Шлагбаум'}
+        loading={openingWithPin}
+        error={pinError}
+        onConfirm={handleConfirmPin}
+        onCancel={() => {
+          setPinModalVisible(false);
+          setSelectedBarrier(null);
+          setPinError(null);
+        }}
+        onForgotPin={() => {
+          setPinModalVisible(false);
+          navigation.navigate('PinSetup');
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -429,6 +534,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#92400E',
     lineHeight: 18,
+  },
+  pinWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 16,
+  },
+  pinWarningTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  pinWarningSub: {
+    fontSize: 12,
+    color: '#B45309',
+    marginTop: 2,
   },
   sectionHeading: {
     fontSize: 17,

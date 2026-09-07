@@ -5,8 +5,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../../redis/redis.service';
 import { OpenBarrierDto, CreateGuestPassDto } from './dto/access-control.dto';
 import { AccessPointType, UserRole } from '@prisma/client';
 
@@ -29,6 +31,7 @@ export class AccessControlService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private redisService: RedisService,
   ) {}
 
   async getAccessPoints(tenantId: string, userRole: UserRole) {
@@ -192,6 +195,88 @@ export class AccessControlService {
 
       verifiedUnitId = verifiedOwnership.unitId;
     }
+
+    // 2FA PIN-проверка перед физическим открытием
+    const userRecord = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { accessPinHash: true },
+    });
+
+    if (!userRecord || !userRecord.accessPinHash) {
+      await this.prisma.accessLog.create({
+        data: {
+          accessPointId: accessPoint.id,
+          userId: user.id,
+          unitId: verifiedUnitId,
+          action: 'OPEN_BARRIER',
+          status: 'DENIED',
+          note: 'Попытка открытия шлагбаума без настроенного PIN-кода доступа',
+        },
+      });
+      throw new BadRequestException(
+        'PIN_NOT_SET: Сначала установите PIN-код доступа в профиле для управления шлагбаумами',
+      );
+    }
+
+    const lockoutKey = `barrier:lockout:${user.id}`;
+    const isLocked = await this.redisService.get(lockoutKey);
+    if (isLocked) {
+      await this.prisma.accessLog.create({
+        data: {
+          accessPointId: accessPoint.id,
+          userId: user.id,
+          unitId: verifiedUnitId,
+          action: 'OPEN_BARRIER',
+          status: 'DENIED',
+          note: 'Попытка открытия шлагбаума во время блокировки за неверный ввод PIN',
+        },
+      });
+      throw new ForbiddenException(
+        'Доступ временно заблокирован на 10 минут из-за превышения попыток ввода PIN-кода',
+      );
+    }
+
+    const isPinValid = await bcrypt.compare(dto.pin, userRecord.accessPinHash);
+    if (!isPinValid) {
+      const attemptsKey = `barrier:attempts:${user.id}`;
+      const attempts = await this.redisService.incr(attemptsKey);
+      await this.redisService.expire(attemptsKey, 600);
+
+      if (attempts >= 3) {
+        await this.redisService.set(lockoutKey, '1', 600);
+        await this.redisService.del(attemptsKey);
+        await this.prisma.accessLog.create({
+          data: {
+            accessPointId: accessPoint.id,
+            userId: user.id,
+            unitId: verifiedUnitId,
+            action: 'OPEN_BARRIER',
+            status: 'DENIED',
+            note: 'Неверный PIN при открытии (превышено число попыток, шлагбаум заблокирован на 10 мин)',
+          },
+        });
+        throw new ForbiddenException(
+          'Неверный PIN-код. Превышено максимальное число попыток. Доступ заблокирован на 10 минут.',
+        );
+      }
+
+      const remaining = 3 - attempts;
+      await this.prisma.accessLog.create({
+        data: {
+          accessPointId: accessPoint.id,
+          userId: user.id,
+          unitId: verifiedUnitId,
+          action: 'OPEN_BARRIER',
+          status: 'DENIED',
+          note: `Неверный PIN при открытии (попытка ${attempts} из 3)`,
+        },
+      });
+      throw new BadRequestException(
+        `Неверный PIN-код. Осталось попыток: ${remaining}`,
+      );
+    }
+
+    await this.redisService.del(`barrier:attempts:${user.id}`);
 
     await this.barrierAdapter.triggerOpen(
       accessPoint.endpointUrl || 'local://relay',

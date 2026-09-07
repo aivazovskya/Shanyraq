@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto } from './dto/auth.dto';
 import { UserRole } from '@prisma/client';
 import { JwtPayload } from './jwt.strategy';
 import { RedisService } from '../../redis/redis.service';
@@ -464,6 +464,126 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async getPinStatus(userId: string): Promise<{ isPinSet: boolean }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { accessPinHash: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    return { isPinSet: Boolean(user.accessPinHash) };
+  }
+
+  async setPin(userId: string, dto: SetPinDto): Promise<{ success: boolean; message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, accessPinHash: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    this.validatePinStrength(dto.newPin);
+
+    if (user.accessPinHash) {
+      if (!dto.currentPin) {
+        throw new BadRequestException('Для изменения PIN-кода необходимо указать текущий PIN-код');
+      }
+
+      const isCurrentValid = await bcrypt.compare(dto.currentPin, user.accessPinHash);
+      if (!isCurrentValid) {
+        throw new BadRequestException('Неверный текущий PIN-код');
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const accessPinHash = await bcrypt.hash(dto.newPin, salt);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        accessPinHash,
+        accessPinSetAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      message: user.accessPinHash ? 'PIN-код успешно изменен' : 'PIN-код успешно установлен',
+    };
+  }
+
+  async requestPinReset(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    return this.requestOtp({ phone: user.phone });
+  }
+
+  async confirmPinReset(userId: string, dto: ResetPinConfirmDto): Promise<{ success: boolean; message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, phone: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    this.validatePinStrength(dto.newPin);
+
+    // Verify OTP using existing verifyVoteOtp path
+    await this.verifyVoteOtp(user.phone, dto.otpCode);
+
+    const salt = await bcrypt.genSalt(10);
+    const accessPinHash = await bcrypt.hash(dto.newPin, salt);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        accessPinHash,
+        accessPinSetAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      message: 'PIN-код успешно сброшен и обновлен',
+    };
+  }
+
+  private validatePinStrength(pin: string) {
+    if (!/^\d{4}$|^\d{6}$/.test(pin)) {
+      throw new BadRequestException('PIN-код должен состоять ровно из 4 или 6 цифр');
+    }
+
+    // Check all identical digits (0000, 1111, 222222, etc.)
+    const allSame = pin.split('').every((digit) => digit === pin[0]);
+    if (allSame) {
+      throw new BadRequestException('Слишком простой PIN-код: нельзя использовать одинаковые цифры');
+    }
+
+    // Blocklist of common weak sequences
+    const blockedPins = new Set([
+      '1234', '4321', '0123', '3210', '9876', '6789', '2580', '1122', '1212',
+      '123456', '654321', '012345', '543210', '112233', '121212',
+    ]);
+
+    if (blockedPins.has(pin)) {
+      throw new BadRequestException('Слишком простой или предсказуемый PIN-код. Выберите более сложную комбинацию');
+    }
   }
 
   private generateTokens(userId: string, phone: string, role: string, tenantId?: string | null, tokenVersion?: number) {

@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -58,5 +58,44 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Успешный выход из системы' })
   async logout(@CurrentUser('id') userId: string) {
     return this.authService.logout(userId);
+  }
+
+  @Get('pin/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Проверить статус установки PIN-кода доступа (СКУД)' })
+  @ApiResponse({ status: 200, description: 'Статус PIN-кода ({ isPinSet: boolean })' })
+  async getPinStatus(@CurrentUser('id') userId: string) {
+    return this.authService.getPinStatus(userId);
+  }
+
+  @Post('pin/set')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Установить или изменить PIN-код доступа к шлагбаумам' })
+  @ApiResponse({ status: 200, description: 'PIN-код успешно установлен/изменен' })
+  async setPin(@CurrentUser('id') userId: string, @Body() dto: SetPinDto) {
+    return this.authService.setPin(userId, dto);
+  }
+
+  @Post('pin/reset-request')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Запросить SMS-код для сброса забытого PIN-кода' })
+  @ApiResponse({ status: 200, description: 'SMS-код отправлен' })
+  async requestPinReset(@CurrentUser('id') userId: string) {
+    return this.authService.requestPinReset(userId);
+  }
+
+  @Post('pin/reset-confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Подтвердить сброс PIN-кода по SMS-коду и установить новый' })
+  @ApiResponse({ status: 200, description: 'PIN-код успешно сброшен' })
+  async confirmPinReset(@CurrentUser('id') userId: string, @Body() dto: ResetPinConfirmDto) {
+    return this.authService.confirmPinReset(userId, dto);
   }
 }

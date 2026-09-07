@@ -1,4 +1,4 @@
-﻿import { apiClient } from './client';
+import { apiClient } from './client';
 
 export interface AccessPoint {
   id: string;
@@ -48,9 +48,10 @@ export const AccessApi = {
     return res.data;
   },
 
-  async openBarrier(accessPointId: string, unitId?: string): Promise<{ success: boolean; message: string; openedAt: string }> {
+  async openBarrier(accessPointId: string, pin: string, unitId?: string): Promise<{ success: boolean; message: string; openedAt: string }> {
     const res = await apiClient.post('/access/open-barrier', {
       accessPointId,
+      pin,
       unitId,
     });
     return res.data;

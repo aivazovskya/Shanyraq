@@ -1,4 +1,4 @@
-﻿import { apiClient } from './client';
+import { apiClient } from './client';
 
 export interface UserOwnership {
   id: string;
@@ -64,6 +64,26 @@ export const AuthApi = {
 
   async logout(): Promise<{ success: boolean; message: string }> {
     const res = await apiClient.post('/auth/logout');
+    return res.data;
+  },
+
+  async getPinStatus(): Promise<{ isPinSet: boolean }> {
+    const res = await apiClient.get('/auth/pin/status');
+    return res.data;
+  },
+
+  async setPin(dto: { newPin: string; currentPin?: string }): Promise<{ success: boolean; message: string }> {
+    const res = await apiClient.post('/auth/pin/set', dto);
+    return res.data;
+  },
+
+  async requestPinReset(): Promise<{ success: boolean; message: string; devCode?: string }> {
+    const res = await apiClient.post('/auth/pin/reset-request');
+    return res.data;
+  },
+
+  async confirmPinReset(dto: { otpCode: string; newPin: string }): Promise<{ success: boolean; message: string }> {
+    const res = await apiClient.post('/auth/pin/reset-confirm', dto);
     return res.data;
   },
 };

@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AccessControlService } from './access-control.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../../redis/redis.service';
+import * as bcrypt from 'bcryptjs';
 import { AccessPointType, UserRole } from '@prisma/client';
 import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 
@@ -9,9 +11,33 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
   let service: AccessControlService;
   let prismaMock: any;
   let configServiceMock: any;
+  let redisMock: any;
+  let redisStore: Map<string, string>;
 
   beforeEach(async () => {
+    redisStore = new Map();
+    redisMock = {
+      get: jest.fn().mockImplementation((key: string) => Promise.resolve(redisStore.get(key) || null)),
+      set: jest.fn().mockImplementation((key: string, val: string) => {
+        redisStore.set(key, val);
+        return Promise.resolve('OK');
+      }),
+      del: jest.fn().mockImplementation((key: string) => {
+        const existed = redisStore.delete(key);
+        return Promise.resolve(existed ? 1 : 0);
+      }),
+      incr: jest.fn().mockImplementation((key: string) => {
+        const cur = parseInt(redisStore.get(key) || '0', 10) + 1;
+        redisStore.set(key, cur.toString());
+        return Promise.resolve(cur);
+      }),
+      expire: jest.fn().mockResolvedValue(1),
+    };
+
     prismaMock = {
+      user: {
+        findUnique: jest.fn(),
+      },
       accessPoint: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
@@ -40,6 +66,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         AccessControlService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: ConfigService, useValue: configServiceMock },
+        { provide: RedisService, useValue: redisMock },
       ],
     }).compile();
 
@@ -233,6 +260,11 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
 
     it('должен сохранять в аудит-лог истинную квартиру жителя из базы, а не поддельный unitId из запроса', async () => {
       prismaMock.accessPoint.findUnique.mockResolvedValue(mockBarrier);
+      const pinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'resident-1',
+        accessPinHash: pinHash,
+      });
       
       prismaMock.unitOwnership.findFirst.mockResolvedValue({
         id: 'own-1',
@@ -250,6 +282,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         {
           accessPointId: 'barrier-1',
           unitId: 'unit-fake-999',
+          pin: '8392',
         },
       );
 
@@ -273,6 +306,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
           { id: 'unverified-user', role: UserRole.RESIDENT_OWNER },
           {
             accessPointId: 'barrier-1',
+            pin: '8392',
           },
         ),
       ).rejects.toThrow(ForbiddenException);
@@ -294,6 +328,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
           { id: 'security-alien', role: UserRole.SECURITY, tenantId: 'tenant-alien' },
           {
             accessPointId: 'barrier-1',
+            pin: '8392',
           },
         ),
       ).rejects.toThrow(ForbiddenException);
@@ -312,6 +347,11 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
 
     it('должен разрешать открытие шлагбаума сотруднику своего ЖК', async () => {
       prismaMock.accessPoint.findUnique.mockResolvedValue(mockBarrier);
+      const pinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'security-own',
+        accessPinHash: pinHash,
+      });
       prismaMock.accessLog.create.mockImplementation((args: any) =>
         Promise.resolve({ id: 'log-staff', createdAt: new Date(), ...args.data }),
       );
@@ -320,6 +360,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         { id: 'security-own', role: UserRole.SECURITY, tenantId: 'tenant-1' },
         {
           accessPointId: 'barrier-1',
+          pin: '8392',
         },
       );
 
@@ -336,6 +377,11 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
 
     it('должен разрешать открытие шлагбаума SUPERADMIN без ограничений по ЖК', async () => {
       prismaMock.accessPoint.findUnique.mockResolvedValue(mockBarrier);
+      const pinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'superadmin',
+        accessPinHash: pinHash,
+      });
       prismaMock.accessLog.create.mockImplementation((args: any) =>
         Promise.resolve({ id: 'log-super', createdAt: new Date(), ...args.data }),
       );
@@ -344,6 +390,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         { id: 'superadmin', role: UserRole.SUPERADMIN, tenantId: null },
         {
           accessPointId: 'barrier-1',
+          pin: '8392',
         },
       );
 
@@ -353,6 +400,163 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
           data: expect.objectContaining({
             status: 'SUCCESS',
             userId: 'superadmin',
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('openBarrier (2FA PIN-проверка и защита от перебора)', () => {
+    const mockBarrier = {
+      id: 'barrier-1',
+      tenantId: 'tenant-1',
+      name: 'Шлагбаум Въезд',
+      type: AccessPointType.BARRIER,
+      controllerType: 'PAL_ES',
+    };
+
+    beforeEach(() => {
+      prismaMock.accessPoint.findUnique.mockResolvedValue(mockBarrier);
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-1',
+        userId: 'resident-1',
+        unitId: 'unit-real-101',
+        isVerified: true,
+      });
+      prismaMock.accessLog.create.mockImplementation((args: any) =>
+        Promise.resolve({ id: 'log-id', createdAt: new Date(), ...args.data }),
+      );
+    });
+
+    it('должен отклонять открытие и возвращать PIN_NOT_SET, если у жителя не установлен PIN-код', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'resident-1',
+        accessPinHash: null,
+      });
+
+      await expect(
+        service.openBarrier(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          { accessPointId: 'barrier-1', pin: '8392' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.accessLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'DENIED',
+            note: 'Попытка открытия шлагбаума без настроенного PIN-кода доступа',
+          }),
+        }),
+      );
+    });
+
+    it('должен отклонять открытие и возвращать PIN_NOT_SET, если у сотрудника не установлен PIN-код', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'staff-1',
+        accessPinHash: null,
+      });
+
+      await expect(
+        service.openBarrier(
+          { id: 'staff-1', role: UserRole.SECURITY, tenantId: 'tenant-1' },
+          { accessPointId: 'barrier-1', pin: '8392' },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('должен отклонять запрос при неверном PIN и фиксировать оставшиеся попытки', async () => {
+      const pinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'resident-1',
+        accessPinHash: pinHash,
+      });
+
+      await expect(
+        service.openBarrier(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          { accessPointId: 'barrier-1', pin: '0000' },
+        ),
+      ).rejects.toThrow('Неверный PIN-код. Осталось попыток: 2');
+
+      expect(prismaMock.accessLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'DENIED',
+            note: 'Неверный PIN при открытии (попытка 1 из 3)',
+          }),
+        }),
+      );
+    });
+
+    it('должен блокировать открытие на 10 минут после 3 неверных попыток подряд', async () => {
+      const pinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'resident-1',
+        accessPinHash: pinHash,
+      });
+
+      // Attempt 1
+      await expect(
+        service.openBarrier(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          { accessPointId: 'barrier-1', pin: '1111' },
+        ),
+      ).rejects.toThrow('Неверный PIN-код. Осталось попыток: 2');
+
+      // Attempt 2
+      await expect(
+        service.openBarrier(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          { accessPointId: 'barrier-1', pin: '2222' },
+        ),
+      ).rejects.toThrow('Неверный PIN-код. Осталось попыток: 1');
+
+      // Attempt 3 -> lockout triggered
+      await expect(
+        service.openBarrier(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          { accessPointId: 'barrier-1', pin: '3333' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(redisMock.set).toHaveBeenCalledWith(
+        'barrier:lockout:resident-1',
+        '1',
+        600,
+      );
+
+      // Subsequent attempt while locked out
+      await expect(
+        service.openBarrier(
+          { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+          { accessPointId: 'barrier-1', pin: '8392' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('должен успешно открывать шлагбаум при верном PIN и очищать счетчик попыток', async () => {
+      const pinHash = await bcrypt.hash('8392', 10);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'resident-1',
+        accessPinHash: pinHash,
+      });
+
+      // Suppose 1 failed attempt existed
+      redisStore.set('barrier:attempts:resident-1', '1');
+
+      const res = await service.openBarrier(
+        { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+        { accessPointId: 'barrier-1', pin: '8392' },
+      );
+
+      expect(res.success).toBe(true);
+      expect(redisStore.get('barrier:attempts:resident-1')).toBeUndefined();
+      expect(prismaMock.accessLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'SUCCESS',
+            action: 'OPEN_BARRIER',
           }),
         }),
       );
