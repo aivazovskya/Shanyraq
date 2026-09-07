@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -52,22 +53,27 @@ export class AuthService {
     const { phone } = dto;
     const now = Date.now();
 
-    // 1. Check if number is currently locked due to brute force
-    const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
-    if (lockoutVal) {
-      const lockedUntil = parseInt(lockoutVal, 10);
-      if (lockedUntil > now) {
-        const waitMinutes = Math.ceil((lockedUntil - now) / 60000);
-        throw new BadRequestException(
-          `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
-        );
+    // 1. Check if number is currently locked due to brute force (fail-closed if Redis error)
+    try {
+      const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
+      if (lockoutVal) {
+        const lockedUntil = parseInt(lockoutVal, 10);
+        if (lockedUntil > now) {
+          const waitMinutes = Math.ceil((lockedUntil - now) / 60000);
+          throw new BadRequestException(
+            `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
+          );
+        }
       }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
     }
 
-    // 2. Rate limiting: maximum 1 SMS per 60 seconds per phone
-    const existingRaw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
-    if (existingRaw) {
-      try {
+    // 2. Rate limiting: maximum 1 SMS per 60 seconds per phone (fail-closed if Redis error)
+    try {
+      const existingRaw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+      if (existingRaw) {
         const existing: OtpEntry = JSON.parse(existingRaw);
         if (now - existing.lastRequestedAt < 60000) {
           const waitSeconds = Math.ceil((60000 - (now - existing.lastRequestedAt)) / 1000);
@@ -75,9 +81,10 @@ export class AuthService {
             `Слишком частый запрос кода. Повторная отправка SMS возможна через ${waitSeconds} сек.`,
           );
         }
-      } catch (err: any) {
-        if (err instanceof BadRequestException) throw err;
       }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
     }
 
     // 3. Generate cryptographically secure 6-digit random code (100000 - 999999)
@@ -91,11 +98,15 @@ export class AuthService {
       attempts: 0,
     };
 
-    await this.redisService.set(
-      `${OTP_KEY_PREFIX}${phone}`,
-      JSON.stringify(otpData),
-      OTP_TTL_SECONDS,
-    );
+    try {
+      await this.redisService.set(
+        `${OTP_KEY_PREFIX}${phone}`,
+        JSON.stringify(otpData),
+        OTP_TTL_SECONDS,
+      );
+    } catch (err: any) {
+      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+    }
 
     console.log(`[SECURE-SMS] 📨 SMS отправлен на ${phone}: "Код подтверждения Shanyraq: ${code}"`);
 
@@ -111,16 +122,27 @@ export class AuthService {
     const { phone, code } = dto;
     const now = Date.now();
 
-    // 1. Check lockout
-    const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
-    if (lockoutVal) {
-      const lockedUntil = parseInt(lockoutVal, 10);
-      if (lockedUntil > now) {
-        throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+    // 1. Check lockout (fail-closed if Redis error)
+    try {
+      const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
+      if (lockoutVal) {
+        const lockedUntil = parseInt(lockoutVal, 10);
+        if (lockedUntil > now) {
+          throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+        }
       }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
     }
 
-    const raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    let raw: string | null = null;
+    try {
+      raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    } catch {
+      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+    }
+
     if (!raw) {
       throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
     }
@@ -129,12 +151,12 @@ export class AuthService {
     try {
       record = JSON.parse(raw);
     } catch {
-      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+      try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
       throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
     }
 
     if (record.expiresAt < now) {
-      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+      try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
       throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
     }
 
@@ -146,25 +168,31 @@ export class AuthService {
     if (!isMatch) {
       record.attempts += 1;
       if (record.attempts >= 3) {
-        await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
-        const lockedUntil = now + LOCKOUT_TTL_SECONDS * 1000; // 10 minutes lockout
-        await this.redisService.set(
-          `${LOCKOUT_KEY_PREFIX}${phone}`,
-          lockedUntil.toString(),
-          LOCKOUT_TTL_SECONDS,
-        );
+        try {
+          await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+          const lockedUntil = now + LOCKOUT_TTL_SECONDS * 1000; // 10 minutes lockout
+          await this.redisService.set(
+            `${LOCKOUT_KEY_PREFIX}${phone}`,
+            lockedUntil.toString(),
+            LOCKOUT_TTL_SECONDS,
+          );
+        } catch {}
         throw new BadRequestException(
           'Превышено максимальное количество попыток ввода кода (3). Номер заблокирован на 10 минут.',
         );
       }
 
-      // Preserve remaining TTL
+      // Preserve remaining TTL (fail closed if Redis set fails)
       const remainingSeconds = Math.max(1, Math.ceil((record.expiresAt - now) / 1000));
-      await this.redisService.set(
-        `${OTP_KEY_PREFIX}${phone}`,
-        JSON.stringify(record),
-        remainingSeconds,
-      );
+      try {
+        await this.redisService.set(
+          `${OTP_KEY_PREFIX}${phone}`,
+          JSON.stringify(record),
+          remainingSeconds,
+        );
+      } catch (err: any) {
+        throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      }
 
       throw new BadRequestException(
         `Неверный SMS-код. Осталось попыток: ${3 - record.attempts}`,
@@ -172,7 +200,9 @@ export class AuthService {
     }
 
     // OTP verified successfully -> clear state
-    await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+    try {
+      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+    } catch {}
 
     // Find or create resident user
     let user = await this.prisma.user.findUnique({
@@ -235,16 +265,29 @@ export class AuthService {
   async verifyVoteOtp(phone: string, code: string): Promise<boolean> {
     const now = Date.now();
 
-    // 1. Check lockout
-    const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
-    if (lockoutVal) {
-      const lockedUntil = parseInt(lockoutVal, 10);
-      if (lockedUntil > now) {
-        throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+    // 1. Check lockout (fail closed if Redis error)
+    try {
+      const lockoutVal = await this.redisService.get(`${LOCKOUT_KEY_PREFIX}${phone}`);
+      if (lockoutVal) {
+        const lockedUntil = parseInt(lockoutVal, 10);
+        if (lockedUntil > now) {
+          throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+        }
       }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
     }
 
-    const raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    let raw: string | null = null;
+    try {
+      raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
+    } catch {
+      throw new BadRequestException(
+        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      );
+    }
+
     if (!raw) {
       throw new BadRequestException(
         'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
@@ -255,14 +298,14 @@ export class AuthService {
     try {
       record = JSON.parse(raw);
     } catch {
-      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+      try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
       throw new BadRequestException(
         'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
       );
     }
 
     if (record.expiresAt < now) {
-      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+      try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
       throw new BadRequestException(
         'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
       );
@@ -275,28 +318,36 @@ export class AuthService {
     if (!isMatch) {
       record.attempts += 1;
       if (record.attempts >= 3) {
-        await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
-        const lockedUntil = now + LOCKOUT_TTL_SECONDS * 1000;
-        await this.redisService.set(
-          `${LOCKOUT_KEY_PREFIX}${phone}`,
-          lockedUntil.toString(),
-          LOCKOUT_TTL_SECONDS,
-        );
+        try {
+          await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+          const lockedUntil = now + LOCKOUT_TTL_SECONDS * 1000;
+          await this.redisService.set(
+            `${LOCKOUT_KEY_PREFIX}${phone}`,
+            lockedUntil.toString(),
+            LOCKOUT_TTL_SECONDS,
+          );
+        } catch {}
         throw new BadRequestException('Превышено количество попыток ввода. Номер заблокирован.');
       }
 
       const remainingSeconds = Math.max(1, Math.ceil((record.expiresAt - now) / 1000));
-      await this.redisService.set(
-        `${OTP_KEY_PREFIX}${phone}`,
-        JSON.stringify(record),
-        remainingSeconds,
-      );
+      try {
+        await this.redisService.set(
+          `${OTP_KEY_PREFIX}${phone}`,
+          JSON.stringify(record),
+          remainingSeconds,
+        );
+      } catch (err: any) {
+        throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      }
 
       throw new BadRequestException(`Неверный SMS-код подтверждения голоса. Осталось попыток: ${3 - record.attempts}`);
     }
 
     // Code consumed
-    await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+    try {
+      await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
+    } catch {}
     return true;
   }
 

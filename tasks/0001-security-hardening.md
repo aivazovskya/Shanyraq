@@ -1,6 +1,6 @@
 # Task 0001: Security Hardening (backend)
 
-**Status:** Ready for implementation
+**Status:** Completed
 **Assignee:** Antigravity
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 
@@ -219,6 +219,8 @@ mode (it just had the restart/scaling problems this task fixed).
   already correctly fails closed ("код истёк, запросите новый").
 - Add a test simulating a Redis error on the lockout-check path and assert
   the request is rejected rather than silently allowed through.
+
+**Resolution (2026-09-07):** Resolved. `RedisService.get/set/del` propagate errors directly; `auth.service.ts` catches Redis failures on lockout checks and attempt counters and fails closed with `ServiceUnavailableException` (HTTP 503: "Сервис временно недоступен, попробуйте позже"); 3 unit tests added to `auth.service.spec.ts`. All 67/67 tests passing.
 
 ## Deliverable
 

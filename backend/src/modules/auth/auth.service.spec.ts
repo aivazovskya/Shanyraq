@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException, ServiceUnavailableException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { RedisService } from '../../redis/redis.service';
 
@@ -203,6 +203,35 @@ describe('AuthService (Аудит безопасности авторизаци�
         600,
       );
       expect(redisMock.del).toHaveBeenCalledWith(`otp:${phone}`);
+    });
+
+    it('должен отклонять запрос (fail closed), если Redis недоступен при проверке lockout в requestOtp', async () => {
+      redisMock.get.mockRejectedValueOnce(new Error('Redis connection timed out'));
+
+      await expect(
+        service.requestOtp({ phone: '+77018889900' }),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('должен отклонять запрос (fail closed), если Redis недоступен при проверке lockout в verifyOtp', async () => {
+      redisMock.get.mockRejectedValueOnce(new Error('Redis connection refused'));
+
+      await expect(
+        service.verifyOtp({ phone: '+77018889900', code: '123456' }),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('должен отклонять запрос (fail closed), если Redis падает при записи счетчика попыток', async () => {
+      process.env.NODE_ENV = 'test';
+      const phone = '+77016667788';
+      await service.requestOtp({ phone });
+
+      // Simulate redis.set failure when recording wrong attempt
+      redisMock.set.mockRejectedValueOnce(new Error('Redis write failed'));
+
+      await expect(
+        service.verifyOtp({ phone, code: '000000' }),
+      ).rejects.toThrow(ServiceUnavailableException);
     });
   });
 

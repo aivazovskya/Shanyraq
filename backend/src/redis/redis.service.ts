@@ -36,33 +36,18 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async get(key: string): Promise<string | null> {
-    try {
-      return await this.client.get(key);
-    } catch (err: any) {
-      this.logger.warn(`Redis GET failed for key "${key}": ${err.message}`);
-      return null;
-    }
+    return this.client.get(key);
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<'OK' | null> {
-    try {
-      if (ttlSeconds && ttlSeconds > 0) {
-        return await this.client.set(key, value, 'EX', ttlSeconds);
-      }
-      return await this.client.set(key, value);
-    } catch (err: any) {
-      this.logger.warn(`Redis SET failed for key "${key}": ${err.message}`);
-      return null;
+    if (ttlSeconds && ttlSeconds > 0) {
+      return this.client.set(key, value, 'EX', ttlSeconds);
     }
+    return this.client.set(key, value);
   }
 
   async del(key: string): Promise<number> {
-    try {
-      return await this.client.del(key);
-    } catch (err: any) {
-      this.logger.warn(`Redis DEL failed for key "${key}": ${err.message}`);
-      return 0;
-    }
+    return this.client.del(key);
   }
 
   async onModuleDestroy() {
