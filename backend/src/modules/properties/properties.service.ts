@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto } from './dto/properties.dto';
 import { UserRole } from '@prisma/client';
 
 @Injectable()
@@ -322,6 +322,285 @@ export class PropertiesService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getConfirmedResidents(tenantId: string, search?: string) {
+    const whereClause: any = {
+      ownerships: {
+        some: {
+          isVerified: true,
+          unit: {
+            building: {
+              tenantId,
+            },
+          },
+        },
+      },
+    };
+
+    if (search && search.trim().length > 0) {
+      const term = search.trim();
+      whereClause.AND = [
+        {
+          OR: [
+            { firstName: { contains: term, mode: 'insensitive' as const } },
+            { lastName: { contains: term, mode: 'insensitive' as const } },
+            { phone: { contains: term, mode: 'insensitive' as const } },
+            {
+              ownerships: {
+                some: {
+                  isVerified: true,
+                  unit: {
+                    unitNumber: { contains: term, mode: 'insensitive' as const },
+                    building: { tenantId },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ];
+    }
+
+    return this.prisma.user.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        iin: true,
+        role: true,
+        isActive: true,
+        isVerified: true,
+        createdAt: true,
+        ownerships: {
+          where: {
+            isVerified: true,
+            unit: {
+              building: {
+                tenantId,
+              },
+            },
+          },
+          select: {
+            id: true,
+            ownershipType: true,
+            sharePercent: true,
+            isVerified: true,
+            verificationDoc: true,
+            verifiedAt: true,
+            createdAt: true,
+            unit: {
+              select: {
+                id: true,
+                unitNumber: true,
+                floor: true,
+                entrance: true,
+                type: true,
+                area: true,
+                cadastralNumber: true,
+                building: {
+                  select: {
+                    id: true,
+                    blockName: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+  }
+
+  async getResidentDetail(tenantId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        iin: true,
+        role: true,
+        tenantId: true,
+        isActive: true,
+        isVerified: true,
+        createdAt: true,
+        ownerships: {
+          where: {
+            unit: {
+              building: {
+                tenantId,
+              },
+            },
+          },
+          select: {
+            id: true,
+            ownershipType: true,
+            sharePercent: true,
+            isVerified: true,
+            verificationDoc: true,
+            verifiedAt: true,
+            createdAt: true,
+            unit: {
+              select: {
+                id: true,
+                unitNumber: true,
+                floor: true,
+                entrance: true,
+                type: true,
+                area: true,
+                cadastralNumber: true,
+                building: {
+                  select: {
+                    id: true,
+                    blockName: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Жилец не найден');
+    }
+
+    const hasVerifiedInTenant = user.ownerships.some((o) => o.isVerified);
+    if (!hasVerifiedInTenant) {
+      throw new NotFoundException('Жилец не найден в данном жилом комплексе');
+    }
+
+    return user;
+  }
+
+  async updateResidentStatus(userId: string, staffUser: any, dto: UpdateResidentStatusDto) {
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        ownerships: {
+          include: {
+            unit: {
+              include: {
+                building: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
+    if (
+      targetUser.role !== UserRole.RESIDENT_OWNER &&
+      targetUser.role !== UserRole.RESIDENT_TENANT
+    ) {
+      throw new BadRequestException(
+        'Управление статусом через данный раздел доступно только для учетных записей жильцов',
+      );
+    }
+
+    if (staffUser.role !== UserRole.SUPERADMIN) {
+      const belongsToStaffTenant =
+        (targetUser.tenantId && targetUser.tenantId === staffUser.tenantId) ||
+        targetUser.ownerships.some(
+          (o) => o.unit.building.tenantId === staffUser.tenantId,
+        );
+
+      if (!belongsToStaffTenant) {
+        throw new ForbiddenException(
+          'Доступ запрещен: пользователь не относится к вашему жилому комплексу',
+        );
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: dto.isActive,
+      },
+      select: {
+        id: true,
+        phone: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+      },
+    });
+
+    return {
+      id: updated.id,
+      isActive: updated.isActive,
+      message: updated.isActive
+        ? 'Учетная запись жильца успешно активирована'
+        : 'Учетная запись жильца успешно деактивирована',
+    };
+  }
+
+  async unlinkOwnership(ownershipId: string, staffUser: any) {
+    const ownership = await this.prisma.unitOwnership.findUnique({
+      where: { id: ownershipId },
+      include: {
+        unit: {
+          include: {
+            building: true,
+          },
+        },
+      },
+    });
+
+    if (!ownership) {
+      throw new NotFoundException('Право владения не найдено');
+    }
+
+    if (!ownership.isVerified) {
+      throw new BadRequestException(
+        'Отвязать можно только подтвержденное право владения. Неподтвержденные заявки обрабатываются через отклонение в очереди верификации',
+      );
+    }
+
+    if (staffUser.role !== UserRole.SUPERADMIN) {
+      if (!staffUser.tenantId || staffUser.tenantId !== ownership.unit.building.tenantId) {
+        throw new ForbiddenException(
+          'Доступ запрещен: вы не можете управлять помещениями в другом жилом комплексе',
+        );
+      }
+    }
+
+    await this.prisma.unitOwnership.delete({
+      where: { id: ownershipId },
+    });
+
+    const remainingVerified = await this.prisma.unitOwnership.count({
+      where: {
+        userId: ownership.userId,
+        isVerified: true,
+      },
+    });
+
+    if (remainingVerified === 0) {
+      await this.prisma.user.update({
+        where: { id: ownership.userId },
+        data: { isVerified: false },
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Квартира успешно отвязана от жильца',
+    };
   }
 
   private async recalculateAreas(tenantId: string, buildingId: string) {

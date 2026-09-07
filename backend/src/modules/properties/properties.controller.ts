@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto } from './dto/properties.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -79,5 +79,51 @@ export class PropertiesController {
     @Body() dto: VerifyOwnershipDto,
   ) {
     return this.propertiesService.verifyOwnership(id, user, dto);
+  }
+
+  @Get('tenants/:tenantId/residents')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Реестр подтвержденных жильцов жилого комплекса' })
+  @ApiQuery({ name: 'search', required: false, description: 'Поиск по ФИО, телефону или номеру квартиры' })
+  async getConfirmedResidents(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query('search') search?: string,
+  ) {
+    assertUserBelongsToTenant(user, tenantId, 'реестра жильцов');
+    return this.propertiesService.getConfirmedResidents(tenantId, search);
+  }
+
+  @Get('tenants/:tenantId/residents/:userId')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Детальная карточка жильца со всеми квартирами' })
+  async getResidentDetail(
+    @Param('tenantId') tenantId: string,
+    @Param('userId') userId: string,
+    @CurrentUser() user: any,
+  ) {
+    assertUserBelongsToTenant(user, tenantId, 'данных жильца');
+    return this.propertiesService.getResidentDetail(tenantId, userId);
+  }
+
+  @Patch('residents/:userId/status')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Активировать / деактивировать аккаунт жильца' })
+  async updateResidentStatus(
+    @Param('userId') userId: string,
+    @CurrentUser() user: any,
+    @Body() dto: UpdateResidentStatusDto,
+  ) {
+    return this.propertiesService.updateResidentStatus(userId, user, dto);
+  }
+
+  @Delete('ownerships/:id')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Отвязать подтвержденную квартиру от жильца' })
+  async unlinkOwnership(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.propertiesService.unlinkOwnership(id, user);
   }
 }

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, Min, Max } from 'class-validator';
 import { UnitType, OwnershipType } from '@prisma/client';
 
 export class CreateTenantDto {
@@ -81,4 +81,10 @@ export class VerifyOwnershipDto {
   @Min(0.01)
   @Max(100.0)
   approvedSharePercent?: number;
+}
+
+export class UpdateResidentStatusDto {
+  @ApiProperty({ example: false, description: 'Активен ли аккаунт жильца (при false доступ в приложение блокируется)' })
+  @IsBoolean()
+  isActive: boolean;
 }

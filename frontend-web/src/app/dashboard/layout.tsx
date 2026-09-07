@@ -12,6 +12,7 @@ import {
   Bell,
   LogOut,
   UserCheck,
+  Users,
   Loader2,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
@@ -27,6 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Голосования ОСС', href: '/dashboard/votings', icon: Vote },
     { name: 'Service Desk (Заявки)', href: '/dashboard/requests', icon: Wrench },
     { name: 'Верификация прав', href: '/dashboard/verifications', icon: UserCheck },
+    { name: 'Жильцы', href: '/dashboard/residents', icon: Users },
     { name: 'СКУД и шлагбаумы', href: '/dashboard/access', icon: KeyRound },
     { name: 'Оповещения и новости', href: '/dashboard/announcements', icon: Bell },
   ];
