@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto } from './dto/properties.dto';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class PropertiesService {
@@ -106,6 +112,24 @@ export class PropertiesService {
       throw new BadRequestException('Заявка на привязку этого объекта уже существует');
     }
 
+    // Аудит безопасности: проверка суммы долей по квартире
+    const requestedShare = dto.sharePercent !== undefined ? dto.sharePercent : 100.0;
+    if (requestedShare <= 0 || requestedShare > 100.0) {
+      throw new BadRequestException('Доля собственности должна быть в диапазоне от 0.01% до 100%');
+    }
+
+    const existingVerified = await this.prisma.unitOwnership.findMany({
+      where: { unitId: dto.unitId, isVerified: true },
+    });
+    const currentSum = existingVerified.reduce((sum, o) => sum + o.sharePercent, 0);
+
+    if (currentSum + requestedShare > 100.0) {
+      throw new BadRequestException(
+        `Суммарная доля собственности по данной квартире не может превышать 100%. ` +
+        `Уже подтверждено: ${currentSum}%, запрошено: ${requestedShare}%`,
+      );
+    }
+
     // Attach tenant to user if not yet attached
     await this.prisma.user.update({
       where: { id: userId },
@@ -117,28 +141,73 @@ export class PropertiesService {
         userId,
         unitId: dto.unitId,
         ownershipType: dto.ownershipType,
-        sharePercent: dto.sharePercent || 100.0,
+        sharePercent: requestedShare,
         verificationDoc: dto.verificationDoc,
         isVerified: false, // Requires HOA admin / dispatcher approval
       },
     });
   }
 
-  async verifyOwnership(ownershipId: string, isVerified: boolean) {
-    const record = await this.prisma.unitOwnership.findUnique({ where: { id: ownershipId } });
+  async verifyOwnership(
+    ownershipId: string,
+    verifierUser: { id: string; role: UserRole; tenantId?: string | null },
+    dto: VerifyOwnershipDto,
+  ) {
+    const record = await this.prisma.unitOwnership.findUnique({
+      where: { id: ownershipId },
+      include: {
+        unit: {
+          include: {
+            building: true,
+          },
+        },
+      },
+    });
+
     if (!record) {
       throw new NotFoundException('Запись о праве собственности не найдена');
+    }
+
+    // Аудит безопасности (Tenant isolation): сотрудник УК может верифицировать только свой ЖК
+    if (verifierUser.role !== UserRole.SUPERADMIN) {
+      if (!verifierUser.tenantId || verifierUser.tenantId !== record.unit.building.tenantId) {
+        throw new ForbiddenException(
+          'Доступ запрещен: вы не можете верифицировать права собственности в другом жилом комплексе',
+        );
+      }
+    }
+
+    // Валидация и корректировка доли при подтверждении
+    const finalSharePercent = dto.approvedSharePercent !== undefined ? dto.approvedSharePercent : record.sharePercent;
+
+    if (dto.isVerified) {
+      // Check total shares of all OTHER verified owners for this apartment
+      const otherOwners = await this.prisma.unitOwnership.findMany({
+        where: {
+          unitId: record.unitId,
+          isVerified: true,
+          id: { not: record.id },
+        },
+      });
+      const otherSum = otherOwners.reduce((sum, o) => sum + o.sharePercent, 0);
+      if (otherSum + finalSharePercent > 100.0) {
+        throw new BadRequestException(
+          `Невозможно подтвердить долю: сумма долей всех собственников квартиры превысит 100% ` +
+          `(уже подтверждено другим: ${otherSum}%, заявляется: ${finalSharePercent}%)`,
+        );
+      }
     }
 
     const updated = await this.prisma.unitOwnership.update({
       where: { id: ownershipId },
       data: {
-        isVerified,
-        verifiedAt: isVerified ? new Date() : null,
+        isVerified: dto.isVerified,
+        sharePercent: finalSharePercent,
+        verifiedAt: dto.isVerified ? new Date() : null,
       },
     });
 
-    if (isVerified) {
+    if (dto.isVerified) {
       await this.prisma.user.update({
         where: { id: record.userId },
         data: { isVerified: true },

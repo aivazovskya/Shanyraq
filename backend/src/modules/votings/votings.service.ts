@@ -1,34 +1,65 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
+import { ConfigService } from '@nestjs/config';
 import { CreateMeetingDto, CastVoteDto } from './dto/votings.dto';
-import { MeetingStatus, OwnershipType, VoteChoice, DecisionType } from '@prisma/client';
+import { MeetingStatus, OwnershipType, VoteChoice, DecisionType, UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class VotingsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly voteSigningKey: string;
 
-  async createMeeting(dto: CreateMeetingDto) {
+  constructor(
+    private prisma: PrismaService,
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {
+    this.voteSigningKey = this.configService.get<string>('VOTE_SIGNING_KEY');
+    if (!this.voteSigningKey) {
+      throw new Error(
+        'КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ: VOTE_SIGNING_KEY не задан для цифровой подписи голосов ОСС!',
+      );
+    }
+  }
+
+  async createMeeting(creatorTenantId: string, dto: CreateMeetingDto) {
+    const targetTenantId = dto.tenantId || creatorTenantId;
+    if (!targetTenantId) {
+      throw new BadRequestException('Не указан идентификатор жилого комплекса');
+    }
+
     const tenant = await this.prisma.tenant.findUnique({
-      where: { id: dto.tenantId },
+      where: { id: targetTenantId },
     });
 
     if (!tenant) {
       throw new NotFoundException('Жилой комплекс не найден');
     }
 
-    // Capture total eligible area of HOA at the moment of creating the meeting
-    const totalArea = tenant.totalArea > 0 ? tenant.totalArea : 1000.0;
+    // Аудит безопасности: категорический запрет фиктивной площади
+    if (!tenant.totalArea || tenant.totalArea <= 0) {
+      throw new BadRequestException(
+        'Невозможно инициировать собрание ОСС: суммарная площадь помещений ЖК не рассчитана или равна 0. ' +
+        'Сначала внесите жилой фонд (дома и квартиры с площадями в кв.м) в систему.',
+      );
+    }
 
     return this.prisma.meeting.create({
       data: {
-        tenantId: dto.tenantId,
+        tenantId: targetTenantId,
         title: dto.title,
         description: dto.description,
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
         status: MeetingStatus.ACTIVE,
-        totalEligibleArea: totalArea,
+        totalEligibleArea: tenant.totalArea,
         quorumThresholdPercent: 50.0, // Закон РК: более 50%
         agendaItems: {
           create: dto.agendaItems.map((item) => ({
@@ -60,11 +91,10 @@ export class VotingsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Calculate real-time quorum for each meeting
-    return Promise.all(meetings.map((m) => this.enrichMeetingWithResults(m)));
+    return Promise.all(meetings.map((m) => this.enrichMeetingWithResults(m, null)));
   }
 
-  async getMeetingDetails(meetingId: string) {
+  async getMeetingDetails(meetingId: string, requestingUser?: { id: string; role: UserRole; tenantId?: string | null }) {
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
       include: {
@@ -73,9 +103,13 @@ export class VotingsService {
           include: {
             votes: {
               include: {
-                unit: true,
+                unit: {
+                  include: {
+                    building: true,
+                  },
+                },
                 user: {
-                  select: { firstName: true, lastName: true },
+                  select: { id: true, firstName: true, lastName: true, phone: true },
                 },
               },
             },
@@ -87,14 +121,30 @@ export class VotingsService {
     });
 
     if (!meeting) {
-      throw new NotFoundException('Собрание не найдено');
+      throw new NotFoundException('Собрание ОСС не найдено');
     }
 
-    return this.enrichMeetingWithResults(meeting);
+    // Аудит безопасности (Tenant isolation): проверка принадлежности собрания к ЖК пользователя
+    if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
+      if (!requestingUser.tenantId || requestingUser.tenantId !== meeting.tenantId) {
+        throw new ForbiddenException('Доступ к собранию другого жилого комплекса запрещен');
+      }
+    }
+
+    return this.enrichMeetingWithResults(meeting, requestingUser);
   }
 
   async castVote(userId: string, dto: CastVoteDto, clientMeta?: { ip?: string; userAgent?: string }) {
-    // 1. Verify agenda item & active meeting
+    // 1. Verify user exists and retrieve phone for OTP verification
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Пользователь не найден или заблокирован');
+    }
+
+    // 2. Verify agenda item & active meeting
     const agendaItem = await this.prisma.agendaItem.findUnique({
       where: { id: dto.agendaItemId },
       include: { meeting: true },
@@ -113,7 +163,7 @@ export class VotingsService {
       throw new BadRequestException('Срок проведения голосования истек или еще не начался');
     }
 
-    // 2. Verify ownership and right to vote (only verified OWNER can vote under RK law)
+    // 3. Verify ownership and right to vote (only verified OWNER can vote under RK law)
     const ownership = await this.prisma.unitOwnership.findFirst({
       where: {
         userId,
@@ -121,16 +171,28 @@ export class VotingsService {
         ownershipType: OwnershipType.OWNER,
         isVerified: true,
       },
-      include: { unit: true },
+      include: {
+        unit: {
+          include: {
+            building: true,
+          },
+        },
+      },
     });
 
     if (!ownership) {
       throw new ForbiddenException(
-        'Право голоса на ОСС имеют только подтвержденные собственники помещения. Арендаторы и неподтвержденные пользователи голосовать не могут.',
+        'Право голоса на ОСС имеют только подтвержденные собственники помещения. ' +
+        'Арендаторы и неподтвержденные пользователи голосовать не могут.',
       );
     }
 
-    // 3. Check for existing vote by this unit for this agenda item
+    // 4. Verify that unit belongs to the meeting's tenant
+    if (ownership.unit.building.tenantId !== agendaItem.meeting.tenantId) {
+      throw new ForbiddenException('Помещение не принадлежит жилому комплексу, в котором проводится собрание');
+    }
+
+    // 5. Check for duplicate vote by this unit for this agenda item
     const existingVote = await this.prisma.vote.findUnique({
       where: {
         agendaItemId_unitId: {
@@ -144,14 +206,18 @@ export class VotingsService {
       throw new BadRequestException('Голос от данной квартиры по этому вопросу уже был учтен ранее');
     }
 
-    // 4. Calculate vote weight in accordance with RK Law (area * ownership share)
+    // 6. Аудит безопасности: обязательная криптографическая проверка SMS-OTP кода
+    await this.authService.verifyVoteOtp(user.phone, dto.otpCode);
+
+    // 7. Calculate vote weight in accordance with RK Law (area * ownership share)
     const areaWeight = parseFloat(((ownership.unit.area * ownership.sharePercent) / 100).toFixed(2));
 
-    // 5. Generate cryptographic hash of vote for legal audit trail
+    // 8. Generate HMAC-SHA256 cryptographic signature using server signing key
     const timestamp = new Date().toISOString();
+    const payloadToSign = `${userId}:${agendaItem.meetingId}:${dto.agendaItemId}:${dto.unitId}:${dto.choice}:${areaWeight}:${timestamp}`;
     const voteHash = crypto
-      .createHash('sha256')
-      .update(`${userId}:${agendaItem.meetingId}:${dto.agendaItemId}:${dto.unitId}:${dto.choice}:${areaWeight}:${timestamp}`)
+      .createHmac('sha256', this.voteSigningKey)
+      .update(payloadToSign)
       .digest('hex');
 
     const vote = await this.prisma.vote.create({
@@ -162,7 +228,7 @@ export class VotingsService {
         choice: dto.choice,
         areaWeight,
         voteHash,
-        otpVerified: true,
+        otpVerified: true, // Истинно проверен через verifyVoteOtp
         ipAddress: clientMeta?.ip || '127.0.0.1',
         userAgent: clientMeta?.userAgent || 'Shanyraq-Mobile/1.0',
       },
@@ -173,7 +239,7 @@ export class VotingsService {
 
     return {
       success: true,
-      message: 'Ваш голос успешно принят и зафиксирован в протоколе собрания',
+      message: 'Ваш голос успешно принят, подписан криптографическим отпечатком и зафиксирован в протоколе',
       vote: {
         id: vote.id,
         choice: vote.choice,
@@ -184,8 +250,8 @@ export class VotingsService {
     };
   }
 
-  async closeMeetingAndGenerateProtocol(meetingId: string) {
-    const enriched = await this.getMeetingDetails(meetingId);
+  async closeMeetingAndGenerateProtocol(meetingId: string, closingUser: { id: string; role: UserRole; tenantId?: string | null }) {
+    const enriched = await this.getMeetingDetails(meetingId, closingUser);
 
     // Close meeting
     await this.prisma.meeting.update({
@@ -227,7 +293,6 @@ export class VotingsService {
 
     if (!meeting || meeting.totalEligibleArea <= 0) return;
 
-    // A unit is considered participated in the meeting if it voted on at least one agenda item
     const uniqueVotedUnitAreas = new Map<string, number>();
     for (const item of meeting.agendaItems) {
       for (const vote of item.votes) {
@@ -250,9 +315,16 @@ export class VotingsService {
     });
   }
 
-  private async enrichMeetingWithResults(meeting: any) {
-    // Unique participated units
+  private enrichMeetingWithResults(
+    meeting: any,
+    requestingUser?: { id: string; role: UserRole; tenantId?: string | null },
+  ) {
     const uniqueVotedUnitAreas = new Map<string, number>();
+
+    // Determine if requester can view full personal voter identities
+    const canViewFullRoster =
+      requestingUser &&
+      ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN] as UserRole[]).includes(requestingUser.role);
 
     const enrichedAgenda = meeting.agendaItems?.map((item: any) => {
       let areaFor = 0;
@@ -272,18 +344,32 @@ export class VotingsService {
       const forPercentFromVoted = totalItemVotedArea > 0 ? (areaFor / totalItemVotedArea) * 100 : 0;
       const forPercentFromTotalHOA = meeting.totalEligibleArea > 0 ? (areaFor / meeting.totalEligibleArea) * 100 : 0;
 
-      // Decision check under RK law
       let isApproved = false;
       if (item.decisionType === DecisionType.SIMPLE_MAJORITY) {
-        // Простым большинством: > 50% голосов от участников кворума
         isApproved = forPercentFromVoted > 50.0;
       } else {
-        // Квалифицированным большинством: более 2/3 голосов от общего числа
         isApproved = forPercentFromTotalHOA >= 66.67;
       }
 
+      // Аудит безопасности: защита персональных данных участников ОСС
+      // Если запрос от жильца, скрываем персональные данные других жильцов (ФИО, телефоны)
+      let sanitizedVotes = undefined;
+      let myVote = undefined;
+
+      if (canViewFullRoster) {
+        sanitizedVotes = item.votes;
+      } else if (requestingUser) {
+        // Житель видит только свой собственный голос
+        myVote = item.votes?.find((v: any) => v.userId === requestingUser.id);
+      }
+
       return {
-        ...item,
+        id: item.id,
+        orderIndex: item.orderIndex,
+        question: item.question,
+        description: item.description,
+        decisionType: item.decisionType,
+        documentUrls: item.documentUrls,
         results: {
           areaFor: parseFloat(areaFor.toFixed(2)),
           areaAgainst: parseFloat(areaAgainst.toFixed(2)),
@@ -293,6 +379,15 @@ export class VotingsService {
           forPercentFromTotalHOA: parseFloat(forPercentFromTotalHOA.toFixed(2)),
           isApproved,
         },
+        votes: sanitizedVotes,
+        myVote: myVote
+          ? {
+              choice: myVote.choice,
+              areaWeight: myVote.areaWeight,
+              voteHash: myVote.voteHash,
+              createdAt: myVote.createdAt,
+            }
+          : undefined,
       };
     });
 
@@ -300,7 +395,14 @@ export class VotingsService {
     const quorumPercent = meeting.totalEligibleArea > 0 ? (totalVotedArea / meeting.totalEligibleArea) * 100 : 0;
 
     return {
-      ...meeting,
+      id: meeting.id,
+      tenantId: meeting.tenantId,
+      title: meeting.title,
+      description: meeting.description,
+      startDate: meeting.startDate,
+      endDate: meeting.endDate,
+      status: meeting.status,
+      protocol: meeting.protocol,
       quorum: {
         totalEligibleArea: meeting.totalEligibleArea,
         totalVotedArea: parseFloat(totalVotedArea.toFixed(2)),

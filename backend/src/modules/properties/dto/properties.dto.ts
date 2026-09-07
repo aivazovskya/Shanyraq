@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, Min, Max } from 'class-validator';
 import { UnitType, OwnershipType } from '@prisma/client';
 
 export class CreateTenantDto {
@@ -39,6 +39,7 @@ export class CreateUnitDto {
 
   @ApiProperty({ example: 75.4, description: 'Полезная площадь помещения в кв.м' })
   @IsNumber()
+  @Min(1.0, { message: 'Площадь помещения должна быть не менее 1 кв.м' })
   area: number;
 
   @ApiProperty({ example: '21:320:135:042', required: false })
@@ -57,9 +58,11 @@ export class ClaimOwnershipDto {
   @IsEnum(OwnershipType)
   ownershipType: OwnershipType;
 
-  @ApiProperty({ example: 100.0, description: 'Доля владения (в процентах)' })
+  @ApiProperty({ example: 100.0, description: 'Заявляемая доля владения (от 0.01 до 100%)' })
   @IsOptional()
   @IsNumber()
+  @Min(0.01, { message: 'Доля должна быть больше 0' })
+  @Max(100.0, { message: 'Доля не может превышать 100%' })
   sharePercent?: number;
 
   @ApiProperty({ example: 'https://storage.shanyraq.kz/docs/spravka_egov_42.pdf', required: false })
@@ -71,4 +74,11 @@ export class ClaimOwnershipDto {
 export class VerifyOwnershipDto {
   @ApiProperty({ example: true })
   isVerified: boolean;
+
+  @ApiProperty({ example: 100.0, required: false, description: 'Проверенная сотрудником УК доля (по выписке eGov)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  @Max(100.0)
+  approvedSharePercent?: number;
 }

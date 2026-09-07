@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Properties & Units (ЖК, Дома, Квартиры)')
@@ -48,16 +49,22 @@ export class PropertiesController {
   }
 
   @Get('tenants/:tenantId/pending-verifications')
-  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER)
-  @ApiOperation({ summary: 'Список заявок на подтверждение прав собственности для УК/ОСИ' })
-  async getPendingVerifications(@Param('tenantId') tenantId: string) {
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Список заявок на подтверждение прав собственности для УК/ОСИ своего ЖК' })
+  async getPendingVerifications(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
+    // Аудит безопасности: BOLA защита — УК видит заявки на верификацию только своего ЖК
+    assertUserBelongsToTenant(user, tenantId, 'заявок на верификацию прав');
     return this.propertiesService.getPendingVerifications(tenantId);
   }
 
   @Patch('ownerships/:id/verify')
-  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER)
-  @ApiOperation({ summary: 'Верифицировать право собственности (Одобрить/Отклонить)' })
-  async verifyOwnership(@Param('id') id: string, @Body() dto: VerifyOwnershipDto) {
-    return this.propertiesService.verifyOwnership(id, dto.isVerified);
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Верифицировать право собственности и скорректировать долю (Одобрить/Отклонить)' })
+  async verifyOwnership(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: VerifyOwnershipDto,
+  ) {
+    return this.propertiesService.verifyOwnership(id, user, dto);
   }
 }

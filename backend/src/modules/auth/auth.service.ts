@@ -1,55 +1,128 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto } from './dto/auth.dto';
+import * as crypto from 'crypto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { UserRole } from '@prisma/client';
+import { JwtPayload } from './jwt.strategy';
+
+interface OtpEntry {
+  code: string;
+  expiresAt: number;
+  lastRequestedAt: number;
+  attempts: number;
+}
 
 @Injectable()
 export class AuthService {
-  // In-memory OTP storage for development / pilot (TTL 5 mins)
-  private otpStorage = new Map<string, { code: string; expiresAt: number }>();
+  // In-memory OTP storage with rate-limit and brute-force tracking
+  private otpStorage = new Map<string, OtpEntry>();
+  // Temporary lockouts for brute force protection (phone -> lockedUntil timestamp)
+  private lockoutStorage = new Map<string, number>();
+
+  private readonly accessSecret: string;
+  private readonly refreshSecret: string;
 
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
+    this.refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+
+    if (!this.accessSecret || !this.refreshSecret) {
+      throw new Error(
+        'КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ: JWT_ACCESS_SECRET или JWT_REFRESH_SECRET не заданы в конфигурации!',
+      );
+    }
+  }
 
   async requestOtp(dto: RequestOtpDto) {
     const { phone } = dto;
-    
-    // Generate 4-digit OTP code (for test numbers in dev: '1234')
-    const code = phone.startsWith('+7700') || phone.startsWith('+7701') ? '1234' : Math.floor(1000 + Math.random() * 9000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000;
+    const now = Date.now();
 
-    this.otpStorage.set(phone, { code, expiresAt });
+    // 1. Check if number is currently locked due to brute force
+    const lockedUntil = this.lockoutStorage.get(phone);
+    if (lockedUntil && lockedUntil > now) {
+      const waitMinutes = Math.ceil((lockedUntil - now) / 60000);
+      throw new BadRequestException(
+        `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
+      );
+    }
 
-    console.log(`[SMS-SERVICE] 📨 SMS отправлен на ${phone}: "Код подтверждения Shanyraq: ${code}"`);
+    // 2. Rate limiting: maximum 1 SMS per 60 seconds per phone
+    const existing = this.otpStorage.get(phone);
+    if (existing && now - existing.lastRequestedAt < 60000) {
+      const waitSeconds = Math.ceil((60000 - (now - existing.lastRequestedAt)) / 1000);
+      throw new BadRequestException(
+        `Слишком частый запрос кода. Повторная отправка SMS возможна через ${waitSeconds} сек.`,
+      );
+    }
+
+    // 3. Generate cryptographically secure 6-digit random code (100000 - 999999)
+    const code = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = now + 5 * 60 * 1000; // 5 minutes TTL
+
+    this.otpStorage.set(phone, {
+      code,
+      expiresAt,
+      lastRequestedAt: now,
+      attempts: 0,
+    });
+
+    console.log(`[SECURE-SMS] 📨 SMS отправлен на ${phone}: "Код подтверждения Shanyraq: ${code}"`);
 
     return {
       success: true,
-      message: 'Код подтверждения успешно отправлен по SMS',
-      // В dev режиме возвращаем код для быстрого тестирования в Swagger/Postman
-      devCode: process.env.NODE_ENV !== 'production' ? code : undefined,
+      message: 'Одноразовый 6-значный код подтверждения успешно отправлен по SMS',
+      // В production devCode НИКОГДА не возвращается в API ответе
+      devCode: process.env.NODE_ENV === 'test' ? code : undefined,
     };
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
     const { phone, code } = dto;
-    const record = this.otpStorage.get(phone);
+    const now = Date.now();
 
-    // Development backdoor: code '1234' always allowed in dev mode
-    const isValidDevCode = process.env.NODE_ENV !== 'production' && code === '1234';
-
-    if (!isValidDevCode) {
-      if (!record || record.expiresAt < Date.now()) {
-        throw new BadRequestException('Срок действия SMS-кода истек. Запросите новый код');
-      }
-      if (record.code !== code) {
-        throw new BadRequestException('Неверный SMS-код');
-      }
+    // 1. Check lockout
+    const lockedUntil = this.lockoutStorage.get(phone);
+    if (lockedUntil && lockedUntil > now) {
+      throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
     }
 
+    const record = this.otpStorage.get(phone);
+    if (!record || record.expiresAt < now) {
+      this.otpStorage.delete(phone);
+      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+    }
+
+    // 2. Constant-time comparison to prevent timing attacks
+    const isMatch =
+      record.code.length === code.length &&
+      crypto.timingSafeEqual(Buffer.from(record.code), Buffer.from(code));
+
+    if (!isMatch) {
+      record.attempts += 1;
+      if (record.attempts >= 3) {
+        this.otpStorage.delete(phone);
+        this.lockoutStorage.set(phone, now + 10 * 60 * 1000); // 10 minutes lockout
+        throw new BadRequestException(
+          'Превышено максимальное количество попыток ввода кода (3). Номер заблокирован на 10 минут.',
+        );
+      }
+      throw new BadRequestException(
+        `Неверный SMS-код. Осталось попыток: ${3 - record.attempts}`,
+      );
+    }
+
+    // OTP verified successfully -> clear state
     this.otpStorage.delete(phone);
 
     // Find or create resident user
@@ -70,7 +143,6 @@ export class AuthService {
     });
 
     if (!user) {
-      // Auto-register new resident with RESIDENT_OWNER role pending property link
       user = await this.prisma.user.create({
         data: {
           phone,
@@ -94,7 +166,7 @@ export class AuthService {
       });
     }
 
-    const tokens = this.generateTokens(user.id, user.phone, user.role);
+    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId);
 
     return {
       user: {
@@ -109,6 +181,33 @@ export class AuthService {
       },
       ...tokens,
     };
+  }
+
+  async verifyVoteOtp(phone: string, code: string): Promise<boolean> {
+    const record = this.otpStorage.get(phone);
+    if (!record || record.expiresAt < Date.now()) {
+      throw new BadRequestException(
+        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      );
+    }
+
+    const isMatch =
+      record.code.length === code.length &&
+      crypto.timingSafeEqual(Buffer.from(record.code), Buffer.from(code));
+
+    if (!isMatch) {
+      record.attempts += 1;
+      if (record.attempts >= 3) {
+        this.otpStorage.delete(phone);
+        this.lockoutStorage.set(phone, Date.now() + 10 * 60 * 1000);
+        throw new BadRequestException('Превышено количество попыток ввода. Номер заблокирован.');
+      }
+      throw new BadRequestException(`Неверный SMS-код подтверждения голоса. Осталось попыток: ${3 - record.attempts}`);
+    }
+
+    // Code consumed
+    this.otpStorage.delete(phone);
+    return true;
   }
 
   async loginWithPassword(dto: LoginPasswordDto) {
@@ -141,7 +240,7 @@ export class AuthService {
       throw new UnauthorizedException('Неверный логин или пароль');
     }
 
-    const tokens = this.generateTokens(user.id, user.phone, user.role);
+    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId);
 
     return {
       user: {
@@ -156,6 +255,32 @@ export class AuthService {
       },
       ...tokens,
     };
+  }
+
+  async refreshToken(dto: RefreshTokenDto) {
+    let payload: JwtPayload;
+
+    try {
+      payload = this.jwtService.verify(dto.refreshToken, {
+        secret: this.refreshSecret,
+      });
+    } catch {
+      throw new UnauthorizedException('Недействительный или истекший refresh-токен');
+    }
+
+    if (!payload || payload.type !== 'refresh') {
+      throw new UnauthorizedException('Предоставленный токен не является refresh-токеном');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('Пользователь заблокирован или не найден');
+    }
+
+    return this.generateTokens(user.id, user.phone, user.role, user.tenantId);
   }
 
   async getMe(userId: string) {
@@ -182,10 +307,32 @@ export class AuthService {
     return user;
   }
 
-  private generateTokens(userId: string, phone: string, role: string) {
-    const payload = { sub: userId, phone, role };
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '7d' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
+  private generateTokens(userId: string, phone: string, role: string, tenantId?: string | null) {
+    const accessPayload: JwtPayload = {
+      sub: userId,
+      phone,
+      role,
+      tenantId,
+      type: 'access',
+    };
+
+    const refreshPayload: JwtPayload = {
+      sub: userId,
+      phone,
+      role,
+      tenantId,
+      type: 'refresh',
+    };
+
+    const accessToken = this.jwtService.sign(accessPayload, {
+      secret: this.accessSecret,
+      expiresIn: '7d',
+    });
+
+    const refreshToken = this.jwtService.sign(refreshPayload, {
+      secret: this.refreshSecret,
+      expiresIn: '30d',
+    });
 
     return {
       accessToken,

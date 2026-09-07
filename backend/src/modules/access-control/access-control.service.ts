@@ -3,8 +3,22 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { OpenBarrierDto, CreateGuestPassDto } from './dto/access-control.dto';
 import { AccessPointType, UserRole } from '@prisma/client';
 
+export interface IBarrierAdapter {
+  triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }>;
+}
+
+@Injectable()
+export class MockBarrierAdapter implements IBarrierAdapter {
+  async triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }> {
+    console.log(`[HARDWARE-RELAY] 🚧 Подача сигнала на реле шлагбаума: ${endpointUrl} (Протокол: ${controllerType})`);
+    return { success: true, latencyMs: 180 };
+  }
+}
+
 @Injectable()
 export class AccessControlService {
+  private barrierAdapter: IBarrierAdapter = new MockBarrierAdapter();
+
   constructor(private prisma: PrismaService) {}
 
   async getAccessPoints(tenantId: string) {
@@ -27,11 +41,13 @@ export class AccessControlService {
       throw new ForbiddenException('Указанная точка доступа не является шлагбаумом или воротами');
     }
 
-    // Check user rights (either staff/security or verified resident)
     const isStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN, UserRole.SECURITY, UserRole.DISPATCHER] as UserRole[]).includes(userRole);
 
+    let verifiedUnitId: string | null = null;
+
     if (!isStaff) {
-      const hasAccess = await this.prisma.unitOwnership.findFirst({
+      // Find actual verified apartment of user in this residential complex
+      const verifiedOwnership = await this.prisma.unitOwnership.findFirst({
         where: {
           userId,
           isVerified: true,
@@ -43,8 +59,8 @@ export class AccessControlService {
         },
       });
 
-      if (!hasAccess) {
-        // Record denied access in audit log
+      if (!verifiedOwnership) {
+        // Record denied access attempt in audit log
         await this.prisma.accessLog.create({
           data: {
             accessPointId: accessPoint.id,
@@ -56,17 +72,26 @@ export class AccessControlService {
         });
         throw new ForbiddenException('У вас нет активного права доступа к шлагбауму данного жилого комплекса');
       }
+
+      // Аудит безопасности: берем проверенный unitId из базы, исключая подмену через клиентский DTO
+      verifiedUnitId = verifiedOwnership.unitId;
+    } else {
+      // For staff, optionally associate with unit if provided and valid
+      verifiedUnitId = dto.unitId || null;
     }
 
-    // Trigger hardware controller (Pal-ES / Relay / MQTT)
-    console.log(`[ACCESS-IOT] 🚧 Отправлен импульс на открытие шлагбаума "${accessPoint.name}" (${accessPoint.controllerType})`);
+    // Trigger hardware controller via adapter
+    await this.barrierAdapter.triggerOpen(
+      accessPoint.endpointUrl || 'local://relay',
+      accessPoint.controllerType,
+    );
 
     // Record success in immutable audit log
     const log = await this.prisma.accessLog.create({
       data: {
         accessPointId: accessPoint.id,
         userId,
-        unitId: dto.unitId,
+        unitId: verifiedUnitId,
         action: 'OPEN_BARRIER',
         status: 'SUCCESS',
         note: `Открыто через мобильное приложение пользователем ${userId}`,
@@ -80,14 +105,31 @@ export class AccessControlService {
     };
   }
 
-  async createGuestPass(userId: string, dto: CreateGuestPassDto) {
+  async createGuestPass(user: { id: string; role: UserRole; tenantId?: string | null }, dto: CreateGuestPassDto) {
+    // Аудит безопасности: IDOR защита — житель может выписывать пропуск только для СВОЕЙ квартиры
+    if (user.role !== UserRole.SUPERADMIN) {
+      const ownership = await this.prisma.unitOwnership.findFirst({
+        where: {
+          userId: user.id,
+          unitId: dto.unitId,
+          isVerified: true,
+        },
+      });
+
+      if (!ownership) {
+        throw new ForbiddenException(
+          'IDOR защита: вы можете оформлять гостевой пропуск только для своей подтвержденной квартиры',
+        );
+      }
+    }
+
     // Generate 6-digit random code
     const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     return this.prisma.guestPass.create({
       data: {
         unitId: dto.unitId,
-        creatorId: userId,
+        creatorId: user.id,
         guestName: dto.guestName,
         guestPlateNumber: dto.guestPlateNumber,
         accessCode,

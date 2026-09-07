@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Access Control & Video (СКУД, Шлагбаумы, Камеры)')
@@ -16,8 +17,10 @@ export class AccessControlController {
   constructor(private readonly accessControlService: AccessControlService) {}
 
   @Get('tenant/:tenantId/points')
-  @ApiOperation({ summary: 'Список доступных шлагбаумов, ворот и камер ЖК' })
-  async getAccessPoints(@Param('tenantId') tenantId: string) {
+  @ApiOperation({ summary: 'Список доступных шлагбаумов, ворот и камер ЖК (только своего ЖК)' })
+  async getAccessPoints(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
+    // Аудит безопасности: BOLA защита — житель или сотрудник видит только инфраструктуру своего ЖК
+    assertUserBelongsToTenant(user, tenantId, 'точек доступа');
     return this.accessControlService.getAccessPoints(tenantId);
   }
 
@@ -32,15 +35,17 @@ export class AccessControlController {
   }
 
   @Post('guest-pass')
-  @ApiOperation({ summary: 'Оформить гостевой пропуск (QR-код / PIN-код)' })
-  async createGuestPass(@CurrentUser('id') userId: string, @Body() dto: CreateGuestPassDto) {
-    return this.accessControlService.createGuestPass(userId, dto);
+  @ApiOperation({ summary: 'Оформить гостевой пропуск (QR-код / PIN-код для своей квартиры)' })
+  async createGuestPass(@CurrentUser() user: any, @Body() dto: CreateGuestPassDto) {
+    return this.accessControlService.createGuestPass(user, dto);
   }
 
   @Get('tenant/:tenantId/logs')
   @Roles(UserRole.SECURITY, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
-  @ApiOperation({ summary: 'Журнал событий проезда и открытий (для поста охраны и УК)' })
-  async getAccessLogs(@Param('tenantId') tenantId: string) {
+  @ApiOperation({ summary: 'Журнал событий проезда и открытий (только для сотрудников своего ЖК)' })
+  async getAccessLogs(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
+    // Аудит безопасности: охрана одного ЖК не может просматривать журнал въездов другого ЖК
+    assertUserBelongsToTenant(user, tenantId, 'журнала проездов');
     return this.accessControlService.getAccessLogs(tenantId);
   }
 }

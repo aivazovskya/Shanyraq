@@ -4,20 +4,42 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
+export interface JwtPayload {
+  sub: string;
+  phone: string;
+  role: string;
+  tenantId?: string | null;
+  type: 'access' | 'refresh';
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
   ) {
+    const secret = configService.get<string>('JWT_ACCESS_SECRET');
+    if (!secret) {
+      throw new Error(
+        'КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ: JWT_ACCESS_SECRET не задан в переменных окружения!',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_ACCESS_SECRET', 'shanyraq_super_secret_access_jwt_key_2026'),
+      secretOrKey: secret,
     });
   }
 
-  async validate(payload: { sub: string; phone: string; role: string }) {
+  async validate(payload: JwtPayload) {
+    // Defense against token type confusion: refresh tokens cannot be used as access tokens
+    if (!payload || payload.type !== 'access') {
+      throw new UnauthorizedException(
+        'Недопустимый тип токена. Refresh-токен не может использоваться для авторизации запросов',
+      );
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {

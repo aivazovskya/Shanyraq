@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -12,7 +12,7 @@ export class AuthController {
 
   @Post('request-otp')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Запросить SMS-код для входа жильца' })
+  @ApiOperation({ summary: 'Запросить 6-значный SMS-код для входа жильца (лимит: 1 раз в 60 сек)' })
   @ApiResponse({ status: 200, description: 'SMS-код отправлен' })
   async requestOtp(@Body() dto: RequestOtpDto) {
     return this.authService.requestOtp(dto);
@@ -20,7 +20,7 @@ export class AuthController {
 
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Подтвердить SMS-код и получить JWT токены' })
+  @ApiOperation({ summary: 'Подтвердить SMS-код и получить пару токенов (access + refresh)' })
   @ApiResponse({ status: 200, description: 'Успешная авторизация' })
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto);
@@ -32,6 +32,14 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Успешный вход' })
   async loginWithPassword(@Body() dto: LoginPasswordDto) {
     return this.authService.loginWithPassword(dto);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Обновить access-токен с помощью refresh-токена' })
+  @ApiResponse({ status: 200, description: 'Пара токенов успешно обновлена' })
+  async refreshToken(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto);
   }
 
   @Get('me')
