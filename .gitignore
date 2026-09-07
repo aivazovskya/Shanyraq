@@ -24,6 +24,7 @@ build/
 out/
 coverage/
 *.log
+*.tsbuildinfo
 
 # Database
 *.sqlite

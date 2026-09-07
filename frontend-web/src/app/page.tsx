@@ -1,13 +1,54 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Building2, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
-import Link from 'next/link';
+import { Building2, ShieldCheck, KeyRound, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { API_BASE_URL, saveSession } from '@/lib/api';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [login, setLogin] = useState('+77001000001');
   const [password, setPassword] = useState('Shanyraq2026!');
   const [role, setRole] = useState('HOA_ADMIN');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, password }),
+      });
+
+      if (!res.ok) {
+        let errorMsg = 'Неверный логин или пароль';
+        try {
+          const data = await res.json();
+          if (data.message) {
+            errorMsg = Array.isArray(data.message) ? data.message.join(', ') : data.message;
+          }
+        } catch {}
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+      saveSession({
+        token: data.accessToken,
+        user: data.user,
+      });
+
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Ошибка подключения к серверу авторизации');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-slate-50">
@@ -25,7 +66,14 @@ export default function LoginPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 shadow-sm border border-slate-200 sm:rounded-2xl sm:px-10">
-          <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+          {error && (
+            <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form className="space-y-5" onSubmit={handleLogin}>
             <div>
               <label className="block text-sm font-medium text-slate-700">
                 Быстрый выбор тестовой роли
@@ -79,13 +127,18 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <Link
-                href="/dashboard"
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors"
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
               >
-                Войти в систему
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <ArrowRight className="mr-2 w-4 h-4" />
+                )}
+                <span>{isLoading ? 'Авторизация...' : 'Войти в систему'}</span>
+              </button>
             </div>
           </form>
 

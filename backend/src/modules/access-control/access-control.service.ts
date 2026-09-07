@@ -56,7 +56,10 @@ export class AccessControlService {
     return points;
   }
 
-  async getCameraStream(userId: string, userRole: UserRole, accessPointId: string) {
+  async getCameraStream(
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    accessPointId: string,
+  ) {
     const accessPoint = await this.prisma.accessPoint.findUnique({
       where: { id: accessPointId },
     });
@@ -75,13 +78,18 @@ export class AccessControlService {
       UserRole.HOA_CHAIRMAN,
       UserRole.SECURITY,
       UserRole.DISPATCHER,
-    ] as UserRole[]).includes(userRole);
+    ] as UserRole[]).includes(user.role);
 
-    if (!isStaff) {
+    if (isStaff) {
+      // Аудит безопасности: персонал (кроме SUPERADMIN) может просматривать камеры только своего ЖК
+      if (user.role !== UserRole.SUPERADMIN && accessPoint.tenantId !== user.tenantId) {
+        throw new ForbiddenException('Персонал имеет доступ к видеокамерам только своего жилого комплекса');
+      }
+    } else {
       // Validate resident has verified apartment in this tenant
       const verifiedOwnership = await this.prisma.unitOwnership.findFirst({
         where: {
-          userId,
+          userId: user.id,
           isVerified: true,
           unit: {
             building: {
@@ -114,7 +122,10 @@ export class AccessControlService {
     };
   }
 
-  async openBarrier(userId: string, userRole: UserRole, dto: OpenBarrierDto) {
+  async openBarrier(
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    dto: OpenBarrierDto,
+  ) {
     const accessPoint = await this.prisma.accessPoint.findUnique({
       where: { id: dto.accessPointId },
     });
@@ -127,14 +138,35 @@ export class AccessControlService {
       throw new ForbiddenException('Указанная точка доступа не является шлагбаумом или воротами');
     }
 
-    const isStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN, UserRole.SECURITY, UserRole.DISPATCHER] as UserRole[]).includes(userRole);
+    const isStaff = ([
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.SECURITY,
+      UserRole.DISPATCHER,
+    ] as UserRole[]).includes(user.role);
 
     let verifiedUnitId: string | null = null;
 
-    if (!isStaff) {
+    if (isStaff) {
+      // Аудит безопасности: персонал (кроме SUPERADMIN) может открывать шлагбаумы только своего ЖК
+      if (user.role !== UserRole.SUPERADMIN && accessPoint.tenantId !== user.tenantId) {
+        await this.prisma.accessLog.create({
+          data: {
+            accessPointId: accessPoint.id,
+            userId: user.id,
+            action: 'OPEN_BARRIER',
+            status: 'DENIED',
+            note: 'Попытка открытия шлагбаума сотрудником чужого жилого комплекса',
+          },
+        });
+        throw new ForbiddenException('Сотрудник имеет доступ к шлагбаумам только своего жилого комплекса');
+      }
+
+      verifiedUnitId = dto.unitId || null;
+    } else {
       const verifiedOwnership = await this.prisma.unitOwnership.findFirst({
         where: {
-          userId,
+          userId: user.id,
           isVerified: true,
           unit: {
             building: {
@@ -148,7 +180,7 @@ export class AccessControlService {
         await this.prisma.accessLog.create({
           data: {
             accessPointId: accessPoint.id,
-            userId,
+            userId: user.id,
             action: 'OPEN_BARRIER',
             status: 'DENIED',
             note: 'Попытка открытия без подтвержденного права доступа к ЖК',
@@ -158,8 +190,6 @@ export class AccessControlService {
       }
 
       verifiedUnitId = verifiedOwnership.unitId;
-    } else {
-      verifiedUnitId = dto.unitId || null;
     }
 
     await this.barrierAdapter.triggerOpen(
@@ -170,11 +200,11 @@ export class AccessControlService {
     const log = await this.prisma.accessLog.create({
       data: {
         accessPointId: accessPoint.id,
-        userId,
+        userId: user.id,
         unitId: verifiedUnitId,
         action: 'OPEN_BARRIER',
         status: 'SUCCESS',
-        note: `Открыто через мобильное приложение пользователем ${userId}`,
+        note: `Открыто через мобильное приложение пользователем ${user.id}`,
       },
     });
 

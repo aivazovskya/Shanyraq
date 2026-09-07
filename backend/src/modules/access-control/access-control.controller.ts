@@ -27,18 +27,17 @@ export class AccessControlController {
   @Get('points/:id/stream')
   @ApiOperation({ summary: 'Получить безопасный WebRTC/HLS видеопоток камеры через go2rtc' })
   async getCameraStream(@Param('id') accessPointId: string, @CurrentUser() user: any) {
-    // Доступно только для жителей и персонала данного ЖК; отдает go2rtc WebRTC/HLS endpoints
-    return this.accessControlService.getCameraStream(user.id, user.role, accessPointId);
+    // Доступно только для жителей и персонала данного ЖК (или SUPERADMIN)
+    return this.accessControlService.getCameraStream(user, accessPointId);
   }
 
   @Post('open-barrier')
   @ApiOperation({ summary: 'Открыть шлагбаум / ворота через мобильное приложение' })
   async openBarrier(
-    @CurrentUser('id') userId: string,
-    @CurrentUser('role') role: UserRole,
+    @CurrentUser() user: any,
     @Body() dto: OpenBarrierDto,
   ) {
-    return this.accessControlService.openBarrier(userId, role, dto);
+    return this.accessControlService.openBarrier(user, dto);
   }
 
   @Post('guest-pass')

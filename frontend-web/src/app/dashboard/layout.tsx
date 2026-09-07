@@ -27,6 +27,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Оповещения и новости', href: '/dashboard/announcements', icon: Bell },
   ];
 
+  const [user, setUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    import('@/lib/api').then(({ ensureAuthSession }) => {
+      ensureAuthSession().then((session) => {
+        if (session?.user) {
+          setUser(session.user);
+        }
+      });
+    });
+  }, []);
+
+  const handleLogout = () => {
+    import('@/lib/api').then(({ clearSession }) => {
+      clearSession();
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 flex">
       {/* Sidebar */}
@@ -39,7 +57,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div>
               <div className="font-bold text-base tracking-wide text-white">Shanyraq</div>
-              <div className="text-[11px] text-sky-400 font-medium">ЖК «Шаңырақ Премиум»</div>
+              <div className="text-[11px] text-sky-400 font-medium truncate max-w-[140px]">
+                {user?.tenantName || 'ЖК «Шаңырақ Премиум»'}
+              </div>
             </div>
           </div>
 
@@ -70,11 +90,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="p-4 border-t border-slate-800 bg-slate-950/60">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-white">Алихан Бокейханов</div>
-              <div className="text-xs text-slate-400">Управляющая компания</div>
+              <div className="text-sm font-medium text-white truncate max-w-[150px]">
+                {user ? `${user.firstName} ${user.lastName}` : 'Алихан Бокейханов'}
+              </div>
+              <div className="text-xs text-slate-400">
+                {user?.role === 'SUPERADMIN'
+                  ? 'Суперадминистратор'
+                  : user?.role === 'HOA_CHAIRMAN'
+                  ? 'Председатель ОСИ'
+                  : user?.role === 'DISPATCHER'
+                  ? 'Диспетчер'
+                  : user?.role === 'SECURITY'
+                  ? 'Служба охраны'
+                  : 'Управляющая компания'}
+              </div>
             </div>
             <Link
               href="/"
+              onClick={handleLogout}
               title="Выйти"
               className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg"
             >

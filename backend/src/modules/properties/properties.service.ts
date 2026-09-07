@@ -198,21 +198,27 @@ export class PropertiesService {
       }
     }
 
+    if (!dto.isVerified) {
+      // При отклонении заявки удаляем ее из очереди, освобождая возможность повторной подачи
+      await this.prisma.unitOwnership.delete({
+        where: { id: ownershipId },
+      });
+      return { id: ownershipId, isVerified: false, status: 'REJECTED' };
+    }
+
     const updated = await this.prisma.unitOwnership.update({
       where: { id: ownershipId },
       data: {
-        isVerified: dto.isVerified,
+        isVerified: true,
         sharePercent: finalSharePercent,
-        verifiedAt: dto.isVerified ? new Date() : null,
+        verifiedAt: new Date(),
       },
     });
 
-    if (dto.isVerified) {
-      await this.prisma.user.update({
-        where: { id: record.userId },
-        data: { isVerified: true },
-      });
-    }
+    await this.prisma.user.update({
+      where: { id: record.userId },
+      data: { isVerified: true },
+    });
 
     return updated;
   }
