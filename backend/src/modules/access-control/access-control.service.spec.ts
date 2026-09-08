@@ -41,6 +41,8 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       accessPoint: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
       },
       unitOwnership: {
         findFirst: jest.fn(),
@@ -612,5 +614,228 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       ).rejects.toThrow(ForbiddenException);
     });
   });
-});
 
+  describe('Task 0008: Домофон Hikvision DS-KV (ISAPI), DOOR_INTERCOM и управление точками доступа', () => {
+    const mockHash = bcrypt.hashSync('8392', 10);
+
+    it('должен успешно открывать DOOR_INTERCOM с фиксацией action: OPEN_INTERCOM в журнале', async () => {
+      prismaMock.accessPoint.findUnique.mockResolvedValue({
+        id: 'intercom-1',
+        tenantId: 'tenant-1',
+        name: 'Домофон Подъезд 1',
+        type: AccessPointType.DOOR_INTERCOM,
+        controllerType: 'PAL_ES',
+        endpointUrl: 'http://192.168.1.101',
+        isActive: true,
+      });
+
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-1',
+        userId: 'resident-1',
+        unitId: 'unit-1',
+        isVerified: true,
+      });
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'resident-1',
+        accessPinHash: mockHash,
+      });
+
+      let capturedLog: any = null;
+      prismaMock.accessLog.create.mockImplementation((args: any) => {
+        capturedLog = args.data;
+        return Promise.resolve({ id: 'log-intercom', ...args.data, createdAt: new Date() });
+      });
+
+      const res = await service.openBarrier(
+        { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
+        { accessPointId: 'intercom-1', pin: '8392' },
+      );
+
+      expect(res.success).toBe(true);
+      expect(res.message).toContain('Домофон «Домофон Подъезд 1» открыт');
+      expect(capturedLog.action).toBe('OPEN_INTERCOM');
+      expect(capturedLog.status).toBe('SUCCESS');
+    });
+
+    it('resolveAdapter должен выбирать HikvisionIsapiAdapter только для HIKVISION_ISAPI и MockBarrierAdapter для остальных', () => {
+      const adapterHik = (service as any).resolveAdapter('HIKVISION_ISAPI');
+      const adapterPal = (service as any).resolveAdapter('PAL_ES');
+      const adapterMqtt = (service as any).resolveAdapter('MQTT_RELAY');
+
+      expect(adapterHik.constructor.name).toBe('HikvisionIsapiAdapter');
+      expect(adapterPal.constructor.name).toBe('MockBarrierAdapter');
+      expect(adapterMqtt.constructor.name).toBe('MockBarrierAdapter');
+    });
+
+    it('HikvisionIsapiAdapter.triggerOpen должен выбрасывать BadRequestException, если учетные данные не настроены', async () => {
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === 'HIKVISION_DEFAULT_USERNAME') return undefined;
+        if (key === 'HIKVISION_DEFAULT_PASSWORD') return undefined;
+        return undefined;
+      });
+
+      const hikAdapter = (service as any).hikvisionAdapter;
+      await expect(
+        hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI'),
+      ).rejects.toThrow('HIKVISION_CREDENTIALS_MISSING');
+    });
+
+    it('HikvisionIsapiAdapter.triggerOpen должен обрабатывать digest-аутентификацию и успешно парсить ответ <statusCode>1</statusCode>', async () => {
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === 'HIKVISION_DEFAULT_USERNAME') return 'admin';
+        if (key === 'HIKVISION_DEFAULT_PASSWORD') return 'SecretPass123';
+        return undefined;
+      });
+
+      const originalFetch = global.fetch;
+      let fetchCallCount = 0;
+      let secondCallAuthHeader = '';
+
+      global.fetch = jest.fn().mockImplementation((url: string, opts: any) => {
+        fetchCallCount++;
+        if (fetchCallCount === 1) {
+          // 401 Digest challenge
+          return Promise.resolve({
+            ok: false,
+            status: 401,
+            headers: {
+              get: (headerName: string) => {
+                if (headerName.toLowerCase() === 'www-authenticate') {
+                  return 'Digest realm="DS-KV8113", nonce="d29b019a842f4c1e", qop="auth"';
+                }
+                return null;
+              },
+            },
+            text: () => Promise.resolve(''),
+          });
+        }
+
+        // Second call with Authorization header
+        secondCallAuthHeader = opts.headers.Authorization || '';
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () =>
+            Promise.resolve(
+              '<ResponseStatus version="2.0"><statusCode>1</statusCode><statusString>OK</statusString><subStatusCode>ok</subStatusCode></ResponseStatus>',
+            ),
+        });
+      }) as any;
+
+      try {
+        const hikAdapter = (service as any).hikvisionAdapter;
+        const res = await hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI');
+
+        expect(res.success).toBe(true);
+        expect(fetchCallCount).toBe(2);
+        expect(secondCallAuthHeader).toContain('Digest username="admin"');
+        expect(secondCallAuthHeader).toContain('realm="DS-KV8113"');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('HikvisionIsapiAdapter.triggerOpen должен выбрасывать ошибку, если устройство вернуло ошибку в теле XML', async () => {
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === 'HIKVISION_DEFAULT_USERNAME') return 'admin';
+        if (key === 'HIKVISION_DEFAULT_PASSWORD') return 'SecretPass123';
+        return undefined;
+      });
+
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            '<ResponseStatus version="2.0"><statusCode>4</statusCode><statusString>Device Error</statusString><errorMsg>Door 1 locked by schedule</errorMsg></ResponseStatus>',
+          ),
+      }) as any;
+
+      try {
+        const hikAdapter = (service as any).hikvisionAdapter;
+        await expect(
+          hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI'),
+        ).rejects.toThrow('HIKVISION_DEVICE_ERROR');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('createAccessPoint и updateAccessPoint должны корректно сохранять точку доступа с проверкой прав', async () => {
+      prismaMock.accessPoint.create.mockImplementation((args: any) => {
+        return Promise.resolve({ id: 'ap-new', ...args.data });
+      });
+
+      const created = await service.createAccessPoint(
+        { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' },
+        'tenant-1',
+        {
+          name: 'Домофон Подъезд 2',
+          type: AccessPointType.DOOR_INTERCOM,
+          controllerType: 'HIKVISION_ISAPI',
+          endpointUrl: 'http://192.168.1.130',
+        },
+      );
+
+      expect(created.id).toBe('ap-new');
+      expect(created.name).toBe('Домофон Подъезд 2');
+      expect(created.type).toBe(AccessPointType.DOOR_INTERCOM);
+      expect(created.controllerType).toBe('HIKVISION_ISAPI');
+
+      // Блокировка жильца
+      await expect(
+        service.createAccessPoint(
+          { id: 'res-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+          'tenant-1',
+          {
+            name: 'Домофон',
+            type: AccessPointType.DOOR_INTERCOM,
+          },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('healthCheck должен вызывать checkHealth и возвращать информацию об устройстве', async () => {
+      prismaMock.accessPoint.findUnique.mockResolvedValue({
+        id: 'ap-hik-1',
+        tenantId: 'tenant-1',
+        name: 'Домофон Вход',
+        type: AccessPointType.DOOR_INTERCOM,
+        controllerType: 'HIKVISION_ISAPI',
+        endpointUrl: 'http://192.168.1.125',
+      });
+
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === 'HIKVISION_DEFAULT_USERNAME') return 'admin';
+        if (key === 'HIKVISION_DEFAULT_PASSWORD') return 'SecretPass123';
+        return undefined;
+      });
+
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            '<DeviceInfo version="2.0"><model>DS-KV8113-WME1</model><serialNumber>DS-KV81132026</serialNumber></DeviceInfo>',
+          ),
+      }) as any;
+
+      try {
+        const result = await service.healthCheck(
+          { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' },
+          'ap-hik-1',
+        );
+
+        expect(result.reachable).toBe(true);
+        expect(result.model).toBe('DS-KV8113-WME1');
+        expect(result.serialNumber).toBe('DS-KV81132026');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
+
+});

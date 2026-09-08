@@ -1,7 +1,12 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AccessControlService } from './access-control.service';
-import { OpenBarrierDto, CreateGuestPassDto } from './dto/access-control.dto';
+import {
+  OpenBarrierDto,
+  CreateGuestPassDto,
+  CreateAccessPointDto,
+  UpdateAccessPointDto,
+} from './dto/access-control.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -24,6 +29,38 @@ export class AccessControlController {
     return this.accessControlService.getAccessPoints(tenantId, user.role);
   }
 
+  @Post('tenant/:tenantId/points')
+  @Roles(UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Зарегистрировать новую точку доступа (шлагбаум, домофон, камера)' })
+  async createAccessPoint(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Body() dto: CreateAccessPointDto,
+  ) {
+    return this.accessControlService.createAccessPoint(user, tenantId, dto);
+  }
+
+  @Patch('points/:id')
+  @Roles(UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Обновить параметры или статус точки доступа' })
+  async updateAccessPoint(
+    @Param('id') accessPointId: string,
+    @CurrentUser() user: any,
+    @Body() dto: UpdateAccessPointDto,
+  ) {
+    return this.accessControlService.updateAccessPoint(user, accessPointId, dto);
+  }
+
+  @Get('points/:id/health-check')
+  @Roles(UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Проверить доступность домофона Hikvision по ISAPI' })
+  async healthCheck(
+    @Param('id') accessPointId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.accessControlService.healthCheck(user, accessPointId);
+  }
+
   @Get('points/:id/stream')
   @ApiOperation({ summary: 'Получить безопасный WebRTC/HLS видеопоток камеры через go2rtc' })
   async getCameraStream(@Param('id') accessPointId: string, @CurrentUser() user: any) {
@@ -32,7 +69,7 @@ export class AccessControlController {
   }
 
   @Post('open-barrier')
-  @ApiOperation({ summary: 'Открыть шлагбаум / ворота через мобильное приложение' })
+  @ApiOperation({ summary: 'Открыть шлагбаум / ворота / домофон через мобильное приложение' })
   async openBarrier(
     @CurrentUser() user: any,
     @Body() dto: OpenBarrierDto,

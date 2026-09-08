@@ -184,7 +184,11 @@
     "checkingSecurityStatus": "Checking security status...",
     "ok": "OK",
     "devSmsTitle": "Test SMS code",
-    "devSmsBody": "Dev code for PIN reset: {{code}}"
+    "devSmsBody": "Dev code for PIN reset: {{code}}",
+    "intercomsSection": "Intercoms",
+    "noIntercoms": "No intercoms configured for your complex yet",
+    "pointTypeIntercom": "Intercom",
+    "holdToOpenIntercom": "Hold to open door"
   },
   "votings": {
     "title": "General Meetings (HOA)",

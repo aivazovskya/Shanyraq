@@ -184,7 +184,11 @@
     "checkingSecurityStatus": "Проверка статуса безопасности...",
     "ok": "ОК",
     "devSmsTitle": "Тестовый SMS-код",
-    "devSmsBody": "Dev-код для сброса PIN: {{code}}"
+    "devSmsBody": "Dev-код для сброса PIN: {{code}}",
+    "intercomsSection": "Домофоны",
+    "noIntercoms": "В вашем ЖК пока нет настроенных домофонов",
+    "pointTypeIntercom": "Домофон",
+    "holdToOpenIntercom": "Удерживайте для открытия двери"
   },
   "votings": {
     "title": "Голосования ОСС",

@@ -184,7 +184,11 @@
     "checkingSecurityStatus": "Қауіпсіздік мәртебесін тексеру...",
     "ok": "ОК",
     "devSmsTitle": "Тестілік SMS-код",
-    "devSmsBody": "PIN қалпына келтіру үшін Dev-код: {{code}}"
+    "devSmsBody": "PIN қалпына келтіру үшін Dev-код: {{code}}",
+    "intercomsSection": "Домофондар",
+    "noIntercoms": "Тұрғын үй кешеніңізде әзірге бапталған домофондар жоқ",
+    "pointTypeIntercom": "Домофон",
+    "holdToOpenIntercom": "Есікті ашу үшін басып тұрыңыз"
   },
   "votings": {
     "title": "ОСС дауыс берулері",

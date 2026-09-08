@@ -9,8 +9,14 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../redis/redis.service';
-import { OpenBarrierDto, CreateGuestPassDto } from './dto/access-control.dto';
+import {
+  OpenBarrierDto,
+  CreateGuestPassDto,
+  CreateAccessPointDto,
+  UpdateAccessPointDto,
+} from './dto/access-control.dto';
 import { AccessPointType, UserRole } from '@prisma/client';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
 export interface IBarrierAdapter {
   triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }>;
@@ -24,15 +30,238 @@ export class MockBarrierAdapter implements IBarrierAdapter {
   }
 }
 
+/**
+ * Digest Authentication Helper Functions
+ */
+function parseDigestChallenge(header: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  const cleaned = header.replace(/^Digest\s+/i, '');
+  const matches = cleaned.matchAll(/(\w+)=(?:"([^"]+)"|([^\s,]+))/g);
+  for (const match of matches) {
+    params[match[1]] = match[2] !== undefined ? match[2] : match[3];
+  }
+  return params;
+}
+
+function buildDigestHeader(
+  method: string,
+  uri: string,
+  username: string,
+  password: string,
+  challenge: Record<string, string>,
+): string {
+  const realm = challenge.realm || '';
+  const nonce = challenge.nonce || '';
+  const qop = challenge.qop || '';
+  const opaque = challenge.opaque;
+  const algorithm = challenge.algorithm || 'MD5';
+
+  const md5 = (str: string) => crypto.createHash('md5').update(str).digest('hex');
+  const ha1 = md5(`${username}:${realm}:${password}`);
+  const ha2 = md5(`${method}:${uri}`);
+
+  const nc = '00000001';
+  const cnonce = crypto.randomBytes(8).toString('hex');
+
+  let response = '';
+  if (qop && qop.split(',').map((s) => s.trim()).includes('auth')) {
+    response = md5(`${ha1}:${nonce}:${nc}:${cnonce}:auth:${ha2}`);
+  } else {
+    response = md5(`${ha1}:${nonce}:${ha2}`);
+  }
+
+  let header = `Digest username="${username}", realm="${realm}", nonce="${nonce}", uri="${uri}", response="${response}"`;
+  if (qop && qop.split(',').map((s) => s.trim()).includes('auth')) {
+    header += `, qop=auth, nc=${nc}, cnonce="${cnonce}"`;
+  }
+  if (opaque) {
+    header += `, opaque="${opaque}"`;
+  }
+  if (challenge.algorithm) {
+    header += `, algorithm=${algorithm}`;
+  }
+  return header;
+}
+
+@Injectable()
+export class HikvisionIsapiAdapter implements IBarrierAdapter {
+  constructor(private readonly configService: ConfigService) {}
+
+  async triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }> {
+    const username = this.configService.get<string>('HIKVISION_DEFAULT_USERNAME');
+    const password = this.configService.get<string>('HIKVISION_DEFAULT_PASSWORD');
+
+    if (!username || !password) {
+      throw new BadRequestException(
+        'HIKVISION_CREDENTIALS_MISSING: Учетные данные домофона Hikvision не настроены (HIKVISION_DEFAULT_USERNAME/HIKVISION_DEFAULT_PASSWORD)',
+      );
+    }
+
+    const startTime = Date.now();
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const targetUrl = `${cleanUrl}/ISAPI/AccessControl/RemoteControl/door/1`;
+    const xmlBody = '<RemoteControlDoor><cmd>open</cmd></RemoteControlDoor>';
+
+    let res: Response;
+    try {
+      res = await this.executeDigestRequest(targetUrl, 'PUT', xmlBody, username, password);
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        `HIKVISION_CONNECTION_ERROR: Ошибка связи с домофоном (${cleanUrl}): ${err.message || err}`,
+      );
+    }
+
+    const responseText = await res.text();
+    const latencyMs = Date.now() - startTime;
+
+    // Parse XML response
+    const statusCodeMatch = responseText.match(/<statusCode>(\d+)<\/statusCode>/i);
+    const statusStringMatch = responseText.match(/<statusString>([^<]+)<\/statusString>/i);
+    const subStatusMatch = responseText.match(/<subStatusCode>([^<]+)<\/subStatusCode>/i);
+    const errorMsgMatch = responseText.match(/<errorMsg>([^<]+)<\/errorMsg>/i);
+
+    const statusCode = statusCodeMatch ? statusCodeMatch[1] : null;
+    const statusString = statusStringMatch ? statusStringMatch[1] : null;
+    const subStatus = subStatusMatch ? subStatusMatch[1] : null;
+    const errorMsg = errorMsgMatch ? errorMsgMatch[1] : null;
+
+    const isSuccess = statusCode === '1' && (statusString?.toUpperCase() === 'OK' || subStatus?.toLowerCase() === 'ok');
+
+    if (!isSuccess && (statusCode !== null || !res.ok)) {
+      const errMsg = errorMsg || statusString || subStatus || `HTTP ${res.status}`;
+      throw new BadRequestException(
+        `HIKVISION_DEVICE_ERROR: Домофон отклонил команду открытия: ${errMsg}`,
+      );
+    }
+
+    return { success: true, latencyMs };
+  }
+
+  async checkHealth(endpointUrl: string): Promise<{ reachable: boolean; model?: string; serialNumber?: string; latencyMs: number }> {
+    const username = this.configService.get<string>('HIKVISION_DEFAULT_USERNAME');
+    const password = this.configService.get<string>('HIKVISION_DEFAULT_PASSWORD');
+
+    if (!username || !password) {
+      throw new BadRequestException(
+        'HIKVISION_CREDENTIALS_MISSING: Учетные данные домофона Hikvision не настроены (HIKVISION_DEFAULT_USERNAME/HIKVISION_DEFAULT_PASSWORD)',
+      );
+    }
+
+    const startTime = Date.now();
+    const cleanUrl = endpointUrl.replace(/\/+$/, '');
+    const targetUrl = `${cleanUrl}/ISAPI/System/deviceInfo`;
+
+    let res: Response;
+    try {
+      res = await this.executeDigestRequest(targetUrl, 'GET', undefined, username, password);
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException(
+        `HIKVISION_CONNECTION_ERROR: Устройство недоступно (${cleanUrl}): ${err.message || err}`,
+      );
+    }
+
+    const responseText = await res.text();
+    const latencyMs = Date.now() - startTime;
+
+    if (!res.ok) {
+      throw new BadRequestException(
+        `HIKVISION_DEVICE_ERROR: Ошибка проверки связи: HTTP ${res.status}`,
+      );
+    }
+
+    const modelMatch = responseText.match(/<model>([^<]+)<\/model>/i);
+    const serialMatch = responseText.match(/<serialNumber>([^<]+)<\/serialNumber>/i);
+
+    return {
+      reachable: true,
+      model: modelMatch ? modelMatch[1] : undefined,
+      serialNumber: serialMatch ? serialMatch[1] : undefined,
+      latencyMs,
+    };
+  }
+
+  private async executeDigestRequest(
+    targetUrl: string,
+    method: string,
+    body?: string,
+    username?: string,
+    password?: string,
+  ): Promise<Response> {
+    const parsed = new URL(targetUrl);
+    const uri = parsed.pathname + parsed.search;
+
+    const initialHeaders: Record<string, string> = {};
+    if (body) {
+      initialHeaders['Content-Type'] = 'application/xml';
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(targetUrl, {
+        method,
+        headers: initialHeaders,
+        body,
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (err: any) {
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        throw new BadRequestException('HIKVISION_TIMEOUT: Превышено время ожидания ответа (5 сек)');
+      }
+      throw err;
+    }
+
+    if (response.status === 401 && username && password) {
+      const authHeader = response.headers.get('www-authenticate');
+      if (authHeader && authHeader.toLowerCase().startsWith('digest')) {
+        const challenge = parseDigestChallenge(authHeader);
+        const digestAuth = buildDigestHeader(method, uri, username, password, challenge);
+
+        const retryHeaders: Record<string, string> = {
+          ...initialHeaders,
+          Authorization: digestAuth,
+        };
+
+        try {
+          response = await fetch(targetUrl, {
+            method,
+            headers: retryHeaders,
+            body,
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch (err: any) {
+          if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+            throw new BadRequestException('HIKVISION_TIMEOUT: Превышено время ожидания ответа (5 сек)');
+          }
+          throw err;
+        }
+      }
+    }
+
+    return response;
+  }
+}
+
 @Injectable()
 export class AccessControlService {
-  private barrierAdapter: IBarrierAdapter = new MockBarrierAdapter();
+  private mockAdapter: IBarrierAdapter = new MockBarrierAdapter();
+  private hikvisionAdapter: HikvisionIsapiAdapter;
 
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
     private redisService: RedisService,
-  ) {}
+  ) {
+    this.hikvisionAdapter = new HikvisionIsapiAdapter(this.configService);
+  }
+
+  private resolveAdapter(controllerType: string): IBarrierAdapter {
+    if (controllerType === 'HIKVISION_ISAPI') {
+      return this.hikvisionAdapter;
+    }
+    return this.mockAdapter;
+  }
 
   async getAccessPoints(tenantId: string, userRole: UserRole) {
     const points = await this.prisma.accessPoint.findMany({
@@ -58,6 +287,92 @@ export class AccessControlService {
     }
 
     return points;
+  }
+
+  async createAccessPoint(
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    tenantId: string,
+    dto: CreateAccessPointDto,
+  ) {
+    const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(user.role);
+    if (!isPrivilegedStaff) {
+      throw new ForbiddenException('Только администраторы могут создавать точки доступа');
+    }
+    assertUserBelongsToTenant(user, tenantId, 'точек доступа');
+
+    return this.prisma.accessPoint.create({
+      data: {
+        tenantId,
+        name: dto.name.trim(),
+        type: dto.type,
+        controllerType: dto.controllerType || 'PAL_ES',
+        endpointUrl: dto.endpointUrl?.trim() || null,
+        rtspStreamUrl: dto.rtspStreamUrl?.trim() || null,
+        streamName: dto.streamName?.trim() || null,
+      },
+    });
+  }
+
+  async updateAccessPoint(
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    accessPointId: string,
+    dto: UpdateAccessPointDto,
+  ) {
+    const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(user.role);
+    if (!isPrivilegedStaff) {
+      throw new ForbiddenException('Только администраторы могут изменять точки доступа');
+    }
+
+    const accessPoint = await this.prisma.accessPoint.findUnique({
+      where: { id: accessPointId },
+    });
+    if (!accessPoint) {
+      throw new NotFoundException('Точка доступа не найдена');
+    }
+
+    assertUserBelongsToTenant(user, accessPoint.tenantId, 'точек доступа');
+
+    return this.prisma.accessPoint.update({
+      where: { id: accessPointId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name.trim() }),
+        ...(dto.type !== undefined && { type: dto.type }),
+        ...(dto.controllerType !== undefined && { controllerType: dto.controllerType.trim() }),
+        ...(dto.endpointUrl !== undefined && { endpointUrl: dto.endpointUrl?.trim() || null }),
+        ...(dto.rtspStreamUrl !== undefined && { rtspStreamUrl: dto.rtspStreamUrl?.trim() || null }),
+        ...(dto.streamName !== undefined && { streamName: dto.streamName?.trim() || null }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+  }
+
+  async healthCheck(
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    accessPointId: string,
+  ) {
+    const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(user.role);
+    if (!isPrivilegedStaff) {
+      throw new ForbiddenException('Только администраторы могут выполнять проверку связи с оборудованием');
+    }
+
+    const accessPoint = await this.prisma.accessPoint.findUnique({
+      where: { id: accessPointId },
+    });
+    if (!accessPoint) {
+      throw new NotFoundException('Точка доступа не найдена');
+    }
+
+    assertUserBelongsToTenant(user, accessPoint.tenantId, 'точек доступа');
+
+    if (accessPoint.controllerType !== 'HIKVISION_ISAPI') {
+      throw new BadRequestException('Проверка связи по протоколу ISAPI доступна только для контроллеров HIKVISION_ISAPI');
+    }
+
+    if (!accessPoint.endpointUrl) {
+      throw new BadRequestException('У точки доступа не указан endpointUrl (IP-адрес прибора)');
+    }
+
+    return this.hikvisionAdapter.checkHealth(accessPoint.endpointUrl);
   }
 
   async getCameraStream(
@@ -138,9 +453,17 @@ export class AccessControlService {
       throw new NotFoundException('Точка доступа не найдена');
     }
 
-    if (accessPoint.type !== AccessPointType.BARRIER && accessPoint.type !== AccessPointType.GATE) {
-      throw new ForbiddenException('Указанная точка доступа не является шлагбаумом или воротами');
+    if (
+      accessPoint.type !== AccessPointType.BARRIER &&
+      accessPoint.type !== AccessPointType.GATE &&
+      accessPoint.type !== AccessPointType.DOOR_INTERCOM
+    ) {
+      throw new ForbiddenException('Указанная точка доступа не является шлагбаумом, воротами или домофоном');
     }
+
+    const logAction = accessPoint.type === AccessPointType.DOOR_INTERCOM ? 'OPEN_INTERCOM' : 'OPEN_BARRIER';
+    const typeLabel = accessPoint.type === AccessPointType.DOOR_INTERCOM ? 'домофона' : 'шлагбаума';
+    const titleLabel = accessPoint.type === AccessPointType.DOOR_INTERCOM ? 'Домофон' : 'Шлагбаум';
 
     const isStaff = ([
       UserRole.SUPERADMIN,
@@ -152,18 +475,18 @@ export class AccessControlService {
     let verifiedUnitId: string | null = null;
 
     if (isStaff) {
-      // Аудит безопасности: персонал (кроме SUPERADMIN) может открывать шлагбаумы только своего ЖК
+      // Аудит безопасности: персонал (кроме SUPERADMIN) может открывать шлагбаумы/домофоны только своего ЖК
       if (user.role !== UserRole.SUPERADMIN && accessPoint.tenantId !== user.tenantId) {
         await this.prisma.accessLog.create({
           data: {
             accessPointId: accessPoint.id,
             userId: user.id,
-            action: 'OPEN_BARRIER',
+            action: logAction,
             status: 'DENIED',
-            note: 'Попытка открытия шлагбаума сотрудником чужого жилого комплекса',
+            note: `Попытка открытия ${typeLabel} сотрудником чужого жилого комплекса`,
           },
         });
-        throw new ForbiddenException('Сотрудник имеет доступ к шлагбаумам только своего жилого комплекса');
+        throw new ForbiddenException(`Сотрудник имеет доступ к управлению точками доступа только своего жилого комплекса`);
       }
 
       verifiedUnitId = dto.unitId || null;
@@ -185,12 +508,12 @@ export class AccessControlService {
           data: {
             accessPointId: accessPoint.id,
             userId: user.id,
-            action: 'OPEN_BARRIER',
+            action: logAction,
             status: 'DENIED',
             note: 'Попытка открытия без подтвержденного права доступа к ЖК',
           },
         });
-        throw new ForbiddenException('У вас нет активного права доступа к шлагбауму данного жилого комплекса');
+        throw new ForbiddenException(`У вас нет активного права доступа к точке доступа данного жилого комплекса`);
       }
 
       verifiedUnitId = verifiedOwnership.unitId;
@@ -208,13 +531,13 @@ export class AccessControlService {
           accessPointId: accessPoint.id,
           userId: user.id,
           unitId: verifiedUnitId,
-          action: 'OPEN_BARRIER',
+          action: logAction,
           status: 'DENIED',
-          note: 'Попытка открытия шлагбаума без настроенного PIN-кода доступа',
+          note: `Попытка открытия ${typeLabel} без настроенного PIN-кода доступа`,
         },
       });
       throw new BadRequestException(
-        'PIN_NOT_SET: Сначала установите PIN-код доступа в профиле для управления шлагбаумами',
+        `PIN_NOT_SET: Сначала установите PIN-код доступа в профиле для управления точками доступа`,
       );
     }
 
@@ -226,9 +549,9 @@ export class AccessControlService {
           accessPointId: accessPoint.id,
           userId: user.id,
           unitId: verifiedUnitId,
-          action: 'OPEN_BARRIER',
+          action: logAction,
           status: 'DENIED',
-          note: 'Попытка открытия шлагбаума во время блокировки за неверный ввод PIN',
+          note: `Попытка открытия ${typeLabel} во время блокировки за неверный ввод PIN`,
         },
       });
       throw new ForbiddenException(
@@ -250,9 +573,9 @@ export class AccessControlService {
             accessPointId: accessPoint.id,
             userId: user.id,
             unitId: verifiedUnitId,
-            action: 'OPEN_BARRIER',
+            action: logAction,
             status: 'DENIED',
-            note: 'Неверный PIN при открытии (превышено число попыток, шлагбаум заблокирован на 10 мин)',
+            note: `Неверный PIN при открытии (превышено число попыток, доступ заблокирован на 10 мин)`,
           },
         });
         throw new ForbiddenException(
@@ -266,7 +589,7 @@ export class AccessControlService {
           accessPointId: accessPoint.id,
           userId: user.id,
           unitId: verifiedUnitId,
-          action: 'OPEN_BARRIER',
+          action: logAction,
           status: 'DENIED',
           note: `Неверный PIN при открытии (попытка ${attempts} из 3)`,
         },
@@ -278,7 +601,8 @@ export class AccessControlService {
 
     await this.redisService.del(`barrier:attempts:${user.id}`);
 
-    await this.barrierAdapter.triggerOpen(
+    const adapter = this.resolveAdapter(accessPoint.controllerType);
+    await adapter.triggerOpen(
       accessPoint.endpointUrl || 'local://relay',
       accessPoint.controllerType,
     );
@@ -288,7 +612,7 @@ export class AccessControlService {
         accessPointId: accessPoint.id,
         userId: user.id,
         unitId: verifiedUnitId,
-        action: 'OPEN_BARRIER',
+        action: logAction,
         status: 'SUCCESS',
         note: `Открыто через мобильное приложение пользователем ${user.id}`,
       },
@@ -296,7 +620,7 @@ export class AccessControlService {
 
     return {
       success: true,
-      message: `Шлагбаум «${accessPoint.name}» открыт`,
+      message: `${titleLabel} «${accessPoint.name}» открыт`,
       openedAt: log.createdAt,
     };
   }

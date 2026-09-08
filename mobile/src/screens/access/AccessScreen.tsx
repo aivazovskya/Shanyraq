@@ -250,6 +250,7 @@ export const AccessScreen: React.FC = () => {
   }
 
   const barriers = points.filter((p) => p.type === 'BARRIER' || p.type === 'GATE');
+  const intercoms = points.filter((p) => p.type === 'DOOR_INTERCOM');
   const cameras = points.filter((p) => p.type === 'CAMERA');
 
   return (
@@ -290,6 +291,38 @@ export const AccessScreen: React.FC = () => {
             </View>
             <ChevronRight color="#B45309" size={18} />
           </TouchableOpacity>
+        )}
+
+        {/* Section: Intercoms */}
+        <Text style={styles.sectionHeading}>{t('access.intercomsSection')}</Text>
+
+        {intercoms.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Text style={styles.emptyText}>{t('access.noIntercoms')}</Text>
+          </Card>
+        ) : (
+          intercoms.map((intercom) => (
+            <Card key={intercom.id} style={styles.barrierCard}>
+              <View style={styles.barrierHeader}>
+                <View style={styles.barrierInfo}>
+                  <Text style={styles.barrierName}>{intercom.name}</Text>
+                  <Text style={styles.barrierType}>
+                    {t('access.pointTypeIntercom')}
+                  </Text>
+                </View>
+                <Badge label={t('access.barrierActive')} variant="success" />
+              </View>
+
+              <View style={styles.buttonWrapper}>
+                <HoldToOpenButton
+                  title={t('access.holdToOpenIntercom')}
+                  onConfirmed={() => handleTriggerOpenBarrier(intercom)}
+                  loading={openingWithPin && selectedBarrier?.id === intercom.id}
+                  disabled={!isVerified}
+                />
+              </View>
+            </Card>
+          ))
         )}
 
         {/* Section: Barriers */}
