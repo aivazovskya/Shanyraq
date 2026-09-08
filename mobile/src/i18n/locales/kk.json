@@ -339,7 +339,9 @@
     "financeCardTitle": "Дербес шот және сальдо",
     "financeCardSub": "ТК есептеулері және төлем тарихы",
     "metersCardTitle": "Есептегіштер көрсеткіші",
-    "metersCardSub": "Су және электр энергиясы бойынша деректерді беру"
+    "metersCardSub": "Су және электр энергиясы бойынша деректерді беру",
+    "bookingsCardTitle": "Аймақтарды брондау",
+    "bookingsCardSub": "Барбекю, коворкинг, паркинг"
   },
   "finance": {
     "title": "Дербес шот",
@@ -395,5 +397,35 @@
     "periodFormat": "{{month}}.{{year}}",
     "unitElectricity": "кВт⋅сағ",
     "unitWater": "м³"
+  },
+  "bookings": {
+    "title": "Ортақ кеңістіктер",
+    "tabSpaces": "Кеңістіктер",
+    "tabMy": "Менің брондарым",
+    "emptySpaces": "Тұрғын үй кешеніңізде әзірге брондау аймақтары жоқ",
+    "emptyMy": "Сізде әзірге белсенді брондаулар жоқ",
+    "operatingHours": "Жұмыс уақыты: {{start}} - {{end}}",
+    "maxDuration": "Шектеу: {{minutes}} мин",
+    "bookBtn": "Брондау",
+    "bookingModalTitle": "Брондау: {{name}}",
+    "selectDate": "Күнді таңдаңыз",
+    "busySlotsTitle": "Бұл күнге бос емес уақыттар:",
+    "noBusySlots": "Бұл күні барлық уақыт бос",
+    "timeStart": "Басталу уақыты (HH:mm)",
+    "timeEnd": "Аяқталу уақыты (HH:mm)",
+    "noteLabel": "Ескертпе (міндетті емес)",
+    "notePlaceholder": "Мысалы: отбасылық кешкі ас",
+    "confirmBookingBtn": "Брондауды растау",
+    "cancelBookingBtn": "Брондаудан бас тарту",
+    "bookingSuccess": "Кеңістік сәтті брондалды!",
+    "cancelSuccess": "Брондау болдырылмады",
+    "typeBbQ": "Барбекю аймағы",
+    "typeCoworking": "Коворкинг",
+    "typeParking": "Қонақтар паркингі",
+    "typeKids": "Балалар бөлмесі",
+    "typeOther": "Кеңістік",
+    "statusConfirmed": "Белсенді",
+    "statusCancelled": "Болдырылмаған",
+    "unverifiedNotice": "Ортақ кеңістіктерді брондау тек пәтерді басқарушы компания растағаннан кейін ғана қолжетімді болады."
   }
 }

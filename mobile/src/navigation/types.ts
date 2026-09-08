@@ -24,4 +24,5 @@ export type RootStackParamList = {
   PinSetup: { returnTo?: string } | undefined;
   FinanceAccount: undefined;
   Meters: undefined;
+  Bookings: undefined;
 };

@@ -103,6 +103,7 @@ model Tenant {
   accessPoints     AccessPoint[]
   announcements    Announcement[]
   tariffItems      TariffItem[]
+  bookableResources BookableResource[]
 
   @@map("tenants")
 }
@@ -143,6 +144,7 @@ model Unit {
   accessLogs       AccessLog[]
   personalAccount  PersonalAccount?
   meters           Meter[]
+  bookings         Booking[]
 
   @@unique([buildingId, unitNumber])
   @@map("units")
@@ -183,6 +185,8 @@ model User {
   recordedPayments  Payment[]
   submittedReadings MeterReading[]   @relation("SubmittedReadings")
   reviewedReadings  MeterReading[]   @relation("ReviewedReadings")
+  bookingsMade      Booking[]        @relation("BookingsMade")
+  bookingsCancelled Booking[]        @relation("BookingsCancelled")
 
   @@map("users")
 }
@@ -558,5 +562,62 @@ model MeterReading {
 
   @@unique([meterId, periodMonth, periodYear])
   @@map("meter_readings")
+}
+
+// -------------------------------------------------------------
+// Bookable Resources & Amenity Bookings (Общие пространства)
+// -------------------------------------------------------------
+
+enum BookableResourceType {
+  GUEST_PARKING
+  COWORKING
+  BBQ_AREA
+  KIDS_ROOM
+  OTHER
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model BookableResource {
+  id                  String               @id @default(uuid())
+  tenantId            String
+  name                String               // "Барбекю-зона", "Коворкинг", "Гостевой паркинг №3" — fully staff-defined
+  type                BookableResourceType
+  description         String?
+  operatingHoursStart String?              // "08:00" — simple HH:mm string
+  operatingHoursEnd   String?              // "22:00"
+  maxDurationMinutes  Int?                 // optional cap per booking; null = no cap
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@map("bookable_resources")
+}
+
+model Booking {
+  id            String        @id @default(uuid())
+  resourceId    String
+  unitId        String
+  bookedById    String
+  startTime     DateTime
+  endTime       DateTime
+  status        BookingStatus @default(CONFIRMED)
+  note          String?
+  cancelledById String?
+  cancelledAt   DateTime?
+  createdAt     DateTime      @default(now())
+
+  resource    BookableResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  unit        Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  bookedBy    User             @relation("BookingsMade", fields: [bookedById], references: [id], onDelete: Cascade)
+  cancelledBy User?            @relation("BookingsCancelled", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  @@map("bookings")
 }
 

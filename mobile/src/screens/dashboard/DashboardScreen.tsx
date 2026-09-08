@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   CreditCard,
   Gauge,
+  Calendar,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -200,6 +201,23 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.financeTextContainer}>
               <Text style={styles.financeTitle}>{t('dashboard.metersCardTitle')}</Text>
               <Text style={styles.financeSub}>{t('dashboard.metersCardSub')}</Text>
+            </View>
+            <ChevronRight color={Colors.textMuted} size={20} />
+          </View>
+        </Card>
+
+        {/* Amenity Booking Card */}
+        <Card
+          style={[styles.financeCard, { marginTop: 8 }]}
+          onPress={() => (navigation as any).navigate('Bookings')}
+        >
+          <View style={styles.financeRow}>
+            <View style={[styles.quickIconCircle, { backgroundColor: '#FDF4FF' }]}>
+              <Calendar color="#A855F7" size={22} />
+            </View>
+            <View style={styles.financeTextContainer}>
+              <Text style={styles.financeTitle}>{t('dashboard.bookingsCardTitle')}</Text>
+              <Text style={styles.financeSub}>{t('dashboard.bookingsCardSub')}</Text>
             </View>
             <ChevronRight color={Colors.textMuted} size={20} />
           </View>

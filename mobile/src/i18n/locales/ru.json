@@ -339,7 +339,9 @@
     "financeCardTitle": "Лицевой счет и баланс",
     "financeCardSub": "Начисления ЖК и история оплат",
     "metersCardTitle": "Показания счётчиков",
-    "metersCardSub": "Передача данных по воде и электроэнергии"
+    "metersCardSub": "Передача данных по воде и электроэнергии",
+    "bookingsCardTitle": "Бронирование зон",
+    "bookingsCardSub": "Барбекю, коворкинг, паркинг"
   },
   "finance": {
     "title": "Лицевой счет",
@@ -395,5 +397,35 @@
     "periodFormat": "{{month}}.{{year}}",
     "unitElectricity": "кВт⋅ч",
     "unitWater": "м³"
+  },
+  "bookings": {
+    "title": "Общие пространства",
+    "tabSpaces": "Пространства",
+    "tabMy": "Мои брони",
+    "emptySpaces": "В вашем ЖК пока нет зон для бронирования",
+    "emptyMy": "У вас пока нет активных бронирований",
+    "operatingHours": "Часы работы: с {{start}} до {{end}}",
+    "maxDuration": "Лимит: {{minutes}} мин",
+    "bookBtn": "Забронировать",
+    "bookingModalTitle": "Бронирование: {{name}}",
+    "selectDate": "Выберите дату",
+    "busySlotsTitle": "Занятые слоты на этот день:",
+    "noBusySlots": "На этот день всё свободно",
+    "timeStart": "Время начала (HH:mm)",
+    "timeEnd": "Время окончания (HH:mm)",
+    "noteLabel": "Примечание (необязательно)",
+    "notePlaceholder": "Например: семейный ужин",
+    "confirmBookingBtn": "Подтвердить бронь",
+    "cancelBookingBtn": "Отменить бронь",
+    "bookingSuccess": "Пространство успешно забронировано!",
+    "cancelSuccess": "Бронь отменена",
+    "typeBbQ": "Барбекю-зона",
+    "typeCoworking": "Коворкинг",
+    "typeParking": "Гостевой паркинг",
+    "typeKids": "Детская комната",
+    "typeOther": "Пространство",
+    "statusConfirmed": "Активно",
+    "statusCancelled": "Отменено",
+    "unverifiedNotice": "Бронирование общих пространств доступно только после подтверждения квартиры в управляющей компании."
   }
 }

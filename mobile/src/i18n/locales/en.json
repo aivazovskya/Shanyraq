@@ -339,7 +339,9 @@
     "financeCardTitle": "Personal Account & Balance",
     "financeCardSub": "Utility charges & payment history",
     "metersCardTitle": "Meter Readings",
-    "metersCardSub": "Submit water and electricity readings"
+    "metersCardSub": "Submit water and electricity readings",
+    "bookingsCardTitle": "Amenity Booking",
+    "bookingsCardSub": "BBQ, coworking, parking"
   },
   "finance": {
     "title": "Personal Account",
@@ -395,5 +397,35 @@
     "periodFormat": "{{month}}.{{year}}",
     "unitElectricity": "kWh",
     "unitWater": "m³"
+  },
+  "bookings": {
+    "title": "Common Spaces",
+    "tabSpaces": "Spaces",
+    "tabMy": "My Bookings",
+    "emptySpaces": "No bookable amenities in your complex yet",
+    "emptyMy": "You have no active bookings yet",
+    "operatingHours": "Hours: {{start}} to {{end}}",
+    "maxDuration": "Cap: {{minutes}} min",
+    "bookBtn": "Book",
+    "bookingModalTitle": "Booking: {{name}}",
+    "selectDate": "Select Date",
+    "busySlotsTitle": "Busy slots on this day:",
+    "noBusySlots": "No busy slots on this day",
+    "timeStart": "Start Time (HH:mm)",
+    "timeEnd": "End Time (HH:mm)",
+    "noteLabel": "Note (optional)",
+    "notePlaceholder": "e.g. family dinner",
+    "confirmBookingBtn": "Confirm Booking",
+    "cancelBookingBtn": "Cancel Booking",
+    "bookingSuccess": "Space booked successfully!",
+    "cancelSuccess": "Booking cancelled",
+    "typeBbQ": "BBQ Area",
+    "typeCoworking": "Coworking",
+    "typeParking": "Guest Parking",
+    "typeKids": "Kids Room",
+    "typeOther": "Space",
+    "statusConfirmed": "Active",
+    "statusCancelled": "Cancelled",
+    "unverifiedNotice": "Booking common spaces is available only after your apartment ownership is verified by the management company."
   }
 }
