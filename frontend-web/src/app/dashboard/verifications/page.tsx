@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   UserCheck,
   FileText,
@@ -47,6 +48,7 @@ interface VerificationItem {
 }
 
 export default function VerificationsPage() {
+  const { t, i18n } = useTranslation();
   const [items, setItems] = useState<VerificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function VerificationsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [approvedShares, setApprovedShares] = useState<Record<string, number>>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [tenantName, setTenantName] = useState<string>('ЖК');
+  const [tenantName, setTenantName] = useState<string>('');
 
   const loadVerifications = useCallback(async () => {
     try {
@@ -66,7 +68,7 @@ export default function VerificationsPage() {
       setError(null);
       const session = getStoredSession();
       if (!session || !session.user || !session.user.tenantId) {
-        throw new Error('Пользователь не авторизован или не привязан к жилому комплексу');
+        throw new Error(t('common.userNotAuthorizedOrLinked'));
       }
       if (session.user.tenantName) {
         setTenantName(session.user.tenantName);
@@ -85,11 +87,11 @@ export default function VerificationsPage() {
       });
       setApprovedShares(initialShares);
     } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки очереди верификаций');
+      setError(err.message || t('verifications.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadVerifications();
@@ -111,7 +113,11 @@ export default function VerificationsPage() {
 
       setActionMessage({
         type: 'success',
-        text: `Право собственности для ${item.user.firstName} ${item.user.lastName} (кв. ${item.unit.unitNumber}) успешно подтверждено с долей ${approvedSharePercent}%`,
+        text: t('verifications.approveSuccess', {
+          name: `${item.user.firstName} ${item.user.lastName}`,
+          unit: item.unit.unitNumber,
+          share: approvedSharePercent,
+        }),
       });
 
       // Перезагрузка актуальных данных из БД
@@ -119,7 +125,7 @@ export default function VerificationsPage() {
     } catch (err: any) {
       setActionMessage({
         type: 'error',
-        text: err.message || 'Ошибка при подтверждении права собственности',
+        text: err.message || t('common.error'),
       });
     } finally {
       setProcessingId(null);
@@ -129,7 +135,10 @@ export default function VerificationsPage() {
   const handleReject = async (item: VerificationItem) => {
     if (
       !confirm(
-        `Отклонить заявку на привязку кв. ${item.unit.unitNumber} для ${item.user.firstName} ${item.user.lastName}?`,
+        t('verifications.confirmRejectTitle', {
+          unit: item.unit.unitNumber,
+          name: `${item.user.firstName} ${item.user.lastName}`,
+        }),
       )
     ) {
       return;
@@ -148,7 +157,9 @@ export default function VerificationsPage() {
 
       setActionMessage({
         type: 'success',
-        text: `Заявка на квартиру ${item.unit.unitNumber} отклонена и исключена из очереди.`,
+        text: t('verifications.rejectSuccess', {
+          unit: item.unit.unitNumber,
+        }),
       });
 
       // Перезагрузка актуальных данных из БД
@@ -156,7 +167,7 @@ export default function VerificationsPage() {
     } catch (err: any) {
       setActionMessage({
         type: 'error',
-        text: err.message || 'Ошибка при отклонении заявки',
+        text: err.message || t('common.error'),
       });
     } finally {
       setProcessingId(null);
@@ -179,15 +190,16 @@ export default function VerificationsPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Верификация прав собственности
+              {t('verifications.title')}
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800">
-              {tenantName}
-            </span>
+            {tenantName && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800">
+                {tenantName}
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-600 mt-1">
-            Проверка документов eGov и подтверждение долей собственников для юридической легитимности
-            голосований ОСС
+            {t('verifications.subtitle')}
           </p>
         </div>
 
@@ -197,7 +209,7 @@ export default function VerificationsPage() {
           className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Обновить очередь</span>
+          <span>{t('verifications.refreshBtn')}</span>
         </button>
       </div>
 
@@ -236,7 +248,7 @@ export default function VerificationsPage() {
             onClick={loadVerifications}
             className="text-xs underline font-semibold hover:text-red-950"
           >
-            Повторить попытку
+            {t('common.refresh', 'Повторить')}
           </button>
         </div>
       )}
@@ -247,7 +259,7 @@ export default function VerificationsPage() {
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Поиск по ФИО, номеру телефона или квартиры..."
+            placeholder={t('verifications.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -256,7 +268,7 @@ export default function VerificationsPage() {
 
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Заявок в очереди: <strong>{items.length}</strong></span>
+          <span>{t('verifications.queueTitle')}: <strong>{t('verifications.queueCount', { count: items.length })}</strong></span>
         </div>
       </div>
 
@@ -265,7 +277,7 @@ export default function VerificationsPage() {
         {loading ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
-            <p className="text-sm font-medium">Загрузка очереди заявок из базы данных...</p>
+            <p className="text-sm font-medium">{t('common.loading')}</p>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="p-12 text-center">
@@ -274,13 +286,13 @@ export default function VerificationsPage() {
             </div>
             <h3 className="text-base font-semibold text-slate-900">
               {items.length === 0
-                ? 'Все заявки на верификацию обработаны'
-                : 'По запросу ничего не найдено'}
+                ? t('verifications.emptyQueueTitle')
+                : t('residents.emptyRegistryTitle')}
             </h3>
             <p className="text-sm text-slate-500 mt-1">
               {items.length === 0
-                ? 'Новых неподтвержденных запросов на право собственности нет.'
-                : 'Попробуйте изменить параметры поиска.'}
+                ? t('verifications.emptyQueueSub')
+                : t('residents.emptyRegistrySub')}
             </p>
           </div>
         ) : (
@@ -288,11 +300,11 @@ export default function VerificationsPage() {
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4">Заявитель</th>
-                  <th className="px-6 py-4">Объект / Квартира</th>
-                  <th className="px-6 py-4">Документ eGov / ДДУ</th>
-                  <th className="px-6 py-4">Доля (кворум ОСС)</th>
-                  <th className="px-6 py-4 text-right">Действия</th>
+                  <th className="px-6 py-4">{t('verifications.thApplicant')}</th>
+                  <th className="px-6 py-4">{t('verifications.thApartment')}</th>
+                  <th className="px-6 py-4">{t('verifications.thDocument')}</th>
+                  <th className="px-6 py-4">{t('verifications.thShareQuorum')}</th>
+                  <th className="px-6 py-4 text-right">{t('verifications.thActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -309,24 +321,28 @@ export default function VerificationsPage() {
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">{item.user.phone}</div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
-                          Подано: {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                          {t('verifications.submittedAt', {
+                            date: new Date(item.createdAt).toLocaleDateString(
+                              i18n.language === 'kk' ? 'kk-KZ' : i18n.language === 'en' ? 'en-US' : 'ru-RU',
+                            ),
+                          })}
                         </div>
                       </td>
 
                       {/* Квартира */}
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-900">
-                          Кв. {item.unit.unitNumber}
+                          {t('common.unitShort')} {item.unit.unitNumber}
                         </div>
                         <div className="text-xs text-slate-500">
-                          {item.unit.building?.blockName || 'Блок'} • {item.unit.area} м²
+                          {item.unit.building?.blockName || t('common.block')} • {item.unit.area} {t('common.sqm')}
                         </div>
                         <span className="inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
                           {item.ownershipType === 'OWNER'
-                            ? 'Собственник'
+                            ? t('verifications.ownershipOwner')
                             : item.ownershipType === 'TENANT'
-                            ? 'Арендатор'
-                            : 'Член семьи'}
+                            ? t('verifications.ownershipTenant')
+                            : t('verifications.ownershipFamily')}
                         </span>
                       </td>
 
@@ -340,12 +356,12 @@ export default function VerificationsPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-medium transition-colors border border-sky-200"
                           >
                             <FileText className="w-3.5 h-3.5" />
-                            <span>Открыть документ</span>
+                            <span>{t('verifications.openDoc')}</span>
                             <ExternalLink className="w-3 h-3 ml-0.5 opacity-70" />
                           </a>
                         ) : (
                           <span className="text-xs text-slate-400 italic">
-                            Документ не прикреплен
+                            {t('verifications.noDocAttached')}
                           </span>
                         )}
                       </td>
@@ -374,7 +390,7 @@ export default function VerificationsPage() {
                           </div>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-1">
-                          Заявлено: {item.sharePercent}%
+                          {t('verifications.claimedLabel', { share: item.sharePercent })}
                         </div>
                       </td>
 
@@ -391,7 +407,7 @@ export default function VerificationsPage() {
                             ) : (
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             )}
-                            <span>Одобрить</span>
+                            <span>{t('verifications.approveBtn')}</span>
                           </button>
 
                           <button
@@ -400,7 +416,7 @@ export default function VerificationsPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-lg text-xs font-medium transition-colors disabled:opacity-60"
                           >
                             <XCircle className="w-3.5 h-3.5" />
-                            <span>Отклонить</span>
+                            <span>{t('verifications.rejectBtn')}</span>
                           </button>
                         </div>
                       </td>

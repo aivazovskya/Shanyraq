@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { ShieldCheck } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 interface HoldToOpenButtonProps {
   title: string;
@@ -25,6 +26,7 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
   disabled = false,
   holdDurationMs = 1200,
 }) => {
+  const { t } = useTranslation();
   const [isHolding, setIsHolding] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -86,7 +88,7 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
             <>
               <ShieldCheck color="#FFFFFF" size={20} />
               <Text style={styles.text}>
-                {isHolding ? 'Удерживайте для открытия...' : title}
+                {isHolding ? t('access.holdingToOpen') : title}
               </Text>
             </>
           )}

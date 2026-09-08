@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
 import { ServiceRequestsApi, ServiceRequestItem } from '../../api/service-requests';
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
 
@@ -38,6 +40,18 @@ export const DashboardScreen: React.FC = () => {
   const [votings, setVotings] = useState<MeetingItem[]>([]);
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+
+  const getRequestStatusLabel = (status: string) => {
+    switch (status) {
+      case 'PENDING': return t('requests.statusPending');
+      case 'ASSIGNED': return t('requests.statusAssigned');
+      case 'IN_PROGRESS': return t('requests.statusInProgress');
+      case 'RESOLVED': return t('requests.statusResolved');
+      case 'REJECTED': return t('requests.statusRejected');
+      case 'CLOSED': return t('requests.statusClosed');
+      default: return status;
+    }
+  };
 
   const fetchDashboardData = useCallback(async () => {
     if (!tenantId) return;
@@ -89,15 +103,15 @@ export const DashboardScreen: React.FC = () => {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
-              С возвращением, {user?.firstName || 'Житель'}!
+              {t('dashboard.welcome', { name: user?.firstName || t('dashboard.defaultResident') })}
             </Text>
             <Text style={styles.apartmentInfo}>
-              {user?.tenant?.name || 'ЖК Шаңырақ'} • кв. {primaryOwnership?.unit?.unitNumber || '—'}
+              {user?.tenant?.name || t('dashboard.defaultComplex')} • {t('dashboard.unitFormat', { unit: primaryOwnership?.unit?.unitNumber || '—' })}
             </Text>
           </View>
           <View style={styles.statusBadge}>
             <Badge
-              label={primaryOwnership?.isVerified ? 'Верифицирован' : 'На проверке'}
+              label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
               variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
             />
           </View>
@@ -119,7 +133,7 @@ export const DashboardScreen: React.FC = () => {
         )}
 
         {/* Quick Access Actions */}
-        <Text style={styles.sectionTitle}>Быстрые действия</Text>
+        <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
         <View style={styles.quickGrid}>
           <TouchableOpacity
             style={styles.quickActionCard}
@@ -128,8 +142,8 @@ export const DashboardScreen: React.FC = () => {
             <View style={[styles.quickIconCircle, { backgroundColor: '#ECFDF5' }]}>
               <ShieldCheck color={Colors.primary} size={24} />
             </View>
-            <Text style={styles.quickActionTitle}>Шлагбаум</Text>
-            <Text style={styles.quickActionSub}>Открыть въезд</Text>
+            <Text style={styles.quickActionTitle}>{t('dashboard.barrier')}</Text>
+            <Text style={styles.quickActionSub}>{t('dashboard.openEntry')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -139,8 +153,8 @@ export const DashboardScreen: React.FC = () => {
             <View style={[styles.quickIconCircle, { backgroundColor: '#EFF6FF' }]}>
               <UserPlus color={Colors.info} size={24} />
             </View>
-            <Text style={styles.quickActionTitle}>Гостевой QR</Text>
-            <Text style={styles.quickActionSub}>Пропуск курьеру</Text>
+            <Text style={styles.quickActionTitle}>{t('dashboard.guestQr')}</Text>
+            <Text style={styles.quickActionSub}>{t('dashboard.passCourier')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -150,22 +164,22 @@ export const DashboardScreen: React.FC = () => {
             <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
               <Wrench color={Colors.warning} size={24} />
             </View>
-            <Text style={styles.quickActionTitle}>Мастер</Text>
-            <Text style={styles.quickActionSub}>Вызов службы</Text>
+            <Text style={styles.quickActionTitle}>{t('dashboard.master')}</Text>
+            <Text style={styles.quickActionSub}>{t('dashboard.callService')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Section: Active Votings */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Голосования ОСС ({activeVotings.length})</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.activeVotings', { count: activeVotings.length })}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'VotingsTab' })}>
-            <Text style={styles.seeAllText}>Все</Text>
+            <Text style={styles.seeAllText}>{t('common.all')}</Text>
           </TouchableOpacity>
         </View>
 
         {activeVotings.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>Нет активных голосований, требующих вашего голоса</Text>
+            <Text style={styles.emptyText}>{t('dashboard.noActiveVotings')}</Text>
           </Card>
         ) : (
           activeVotings.slice(0, 2).map((v) => (
@@ -175,8 +189,8 @@ export const DashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate('VotingDetails', { meetingId: v.id })}
             >
               <View style={styles.votingCardHeader}>
-                <Badge label="Идет голосование" variant="success" />
-                <Text style={styles.votingDate}>до {new Date(v.endDate).toLocaleDateString('ru-RU')}</Text>
+                <Badge label={t('dashboard.votingInProgress')} variant="success" />
+                <Text style={styles.votingDate}>{t('dashboard.untilDate', { date: new Date(v.endDate).toLocaleDateString(i18n.language) })}</Text>
               </View>
               <Text style={styles.votingTitle}>{v.title}</Text>
               <View style={styles.quorumBar}>
@@ -188,9 +202,9 @@ export const DashboardScreen: React.FC = () => {
                 />
               </View>
               <View style={styles.quorumRow}>
-                <Text style={styles.quorumLabel}>Кворум: {v.quorumPercent?.toFixed(1) || 0}%</Text>
+                <Text style={styles.quorumLabel}>{t('dashboard.quorum', { percent: v.quorumPercent?.toFixed(1) || 0 })}</Text>
                 <View style={styles.actionArrow}>
-                  <Text style={styles.actionArrowText}>Голосовать</Text>
+                  <Text style={styles.actionArrowText}>{t('dashboard.voteAction')}</Text>
                   <ChevronRight color={Colors.primary} size={16} />
                 </View>
               </View>
@@ -200,15 +214,15 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Section: Open Service Requests */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Заявки в работе ({openRequests.length})</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.openRequests', { count: openRequests.length })}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'RequestsTab' })}>
-            <Text style={styles.seeAllText}>Все</Text>
+            <Text style={styles.seeAllText}>{t('common.all')}</Text>
           </TouchableOpacity>
         </View>
 
         {openRequests.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>Нет открытых заявок. Все обращения выполнены</Text>
+            <Text style={styles.emptyText}>{t('dashboard.noOpenRequests')}</Text>
           </Card>
         ) : (
           openRequests.slice(0, 2).map((r) => (
@@ -219,13 +233,13 @@ export const DashboardScreen: React.FC = () => {
             >
               <View style={styles.requestHeader}>
                 <Text style={styles.requestTitle}>{r.title}</Text>
-                <Badge label={r.status} variant="info" />
+                <Badge label={getRequestStatusLabel(r.status)} variant="info" />
               </View>
               <Text style={styles.requestDesc} numberOfLines={2}>
                 {r.description}
               </Text>
               <Text style={styles.requestDate}>
-                {new Date(r.createdAt).toLocaleDateString('ru-RU')}
+                {new Date(r.createdAt).toLocaleDateString(i18n.language)}
               </Text>
             </Card>
           ))
@@ -233,9 +247,9 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Section: Announcements preview */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Новости и объявления</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.newsAndAnnouncements')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Announcements')}>
-            <Text style={styles.seeAllText}>Лента</Text>
+            <Text style={styles.seeAllText}>{t('dashboard.newsFeed')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -245,7 +259,7 @@ export const DashboardScreen: React.FC = () => {
             <Text style={styles.newsSnippet} numberOfLines={2}>
               {a.content}
             </Text>
-            <Text style={styles.newsDate}>{new Date(a.createdAt).toLocaleDateString('ru-RU')}</Text>
+            <Text style={styles.newsDate}>{new Date(a.createdAt).toLocaleDateString(i18n.language)}</Text>
           </Card>
         ))}
       </ScrollView>

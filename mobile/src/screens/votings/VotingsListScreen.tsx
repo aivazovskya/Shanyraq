@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
 import { Card } from '../../components/common/Card';
@@ -18,6 +19,7 @@ import { Colors } from '../../constants/colors';
 import { Vote, ChevronRight, CheckCircle2 } from 'lucide-react-native';
 
 export const VotingsListScreen: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -60,15 +62,15 @@ export const VotingsListScreen: React.FC = () => {
   });
 
   if (loading) {
-    return <LoadingState message="Загрузка собраний ОСС..." />;
+    return <LoadingState message={t('votings.loadingMeetings')} />;
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Голосования ОСС</Text>
+        <Text style={styles.title}>{t('votings.title')}</Text>
         <Text style={styles.subtitle}>
-          Общие собрания собственников с юридическим весом голоса по площади
+          {t('votings.subtitle')}
         </Text>
       </View>
 
@@ -79,7 +81,7 @@ export const VotingsListScreen: React.FC = () => {
           onPress={() => setFilter('ALL')}
         >
           <Text style={[styles.tabText, filter === 'ALL' && styles.tabTextActive]}>
-            Все ({meetings.length})
+            {t('votings.tabAll', { count: meetings.length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -87,7 +89,7 @@ export const VotingsListScreen: React.FC = () => {
           onPress={() => setFilter('ACTIVE')}
         >
           <Text style={[styles.tabText, filter === 'ACTIVE' && styles.tabTextActive]}>
-            Активные ({meetings.filter((m) => m.status === 'ACTIVE').length})
+            {t('votings.tabActive', { count: meetings.filter((m) => m.status === 'ACTIVE').length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -95,7 +97,7 @@ export const VotingsListScreen: React.FC = () => {
           onPress={() => setFilter('COMPLETED')}
         >
           <Text style={[styles.tabText, filter === 'COMPLETED' && styles.tabTextActive]}>
-            Завершенные
+            {t('votings.tabCompleted')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -114,9 +116,9 @@ export const VotingsListScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Vote color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>Собраний пока нет</Text>
+            <Text style={styles.emptyTitle}>{t('votings.emptyMeetingsTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              Когда управляющая компания или председатель ОСИ инициируют голосование, оно появится здесь
+              {t('votings.emptyMeetingsSubtitle')}
             </Text>
           </View>
         }
@@ -129,11 +131,11 @@ export const VotingsListScreen: React.FC = () => {
             >
               <View style={styles.cardHeader}>
                 <Badge
-                  label={isActive ? 'Идет голосование' : 'Завершено'}
+                  label={isActive ? t('votings.votingStatusActive') : t('votings.votingStatusCompleted')}
                   variant={isActive ? 'success' : 'default'}
                 />
                 <Text style={styles.dateText}>
-                  до {new Date(item.endDate).toLocaleDateString('ru-RU')}
+                  {t('votings.untilDate', { date: new Date(item.endDate).toLocaleDateString(i18n.language) })}
                 </Text>
               </View>
 
@@ -157,12 +159,12 @@ export const VotingsListScreen: React.FC = () => {
                 </View>
                 <View style={styles.quorumMeta}>
                   <Text style={styles.quorumText}>
-                    Кворум: {item.quorumPercent?.toFixed(1) || 0}% из 50.0%
+                    {t('votings.quorumMeta', { current: item.quorumPercent?.toFixed(1) || 0, required: '50.0' })}
                   </Text>
                   {item.isQuorumReached ? (
                     <View style={styles.quorumBadge}>
                       <CheckCircle2 color="#059669" size={14} />
-                      <Text style={styles.quorumBadgeText}>Кворум достигнут</Text>
+                      <Text style={styles.quorumBadgeText}>{t('votings.quorumReached')}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -170,7 +172,7 @@ export const VotingsListScreen: React.FC = () => {
 
               <View style={styles.cardFooter}>
                 <Text style={styles.itemsCount}>
-                  Вопросов на повестке: {item.agendaItems?.length || 0}
+                  {t('votings.agendaCount', { count: item.agendaItems?.length || 0 })}
                 </Text>
                 <ChevronRight color={Colors.primary} size={20} />
               </View>

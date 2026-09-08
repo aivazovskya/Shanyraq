@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -39,6 +40,7 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, 'VotingDetails'>;
 
 export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { t, i18n } = useTranslation();
   const { meetingId } = route.params;
   const { user } = useAuth();
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
@@ -60,7 +62,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       const data = await VotingsApi.getMeetingDetails(meetingId);
       setMeeting(data);
     } catch (e: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(e));
+      Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -80,11 +82,11 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleRequestVoteOtp = async () => {
     if (!selectedChoice) {
-      setVoteError('Пожалуйста, выберите вариант волеизъявления');
+      setVoteError(t('votings.voteSelectChoiceError'));
       return;
     }
     if (!user?.phone) {
-      setVoteError('Номер телефона не найден в профиле');
+      setVoteError(t('votings.phoneNotFoundError'));
       return;
     }
 
@@ -94,7 +96,10 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
     try {
       const res = await AuthApi.requestOtp(user.phone);
       if (res.devCode) {
-        Alert.alert('SMS-код подтверждения голоса', `Код: ${res.devCode}`);
+        Alert.alert(
+          t('votings.devSmsTitle'),
+          t('votings.devSmsBody', { code: res.devCode })
+        );
       }
       setVoteStep(2);
     } catch (e: any) {
@@ -106,11 +111,11 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleConfirmVote = async () => {
     if (!activeItem || !selectedChoice || !primaryUnitId) {
-      setVoteError('Недостаточно данных для голосования');
+      setVoteError(t('votings.insufficientDataError'));
       return;
     }
     if (otpCode.length !== 6) {
-      setVoteError('Введите 6-значный SMS-код');
+      setVoteError(t('votings.enter6DigitSmsCodeError'));
       return;
     }
 
@@ -126,8 +131,8 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       });
 
       Alert.alert(
-        'Голос юридически зафиксирован!',
-        `Ваш голос успешно подписан цифровой подписью.\nХэш подписи: ${result.signatureHash.slice(0, 16)}...`,
+        t('votings.voteSuccessTitle'),
+        t('votings.voteSuccessMsg', { hash: result.signatureHash.slice(0, 16) }),
       );
 
       setActiveItem(null);
@@ -140,10 +145,16 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   if (loading || !meeting) {
-    return <LoadingState message="Загрузка деталей собрания..." />;
+    return <LoadingState message={t('votings.loadingDetails')} />;
   }
 
   const isCompleted = meeting.status === 'COMPLETED';
+
+  const getChoiceLabel = (choice: string) => {
+    if (choice === 'FOR') return t('votings.voteChoiceFor');
+    if (choice === 'AGAINST') return t('votings.voteChoiceAgainst');
+    return t('votings.voteChoiceAbstain');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -153,7 +164,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
         <Text style={styles.navTitle} numberOfLines={1}>
-          Собрание ОСС
+          {t('votings.navTitle')}
         </Text>
         <View style={{ width: 24 }} />
       </View>
@@ -162,13 +173,15 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Title & metadata */}
         <View style={styles.titleSection}>
           <Badge
-            label={meeting.status === 'ACTIVE' ? 'Идет голосование' : 'Завершено'}
+            label={meeting.status === 'ACTIVE' ? t('votings.votingStatusActive') : t('votings.votingStatusCompleted')}
             variant={meeting.status === 'ACTIVE' ? 'success' : 'default'}
           />
           <Text style={styles.meetingTitle}>{meeting.title}</Text>
           <Text style={styles.meetingDates}>
-            Период: с {new Date(meeting.startDate).toLocaleDateString('ru-RU')} по{' '}
-            {new Date(meeting.endDate).toLocaleDateString('ru-RU')}
+            {t('votings.periodDates', {
+              start: new Date(meeting.startDate).toLocaleDateString(i18n.language),
+              end: new Date(meeting.endDate).toLocaleDateString(i18n.language),
+            })}
           </Text>
           {meeting.description ? (
             <Text style={styles.meetingDescription}>{meeting.description}</Text>
@@ -178,7 +191,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Quorum Progress Card */}
         <Card style={styles.quorumCard}>
           <View style={styles.quorumHeaderRow}>
-            <Text style={styles.quorumTitle}>Кворум собрания</Text>
+            <Text style={styles.quorumTitle}>{t('votings.quorumHeader')}</Text>
             <Text style={styles.quorumPercent}>
               {meeting.quorumPercent?.toFixed(1) || 0}%
             </Text>
@@ -194,13 +207,13 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
           <Text style={styles.quorumNotice}>
             {meeting.isQuorumReached
-              ? '✅ Кворум преодолен (>50% площадей собственников). Решения имеют юридическую силу.'
-              : '⏳ Собрание в процессе сбора кворума. Требуется участие >50% площадей ЖК.'}
+              ? t('votings.quorumPassedNotice')
+              : t('votings.quorumInProgressNotice')}
           </Text>
         </Card>
 
         {/* Agenda items header */}
-        <Text style={styles.agendaHeading}>Повестка дня ({meeting.agendaItems.length})</Text>
+        <Text style={styles.agendaHeading}>{t('votings.agendaTitle', { count: meeting.agendaItems.length })}</Text>
 
         {meeting.agendaItems.map((item, index) => {
           const myVote = item.myVote;
@@ -209,12 +222,12 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
           return (
             <Card key={item.id} style={styles.agendaCard}>
               <View style={styles.agendaHeaderRow}>
-                <Text style={styles.itemOrder}>Вопрос №{index + 1}</Text>
+                <Text style={styles.itemOrder}>{t('votings.questionNumber', { index: index + 1 })}</Text>
                 <Badge
                   label={
                     item.decisionType === 'QUALIFIED_MAJORITY'
-                      ? 'Квалиф. большинство (2/3)'
-                      : 'Простое большинство (>50%)'
+                      ? t('votings.qualifiedMajority')
+                      : t('votings.simpleMajority')
                   }
                   variant="info"
                 />
@@ -231,26 +244,19 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                   <View style={styles.votedRow}>
                     <CheckCircle2 color="#059669" size={18} />
                     <Text style={styles.votedText}>
-                      Вы проголосовали:{' '}
-                      <Text style={styles.votedChoice}>
-                        {myVote.choice === 'FOR'
-                          ? 'ЗА'
-                          : myVote.choice === 'AGAINST'
-                          ? 'ПРОТИВ'
-                          : 'ВОЗДЕРЖАЛСЯ'}
-                      </Text>
+                      {t('votings.youVoted', { choice: getChoiceLabel(myVote.choice) })}
                     </Text>
                   </View>
                   <View style={styles.signatureRow}>
                     <ShieldCheck color={Colors.textMuted} size={14} />
                     <Text style={styles.signatureHash}>
-                      HMAC-SHA256: {myVote.signatureHash.slice(0, 20)}...
+                      {t('votings.signatureHash', { hash: myVote.signatureHash.slice(0, 20) })}
                     </Text>
                   </View>
                 </View>
               ) : meeting.status === 'ACTIVE' ? (
                 <Button
-                  title="Проголосовать по вопросу"
+                  title={t('votings.voteOnQuestion')}
                   onPress={() => openVoteModal(item)}
                   variant="primary"
                   size="md"
@@ -261,19 +267,34 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
               {/* Votes summary by area (available to all residents without showing who voted) */}
               {votesSummary && (
                 <View style={styles.summaryContainer}>
-                  <Text style={styles.summaryTitle}>Итоги по площади ЖК:</Text>
+                  <Text style={styles.summaryTitle}>{t('votings.resultsByArea')}</Text>
                   <View style={styles.barItem}>
-                    <Text style={styles.barLabel}>За: {votesSummary.forPercent?.toFixed(1) || 0}% ({votesSummary.forArea?.toFixed(0)} м²)</Text>
+                    <Text style={styles.barLabel}>
+                      {t('votings.resultsFor', {
+                        percent: votesSummary.forPercent?.toFixed(1) || 0,
+                        area: votesSummary.forArea?.toFixed(0) || 0,
+                      })}
+                    </Text>
                     <View style={styles.miniBar}>
                       <View style={[styles.miniBarFill, { width: `${votesSummary.forPercent || 0}%`, backgroundColor: '#059669' }]} />
                     </View>
                   </View>
                   <View style={styles.barItem}>
-                    <Text style={styles.barLabel}>Против: {votesSummary.againstPercent?.toFixed(1) || 0}% ({votesSummary.againstArea?.toFixed(0)} м²)</Text>
+                    <Text style={styles.barLabel}>
+                      {t('votings.resultsAgainst', {
+                        percent: votesSummary.againstPercent?.toFixed(1) || 0,
+                        area: votesSummary.againstArea?.toFixed(0) || 0,
+                      })}
+                    </Text>
                     <View style={[styles.miniBarFill, { width: `${votesSummary.againstPercent || 0}%`, backgroundColor: '#EF4444' }]} />
                   </View>
                   <View style={styles.barItem}>
-                    <Text style={styles.barLabel}>Воздержались: {votesSummary.abstainPercent?.toFixed(1) || 0}% ({votesSummary.abstainArea?.toFixed(0)} м²)</Text>
+                    <Text style={styles.barLabel}>
+                      {t('votings.resultsAbstain', {
+                        percent: votesSummary.abstainPercent?.toFixed(1) || 0,
+                        area: votesSummary.abstainArea?.toFixed(0) || 0,
+                      })}
+                    </Text>
                     <View style={[styles.miniBarFill, { width: `${votesSummary.abstainPercent || 0}%`, backgroundColor: '#9CA3AF' }]} />
                   </View>
                 </View>
@@ -287,7 +308,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       <Modal visible={Boolean(activeItem)} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Юридическое волеизъявление</Text>
+            <Text style={styles.modalTitle}>{t('votings.modalLegalTitle')}</Text>
             <Text style={styles.modalSub}>
               {activeItem?.title}
             </Text>
@@ -295,7 +316,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
             {voteStep === 1 ? (
               // Step 1: Select Option
               <View style={styles.stepContainer}>
-                <Text style={styles.stepTitle}>Шаг 1 из 2: Выберите ваш голос</Text>
+                <Text style={styles.stepTitle}>{t('votings.step1Title')}</Text>
                 <View style={styles.choiceGroup}>
                   <TouchableOpacity
                     style={[
@@ -314,7 +335,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                         selectedChoice === 'FOR' && styles.choiceTextActive,
                       ]}
                     >
-                      ЗА
+                      {t('votings.voteChoiceFor')}
                     </Text>
                   </TouchableOpacity>
 
@@ -335,7 +356,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                         selectedChoice === 'AGAINST' && styles.choiceTextActive,
                       ]}
                     >
-                      ПРОТИВ
+                      {t('votings.voteChoiceAgainst')}
                     </Text>
                   </TouchableOpacity>
 
@@ -356,7 +377,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                         selectedChoice === 'ABSTAIN' && styles.choiceTextActive,
                       ]}
                     >
-                      ВОЗДЕРЖАЛСЯ
+                      {t('votings.voteChoiceAbstain')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -364,7 +385,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                 {voteError ? <Text style={styles.modalError}>{voteError}</Text> : null}
 
                 <Button
-                  title="Подтвердить через SMS-код"
+                  title={t('votings.confirmViaSms')}
                   onPress={handleRequestVoteOtp}
                   loading={otpSending}
                   disabled={!selectedChoice}
@@ -375,13 +396,13 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
             ) : (
               // Step 2: Enter SMS OTP
               <View style={styles.stepContainer}>
-                <Text style={styles.stepTitle}>Шаг 2 из 2: Введите SMS-код</Text>
+                <Text style={styles.stepTitle}>{t('votings.step2Title')}</Text>
                 <Text style={styles.otpNotice}>
-                  На номер {user?.phone} отправлен 6-значный код для цифровой подписи голоса
+                  {t('votings.smsSentNotice', { phone: user?.phone || '' })}
                 </Text>
 
                 <Input
-                  label="SMS-код подтверждения"
+                  label={t('votings.smsCodeInputLabel')}
                   value={otpCode}
                   onChangeText={setOtpCode}
                   keyboardType="number-pad"
@@ -393,7 +414,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                 />
 
                 <Button
-                  title="Подписать и отправить голос"
+                  title={t('votings.signAndSubmitVote')}
                   onPress={handleConfirmVote}
                   loading={submittingVote}
                   size="lg"
@@ -403,7 +424,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
             )}
 
             <Button
-              title="Отмена"
+              title={t('common.cancel')}
               onPress={() => setActiveItem(null)}
               variant="outline"
               size="md"

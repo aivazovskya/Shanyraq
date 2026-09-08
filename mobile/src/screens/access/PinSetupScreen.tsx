@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
 import { Input } from '../../components/common/Input';
@@ -21,6 +22,7 @@ import { Colors } from '../../constants/colors';
 import { KeyRound, ArrowLeft, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
 
 export const PinSetupScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
@@ -67,15 +69,15 @@ export const PinSetupScreen: React.FC = () => {
 
   const validateLocalPin = (pin: string): string | null => {
     if (!/^\d{4}$|^\d{6}$/.test(pin)) {
-      return 'PIN-код должен состоять ровно из 4 или 6 цифр';
+      return t('access.pinValidationLength');
     }
     const allSame = pin.split('').every((d) => d === pin[0]);
     if (allSame) {
-      return 'Нельзя использовать одинаковые цифры (например, 0000 или 1111)';
+      return t('access.pinValidationSame');
     }
     const weakList = ['1234', '4321', '0123', '3210', '9876', '6789', '2580', '123456', '654321'];
     if (weakList.includes(pin)) {
-      return 'Слишком простой PIN-код. Выберите более надежную комбинацию';
+      return t('access.pinValidationWeak');
     }
     return null;
   };
@@ -84,7 +86,7 @@ export const PinSetupScreen: React.FC = () => {
     setError('');
 
     if (mode === 'CHANGE' && !currentPin) {
-      setError('Введите текущий PIN-код доступа');
+      setError(t('access.enterCurrentPinError'));
       return;
     }
 
@@ -95,7 +97,7 @@ export const PinSetupScreen: React.FC = () => {
     }
 
     if (newPin !== confirmPin) {
-      setError('Новые PIN-коды не совпадают');
+      setError(t('access.pinsDoNotMatchError'));
       return;
     }
 
@@ -106,9 +108,9 @@ export const PinSetupScreen: React.FC = () => {
         currentPin: mode === 'CHANGE' ? currentPin : undefined,
       });
 
-      Alert.alert('Успешно', 'PIN-код доступа успешно сохранен', [
+      Alert.alert(t('common.success'), t('access.pinSavedSuccess'), [
         {
-          text: 'ОК',
+          text: t('access.ok'),
           onPress: () => navigation.goBack(),
         },
       ]);
@@ -127,7 +129,10 @@ export const PinSetupScreen: React.FC = () => {
       setMode('FORGOT_OTP');
       setCountdown(60);
       if (res.devCode) {
-        Alert.alert('Тестовый SMS-код', `Dev-код для сброса PIN: ${res.devCode}`);
+        Alert.alert(
+          t('access.devSmsTitle'),
+          t('access.devSmsBody', { code: res.devCode })
+        );
       }
     } catch (err: any) {
       setError(getApiErrorMessage(err));
@@ -140,7 +145,7 @@ export const PinSetupScreen: React.FC = () => {
     setError('');
 
     if (!otpCode || otpCode.length !== 6) {
-      setError('Введите 6-значный код из SMS');
+      setError(t('access.smsOtpLabel'));
       return;
     }
 
@@ -151,7 +156,7 @@ export const PinSetupScreen: React.FC = () => {
     }
 
     if (newPin !== confirmPin) {
-      setError('Новые PIN-коды не совпадают');
+      setError(t('access.pinsDoNotMatchError'));
       return;
     }
 
@@ -162,9 +167,9 @@ export const PinSetupScreen: React.FC = () => {
         newPin,
       });
 
-      Alert.alert('Успешно', 'PIN-код успешно сброшен и обновлен', [
+      Alert.alert(t('common.success'), t('access.pinResetSuccess'), [
         {
-          text: 'ОК',
+          text: t('access.ok'),
           onPress: () => navigation.goBack(),
         },
       ]);
@@ -180,7 +185,7 @@ export const PinSetupScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerLoading}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Проверка статуса безопасности...</Text>
+          <Text style={styles.loadingText}>{t('access.checkingSecurityStatus')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -199,7 +204,7 @@ export const PinSetupScreen: React.FC = () => {
             onPress={() => navigation.goBack()}
           >
             <ArrowLeft color={Colors.text} size={24} />
-            <Text style={styles.backText}>Назад</Text>
+            <Text style={styles.backText}>{t('common.back')}</Text>
           </TouchableOpacity>
 
           <View style={styles.header}>
@@ -208,13 +213,13 @@ export const PinSetupScreen: React.FC = () => {
             </View>
             <Text style={styles.title}>
               {mode === 'SETUP'
-                ? 'Установка PIN-кода СКУД'
+                ? t('access.pinSetupTitle')
                 : mode === 'CHANGE'
-                ? 'Смена PIN-кода СКУД'
-                : 'Сброс забытого PIN-кода'}
+                ? t('access.pinChangeTitle')
+                : t('access.pinForgotTitle')}
             </Text>
             <Text style={styles.subtitle}>
-              PIN-код используется для 2FA защиты при открытии шлагбаумов и входных групп ЖК.
+              {t('access.pinSetupSubtitle')}
             </Text>
           </View>
 
@@ -228,8 +233,8 @@ export const PinSetupScreen: React.FC = () => {
               )}
               <Text style={styles.infoText}>
                 {isPinSet
-                  ? 'PIN-код доступа активен. Перед открытием шлагбаумов запрашивается проверка.'
-                  : 'PIN-код не установлен. Установите PIN для безопасного управления шлагбаумами.'}
+                  ? t('access.pinStatusActive')
+                  : t('access.pinStatusInactive')}
               </Text>
             </View>
           </Card>
@@ -238,7 +243,7 @@ export const PinSetupScreen: React.FC = () => {
           <View style={styles.form}>
             {mode === 'CHANGE' && (
               <Input
-                label="Текущий PIN-код"
+                label={t('access.currentPinLabel')}
                 value={currentPin}
                 onChangeText={(val) => {
                   setError('');
@@ -253,7 +258,7 @@ export const PinSetupScreen: React.FC = () => {
 
             {mode === 'FORGOT_OTP' && (
               <Input
-                label="SMS-код подтверждения"
+                label={t('access.smsOtpLabel')}
                 value={otpCode}
                 onChangeText={(val) => {
                   setError('');
@@ -262,12 +267,12 @@ export const PinSetupScreen: React.FC = () => {
                 keyboardType="number-pad"
                 maxLength={6}
                 placeholder="000000"
-                helper="Код выслан на ваш номер телефона"
+                helper={t('access.smsOtpHelper')}
               />
             )}
 
             <Input
-              label={mode === 'SETUP' ? 'Новый PIN-код' : 'Новый PIN-код'}
+              label={t('access.newPinLabel')}
               value={newPin}
               onChangeText={(val) => {
                 setError('');
@@ -276,11 +281,11 @@ export const PinSetupScreen: React.FC = () => {
               keyboardType="number-pad"
               secureTextEntry
               maxLength={6}
-              placeholder="4 или 6 цифр"
+              placeholder={t('access.pinPlaceholderDigits')}
             />
 
             <Input
-              label="Повторите новый PIN-код"
+              label={t('access.confirmPinLabel')}
               value={confirmPin}
               onChangeText={(val) => {
                 setError('');
@@ -289,7 +294,7 @@ export const PinSetupScreen: React.FC = () => {
               keyboardType="number-pad"
               secureTextEntry
               maxLength={6}
-              placeholder="Повторите PIN-код"
+              placeholder={t('access.confirmPinPlaceholder')}
             />
 
             {error ? (
@@ -301,10 +306,10 @@ export const PinSetupScreen: React.FC = () => {
             <Button
               title={
                 mode === 'FORGOT_OTP'
-                  ? 'Подтвердить сброс PIN'
+                  ? t('access.confirmResetBtn')
                   : mode === 'CHANGE'
-                  ? 'Обновить PIN-код'
-                  : 'Сохранить PIN-код'
+                  ? t('access.updatePinBtn')
+                  : t('access.savePinBtn')
               }
               onPress={mode === 'FORGOT_OTP' ? handleConfirmReset : handleSavePin}
               loading={loading}
@@ -319,7 +324,7 @@ export const PinSetupScreen: React.FC = () => {
                 onPress={handleStartForgotPin}
                 disabled={loading}
               >
-                <Text style={styles.switchModeText}>Забыли текущий PIN-код?</Text>
+                <Text style={styles.switchModeText}>{t('access.forgotCurrentPinBtn')}</Text>
               </TouchableOpacity>
             )}
 
@@ -332,7 +337,7 @@ export const PinSetupScreen: React.FC = () => {
                 }}
                 disabled={loading}
               >
-                <Text style={styles.switchModeText}>Вернуться к обычному вводу</Text>
+                <Text style={styles.switchModeText}>{t('access.returnToRegularInput')}</Text>
               </TouchableOpacity>
             )}
           </View>

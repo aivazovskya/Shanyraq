@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../navigation/types';
 import {
   ServiceRequestsApi,
@@ -29,6 +30,7 @@ import { ArrowLeft, Send, Star, User, Phone } from 'lucide-react-native';
 type Props = NativeStackScreenProps<RootStackParamList, 'RequestDetail'>;
 
 export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { t, i18n } = useTranslation();
   const { requestId } = route.params;
 
   const [request, setRequest] = useState<ServiceRequestItem | null>(null);
@@ -41,12 +43,50 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [ratingFeedback, setRatingFeedback] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
 
+  const getCategoryLabel = (cat: string) => {
+    switch (cat) {
+      case 'PLUMBING': return t('requests.catPlumbing');
+      case 'ELECTRICAL': return t('requests.catElectrical');
+      case 'ELEVATOR': return t('requests.catElevator');
+      case 'HEATING': return t('requests.catHeating');
+      case 'YARD_TERRITORY':
+      case 'YARD': return t('requests.catYard');
+      case 'INTERCOM_ACCESS':
+      case 'INTERCOM': return t('requests.catIntercom');
+      case 'CLEANING': return t('requests.catCleaning');
+      case 'OTHER': return t('requests.catOther');
+      default: return cat;
+    }
+  };
+
+  const getPriorityLabel = (prio: string) => {
+    switch (prio) {
+      case 'LOW': return t('requests.prioLow');
+      case 'MEDIUM': return t('requests.prioMedium');
+      case 'HIGH': return t('requests.prioHigh');
+      case 'EMERGENCY': return t('requests.prioEmergency');
+      default: return prio;
+    }
+  };
+
+  const getStatusInfo = (status: string): { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'default' } => {
+    switch (status) {
+      case 'PENDING': return { label: t('requests.statusPending'), variant: 'warning' };
+      case 'ASSIGNED': return { label: t('requests.statusAssigned'), variant: 'info' };
+      case 'IN_PROGRESS': return { label: t('requests.statusInProgress'), variant: 'info' };
+      case 'RESOLVED': return { label: t('requests.statusResolved'), variant: 'success' };
+      case 'REJECTED': return { label: t('requests.statusRejected'), variant: 'danger' };
+      case 'CLOSED': return { label: t('requests.statusClosed'), variant: 'default' };
+      default: return { label: status, variant: 'default' };
+    }
+  };
+
   const loadDetails = async () => {
     try {
       const data = await ServiceRequestsApi.getRequestDetails(requestId);
       setRequest(data);
     } catch (e: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(e));
+      Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -65,7 +105,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       setNewComment('');
       await loadDetails();
     } catch (e: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(e));
+      Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
       setSendingComment(false);
     }
@@ -75,21 +115,22 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     setSubmittingRating(true);
     try {
       await ServiceRequestsApi.rateRequest(requestId, rating, ratingFeedback.trim() || undefined);
-      Alert.alert('Спасибо!', 'Ваша оценка помогает улучшать качество сервиса в доме.');
+      Alert.alert(t('requests.ratingThanksTitle'), t('requests.ratingThanksMsg'));
       await loadDetails();
     } catch (e: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(e));
+      Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
       setSubmittingRating(false);
     }
   };
 
   if (loading || !request) {
-    return <LoadingState message="Загрузка обращения..." />;
+    return <LoadingState message={t('requests.loadingRequestDetails')} />;
   }
 
   const isResolved = request.status === 'RESOLVED';
   const hasRated = request.rating !== null && request.rating !== undefined;
+  const statusInfo = getStatusInfo(request.status);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -98,7 +139,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
         <Text style={styles.navTitle} numberOfLines={1}>
-          Заявка №{request.id.slice(0, 8)}
+          {t('requests.requestNumberTitle', { id: request.id.slice(0, 8) })}
         </Text>
         <View style={{ width: 24 }} />
       </View>
@@ -111,9 +152,9 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           {/* Status & Title Card */}
           <Card style={styles.mainCard}>
             <View style={styles.statusRow}>
-              <Badge label={request.status} variant="info" />
+              <Badge label={statusInfo.label} variant={statusInfo.variant} />
               <Text style={styles.dateText}>
-                {new Date(request.createdAt).toLocaleString('ru-RU')}
+                {new Date(request.createdAt).toLocaleString(i18n.language)}
               </Text>
             </View>
 
@@ -121,8 +162,12 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             <Text style={styles.requestDesc}>{request.description}</Text>
 
             <View style={styles.infoMeta}>
-              <Text style={styles.metaItem}>Категория: {request.category}</Text>
-              <Text style={styles.metaItem}>Срочность: {request.priority}</Text>
+              <Text style={styles.metaItem}>
+                {t('requests.categoryMeta', { category: getCategoryLabel(request.category) })}
+              </Text>
+              <Text style={styles.metaItem}>
+                {t('requests.priorityMeta', { priority: getPriorityLabel(request.priority) })}
+              </Text>
             </View>
 
             {/* Assignee Contact */}
@@ -131,7 +176,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 <User color={Colors.primary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.assigneeName}>
-                    Мастер: {request.assignee.firstName} {request.assignee.lastName}
+                    {t('requests.masterLabel', { name: `${request.assignee.firstName} ${request.assignee.lastName}` })}
                   </Text>
                   <Text style={styles.assigneePhone}>{request.assignee.phone}</Text>
                 </View>
@@ -142,9 +187,9 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           {/* Rating Section (When Resolved) */}
           {isResolved && !hasRated && (
             <Card style={styles.ratingCard}>
-              <Text style={styles.ratingTitle}>Оцените работу мастера</Text>
+              <Text style={styles.ratingTitle}>{t('requests.rateMasterTitle')}</Text>
               <Text style={styles.ratingSub}>
-                Заявка помечена как выполненная. Пожалуйста, подтвердите качество:
+                {t('requests.rateMasterSub')}
               </Text>
 
               <View style={styles.starsRow}>
@@ -160,14 +205,14 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               </View>
 
               <Input
-                placeholder="Оставьте отзыв или комментарий к оценке..."
+                placeholder={t('requests.reviewPlaceholder')}
                 value={ratingFeedback}
                 onChangeText={setRatingFeedback}
                 containerStyle={{ marginTop: 10 }}
               />
 
               <Button
-                title="Отправить оценку"
+                title={t('requests.submitRatingBtn')}
                 onPress={handleRate}
                 loading={submittingRating}
                 variant="primary"
@@ -181,7 +226,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             <Card style={styles.ratedCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Star color="#F59E0B" fill="#F59E0B" size={20} />
-                <Text style={styles.ratedText}>Ваша оценка: {request.rating} из 5 звезд</Text>
+                <Text style={styles.ratedText}>{t('requests.yourRatingLabel', { rating: request.rating })}</Text>
               </View>
               {request.feedback ? (
                 <Text style={styles.ratedFeedback}>«{request.feedback}»</Text>
@@ -191,7 +236,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
           {/* Chat Timeline */}
           <Text style={styles.chatSectionTitle}>
-            Переписка по заявке ({request.comments?.length || 0})
+            {t('requests.chatTimelineTitle', { count: request.comments?.length || 0 })}
           </Text>
 
           {request.comments && request.comments.length > 0 ? (
@@ -202,7 +247,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                     {c.author.firstName} {c.author.lastName} ({c.author.role})
                   </Text>
                   <Text style={styles.commentTime}>
-                    {new Date(c.createdAt).toLocaleTimeString('ru-RU', {
+                    {new Date(c.createdAt).toLocaleTimeString(i18n.language, {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
@@ -213,7 +258,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             ))
           ) : (
             <Text style={styles.noCommentsText}>
-              Пока нет сообщений. Напишите уточнение диспетчеру ниже.
+              {t('requests.noCommentsNotice')}
             </Text>
           )}
         </ScrollView>
@@ -221,7 +266,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
         {/* Comment Input Footer */}
         <View style={styles.commentInputRow}>
           <Input
-            placeholder="Написать сообщение диспетчеру..."
+            placeholder={t('requests.commentInputPlaceholder')}
             value={newComment}
             onChangeText={setNewComment}
             containerStyle={{ flex: 1, marginBottom: 0 }}

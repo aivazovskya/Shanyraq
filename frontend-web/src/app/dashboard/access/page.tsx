@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   KeyRound,
   ShieldCheck,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 
 export default function AccessPage() {
+  const { t } = useTranslation();
   const [opening, setOpening] = useState(false);
   const [lastOpened, setLastOpened] = useState<string | null>(null);
 
@@ -28,26 +30,26 @@ export default function AccessPage() {
     {
       id: 'LOG-451',
       time: '13:38:12',
-      point: 'Главный шлагбаум (Въезд)',
-      action: 'Открытие через мобильное приложение',
-      user: 'Арман Жумабаев (Кв. 101)',
+      point: `${t('access.barrierEntry')} (Въезд)`,
+      action: t('access.actionMobileApp', 'Открытие через мобильное приложение'),
+      user: `Арман Жумабаев (${t('common.unitShort')} 101)`,
       plate: '012 KZ 01',
       status: 'SUCCESS',
     },
     {
       id: 'LOG-450',
       time: '13:15:04',
-      point: 'Главный шлагбаум (Въезд)',
-      action: 'Гостевой код доступа',
-      user: 'Гость кв. 42 (Руслан)',
+      point: `${t('access.barrierEntry')} (Въезд)`,
+      action: t('access.actionGuestPass', 'Гостевой код доступа'),
+      user: `Гость ${t('common.unitShort')} 42 (Руслан)`,
       plate: '777 KZ 01',
       status: 'SUCCESS',
     },
     {
       id: 'LOG-449',
       time: '12:54:30',
-      point: 'Главный шлагбаум (Въезд)',
-      action: 'Ручное открытие с пульта охраны',
+      point: `${t('access.barrierEntry')} (Въезд)`,
+      action: t('access.actionGuardRemote', 'Ручное открытие с пульта охраны'),
       user: 'Ерлан (Пост охраны)',
       plate: 'Курьер / Спецтранспорт',
       status: 'SUCCESS',
@@ -55,8 +57,8 @@ export default function AccessPage() {
     {
       id: 'LOG-448',
       time: '11:42:19',
-      point: 'Главный шлагбаум (Въезд)',
-      action: 'Мобильное приложение (Отказ)',
+      point: `${t('access.barrierEntry')} (Въезд)`,
+      action: t('access.actionMobileDenied', 'Мобильное приложение (Отказ)'),
       user: 'Неподтвержденный профиль (+7 705 ***-**-99)',
       plate: '—',
       status: 'DENIED',
@@ -67,9 +69,9 @@ export default function AccessPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">СКУД, Шлагбаумы и Видеонаблюдение</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('access.title')}</h1>
           <p className="text-sm text-slate-500">
-            Контроль доступа на придомовую территорию и журнал въездов автотранспорта
+            {t('access.subtitle')}
           </p>
         </div>
       </div>
@@ -81,17 +83,17 @@ export default function AccessPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Шлагбаум — Въезд
+                {t('access.barrierEntry')}
               </span>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                Контроллер онлайн
+                {t('access.controllerOnline')}
               </span>
             </div>
             <h2 className="text-lg font-bold text-slate-900 mt-2">
-              Шлагбаум №1 (ул. Достык)
+              {t('access.barrier1Name')}
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Оборудование: Pal-ES GSM/Cloud Relay. Задержка срабатывания: 0.6 сек.
+              {t('access.barrier1Desc')}
             </p>
           </div>
 
@@ -108,18 +110,18 @@ export default function AccessPage() {
               {opening ? (
                 <>
                   <RotateCw className="w-4 h-4 animate-spin" />
-                  Подача сигнала на реле...
+                  {t('access.openRelaySending')}
                 </>
               ) : (
                 <>
                   <KeyRound className="w-4 h-4" />
-                  Открыть шлагбаум вручную
+                  {t('access.openManualBtn')}
                 </>
               )}
             </button>
             {lastOpened && (
               <div className="text-center text-[11px] text-emerald-600 font-medium mt-2">
-                ✓ Последнее открытие: {lastOpened}
+                {t('access.lastOpened', { time: lastOpened })}
               </div>
             )}
           </div>
@@ -130,21 +132,21 @@ export default function AccessPage() {
           <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2 font-medium">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-              <span>LIVE • Камера №1 (Въездной шлагбаум и КПП)</span>
+              <span>{t('access.camera1Name')}</span>
             </div>
-            <span className="text-slate-400 font-mono">Dahua NVR • go2rtc WebRTC 1080p</span>
+            <span className="text-slate-400 font-mono">{t('access.camera1Codec')}</span>
           </div>
 
           {/* Video Placeholder Area */}
           <div className="h-48 my-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center text-slate-500">
             <Video className="w-10 h-10 text-slate-600 mb-2" />
-            <div className="text-xs font-medium text-slate-400">Трансляция видеопотока реального времени</div>
-            <div className="text-[11px] text-slate-600">Шлюз: go2rtc (минимальная задержка 0.2с)</div>
+            <div className="text-xs font-medium text-slate-400">{t('access.liveStreamText')}</div>
+            <div className="text-[11px] text-slate-600">{t('access.liveStreamGateway')}</div>
           </div>
 
           <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-            <span>Распознавание госномеров: активно</span>
-            <span className="text-emerald-400 font-semibold">Система функционирует штатно</span>
+            <span>{t('access.lprActive')}</span>
+            <span className="text-emerald-400 font-semibold">{t('access.systemNormal')}</span>
           </div>
         </div>
       </div>
@@ -153,20 +155,20 @@ export default function AccessPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-            Неизменяемый журнал проездов и открытий (Audit Trail)
+            {t('access.auditTitle')}
           </h2>
-          <span className="text-xs text-slate-500">Последние 100 событий</span>
+          <span className="text-xs text-slate-500">{t('access.recent100Events')}</span>
         </div>
 
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
             <tr>
-              <th className="py-3 px-4">Время</th>
-              <th className="py-3 px-4">Точка доступа</th>
-              <th className="py-3 px-4">Пользователь / Квартира</th>
-              <th className="py-3 px-4">Госномер авто</th>
-              <th className="py-3 px-4">Тип действия</th>
-              <th className="py-3 px-4 text-right">Статус</th>
+              <th className="py-3 px-4">{t('access.thTime')}</th>
+              <th className="py-3 px-4">{t('access.thPoint')}</th>
+              <th className="py-3 px-4">{t('access.thUser')}</th>
+              <th className="py-3 px-4">{t('access.thPlate')}</th>
+              <th className="py-3 px-4">{t('access.thEvent')}</th>
+              <th className="py-3 px-4 text-right">{t('access.thResult')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -180,11 +182,11 @@ export default function AccessPage() {
                 <td className="py-3 px-4 text-right">
                   {log.status === 'SUCCESS' ? (
                     <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                      Разрешено
+                      {t('access.statusSuccess')}
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-semibold">
-                      Отклонено
+                      {t('access.statusDenied')}
                     </span>
                   )}
                 </td>

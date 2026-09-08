@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -24,25 +25,8 @@ import { ArrowLeft, Camera, Check } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRequest'>;
 
-const CATEGORIES: Array<{ key: RequestCategory; label: string }> = [
-  { key: 'PLUMBING', label: 'Сантехника' },
-  { key: 'ELECTRICAL', label: 'Электрика' },
-  { key: 'ELEVATOR', label: 'Лифты' },
-  { key: 'HEATING', label: 'Отопление' },
-  { key: 'YARD_TERRITORY', label: 'Двор / Территория' },
-  { key: 'INTERCOM_ACCESS', label: 'Домофон / Двери' },
-  { key: 'CLEANING', label: 'Уборка' },
-  { key: 'OTHER', label: 'Другое' },
-];
-
-const PRIORITIES: Array<{ key: RequestPriority; label: string; color: string }> = [
-  { key: 'LOW', label: 'Низкий', color: Colors.textMuted },
-  { key: 'MEDIUM', label: 'Обычный', color: Colors.info },
-  { key: 'HIGH', label: 'Высокий', color: Colors.warning },
-  { key: 'EMERGENCY', label: 'Аварийный', color: Colors.danger },
-];
-
 export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
 
@@ -54,24 +38,42 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const categories: Array<{ key: RequestCategory; label: string }> = [
+    { key: 'PLUMBING', label: t('requests.catPlumbing') },
+    { key: 'ELECTRICAL', label: t('requests.catElectrical') },
+    { key: 'ELEVATOR', label: t('requests.catElevator') },
+    { key: 'HEATING', label: t('requests.catHeating') },
+    { key: 'YARD_TERRITORY', label: t('requests.catYard') },
+    { key: 'INTERCOM_ACCESS', label: t('requests.catIntercom') },
+    { key: 'CLEANING', label: t('requests.catCleaning') },
+    { key: 'OTHER', label: t('requests.catOther') },
+  ];
+
+  const priorities: Array<{ key: RequestPriority; label: string; color: string }> = [
+    { key: 'LOW', label: t('requests.prioLow'), color: Colors.textMuted },
+    { key: 'MEDIUM', label: t('requests.prioMedium'), color: Colors.info },
+    { key: 'HIGH', label: t('requests.prioHigh'), color: Colors.warning },
+    { key: 'EMERGENCY', label: t('requests.prioEmergency'), color: Colors.danger },
+  ];
+
   const handleAddSamplePhoto = () => {
     // Demonstration attachment photo URL simulating MinIO upload
     const mockUrl = `http://localhost:9000/shanyraq-media/sample_repair_${Date.now()}.jpg`;
     setAttachments((prev) => [...prev, mockUrl]);
-    Alert.alert('Фото прикреплено', 'Изображение успешно добавлено к заявке');
+    Alert.alert(t('requests.photoAttachedTitle'), t('requests.photoAttachedMsg'));
   };
 
   const handleSubmit = async () => {
     if (!primaryUnitId) {
-      Alert.alert('Ошибка', 'К вашему аккаунту не привязана квартира');
+      Alert.alert(t('common.error'), t('requests.noUnitAttachedError'));
       return;
     }
     if (!title.trim()) {
-      setError('Укажите краткую тему заявки');
+      setError(t('requests.titleRequiredError'));
       return;
     }
     if (!description.trim()) {
-      setError('Подробно опишите суть неисправности');
+      setError(t('requests.descriptionRequiredError'));
       return;
     }
 
@@ -88,8 +90,8 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         attachmentUrls: attachments.length > 0 ? attachments : undefined,
       });
 
-      Alert.alert('Заявка создана', 'Диспетчер получил обращение и назначит мастера в ближайшее время.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('requests.requestCreatedTitle'), t('requests.requestCreatedMsg'), [
+        { text: t('access.ok'), onPress: () => navigation.goBack() },
       ]);
     } catch (e: any) {
       setError(getApiErrorMessage(e));
@@ -104,15 +106,15 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Новая заявка</Text>
+        <Text style={styles.navTitle}>{t('requests.newRequestTitle')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Title */}
         <Input
-          label="Что произошло?"
-          placeholder="Например: Протекает труба под раковиной"
+          label={t('requests.whatHappenedLabel')}
+          placeholder={t('requests.whatHappenedPlaceholder')}
           value={title}
           onChangeText={(v) => {
             setError('');
@@ -121,9 +123,9 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         />
 
         {/* Category Picker */}
-        <Text style={styles.fieldLabel}>Категория вопроса</Text>
+        <Text style={styles.fieldLabel}>{t('requests.categoryLabel')}</Text>
         <View style={styles.chipGrid}>
-          {CATEGORIES.map((c) => {
+          {categories.map((c) => {
             const active = category === c.key;
             return (
               <TouchableOpacity
@@ -140,9 +142,9 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Priority Picker */}
-        <Text style={styles.fieldLabel}>Срочность</Text>
+        <Text style={styles.fieldLabel}>{t('requests.priorityLabel')}</Text>
         <View style={styles.priorityRow}>
-          {PRIORITIES.map((p) => {
+          {priorities.map((p) => {
             const active = priority === p.key;
             return (
               <TouchableOpacity
@@ -160,8 +162,8 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Description */}
         <Input
-          label="Подробное описание"
-          placeholder="Укажите удобное время визита мастера, детали поломки..."
+          label={t('requests.descriptionLabel')}
+          placeholder={t('requests.descriptionPlaceholder')}
           value={description}
           onChangeText={(v) => {
             setError('');
@@ -173,20 +175,20 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         />
 
         {/* Attach Photo */}
-        <Text style={styles.fieldLabel}>Фотографии (необязательно)</Text>
+        <Text style={styles.fieldLabel}>{t('requests.photosLabel')}</Text>
         <TouchableOpacity style={styles.photoUploadBox} onPress={handleAddSamplePhoto}>
           <Camera color={Colors.primary} size={28} />
           <Text style={styles.photoUploadText}>
             {attachments.length > 0
-              ? `Прикреплено фото: ${attachments.length} шт.`
-              : 'Сфотографировать или выбрать из галереи'}
+              ? t('requests.photosCount', { count: attachments.length })
+              : t('requests.takeOrChoosePhoto')}
           </Text>
         </TouchableOpacity>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <Button
-          title="Отправить заявку в диспетчерскую"
+          title={t('requests.submitToDispatcher')}
           onPress={handleSubmit}
           loading={submitting}
           size="lg"

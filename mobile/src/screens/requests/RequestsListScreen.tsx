@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { ServiceRequestsApi, ServiceRequestItem, RequestStatus } from '../../api/service-requests';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -17,21 +18,39 @@ import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
 import { Wrench, Plus, ChevronRight, MessageSquare } from 'lucide-react-native';
 
-const STATUS_MAP: Record<RequestStatus, { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'default' }> = {
-  PENDING: { label: 'В очереди', variant: 'warning' },
-  ASSIGNED: { label: 'Назначен мастер', variant: 'info' },
-  IN_PROGRESS: { label: 'В работе', variant: 'info' },
-  RESOLVED: { label: 'Выполнена', variant: 'success' },
-  REJECTED: { label: 'Отклонена', variant: 'danger' },
-  CLOSED: { label: 'Закрыта', variant: 'default' },
-};
-
 export const RequestsListScreen: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'DONE'>('ALL');
+
+  const getCategoryLabel = (cat: string) => {
+    switch (cat) {
+      case 'PLUMBING': return t('requests.catPlumbing');
+      case 'ELECTRICAL': return t('requests.catElectrical');
+      case 'ELEVATOR': return t('requests.catElevator');
+      case 'HEATING': return t('requests.catHeating');
+      case 'YARD': return t('requests.catYard');
+      case 'INTERCOM': return t('requests.catIntercom');
+      case 'CLEANING': return t('requests.catCleaning');
+      case 'OTHER': return t('requests.catOther');
+      default: return cat;
+    }
+  };
+
+  const getStatusInfo = (status: RequestStatus): { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'default' } => {
+    switch (status) {
+      case 'PENDING': return { label: t('requests.statusPending'), variant: 'warning' };
+      case 'ASSIGNED': return { label: t('requests.statusAssigned'), variant: 'info' };
+      case 'IN_PROGRESS': return { label: t('requests.statusInProgress'), variant: 'info' };
+      case 'RESOLVED': return { label: t('requests.statusResolved'), variant: 'success' };
+      case 'REJECTED': return { label: t('requests.statusRejected'), variant: 'danger' };
+      case 'CLOSED': return { label: t('requests.statusClosed'), variant: 'default' };
+      default: return { label: status, variant: 'default' };
+    }
+  };
 
   const fetchRequests = async () => {
     try {
@@ -61,18 +80,18 @@ export const RequestsListScreen: React.FC = () => {
   });
 
   if (loading) {
-    return <LoadingState message="Загрузка ваших заявок..." />;
+    return <LoadingState message={t('requests.loadingRequests')} />;
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Service Desk</Text>
-          <Text style={styles.subtitle}>Заявки на ремонт, сантехнику и обслуживание дома</Text>
+          <Text style={styles.title}>{t('requests.serviceDesk')}</Text>
+          <Text style={styles.subtitle}>{t('requests.subtitle')}</Text>
         </View>
         <Button
-          title="Создать"
+          title={t('requests.createBtn')}
           onPress={() => navigation.navigate('CreateRequest')}
           variant="primary"
           size="sm"
@@ -87,7 +106,7 @@ export const RequestsListScreen: React.FC = () => {
           onPress={() => setFilter('ALL')}
         >
           <Text style={[styles.tabText, filter === 'ALL' && styles.tabTextActive]}>
-            Все ({requests.length})
+            {t('requests.tabAll', { count: requests.length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -95,7 +114,7 @@ export const RequestsListScreen: React.FC = () => {
           onPress={() => setFilter('ACTIVE')}
         >
           <Text style={[styles.tabText, filter === 'ACTIVE' && styles.tabTextActive]}>
-            В работе ({requests.filter((r) => r.status !== 'RESOLVED' && r.status !== 'CLOSED').length})
+            {t('requests.tabActive', { count: requests.filter((r) => r.status !== 'RESOLVED' && r.status !== 'CLOSED').length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -103,7 +122,7 @@ export const RequestsListScreen: React.FC = () => {
           onPress={() => setFilter('DONE')}
         >
           <Text style={[styles.tabText, filter === 'DONE' && styles.tabTextActive]}>
-            Завершенные
+            {t('requests.tabDone')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -118,12 +137,12 @@ export const RequestsListScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Wrench color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>Заявок нет</Text>
+            <Text style={styles.emptyTitle}>{t('requests.emptyRequestsTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              Если у вас возникла неисправность или вопрос по дому, создайте заявку для диспетчерской
+              {t('requests.emptyRequestsSubtitle')}
             </Text>
             <Button
-              title="Создать первую заявку"
+              title={t('requests.createFirstRequest')}
               onPress={() => navigation.navigate('CreateRequest')}
               size="md"
               style={{ marginTop: 16 }}
@@ -131,14 +150,14 @@ export const RequestsListScreen: React.FC = () => {
           </View>
         }
         renderItem={({ item }) => {
-          const statusInfo = STATUS_MAP[item.status] || { label: item.status, variant: 'default' };
+          const statusInfo = getStatusInfo(item.status);
           return (
             <Card
               style={styles.card}
               onPress={() => navigation.navigate('RequestDetail', { requestId: item.id })}
             >
               <View style={styles.cardHeader}>
-                <Text style={styles.categoryBadge}>{item.category}</Text>
+                <Text style={styles.categoryBadge}>{getCategoryLabel(item.category)}</Text>
                 <Badge label={statusInfo.label} variant={statusInfo.variant} />
               </View>
 
@@ -149,7 +168,7 @@ export const RequestsListScreen: React.FC = () => {
 
               <View style={styles.cardFooter}>
                 <Text style={styles.dateText}>
-                  {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                  {new Date(item.createdAt).toLocaleDateString(i18n.language)}
                 </Text>
                 <View style={styles.footerRight}>
                   {item.comments && item.comments.length > 0 ? (
@@ -158,7 +177,7 @@ export const RequestsListScreen: React.FC = () => {
                       <Text style={styles.commentText}>{item.comments.length}</Text>
                     </View>
                   ) : null}
-                  <ChevronRight color={Colors.primary} size={18} />
+                  <ChevronRight color={Colors.textMuted} size={18} />
                 </View>
               </View>
             </Card>

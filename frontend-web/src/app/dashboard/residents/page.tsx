@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Users,
   Search,
@@ -63,6 +64,7 @@ interface ResidentItem {
 }
 
 export default function ResidentsPage() {
+  const { t, i18n } = useTranslation();
   const [residents, setResidents] = useState<ResidentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function ResidentsPage() {
   } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [tenantName, setTenantName] = useState<string>('ЖК');
+  const [tenantName, setTenantName] = useState<string>('');
   const [selectedResident, setSelectedResident] = useState<ResidentItem | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function ResidentsPage() {
       setError(null);
       const session = getStoredSession();
       if (!session || !session.user || !session.user.tenantId) {
-        throw new Error('Пользователь не авторизован или не привязан к жилому комплексу');
+        throw new Error(t('common.userNotAuthorizedOrLinked'));
       }
       if (session.user.tenantName) {
         setTenantName(session.user.tenantName);
@@ -96,11 +98,11 @@ export default function ResidentsPage() {
 
       setResidents(data);
     } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки реестра жильцов');
+      setError(err.message || t('residents.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadResidents();
@@ -119,7 +121,7 @@ export default function ResidentsPage() {
     } catch (err: any) {
       setActionMessage({
         type: 'error',
-        text: err.message || 'Ошибка загрузки детальной карточки жильца',
+        text: err.message || t('residents.loadDetailError'),
       });
     } finally {
       setLoadingDetail(false);
@@ -129,8 +131,8 @@ export default function ResidentsPage() {
   const handleToggleStatus = async (resident: ResidentItem) => {
     const willDeactivate = resident.isActive;
     const confirmPrompt = willDeactivate
-      ? `Деактивировать учетную запись жильца «${resident.firstName} ${resident.lastName}»? Жилец потеряет доступ в мобильное приложение.`
-      : `Активировать учетную запись жильца «${resident.firstName} ${resident.lastName}»?`;
+      ? t('residents.deactivatePrompt', { name: `${resident.firstName} ${resident.lastName}` })
+      : t('residents.activatePrompt', { name: `${resident.firstName} ${resident.lastName}` });
 
     if (!confirm(confirmPrompt)) {
       return;
@@ -146,8 +148,8 @@ export default function ResidentsPage() {
       setActionMessage({
         type: 'success',
         text: willDeactivate
-          ? `Учетная запись ${resident.firstName} ${resident.lastName} деактивирована`
-          : `Учетная запись ${resident.firstName} ${resident.lastName} активирована`,
+          ? t('residents.deactivatedSuccess', { name: `${resident.firstName} ${resident.lastName}` })
+          : t('residents.activatedSuccess', { name: `${resident.firstName} ${resident.lastName}` }),
       });
 
       await loadResidents();
@@ -158,7 +160,7 @@ export default function ResidentsPage() {
     } catch (err: any) {
       setActionMessage({
         type: 'error',
-        text: err.message || 'Ошибка при изменении статуса жильца',
+        text: err.message || t('common.error'),
       });
     } finally {
       setProcessingUserId(null);
@@ -168,7 +170,10 @@ export default function ResidentsPage() {
   const handleUnlinkOwnership = async (ownership: OwnershipItem, resident: ResidentItem) => {
     if (
       !confirm(
-        `Вы уверены, что хотите отвязать кв. ${ownership.unit.unitNumber} (${ownership.unit.building.blockName}) от жильца ${resident.firstName} ${resident.lastName}?`,
+        t('residents.unlinkConfirm', {
+          unit: `${ownership.unit.unitNumber} (${ownership.unit.building.blockName})`,
+          name: `${resident.firstName} ${resident.lastName}`,
+        }),
       )
     ) {
       return;
@@ -182,7 +187,7 @@ export default function ResidentsPage() {
 
       setActionMessage({
         type: 'success',
-        text: `Квартира ${ownership.unit.unitNumber} успешно отвязана от жильца`,
+        text: t('residents.unlinkSuccess', { unit: ownership.unit.unitNumber }),
       });
 
       await loadResidents();
@@ -203,7 +208,7 @@ export default function ResidentsPage() {
     } catch (err: any) {
       setActionMessage({
         type: 'error',
-        text: err.message || 'Ошибка при отвязке квартиры',
+        text: err.message || t('common.error'),
       });
     } finally {
       setProcessingOwnershipId(null);
@@ -237,9 +242,9 @@ export default function ResidentsPage() {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Реестр жильцов</h1>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{t('residents.title')}</h1>
               <p className="text-sm text-slate-500 mt-0.5">
-                База подтвержденных собственников и арендаторов {tenantName}
+                {t('residents.subtitle')}
               </p>
             </div>
           </div>
@@ -252,7 +257,7 @@ export default function ResidentsPage() {
             className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Обновить</span>
+            <span>{t('residents.refreshBtn')}</span>
           </button>
         </div>
       </div>
@@ -261,7 +266,7 @@ export default function ResidentsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Всего жильцов</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('residents.totalResidents')}</p>
             <p className="text-2xl font-bold text-slate-900 mt-1">{residents.length}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
@@ -271,7 +276,7 @@ export default function ResidentsPage() {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Активные аккаунты</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('residents.activeAccounts')}</p>
             <p className="text-2xl font-bold text-emerald-600 mt-1">{activeCount}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -281,7 +286,7 @@ export default function ResidentsPage() {
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Заблокированные</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('residents.blockedAccounts')}</p>
             <p className="text-2xl font-bold text-rose-600 mt-1">{deactivatedCount}</p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -324,14 +329,14 @@ export default function ResidentsPage() {
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Поиск по ФИО, телефону, ИИН или номеру квартиры..."
+              placeholder={t('residents.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
             />
           </div>
           <div className="text-xs font-semibold text-slate-500">
-            Найдено записей: <span className="text-slate-900 font-bold">{filteredResidents.length}</span>
+            {t('residents.recordsFound', { count: filteredResidents.length })}
           </div>
         </div>
 
@@ -339,20 +344,20 @@ export default function ResidentsPage() {
         {loading ? (
           <div className="p-16 flex flex-col items-center justify-center gap-3 text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
-            <p className="text-sm font-medium">Загрузка базы жильцов...</p>
+            <p className="text-sm font-medium">{t('common.loading')}</p>
           </div>
         ) : error ? (
           <div className="p-12 text-center">
             <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-3">
               <AlertCircle className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-semibold text-slate-900 mb-1">Ошибка загрузки</h3>
+            <h3 className="text-base font-semibold text-slate-900 mb-1">{t('common.error')}</h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto mb-4">{error}</p>
             <button
               onClick={loadResidents}
               className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-xl shadow-sm transition-all"
             >
-              Попробовать снова
+              {t('common.refresh', 'Попробовать снова')}
             </button>
           </div>
         ) : filteredResidents.length === 0 ? (
@@ -360,11 +365,9 @@ export default function ResidentsPage() {
             <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-3">
               <Users className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-semibold text-slate-900 mb-1">Жильцы не найдены</h3>
+            <h3 className="text-base font-semibold text-slate-900 mb-1">{t('residents.emptyRegistryTitle')}</h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
-              {searchQuery
-                ? 'По вашему поисковому запросу ничего не найдено. Проверьте правильность введенных данных.'
-                : 'В жилом комплексе пока нет подтвержденных жильцов. Заявки на подтверждение появляются во вкладке «Верификация прав».'}
+              {t('residents.emptyRegistrySub')}
             </p>
           </div>
         ) : (
@@ -372,12 +375,12 @@ export default function ResidentsPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="py-3.5 px-6">Жилец</th>
-                  <th className="py-3.5 px-4">Телефон</th>
-                  <th className="py-3.5 px-4">Квартиры в ЖК</th>
-                  <th className="py-3.5 px-4">Тип</th>
-                  <th className="py-3.5 px-4">Статус аккаунта</th>
-                  <th className="py-3.5 px-6 text-right">Действия</th>
+                  <th className="py-3.5 px-6">{t('residents.thResident')}</th>
+                  <th className="py-3.5 px-4">{t('residents.thPhone')}</th>
+                  <th className="py-3.5 px-4">{t('residents.thUnits')}</th>
+                  <th className="py-3.5 px-4">{t('residents.thType')}</th>
+                  <th className="py-3.5 px-4">{t('residents.thStatus')}</th>
+                  <th className="py-3.5 px-6 text-right">{t('residents.thActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -385,10 +388,10 @@ export default function ResidentsPage() {
                   const isProcessing = processingUserId === resident.id;
                   const primaryType =
                     resident.ownerships[0]?.ownershipType === 'OWNER'
-                      ? 'Собственник'
+                      ? t('verifications.ownershipOwner')
                       : resident.ownerships[0]?.ownershipType === 'TENANT'
-                      ? 'Арендатор'
-                      : 'Член семьи';
+                      ? t('verifications.ownershipTenant')
+                      : t('verifications.ownershipFamily');
 
                   return (
                     <tr
@@ -408,7 +411,7 @@ export default function ResidentsPage() {
                               {resident.firstName} {resident.lastName}
                             </div>
                             <div className="text-xs text-slate-400 font-mono">
-                              {resident.iin ? `ИИН: ${resident.iin}` : resident.email || 'Без email'}
+                              {resident.iin ? `${t('common.iin')}: ${resident.iin}` : resident.email || t('residents.noEmail')}
                             </div>
                           </div>
                         </div>
@@ -428,7 +431,7 @@ export default function ResidentsPage() {
                               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200"
                             >
                               <Home className="w-3 h-3 text-sky-600" />
-                              Кв. {o.unit.unitNumber}
+                              {t('common.unitShort')} {o.unit.unitNumber}
                               <span className="text-slate-400 font-normal">({o.unit.building.blockName})</span>
                             </span>
                           ))}
@@ -447,12 +450,12 @@ export default function ResidentsPage() {
                         {resident.isActive ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Активен
+                            {t('residents.activeBadge')}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/60">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                            Заблокирован
+                            {t('residents.blockedBadge')}
                           </span>
                         )}
                       </td>
@@ -467,7 +470,7 @@ export default function ResidentsPage() {
                             onClick={() => openResidentDetail(resident)}
                             className="px-3 py-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg border border-transparent hover:border-sky-200 transition-all"
                           >
-                            Детали
+                            {t('residents.detailsBtn')}
                           </button>
 
                           <button
@@ -482,9 +485,9 @@ export default function ResidentsPage() {
                             {isProcessing ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" />
                             ) : resident.isActive ? (
-                              'Деактивировать'
+                              t('residents.deactivateAction')
                             ) : (
-                              'Активировать'
+                              t('residents.activateAction')
                             )}
                           </button>
                         </div>
@@ -517,7 +520,11 @@ export default function ResidentsPage() {
                     <span className="font-mono">{selectedResident.phone}</span>
                     <span>•</span>
                     <span className="text-slate-600">
-                      Регистрация {new Date(selectedResident.createdAt).toLocaleDateString('ru-RU')}
+                      {t('residents.registrationDate', {
+                        date: new Date(selectedResident.createdAt).toLocaleDateString(
+                          i18n.language === 'kk' ? 'kk-KZ' : i18n.language === 'en' ? 'en-US' : 'ru-RU',
+                        ),
+                      })}
                     </span>
                   </div>
                 </div>
@@ -535,34 +542,34 @@ export default function ResidentsPage() {
               {/* User Profile Overview */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase">Роль в системе</p>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase">{t('residents.thRole')}</p>
                   <p className="text-xs font-bold text-slate-800 mt-1">
-                    {selectedResident.role === 'RESIDENT_OWNER' ? 'Собственник' : 'Арендатор'}
+                    {selectedResident.role === 'RESIDENT_OWNER' ? t('verifications.ownershipOwner') : t('verifications.ownershipTenant')}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase">ИИН</p>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase">{t('common.iin')}</p>
                   <p className="text-xs font-mono font-bold text-slate-800 mt-1">
-                    {selectedResident.iin || 'Не указан'}
+                    {selectedResident.iin || t('residents.notSpecified')}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                   <p className="text-[11px] font-semibold text-slate-400 uppercase">Email</p>
                   <p className="text-xs font-medium text-slate-800 truncate mt-1">
-                    {selectedResident.email || 'Не указан'}
+                    {selectedResident.email || t('residents.notSpecified')}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase">Статус</p>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase">{t('residents.thStatus')}</p>
                   <p
                     className={`text-xs font-bold mt-1 ${
                       selectedResident.isActive ? 'text-emerald-600' : 'text-rose-600'
                     }`}
                   >
-                    {selectedResident.isActive ? 'Активен' : 'Заблокирован'}
+                    {selectedResident.isActive ? t('residents.activeBadge') : t('residents.blockedBadge')}
                   </p>
                 </div>
               </div>
@@ -572,13 +579,13 @@ export default function ResidentsPage() {
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Building className="w-4 h-4 text-sky-600" />
-                    Привязанные квартиры ({selectedResident.ownerships.length})
+                    {t('residents.unitsSection')} ({selectedResident.ownerships.length})
                   </h4>
                 </div>
 
                 {selectedResident.ownerships.length === 0 ? (
                   <p className="text-xs text-slate-500 italic p-4 bg-slate-50 rounded-xl text-center">
-                    Нет привязанных квартир в данном жилом комплексе
+                    {t('residents.noUnitsLinked')}
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -592,33 +599,33 @@ export default function ResidentsPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-900 text-sm">
-                                Кв. {o.unit.unitNumber}
+                                {t('common.unitShort')} {o.unit.unitNumber}
                               </span>
                               <span className="text-xs text-slate-500 font-medium">
-                                ({o.unit.building.blockName}, этаж {o.unit.floor}, подъезд {o.unit.entrance})
+                                ({o.unit.building?.blockName || t('common.block')}, {t('residents.floorEntrance', { floor: o.unit.floor, entrance: o.unit.entrance })})
                               </span>
                               {o.isVerified ? (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  Подтверждено
+                                  {t('verifications.verifiedBadge')}
                                 </span>
                               ) : (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                  На рассмотрении
+                                  {t('verifications.pendingBadge')}
                                 </span>
                               )}
                             </div>
 
                             <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                              <span>Площадь: {o.unit.area} м²</span>
+                              <span>{t('residents.areaLabel', { area: o.unit.area })}</span>
                               <span>•</span>
-                              <span>Доля: {o.sharePercent}%</span>
+                              <span>{t('residents.shareLabel', { share: o.sharePercent })}</span>
                               <span>•</span>
                               <span>
                                 {o.ownershipType === 'OWNER'
-                                  ? 'Собственник'
+                                  ? t('verifications.ownershipOwner')
                                   : o.ownershipType === 'TENANT'
-                                  ? 'Арендатор'
-                                  : 'Семья'}
+                                  ? t('verifications.ownershipTenant')
+                                  : t('verifications.ownershipFamily')}
                               </span>
                             </div>
                           </div>
@@ -634,7 +641,7 @@ export default function ResidentsPage() {
                               ) : (
                                 <Trash2 className="w-3.5 h-3.5" />
                               )}
-                              <span>Отвязать квартиру</span>
+                              <span>{t('residents.unlinkUnitBtn')}</span>
                             </button>
                           )}
                         </div>
@@ -659,9 +666,9 @@ export default function ResidentsPage() {
                 {processingUserId === selectedResident.id ? (
                   <Loader2 className="w-4 h-4 animate-spin mx-auto" />
                 ) : selectedResident.isActive ? (
-                  'Деактивировать аккаунт'
+                  t('residents.deactivateAction')
                 ) : (
-                  'Активировать аккаунт'
+                  t('residents.activateAction')
                 )}
               </button>
 
@@ -669,7 +676,7 @@ export default function ResidentsPage() {
                 onClick={() => setSelectedResident(null)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
               >
-                Закрыть
+                {t('residents.closeBtn')}
               </button>
             </div>
           </div>

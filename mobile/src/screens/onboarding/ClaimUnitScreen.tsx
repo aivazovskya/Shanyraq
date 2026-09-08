@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import {
   PropertiesApi,
   TenantSearchResult,
@@ -31,6 +32,7 @@ import {
 } from 'lucide-react-native';
 
 export const ClaimUnitScreen: React.FC = () => {
+  const { t } = useTranslation();
   const { user, refreshProfile, logout } = useAuth();
 
   // Search & structure state
@@ -63,20 +65,20 @@ export const ClaimUnitScreen: React.FC = () => {
     }
   };
 
-  const handleSelectTenant = async (t: TenantSearchResult) => {
-    setSelectedTenant(t);
+  const handleSelectTenant = async (tResult: TenantSearchResult) => {
+    setSelectedTenant(tResult);
     setSelectedUnit(null);
     try {
-      const struct = await PropertiesApi.getTenantStructure(t.id);
+      const struct = await PropertiesApi.getTenantStructure(tResult.id);
       setStructure(struct);
     } catch (err: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(err));
+      Alert.alert(t('common.error'), getApiErrorMessage(err));
     }
   };
 
   const handleSubmitClaim = async () => {
     if (!selectedUnit) {
-      setError('Пожалуйста, выберите вашу квартиру из списка');
+      setError(t('onboarding.selectUnitError'));
       return;
     }
 
@@ -91,7 +93,7 @@ export const ClaimUnitScreen: React.FC = () => {
       });
 
       await refreshProfile();
-      Alert.alert('Успешно', 'Заявка на привязку квартиры отправлена на рассмотрение в УК!');
+      Alert.alert(t('common.success'), t('onboarding.claimSentSuccess'));
     } catch (err: any) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -107,43 +109,44 @@ export const ClaimUnitScreen: React.FC = () => {
           <View style={styles.iconContainerYellow}>
             <Clock color="#D97706" size={48} />
           </View>
-          <Text style={styles.statusTitle}>Заявка на рассмотрении УК</Text>
+          <Text style={styles.statusTitle}>{t('onboarding.pendingTitle')}</Text>
           <Text style={styles.statusSubtitle}>
-            Вы подали заявку на привязку квартиры №{existingOwnership.unit?.unitNumber} (
-            {existingOwnership.unit?.building?.blockName || 'ЖК'}).
+            {t('onboarding.pendingSubtitle', {
+              unit: existingOwnership.unit?.unitNumber || '',
+              block: existingOwnership.unit?.building?.blockName || t('dashboard.defaultComplex'),
+            })}
           </Text>
 
           <Card style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Статус:</Text>
-              <Badge label="На проверке" variant="warning" />
+              <Text style={styles.infoLabel}>{t('onboarding.statusLabel')}</Text>
+              <Badge label={t('onboarding.statusUnderReview')} variant="warning" />
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Тип владения:</Text>
+              <Text style={styles.infoLabel}>{t('onboarding.ownershipTypeLabel')}</Text>
               <Text style={styles.infoValue}>
-                {existingOwnership.ownershipType === 'OWNER' ? 'Собственник' : 'Арендатор'}
+                {existingOwnership.ownershipType === 'OWNER' ? t('onboarding.roleOwner') : t('onboarding.roleTenant')}
               </Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Площадь:</Text>
-              <Text style={styles.infoValue}>{existingOwnership.unit?.area} м²</Text>
+              <Text style={styles.infoLabel}>{t('onboarding.areaLabel')}</Text>
+              <Text style={styles.infoValue}>{existingOwnership.unit?.area} {t('common.sqm')}</Text>
             </View>
           </Card>
 
           <Text style={styles.warningNotice}>
-            До подтверждения прав управляющей компанией доступ к открытию шлагбаумов, камерам и
-            голосованиям ОСС ограничен в целях безопасности жителей.
+            {t('onboarding.securityWarningNotice')}
           </Text>
 
           <View style={styles.actionsBlock}>
             <Button
-              title="Обновить статус"
+              title={t('onboarding.refreshStatusBtn')}
               onPress={refreshProfile}
               variant="primary"
               size="lg"
             />
             <Button
-              title="Выйти из аккаунта"
+              title={t('onboarding.logoutBtn')}
               onPress={logout}
               variant="outline"
               size="md"
@@ -161,16 +164,16 @@ export const ClaimUnitScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.topHeader}>
-          <Text style={styles.headerTitle}>Привязка квартиры</Text>
+          <Text style={styles.headerTitle}>{t('onboarding.claimTitle')}</Text>
           <Text style={styles.headerSubtitle}>
-            Для доступа к функциям ЖК выберите ваш дом и номер квартиры
+            {t('onboarding.claimSubtitle')}
           </Text>
         </View>
 
         {/* Step 1: Complex search */}
-        <Text style={styles.sectionHeading}>1. Выберите жилой комплекс</Text>
+        <Text style={styles.sectionHeading}>{t('onboarding.step1SelectComplex')}</Text>
         <Input
-          placeholder="Поиск по названию или адресу..."
+          placeholder={t('onboarding.searchComplexPlaceholder')}
           value={searchQuery}
           onChangeText={(val) => {
             setSearchQuery(val);
@@ -179,23 +182,23 @@ export const ClaimUnitScreen: React.FC = () => {
           leftIcon={<Search color={Colors.textMuted} size={18} />}
         />
 
-        {tenants.map((t) => (
+        {tenants.map((tItem) => (
           <TouchableOpacity
-            key={t.id}
+            key={tItem.id}
             style={[
               styles.tenantItem,
-              selectedTenant?.id === t.id && styles.tenantItemSelected,
+              selectedTenant?.id === tItem.id && styles.tenantItemSelected,
             ]}
-            onPress={() => handleSelectTenant(t)}
+            onPress={() => handleSelectTenant(tItem)}
           >
             <Building
-              color={selectedTenant?.id === t.id ? Colors.primary : Colors.textMuted}
+              color={selectedTenant?.id === tItem.id ? Colors.primary : Colors.textMuted}
               size={24}
             />
             <View style={styles.tenantInfo}>
-              <Text style={styles.tenantName}>{t.name}</Text>
+              <Text style={styles.tenantName}>{tItem.name}</Text>
               <Text style={styles.tenantAddress}>
-                {t.city}, {t.address}
+                {tItem.city}, {tItem.address}
               </Text>
             </View>
             <ChevronRight color={Colors.textLight} size={20} />
@@ -205,7 +208,7 @@ export const ClaimUnitScreen: React.FC = () => {
         {/* Step 2: Building & Unit selection */}
         {structure && (
           <View style={styles.stepBlock}>
-            <Text style={styles.sectionHeading}>2. Выберите квартиру</Text>
+            <Text style={styles.sectionHeading}>{t('onboarding.step2SelectUnit')}</Text>
             {structure.buildings.map((b) => (
               <View key={b.id} style={styles.buildingSection}>
                 <Text style={styles.buildingName}>{b.blockName}</Text>
@@ -227,7 +230,7 @@ export const ClaimUnitScreen: React.FC = () => {
                             isSelected && styles.unitChipTextSelected,
                           ]}
                         >
-                          кв. {u.unitNumber}
+                          {t('common.unitShort')} {u.unitNumber}
                         </Text>
                         <Text
                           style={[
@@ -235,7 +238,7 @@ export const ClaimUnitScreen: React.FC = () => {
                             isSelected && styles.unitAreaTextSelected,
                           ]}
                         >
-                          {u.area} м²
+                          {u.area} {t('common.sqm')}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -249,7 +252,7 @@ export const ClaimUnitScreen: React.FC = () => {
         {/* Step 3: Ownership role */}
         {selectedUnit && (
           <View style={styles.stepBlock}>
-            <Text style={styles.sectionHeading}>3. Тип владения</Text>
+            <Text style={styles.sectionHeading}>{t('onboarding.step3OwnershipType')}</Text>
             <View style={styles.roleTabs}>
               <TouchableOpacity
                 style={[
@@ -264,7 +267,7 @@ export const ClaimUnitScreen: React.FC = () => {
                     ownershipType === 'OWNER' && styles.roleTabTextActive,
                   ]}
                 >
-                  Собственник
+                  {t('onboarding.roleOwner')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -280,25 +283,25 @@ export const ClaimUnitScreen: React.FC = () => {
                     ownershipType === 'TENANT' && styles.roleTabTextActive,
                   ]}
                 >
-                  Арендатор
+                  {t('onboarding.roleTenant')}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {ownershipType === 'OWNER' && (
               <Input
-                label="Доля собственности (%)"
+                label={t('onboarding.sharePercentLabel')}
                 value={sharePercent}
                 onChangeText={setSharePercent}
                 keyboardType="numeric"
-                helper="По умолчанию 100%, если владеете квартирой полностью"
+                helper={t('onboarding.sharePercentHelper')}
               />
             )}
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Button
-              title="Отправить заявку в УК"
+              title={t('onboarding.submitClaimBtn')}
               onPress={handleSubmitClaim}
               loading={submitting}
               size="lg"

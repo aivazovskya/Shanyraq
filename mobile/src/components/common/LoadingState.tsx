@@ -1,18 +1,23 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+
+import { useTranslation } from 'react-i18next';
 
 interface LoadingStateProps {
   message?: string;
 }
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
-  message = 'Загрузка данных...',
+  message,
 }) => {
+  const { t } = useTranslation();
+  const displayMessage = message ?? t('common.loading');
+
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={Colors.primary} />
-      <Text style={styles.text}>{message}</Text>
+      <Text style={styles.text}>{displayMessage}</Text>
     </View>
   );
 };

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { AnnouncementsApi, AnnouncementItem } from '../../api/announcements';
 import { Card } from '../../components/common/Card';
@@ -18,6 +19,7 @@ import { Colors } from '../../constants/colors';
 import { Bell, AlertTriangle, ArrowLeft } from 'lucide-react-native';
 
 export const AnnouncementsScreen: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -53,7 +55,7 @@ export const AnnouncementsScreen: React.FC = () => {
   };
 
   if (loading) {
-    return <LoadingState message="Загрузка новостей ЖК..." />;
+    return <LoadingState message={t('announcements.loadingNews')} />;
   }
 
   return (
@@ -62,7 +64,7 @@ export const AnnouncementsScreen: React.FC = () => {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Новости и оповещения</Text>
+        <Text style={styles.navTitle}>{t('announcements.title')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -76,9 +78,9 @@ export const AnnouncementsScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Bell color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>Новостей пока нет</Text>
+            <Text style={styles.emptyTitle}>{t('announcements.emptyNewsTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              Здесь будут публиковаться объявления управляющей компании, отчеты и информация об отключениях
+              {t('announcements.emptyNewsSubtitle')}
             </Text>
           </View>
         }
@@ -88,13 +90,13 @@ export const AnnouncementsScreen: React.FC = () => {
               {item.isUrgent ? (
                 <View style={styles.urgentBadge}>
                   <AlertTriangle color="#DC2626" size={14} />
-                  <Text style={styles.urgentBadgeText}>ЭКСТРЕННОЕ ОПОВЕЩЕНИЕ</Text>
+                  <Text style={styles.urgentBadgeText}>{t('announcements.urgentBadgeText')}</Text>
                 </View>
               ) : (
-                <Badge label="Объявление" variant="info" />
+                <Badge label={t('announcements.regularBadgeText')} variant="info" />
               )}
               <Text style={styles.dateText}>
-                {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                {new Date(item.createdAt).toLocaleDateString(i18n.language)}
               </Text>
             </View>
 

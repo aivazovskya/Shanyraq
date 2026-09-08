@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { KeyRound, Delete, X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 interface PinEntryModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
   onCancel,
   onForgotPin,
 }) => {
+  const { t } = useTranslation();
   const [pin, setPin] = useState('');
 
   useEffect(() => {
@@ -85,9 +87,9 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
             <View style={styles.iconCircle}>
               <KeyRound color="#FFFFFF" size={28} />
             </View>
-            <Text style={styles.title}>Введите PIN-код</Text>
+            <Text style={styles.title}>{t('access.enterPinTitle')}</Text>
             <Text style={styles.subtitle}>
-              2FA подтверждение открытия{'\n'}
+              {t('access.pin2faSubtitle')}{'\n'}
               <Text style={styles.pointHighlight}>«{accessPointName}»</Text>
             </Text>
           </View>
@@ -134,7 +136,7 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
                         onPress={handleClear}
                         disabled={loading || pin.length === 0}
                       >
-                        <Text style={styles.keypadSpecialText}>Сброс</Text>
+                        <Text style={styles.keypadSpecialText}>{t('access.resetKeypad')}</Text>
                       </TouchableOpacity>
                     );
                   }
@@ -174,7 +176,7 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
             {loading ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>Открыть шлагбаум</Text>
+              <Text style={styles.submitButtonText}>{t('access.openBarrierAction')}</Text>
             )}
           </TouchableOpacity>
 
@@ -185,7 +187,7 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
               onPress={onForgotPin}
               disabled={loading}
             >
-              <Text style={styles.forgotButtonText}>Забыли PIN-код доступа?</Text>
+              <Text style={styles.forgotButtonText}>{t('access.forgotPinPrompt')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>

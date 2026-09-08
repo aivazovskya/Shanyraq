@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { AuthApi } from '../../api/auth';
 import {
@@ -44,6 +45,7 @@ import {
 } from 'lucide-react-native';
 
 export const AccessScreen: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   const { user } = useAuth();
@@ -122,19 +124,19 @@ export const AccessScreen: React.FC = () => {
   const handleTriggerOpenBarrier = (barrier: AccessPoint) => {
     if (!isVerified) {
       Alert.alert(
-        'Доступ ограничен',
-        'Открытие шлагбаума доступно только после подтверждения права собственности управляющей компанией.',
+        t('access.accessRestrictedTitle'),
+        t('access.accessRestrictedMsg'),
       );
       return;
     }
 
     if (isPinSet === false) {
       Alert.alert(
-        'PIN-код не установлен',
-        'Для безопасного открытия шлагбаума (2FA) необходимо сначала установить PIN-код доступа.',
+        t('access.pinNotSetTitle'),
+        t('access.pinNotSetMsg'),
         [
-          { text: 'Отмена', style: 'cancel' },
-          { text: 'Установить PIN', onPress: () => navigation.navigate('PinSetup') },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('access.setupPinBtn'), onPress: () => navigation.navigate('PinSetup') },
         ],
       );
       return;
@@ -155,18 +157,18 @@ export const AccessScreen: React.FC = () => {
       const res = await AccessApi.openBarrier(selectedBarrier.id, pin, primaryUnitId);
       setPinModalVisible(false);
       setSelectedBarrier(null);
-      Alert.alert('Успешно', res.message || 'Шлагбаум открыт на 20 секунд');
+      Alert.alert(t('access.openSuccessTitle'), res.message || t('access.openSuccessMsg'));
     } catch (e: any) {
       const msg = getApiErrorMessage(e);
       if (msg.includes('PIN_NOT_SET')) {
         setIsPinSet(false);
         setPinModalVisible(false);
         Alert.alert(
-          'PIN-код не установлен',
-          'Сначала установите PIN-код доступа в настройках профиля',
+          t('access.pinNotSetTitle'),
+          t('access.profilePinSetupMsg'),
           [
-            { text: 'Позже', style: 'cancel' },
-            { text: 'Установить PIN', onPress: () => navigation.navigate('PinSetup') },
+            { text: t('access.laterBtn'), style: 'cancel' },
+            { text: t('access.setupPinBtn'), onPress: () => navigation.navigate('PinSetup') },
           ],
         );
       } else {
@@ -180,13 +182,13 @@ export const AccessScreen: React.FC = () => {
   const handleCreateGuestPass = async () => {
     if (!primaryUnitId || !isVerified) {
       Alert.alert(
-        'Ошибка',
-        'Оформление гостевых пропусков доступно только для подтвержденных квартир',
+        t('common.error'),
+        t('access.passRestrictedMsg'),
       );
       return;
     }
     if (!guestName.trim()) {
-      Alert.alert('Внимание', 'Введите имя гостя');
+      Alert.alert(t('common.error'), t('access.enterGuestNameWarning'));
       return;
     }
 
@@ -207,7 +209,7 @@ export const AccessScreen: React.FC = () => {
       setGuestName('');
       setGuestPlate('');
     } catch (e: any) {
-      Alert.alert('Ошибка', getApiErrorMessage(e));
+      Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
       setCreatingPass(false);
     }
@@ -216,12 +218,13 @@ export const AccessScreen: React.FC = () => {
   const handleSharePass = async (pass: GuestPass) => {
     try {
       await Share.share({
-        message:
-          `🏢 Пропуск в ${user?.tenant?.name || 'ЖК Шаңырақ'}\n` +
-          `Гость: ${pass.guestName}\n` +
-          (pass.guestPlateNumber ? `Авто: ${pass.guestPlateNumber}\n` : '') +
-          `Код для въезда/КПП: ${pass.accessCode}\n` +
-          `Действует до: ${new Date(pass.validTo).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`,
+        message: t('access.shareTemplateTitle', {
+          complex: user?.tenant?.name || t('dashboard.defaultComplex'),
+          guest: pass.guestName,
+          plateLine: pass.guestPlateNumber ? `${t('access.guestPlateLabel', { plate: pass.guestPlateNumber })}\n` : '',
+          code: pass.accessCode,
+          time: new Date(pass.validTo).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+        }),
       });
     } catch (e) {
       console.warn('Share error:', e);
@@ -235,7 +238,7 @@ export const AccessScreen: React.FC = () => {
       const stream = await AccessApi.getCameraStream(pointId);
       setSelectedStream(stream);
     } catch (e: any) {
-      Alert.alert('Камера недоступна', getApiErrorMessage(e));
+      Alert.alert(t('access.cameraUnavailableTitle'), getApiErrorMessage(e));
       setCameraModalVisible(false);
     } finally {
       setLoadingStream(false);
@@ -243,7 +246,7 @@ export const AccessScreen: React.FC = () => {
   };
 
   if (loading) {
-    return <LoadingState message="Загрузка точек доступа..." />;
+    return <LoadingState />;
   }
 
   const barriers = points.filter((p) => p.type === 'BARRIER' || p.type === 'GATE');
@@ -258,16 +261,16 @@ export const AccessScreen: React.FC = () => {
         }
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Управление доступом</Text>
+          <Text style={styles.title}>{t('access.title')}</Text>
           <Text style={styles.subtitle}>
-            Шлагбаумы, ворота, гостевые пропуска и камеры видеонаблюдения
+            {t('access.subtitle')}
           </Text>
         </View>
 
         {!isVerified && (
           <View style={styles.unverifiedBanner}>
             <Text style={styles.unverifiedBannerText}>
-              ⚠️ Ваша квартира находится на проверке в УК. Открытие шлагбаумов будет доступно сразу после верификации.
+              {t('access.unverifiedNotice')}
             </Text>
           </View>
         )}
@@ -280,9 +283,9 @@ export const AccessScreen: React.FC = () => {
           >
             <KeyRound color="#B45309" size={20} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.pinWarningTitle}>2FA защита: установите PIN-код</Text>
+              <Text style={styles.pinWarningTitle}>{t('access.pinBannerTitle')}</Text>
               <Text style={styles.pinWarningSub}>
-                Для безопасного открытия шлагбаумов настройте PIN-код доступа в профиле.
+                {t('access.pinBannerSub')}
               </Text>
             </View>
             <ChevronRight color="#B45309" size={18} />
@@ -290,11 +293,11 @@ export const AccessScreen: React.FC = () => {
         )}
 
         {/* Section: Barriers */}
-        <Text style={styles.sectionHeading}>Шлагбаумы и въездные ворота</Text>
+        <Text style={styles.sectionHeading}>{t('access.barriersSection')}</Text>
 
         {barriers.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>В вашем ЖК пока нет настроенных шлагбаумов</Text>
+            <Text style={styles.emptyText}>{t('access.noBarriers')}</Text>
           </Card>
         ) : (
           barriers.map((b) => (
@@ -303,15 +306,15 @@ export const AccessScreen: React.FC = () => {
                 <View style={styles.barrierInfo}>
                   <Text style={styles.barrierName}>{b.name}</Text>
                   <Text style={styles.barrierType}>
-                    {b.type === 'BARRIER' ? 'Шлагбаум' : 'Ворота паркинга'}
+                    {b.type === 'BARRIER' ? t('access.pointTypeBarrier') : t('access.pointTypeGate')}
                   </Text>
                 </View>
-                <Badge label="Активен" variant="success" />
+                <Badge label={t('access.barrierActive')} variant="success" />
               </View>
 
               <View style={styles.buttonWrapper}>
                 <HoldToOpenButton
-                  title="Удерживайте для открытия"
+                  title={t('access.holdToOpen')}
                   onConfirmed={() => handleTriggerOpenBarrier(b)}
                   loading={openingWithPin && selectedBarrier?.id === b.id}
                   disabled={!isVerified}
@@ -323,9 +326,9 @@ export const AccessScreen: React.FC = () => {
 
         {/* Section: Guest Passes */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>Гостевые пропуска</Text>
+          <Text style={styles.sectionHeading}>{t('access.guestPassesSection')}</Text>
           <Button
-            title="+ Оформить"
+            title={t('access.createPassBtn')}
             onPress={() => {
               setCreatedPass(null);
               setGuestModalVisible(true);
@@ -340,20 +343,20 @@ export const AccessScreen: React.FC = () => {
           <View style={styles.guestPromoRow}>
             <UserPlus color={Colors.primary} size={32} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.guestPromoTitle}>Пропуск гостю или курьеру</Text>
+              <Text style={styles.guestPromoTitle}>{t('access.guestPromoTitle')}</Text>
               <Text style={styles.guestPromoSub}>
-                Создайте временный PIN-код или QR для въезда автомобиля или прохода через КПП
+                {t('access.guestPromoSub')}
               </Text>
             </View>
           </View>
         </Card>
 
         {/* Section: Cameras */}
-        <Text style={styles.sectionHeading}>Камеры наблюдения двора</Text>
+        <Text style={styles.sectionHeading}>{t('access.camerasSection')}</Text>
 
         {cameras.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>В ЖК нет подключенных онлайн-камер</Text>
+            <Text style={styles.emptyText}>{t('access.noCameras')}</Text>
           </Card>
         ) : (
           cameras.map((c) => (
@@ -364,10 +367,10 @@ export const AccessScreen: React.FC = () => {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cameraName}>{c.name}</Text>
-                  <Text style={styles.cameraSub}>Онлайн трансляция двора</Text>
+                  <Text style={styles.cameraSub}>{t('access.cameraSub')}</Text>
                 </View>
                 <Button
-                  title="Смотреть"
+                  title={t('access.watchCamera')}
                   onPress={() => handleViewCamera(c.id)}
                   variant="primary"
                   size="sm"
@@ -383,7 +386,7 @@ export const AccessScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Гостевой пропуск</Text>
+              <Text style={styles.modalTitle}>{t('access.guestModalTitle')}</Text>
               <TouchableOpacity onPress={() => setGuestModalVisible(false)}>
                 <X color={Colors.textMuted} size={24} />
               </TouchableOpacity>
@@ -401,21 +404,27 @@ export const AccessScreen: React.FC = () => {
                   />
                 </View>
 
-                <Text style={styles.passCodeTitle}>6-значный PIN-код:</Text>
+                <Text style={styles.passCodeTitle}>{t('access.passCodeTitle')}</Text>
                 <Text style={styles.passCode}>{createdPass.accessCode}</Text>
 
                 <View style={styles.passMetaBlock}>
-                  <Text style={styles.passMetaText}>Гость: {createdPass.guestName}</Text>
+                  <Text style={styles.passMetaText}>
+                    {t('access.guestNameLabel', { name: createdPass.guestName })}
+                  </Text>
                   {createdPass.guestPlateNumber ? (
-                    <Text style={styles.passMetaText}>Автомобиль: {createdPass.guestPlateNumber}</Text>
+                    <Text style={styles.passMetaText}>
+                      {t('access.guestPlateLabel', { plate: createdPass.guestPlateNumber })}
+                    </Text>
                   ) : null}
                   <Text style={styles.passMetaText}>
-                    Действует 12 часов (до {new Date(createdPass.validTo).toLocaleTimeString('ru-RU')})
+                    {t('access.valid12Hours', {
+                      time: new Date(createdPass.validTo).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+                    })}
                   </Text>
                 </View>
 
                 <Button
-                  title="Поделиться пропуском"
+                  title={t('access.sharePassBtn')}
                   onPress={() => handleSharePass(createdPass)}
                   variant="primary"
                   size="lg"
@@ -427,22 +436,22 @@ export const AccessScreen: React.FC = () => {
               // Input form
               <View>
                 <Input
-                  label="ФИО или имя гостя / курьера"
-                  placeholder="Например: Азамат или Курьер Choco"
+                  label={t('access.guestInputLabel')}
+                  placeholder={t('access.guestInputPlaceholder')}
                   value={guestName}
                   onChangeText={setGuestName}
                 />
                 <Input
-                  label="Госномер автомобиля (если на машине)"
-                  placeholder="Например: 777KZ01"
+                  label={t('access.plateInputLabel')}
+                  placeholder={t('access.plateInputPlaceholder')}
                   value={guestPlate}
                   onChangeText={setGuestPlate}
                   leftIcon={<Car color={Colors.textMuted} size={18} />}
-                  helper="Охранник на шлагбауме сверит номер и пропустит"
+                  helper={t('access.plateHelper')}
                 />
 
                 <Button
-                  title="Сгенерировать QR-пропуск"
+                  title={t('access.generateQrBtn')}
                   onPress={handleCreateGuestPass}
                   loading={creatingPass}
                   size="lg"
@@ -460,7 +469,7 @@ export const AccessScreen: React.FC = () => {
           <View style={[styles.modalContent, { height: 360 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {selectedStream?.name || 'Прямой эфир камеры'}
+                {selectedStream?.name || t('access.liveCameraTitle')}
               </Text>
               <TouchableOpacity onPress={() => setCameraModalVisible(false)}>
                 <X color={Colors.textMuted} size={24} />
@@ -471,7 +480,9 @@ export const AccessScreen: React.FC = () => {
               <View style={styles.streamMockPlaceholder}>
                 <Video color="#FFFFFF" size={48} />
                 <Text style={styles.streamMockText}>
-                  {selectedStream ? `HLS стрим: ${selectedStream.streamName}` : 'Подключение...'}
+                  {selectedStream
+                    ? t('access.hlsStream', { name: selectedStream.streamName })
+                    : t('access.connectingStream')}
                 </Text>
                 <Badge label="LIVE WebRTC / HLS" variant="danger" style={{ marginTop: 8 }} />
               </View>
@@ -483,7 +494,7 @@ export const AccessScreen: React.FC = () => {
       {/* 2FA PIN ENTRY MODAL */}
       <PinEntryModal
         visible={pinModalVisible}
-        accessPointName={selectedBarrier?.name || 'Шлагбаум'}
+        accessPointName={selectedBarrier?.name || t('access.pointTypeBarrier')}
         loading={openingWithPin}
         error={pinError}
         onConfirm={handleConfirmPin}
