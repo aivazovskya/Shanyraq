@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, UnitType, OwnershipType, RequestCategory, RequestStatus, RequestPriority, MeetingStatus, DecisionType, VoteChoice, AccessPointType, ChargeCalculationMethod, PaymentMethod } from '@prisma/client';
+import { PrismaClient, UserRole, UnitType, OwnershipType, RequestCategory, RequestStatus, RequestPriority, MeetingStatus, DecisionType, VoteChoice, AccessPointType, ChargeCalculationMethod, PaymentMethod, MeterType, ReadingStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { generateAccountNumber } from '../src/modules/finance/personal-account.helper';
@@ -9,6 +9,8 @@ async function main() {
   console.log('🌱 Начинаем наполнение базы данных демо-данными для ЖК «Шаңырақ Премиум»...');
 
   // 1. Очистка старых данных
+  await prisma.meterReading.deleteMany();
+  await prisma.meter.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.charge.deleteMany();
   await prisma.personalAccount.deleteMany();
@@ -398,6 +400,98 @@ async function main() {
     },
   });
 
+  const tariffWater = await prisma.tariffItem.create({
+    data: {
+      tenantId: tenant.id,
+      name: 'Холодная вода',
+      calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+      meterType: MeterType.COLD_WATER,
+      rate: 85.0, // 85 тг за м³
+    },
+  });
+
+  // Приборы учёта (счётчики) для кв. 101
+  const meterWater101 = await prisma.meter.create({
+    data: {
+      unitId: apt101.id,
+      type: MeterType.COLD_WATER,
+      serialNumber: 'CW-2024-101',
+      initialValue: 120.0,
+      isActive: true,
+    },
+  });
+
+  const meterPower101 = await prisma.meter.create({
+    data: {
+      unitId: apt101.id,
+      type: MeterType.ELECTRICITY,
+      serialNumber: 'EL-2024-101',
+      initialValue: 5400.0,
+      isActive: true,
+    },
+  });
+
+  // Счётчики для кв. 102 и 205
+  await prisma.meter.create({
+    data: {
+      unitId: apt102.id,
+      type: MeterType.COLD_WATER,
+      serialNumber: 'CW-2024-102',
+      initialValue: 85.0,
+      isActive: true,
+    },
+  });
+
+  await prisma.meter.create({
+    data: {
+      unitId: apt205.id,
+      type: MeterType.COLD_WATER,
+      serialNumber: 'CW-2024-205',
+      initialValue: 210.0,
+      isActive: true,
+    },
+  });
+
+  // Показания для кв. 101: подтверждённое за прошлый месяц и за текущий
+  await prisma.meterReading.create({
+    data: {
+      meterId: meterWater101.id,
+      submittedById: residentOwner1.id,
+      value: 128.0, // 128 - 120 = 8 м³ расход
+      photoUrl: 'https://storage.shanyraq.kz/meters/sample_water_sep2026.jpg',
+      periodMonth: 9,
+      periodYear: 2026,
+      status: ReadingStatus.VERIFIED,
+      reviewedById: dispatcherUser.id,
+    },
+  });
+
+  await prisma.meterReading.create({
+    data: {
+      meterId: meterWater101.id,
+      submittedById: residentOwner1.id,
+      value: 135.0, // 135 - 128 = 7 м³ расход
+      photoUrl: 'https://storage.shanyraq.kz/meters/sample_water_oct2026.jpg',
+      periodMonth: 10,
+      periodYear: 2026,
+      status: ReadingStatus.VERIFIED,
+      reviewedById: adminUser.id,
+    },
+  });
+
+  // Показание электричества на проверке (PENDING)
+  await prisma.meterReading.create({
+    data: {
+      meterId: meterPower101.id,
+      submittedById: residentOwner1.id,
+      value: 5580.0,
+      photoUrl: 'https://storage.shanyraq.kz/meters/sample_power_oct2026.jpg',
+      periodMonth: 10,
+      periodYear: 2026,
+      status: ReadingStatus.PENDING,
+    },
+  });
+
   // Начисления за текущий месяц (Октябрь 2026) для кв. 101 (площадь 68.5 м²)
   const charge1 = await prisma.charge.create({
     data: {
@@ -419,21 +513,32 @@ async function main() {
     },
   });
 
+  // Начисление за воду по счетчику: 7 м³ * 85 ₸ = 595 ₸
+  const charge3 = await prisma.charge.create({
+    data: {
+      accountId: acc101.id,
+      tariffItemId: tariffWater.id,
+      periodMonth: 10,
+      periodYear: 2026,
+      amount: 595.0,
+    },
+  });
+
   // Платеж от жителя кв. 101, принятый администратором
   const payment1 = await prisma.payment.create({
     data: {
       accountId: acc101.id,
-      amount: 8000.0,
+      amount: 9000.0,
       method: PaymentMethod.MANUAL,
       recordedById: adminUser.id,
       note: 'Оплата через кассу ОСИ (наличные)',
     },
   });
 
-  // Баланс кв. 101: 8000 - (7535 + 450) = +15.0 (переплата / аванс)
+  // Баланс кв. 101: 9000 - (7535 + 450 + 595) = +420.0 (переплата / аванс)
   await prisma.personalAccount.update({
     where: { id: acc101.id },
-    data: { balance: payment1.amount - (charge1.amount + charge2.amount) },
+    data: { balance: payment1.amount - (charge1.amount + charge2.amount + charge3.amount) },
   });
 
   console.log('✅ База данных успешно наполнена тестовыми данными ЖК «Шаңырақ Премиум»!');

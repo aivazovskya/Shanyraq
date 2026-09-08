@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, IsInt, Min, Max } from 'class-validator';
-import { ChargeCalculationMethod } from '@prisma/client';
+import { ChargeCalculationMethod, MeterType } from '@prisma/client';
 
 export class CreateTariffDto {
   @ApiProperty({ example: 'Коммунальные услуги' })
@@ -13,7 +13,12 @@ export class CreateTariffDto {
   @IsEnum(ChargeCalculationMethod)
   calculationMethod?: ChargeCalculationMethod;
 
-  @ApiProperty({ example: 110.0, description: 'Фиксированная ставка (тг) или ставка за м²' })
+  @ApiPropertyOptional({ enum: MeterType, description: 'Тип счётчика (требуется при PER_CONSUMPTION)' })
+  @IsOptional()
+  @IsEnum(MeterType)
+  meterType?: MeterType;
+
+  @ApiProperty({ example: 110.0, description: 'Фиксированная ставка (тг), ставка за м² или за единицу расхода' })
   @IsNumber()
   @Min(0)
   rate: number;
@@ -29,6 +34,11 @@ export class UpdateTariffDto {
   @IsOptional()
   @IsEnum(ChargeCalculationMethod)
   calculationMethod?: ChargeCalculationMethod;
+
+  @ApiPropertyOptional({ enum: MeterType })
+  @IsOptional()
+  @IsEnum(MeterType)
+  meterType?: MeterType;
 
   @ApiPropertyOptional({ example: 120.0 })
   @IsOptional()

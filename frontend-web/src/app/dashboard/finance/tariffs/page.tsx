@@ -24,7 +24,8 @@ interface TariffItem {
   id: string;
   tenantId: string;
   name: string;
-  calculationMethod: 'FLAT' | 'PER_AREA';
+  calculationMethod: 'FLAT' | 'PER_AREA' | 'PER_CONSUMPTION';
+  meterType?: 'COLD_WATER' | 'HOT_WATER' | 'ELECTRICITY' | 'OTHER' | null;
   rate: number;
   isActive: boolean;
   createdAt: string;
@@ -47,7 +48,8 @@ export default function TariffsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTariff, setEditingTariff] = useState<TariffItem | null>(null);
   const [formName, setFormName] = useState('');
-  const [formMethod, setFormMethod] = useState<'FLAT' | 'PER_AREA'>('FLAT');
+  const [formMethod, setFormMethod] = useState<'FLAT' | 'PER_AREA' | 'PER_CONSUMPTION'>('FLAT');
+  const [formMeterType, setFormMeterType] = useState<'COLD_WATER' | 'HOT_WATER' | 'ELECTRICITY' | 'OTHER'>('COLD_WATER');
   const [formRate, setFormRate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export default function TariffsPage() {
     setEditingTariff(null);
     setFormName('');
     setFormMethod('FLAT');
+    setFormMeterType('COLD_WATER');
     setFormRate('');
     setIsModalOpen(true);
   };
@@ -92,6 +95,7 @@ export default function TariffsPage() {
     setEditingTariff(tariff);
     setFormName(tariff.name);
     setFormMethod(tariff.calculationMethod);
+    setFormMeterType(tariff.meterType || 'COLD_WATER');
     setFormRate(String(tariff.rate));
     setIsModalOpen(true);
   };
@@ -103,17 +107,22 @@ export default function TariffsPage() {
     const rateNum = parseFloat(formRate);
     if (isNaN(rateNum) || rateNum < 0) return;
 
+    const payload: any = {
+      name: formName.trim(),
+      calculationMethod: formMethod,
+      rate: rateNum,
+    };
+    if (formMethod === 'PER_CONSUMPTION') {
+      payload.meterType = formMeterType;
+    }
+
     try {
       setIsSaving(true);
       if (editingTariff) {
         // Update existing tariff
         await apiRequest(`/finance/tariffs/${editingTariff.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({
-            name: formName.trim(),
-            calculationMethod: formMethod,
-            rate: rateNum,
-          }),
+          body: JSON.stringify(payload),
         });
         setActionMessage({
           type: 'success',
@@ -123,11 +132,7 @@ export default function TariffsPage() {
         // Create new tariff
         await apiRequest(`/finance/tenants/${tenantId}/tariffs`, {
           method: 'POST',
-          body: JSON.stringify({
-            name: formName.trim(),
-            calculationMethod: formMethod,
-            rate: rateNum,
-          }),
+          body: JSON.stringify(payload),
         });
         setActionMessage({
           type: 'success',
@@ -327,6 +332,16 @@ export default function TariffsPage() {
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-700">
                           {tariff.calculationMethod === 'PER_AREA'
                             ? t('finance.methodPerArea')
+                            : tariff.calculationMethod === 'PER_CONSUMPTION'
+                            ? `${t('finance.methodPerConsumption')} (${
+                                tariff.meterType === 'COLD_WATER'
+                                  ? t('finance.meterTypeColdWater')
+                                  : tariff.meterType === 'HOT_WATER'
+                                  ? t('finance.meterTypeHotWater')
+                                  : tariff.meterType === 'ELECTRICITY'
+                                  ? t('finance.meterTypeElectricity')
+                                  : t('finance.meterTypeOther')
+                              })`
                             : t('finance.methodFlat')}
                         </span>
                       </td>
@@ -335,6 +350,8 @@ export default function TariffsPage() {
                       <td className="py-4 px-4 font-bold text-slate-900">
                         {tariff.calculationMethod === 'PER_AREA'
                           ? t('finance.ratePerArea', { rate: tariff.rate })
+                          : tariff.calculationMethod === 'PER_CONSUMPTION'
+                          ? t('finance.ratePerConsumption', { rate: tariff.rate })
                           : t('finance.rateFlat', { rate: tariff.rate })}
                       </td>
 
@@ -440,13 +457,32 @@ export default function TariffsPage() {
                 </label>
                 <select
                   value={formMethod}
-                  onChange={(e) => setFormMethod(e.target.value as 'FLAT' | 'PER_AREA')}
+                  onChange={(e) => setFormMethod(e.target.value as 'FLAT' | 'PER_AREA' | 'PER_CONSUMPTION')}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   <option value="FLAT">{t('finance.methodFlat')}</option>
                   <option value="PER_AREA">{t('finance.methodPerArea')}</option>
+                  <option value="PER_CONSUMPTION">{t('finance.methodPerConsumption')}</option>
                 </select>
               </div>
+
+              {formMethod === 'PER_CONSUMPTION' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    {t('finance.meterTypeLabel')}
+                  </label>
+                  <select
+                    value={formMeterType}
+                    onChange={(e) => setFormMeterType(e.target.value as any)}
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="COLD_WATER">{t('finance.meterTypeColdWater')}</option>
+                    <option value="HOT_WATER">{t('finance.meterTypeHotWater')}</option>
+                    <option value="ELECTRICITY">{t('finance.meterTypeElectricity')}</option>
+                    <option value="OTHER">{t('finance.meterTypeOther')}</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
@@ -457,7 +493,13 @@ export default function TariffsPage() {
                   step="0.01"
                   min="0"
                   required
-                  placeholder={formMethod === 'PER_AREA' ? '110.0' : '450.0'}
+                  placeholder={
+                    formMethod === 'PER_AREA'
+                      ? '110.0'
+                      : formMethod === 'PER_CONSUMPTION'
+                      ? '150.0'
+                      : '450.0'
+                  }
                   value={formRate}
                   onChange={(e) => setFormRate(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -465,6 +507,8 @@ export default function TariffsPage() {
                 <p className="text-[11px] text-slate-400 mt-1">
                   {formMethod === 'PER_AREA'
                     ? t('finance.ratePerArea', { rate: formRate || '0' })
+                    : formMethod === 'PER_CONSUMPTION'
+                    ? t('finance.ratePerConsumption', { rate: formRate || '0' })
                     : t('finance.rateFlat', { rate: formRate || '0' })}
                 </p>
               </div>

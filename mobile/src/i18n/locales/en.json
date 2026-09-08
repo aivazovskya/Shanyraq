@@ -333,7 +333,9 @@
     "newsAndAnnouncements": "News & Announcements",
     "newsFeed": "Feed",
     "financeCardTitle": "Personal Account & Balance",
-    "financeCardSub": "Utility charges & payment history"
+    "financeCardSub": "Utility charges & payment history",
+    "metersCardTitle": "Meter Readings",
+    "metersCardSub": "Submit water and electricity readings"
   },
   "finance": {
     "title": "Personal Account",
@@ -350,6 +352,44 @@
     "noPayments": "No payments yet",
     "offlineNotice": "Online payments are in development. Payments can be made at the HOA office or via management company bank details.",
     "period": "Period",
-    "loadError": "Failed to load account data"
+    "loadError": "Failed to load account data",
+    "metersQuickLink": "Submit meter readings"
+  },
+  "meters": {
+    "title": "Meter Readings",
+    "emptyTitle": "No meters found",
+    "emptyDesc": "No meter devices registered for the selected unit yet. Please contact your HOA or property management.",
+    "submitBtn": "Submit Reading",
+    "resubmitBtn": "Resubmit Reading",
+    "typeColdWater": "Cold water",
+    "typeHotWater": "Hot water",
+    "typeElectricity": "Electricity",
+    "typeOther": "Other",
+    "serialNumber": "Serial No. {{number}}",
+    "initialReading": "Initial: {{value}}",
+    "lastReading": "Latest reading: {{value}}",
+    "noReadingsYet": "No readings submitted yet",
+    "statusPending": "Pending review",
+    "statusVerified": "Verified",
+    "statusRejected": "Rejected",
+    "rejectionReason": "Rejection note: {{note}}",
+    "modalTitle": "Enter Meter Reading",
+    "inputLabel": "Current meter reading",
+    "inputPlaceholder": "e.g. 124.5",
+    "periodLabel": "Billing period",
+    "photoLabel": "Meter photo (required)",
+    "takeOrChoosePhoto": "Attach meter photo",
+    "photoAttached": "Photo attached",
+    "photoRequired": "A photo confirmation is required to submit readings",
+    "validationLessError": "New reading ({{value}}) cannot be less than previous verified reading ({{min}})",
+    "validationEmptyError": "Please enter a numeric meter reading",
+    "confirmSubmit": "Submit for Review",
+    "submitSuccessTitle": "Reading Submitted",
+    "submitSuccessMsg": "Reading was successfully submitted and is pending dispatcher verification.",
+    "loadError": "Failed to load meters",
+    "historyTitle": "Reading History",
+    "periodFormat": "{{month}}.{{year}}",
+    "unitElectricity": "kWh",
+    "unitWater": "m³"
   }
 }

@@ -333,7 +333,9 @@
     "newsAndAnnouncements": "Новости и объявления",
     "newsFeed": "Лента",
     "financeCardTitle": "Лицевой счет и баланс",
-    "financeCardSub": "Начисления ЖК и история оплат"
+    "financeCardSub": "Начисления ЖК и история оплат",
+    "metersCardTitle": "Показания счётчиков",
+    "metersCardSub": "Передача данных по воде и электроэнергии"
   },
   "finance": {
     "title": "Лицевой счет",
@@ -350,6 +352,44 @@
     "noPayments": "Оплат пока нет",
     "offlineNotice": "Оплата онлайн находится в разработке. Оплату можно внести в кассе ОСИ или по банковским реквизитам вашей управляющей компании.",
     "period": "Период",
-    "loadError": "Не удалось загрузить данные лицевого счета"
+    "loadError": "Не удалось загрузить данные лицевого счета",
+    "metersQuickLink": "Подать показания счётчиков"
+  },
+  "meters": {
+    "title": "Показания счётчиков",
+    "emptyTitle": "Нет приборов учёта",
+    "emptyDesc": "Для выбранного помещения пока не зарегистрированы приборы учёта. Обратитесь в управляющую компанию или ОСИ.",
+    "submitBtn": "Подать показания",
+    "resubmitBtn": "Подать повторно",
+    "typeColdWater": "Холодная вода",
+    "typeHotWater": "Горячая вода",
+    "typeElectricity": "Электроэнергия",
+    "typeOther": "Прочее",
+    "serialNumber": "Зав. № {{number}}",
+    "initialReading": "Начальное: {{value}}",
+    "lastReading": "Последнее показание: {{value}}",
+    "noReadingsYet": "Показания ещё не передавались",
+    "statusPending": "На проверке",
+    "statusVerified": "Подтверждено",
+    "statusRejected": "Отклонено",
+    "rejectionReason": "Причина отклонения: {{note}}",
+    "modalTitle": "Ввод показаний",
+    "inputLabel": "Текущие показания прибора",
+    "inputPlaceholder": "Например: 124.5",
+    "periodLabel": "Период начисления",
+    "photoLabel": "Фотография счётчика (обязательно)",
+    "takeOrChoosePhoto": "Прикрепить фото прибора",
+    "photoAttached": "Фотография прикреплена",
+    "photoRequired": "Для подачи показаний требуется фотофиксация",
+    "validationLessError": "Новые показания ({{value}}) не могут быть меньше предыдущих подтверждённых ({{min}})",
+    "validationEmptyError": "Введите числовое значение показаний",
+    "confirmSubmit": "Отправить на проверку",
+    "submitSuccessTitle": "Показания переданы",
+    "submitSuccessMsg": "Показания успешно отправлены и поступят на проверку диспетчеру.",
+    "loadError": "Не удалось загрузить счётчики",
+    "historyTitle": "История показаний",
+    "periodFormat": "{{month}}.{{year}}",
+    "unitElectricity": "кВт⋅ч",
+    "unitWater": "м³"
   }
 }

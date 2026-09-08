@@ -11,6 +11,8 @@ import {
   OwnershipType,
   ChargeCalculationMethod,
   PaymentMethod,
+  MeterType,
+  ReadingStatus,
 } from '@prisma/client';
 import { generateAccountNumber, getOrCreatePersonalAccount } from './personal-account.helper';
 
@@ -51,6 +53,12 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       },
       unitOwnership: {
         findMany: jest.fn(),
+      },
+      meter: {
+        findFirst: jest.fn(),
+      },
+      meterReading: {
+        findFirst: jest.fn(),
       },
     };
 
@@ -547,6 +555,160 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       expect(firstCallArg).toBe('ACC-БЛОКА-101-111111');
       expect(secondCallArg).toBe('ACC-БЛОКА-101-222222');
       expect(firstCallArg).not.toBe(secondCallArg);
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 7. Начисления по приборам учёта (PER_CONSUMPTION)
+  // -------------------------------------------------------------
+  describe('Consumption-Based Billing (PER_CONSUMPTION)', () => {
+    it('должен блокировать создание тарифа PER_CONSUMPTION без указания meterType', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1' });
+
+      await expect(
+        service.createTariff('tenant-1', {
+          name: 'Холодная вода',
+          calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+          rate: 85,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('должен рассчитывать начисление по дельте расхода (reading - prevReading) × rate', async () => {
+      prismaMock.tariffItem.findMany.mockResolvedValue([
+        {
+          id: 't-water',
+          name: 'Холодная вода',
+          calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+          meterType: MeterType.COLD_WATER,
+          rate: 85,
+          isActive: true,
+        },
+      ]);
+      prismaMock.unit.findMany.mockResolvedValue([
+        {
+          id: 'u-1',
+          unitNumber: '101',
+          area: 60,
+          building: { blockName: 'Блок А' },
+          personalAccount: { id: 'acc-1', accountNumber: 'ACC-1' },
+        },
+      ]);
+      // Наличие счётчика
+      prismaMock.meter.findFirst.mockResolvedValue({
+        id: 'm-cw-1',
+        unitId: 'u-1',
+        type: MeterType.COLD_WATER,
+        initialValue: 0,
+        isActive: true,
+      });
+      // Текущее показание: 65 м³
+      prismaMock.meterReading.findFirst
+        .mockResolvedValueOnce({ value: 65, status: ReadingStatus.VERIFIED }) // за этот месяц
+        .mockResolvedValueOnce({ value: 50, status: ReadingStatus.VERIFIED }); // предыдущее: 50 м³ (расход 15)
+
+      prismaMock.charge.findUnique.mockResolvedValue(null);
+      prismaMock.charge.create.mockResolvedValue({ id: 'ch-water', amount: 1275 });
+      prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      prismaMock.charge.aggregate.mockResolvedValue({ _sum: { amount: 1275 } });
+      prismaMock.personalAccount.update.mockResolvedValue({});
+
+      const res = await service.generateCharges('tenant-1', { month: 9, year: 2026 });
+
+      expect(res.createdCount).toBe(1);
+      // Расход: 65 - 50 = 15; Сумма: 15 * 85 = 1275 ₸
+      expect(prismaMock.charge.create).toHaveBeenCalledWith({
+        data: {
+          accountId: 'acc-1',
+          tariffItemId: 't-water',
+          periodMonth: 9,
+          periodYear: 2026,
+          amount: 1275,
+        },
+      });
+    });
+
+    it('для первого показания должен использовать meter.initialValue в качестве базы', async () => {
+      prismaMock.tariffItem.findMany.mockResolvedValue([
+        {
+          id: 't-water',
+          name: 'Холодная вода',
+          calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+          meterType: MeterType.COLD_WATER,
+          rate: 100,
+          isActive: true,
+        },
+      ]);
+      prismaMock.unit.findMany.mockResolvedValue([
+        {
+          id: 'u-1',
+          unitNumber: '101',
+          area: 60,
+          building: { blockName: 'Блок А' },
+          personalAccount: { id: 'acc-1', accountNumber: 'ACC-1' },
+        },
+      ]);
+      prismaMock.meter.findFirst.mockResolvedValue({
+        id: 'm-cw-1',
+        unitId: 'u-1',
+        type: MeterType.COLD_WATER,
+        initialValue: 10, // База: 10 м³
+        isActive: true,
+      });
+      // Первое показание 35 м³, предыдущих нет
+      prismaMock.meterReading.findFirst
+        .mockResolvedValueOnce({ value: 35, status: ReadingStatus.VERIFIED })
+        .mockResolvedValueOnce(null);
+
+      prismaMock.charge.findUnique.mockResolvedValue(null);
+      prismaMock.charge.create.mockResolvedValue({ id: 'ch-water', amount: 2500 });
+      prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      prismaMock.charge.aggregate.mockResolvedValue({ _sum: { amount: 2500 } });
+      prismaMock.personalAccount.update.mockResolvedValue({});
+
+      const res = await service.generateCharges('tenant-1', { month: 9, year: 2026 });
+
+      expect(res.createdCount).toBe(1);
+      // Расход: 35 - 10 = 25; Сумма: 25 * 100 = 2500 ₸
+      expect(prismaMock.charge.create).toHaveBeenCalledWith({
+        data: {
+          accountId: 'acc-1',
+          tariffItemId: 't-water',
+          periodMonth: 9,
+          periodYear: 2026,
+          amount: 2500,
+        },
+      });
+    });
+
+    it('должен мягко пропускать начисление, если у квартиры нет нужного счётчика или нет подтверждённого показания', async () => {
+      prismaMock.tariffItem.findMany.mockResolvedValue([
+        {
+          id: 't-water',
+          name: 'Холодная вода',
+          calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+          meterType: MeterType.COLD_WATER,
+          rate: 85,
+          isActive: true,
+        },
+      ]);
+      prismaMock.unit.findMany.mockResolvedValue([
+        {
+          id: 'u-1',
+          unitNumber: '101',
+          area: 60,
+          building: { blockName: 'Блок А' },
+          personalAccount: { id: 'acc-1', accountNumber: 'ACC-1' },
+        },
+      ]);
+      // Счётчик не найден
+      prismaMock.meter.findFirst.mockResolvedValue(null);
+
+      const res = await service.generateCharges('tenant-1', { month: 9, year: 2026 });
+
+      expect(res.createdCount).toBe(0);
+      expect(res.skippedCount).toBe(1);
+      expect(prismaMock.charge.create).not.toHaveBeenCalled();
     });
   });
 });

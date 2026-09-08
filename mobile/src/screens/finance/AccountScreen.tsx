@@ -21,6 +21,7 @@ import {
   Building,
   Home,
   AlertCircle,
+  Gauge,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 import { LoadingState } from '../../components/common/LoadingState';
@@ -210,6 +211,20 @@ export const AccountScreen: React.FC = () => {
               <Info color={Colors.info} size={18} style={styles.noticeIcon} />
               <Text style={styles.noticeText}>{t('finance.offlineNotice')}</Text>
             </View>
+
+            {/* Meter Readings Action Button */}
+            <TouchableOpacity
+              style={styles.metersActionButton}
+              onPress={() => (navigation as any).navigate('Meters')}
+            >
+              <View style={styles.metersActionContent}>
+                <View style={styles.metersActionIconWrap}>
+                  <Gauge color={Colors.primary} size={18} />
+                </View>
+                <Text style={styles.metersActionText}>{t('finance.metersQuickLink')}</Text>
+              </View>
+              <ChevronLeft color={Colors.textMuted} size={18} style={{ transform: [{ rotate: '180deg' }] }} />
+            </TouchableOpacity>
 
             {/* Tabs: Charges vs Payments */}
             <View style={styles.tabContainer}>
@@ -604,5 +619,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94A3B8',
     fontStyle: 'italic',
+  },
+  metersActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 14,
+    marginVertical: 10,
+  },
+  metersActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  metersActionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metersActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
   },
 });

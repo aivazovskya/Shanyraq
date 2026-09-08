@@ -142,6 +142,7 @@ model Unit {
   guestPasses      GuestPass[]
   accessLogs       AccessLog[]
   personalAccount  PersonalAccount?
+  meters           Meter[]
 
   @@unique([buildingId, unitNumber])
   @@map("units")
@@ -178,8 +179,10 @@ model User {
   accessLogs       AccessLog[]
   createdPasses    GuestPass[]
   announcements    Announcement[]
-  deviceTokens     DeviceToken[]
-  recordedPayments Payment[]
+  deviceTokens      DeviceToken[]
+  recordedPayments  Payment[]
+  submittedReadings MeterReading[]   @relation("SubmittedReadings")
+  reviewedReadings  MeterReading[]   @relation("ReviewedReadings")
 
   @@map("users")
 }
@@ -431,8 +434,22 @@ model Announcement {
 // -------------------------------------------------------------
 
 enum ChargeCalculationMethod {
-  FLAT       // fixed amount per unit, regardless of area
-  PER_AREA   // rate × unit.area
+  FLAT              // fixed amount per unit, regardless of area
+  PER_AREA          // rate × unit.area
+  PER_CONSUMPTION   // rate × metered usage (consumption)
+}
+
+enum MeterType {
+  COLD_WATER
+  HOT_WATER
+  ELECTRICITY
+  OTHER
+}
+
+enum ReadingStatus {
+  PENDING
+  VERIFIED
+  REJECTED
 }
 
 enum PaymentMethod {
@@ -444,6 +461,7 @@ model TariffItem {
   tenantId          String
   name              String                   // "Коммунальные услуги", "Домофон", "Лифт", etc. — fully staff-defined
   calculationMethod ChargeCalculationMethod  @default(FLAT)
+  meterType         MeterType?               // required when calculationMethod = PER_CONSUMPTION
   rate              Float                    // flat amount, or per-m² rate depending on calculationMethod
   isActive          Boolean                  @default(true)
   createdAt         DateTime                 @default(now())
@@ -501,3 +519,44 @@ model Payment {
 
   @@map("payments")
 }
+
+// -------------------------------------------------------------
+// Meter Readings (Счетчики и показания)
+// -------------------------------------------------------------
+
+model Meter {
+  id           String         @id @default(uuid())
+  unitId       String
+  type         MeterType
+  serialNumber String?
+  initialValue Float          @default(0) // baseline for the first reading's consumption calc
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+
+  unit         Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  readings     MeterReading[]
+
+  @@map("meters")
+}
+
+model MeterReading {
+  id            String        @id @default(uuid())
+  meterId       String
+  submittedById String
+  value         Float         // cumulative reading, not a delta
+  photoUrl      String        // required — ТЗ calls for photo confirmation
+  periodMonth   Int
+  periodYear    Int
+  status        ReadingStatus @default(PENDING)
+  reviewedById  String?
+  reviewNote    String?
+  createdAt     DateTime      @default(now())
+
+  meter         Meter         @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  submittedBy   User          @relation("SubmittedReadings", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewedBy    User?         @relation("ReviewedReadings", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([meterId, periodMonth, periodYear])
+  @@map("meter_readings")
+}
+

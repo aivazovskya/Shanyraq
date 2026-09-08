@@ -10,6 +10,8 @@ import {
   OwnershipType,
   ChargeCalculationMethod,
   PaymentMethod,
+  MeterType,
+  ReadingStatus,
 } from '@prisma/client';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import {
@@ -41,11 +43,18 @@ export class FinanceService {
       throw new NotFoundException('Жилой комплекс не найден');
     }
 
+    if (dto.calculationMethod === ChargeCalculationMethod.PER_CONSUMPTION && !dto.meterType) {
+      throw new BadRequestException(
+        'Для тарифа по потреблению (PER_CONSUMPTION) необходимо указать тип счётчика (meterType)',
+      );
+    }
+
     return this.prisma.tariffItem.create({
       data: {
         tenantId,
         name: dto.name,
         calculationMethod: dto.calculationMethod || ChargeCalculationMethod.FLAT,
+        meterType: dto.meterType ?? null,
         rate: dto.rate,
       },
     });
@@ -63,11 +72,20 @@ export class FinanceService {
 
     assertUserBelongsToTenant(user, tariff.tenantId, 'тарифа');
 
+    const targetMethod = dto.calculationMethod ?? tariff.calculationMethod;
+    const targetMeterType = dto.meterType !== undefined ? dto.meterType : tariff.meterType;
+    if (targetMethod === ChargeCalculationMethod.PER_CONSUMPTION && !targetMeterType) {
+      throw new BadRequestException(
+        'Для тарифа по потреблению (PER_CONSUMPTION) необходимо указать тип счётчика (meterType)',
+      );
+    }
+
     return this.prisma.tariffItem.update({
       where: { id: tariffId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.calculationMethod !== undefined && { calculationMethod: dto.calculationMethod }),
+        ...(dto.meterType !== undefined && { meterType: dto.meterType }),
         ...(dto.rate !== undefined && { rate: dto.rate }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
@@ -128,10 +146,67 @@ export class FinanceService {
       const account = await getOrCreatePersonalAccount(this.prisma, unit);
 
       for (const tariff of activeTariffs) {
-        const amount =
-          tariff.calculationMethod === ChargeCalculationMethod.PER_AREA
-            ? Math.round(tariff.rate * unit.area * 100) / 100
-            : tariff.rate;
+        let amount: number;
+
+        if (tariff.calculationMethod === ChargeCalculationMethod.PER_AREA) {
+          amount = Math.round(tariff.rate * unit.area * 100) / 100;
+        } else if (tariff.calculationMethod === ChargeCalculationMethod.PER_CONSUMPTION) {
+          if (!tariff.meterType) {
+            skippedCount++;
+            continue;
+          }
+
+          // Находим активный счётчик квартиры соответствующего типа
+          const meter = await this.prisma.meter.findFirst({
+            where: {
+              unitId: unit.id,
+              type: tariff.meterType,
+              isActive: true,
+            },
+          });
+
+          if (!meter) {
+            skippedCount++;
+            continue;
+          }
+
+          // Находим подтверждённое показание за текущий период
+          const verifiedReading = await this.prisma.meterReading.findFirst({
+            where: {
+              meterId: meter.id,
+              periodMonth: dto.month,
+              periodYear: dto.year,
+              status: ReadingStatus.VERIFIED,
+            },
+          });
+
+          if (!verifiedReading) {
+            skippedCount++;
+            continue;
+          }
+
+          // Находим последнее подтверждённое показание строго до текущего периода
+          const prevReading = await this.prisma.meterReading.findFirst({
+            where: {
+              meterId: meter.id,
+              status: ReadingStatus.VERIFIED,
+              OR: [
+                { periodYear: { lt: dto.year } },
+                { periodYear: dto.year, periodMonth: { lt: dto.month } },
+              ],
+            },
+            orderBy: [
+              { periodYear: 'desc' },
+              { periodMonth: 'desc' },
+            ],
+          });
+
+          const previousValue = prevReading ? prevReading.value : meter.initialValue;
+          const consumption = Math.max(0, verifiedReading.value - previousValue);
+          amount = Math.round(tariff.rate * consumption * 100) / 100;
+        } else {
+          amount = tariff.rate;
+        }
 
         const existingCharge = await this.prisma.charge.findUnique({
           where: {

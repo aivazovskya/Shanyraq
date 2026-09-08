@@ -27,6 +27,7 @@ import {
   ChevronRight,
   AlertTriangle,
   CreditCard,
+  Gauge,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -182,6 +183,23 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.financeTextContainer}>
               <Text style={styles.financeTitle}>{t('dashboard.financeCardTitle')}</Text>
               <Text style={styles.financeSub}>{t('dashboard.financeCardSub')}</Text>
+            </View>
+            <ChevronRight color={Colors.textMuted} size={20} />
+          </View>
+        </Card>
+
+        {/* Meter Readings Card */}
+        <Card
+          style={[styles.financeCard, { marginTop: 8 }]}
+          onPress={() => (navigation as any).navigate('Meters')}
+        >
+          <View style={styles.financeRow}>
+            <View style={[styles.quickIconCircle, { backgroundColor: '#EFF6FF' }]}>
+              <Gauge color={Colors.info} size={22} />
+            </View>
+            <View style={styles.financeTextContainer}>
+              <Text style={styles.financeTitle}>{t('dashboard.metersCardTitle')}</Text>
+              <Text style={styles.financeSub}>{t('dashboard.metersCardSub')}</Text>
             </View>
             <ChevronRight color={Colors.textMuted} size={20} />
           </View>

@@ -23,4 +23,5 @@ export type RootStackParamList = {
   Announcements: undefined;
   PinSetup: { returnTo?: string } | undefined;
   FinanceAccount: undefined;
+  Meters: undefined;
 };
