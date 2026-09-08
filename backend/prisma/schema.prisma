@@ -102,6 +102,7 @@ model Tenant {
   meetings         Meeting[]
   accessPoints     AccessPoint[]
   announcements    Announcement[]
+  tariffItems      TariffItem[]
 
   @@map("tenants")
 }
@@ -140,6 +141,7 @@ model Unit {
   votes            Vote[]
   guestPasses      GuestPass[]
   accessLogs       AccessLog[]
+  personalAccount  PersonalAccount?
 
   @@unique([buildingId, unitNumber])
   @@map("units")
@@ -177,6 +179,7 @@ model User {
   createdPasses    GuestPass[]
   announcements    Announcement[]
   deviceTokens     DeviceToken[]
+  recordedPayments Payment[]
 
   @@map("users")
 }
@@ -421,4 +424,80 @@ model Announcement {
   author           User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@map("announcements")
+}
+
+// -------------------------------------------------------------
+// Finance & Personal Accounts (Лицевые счета и начисления)
+// -------------------------------------------------------------
+
+enum ChargeCalculationMethod {
+  FLAT       // fixed amount per unit, regardless of area
+  PER_AREA   // rate × unit.area
+}
+
+enum PaymentMethod {
+  MANUAL     // recorded by staff — cash, bank transfer, anything off-platform
+}
+
+model TariffItem {
+  id                String                   @id @default(uuid())
+  tenantId          String
+  name              String                   // "Коммунальные услуги", "Домофон", "Лифт", etc. — fully staff-defined
+  calculationMethod ChargeCalculationMethod  @default(FLAT)
+  rate              Float                    // flat amount, or per-m² rate depending on calculationMethod
+  isActive          Boolean                  @default(true)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  charges           Charge[]
+
+  @@map("tariff_items")
+}
+
+model PersonalAccount {
+  id             String    @id @default(uuid())
+  unitId         String    @unique
+  accountNumber  String    @unique   // human-readable, e.g. derived from building+unit — generate on create
+  balance        Float     @default(0)  // positive = credit, negative = debt; always recomputed, never trust a manual write
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  unit           Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  charges        Charge[]
+  payments       Payment[]
+
+  @@map("personal_accounts")
+}
+
+model Charge {
+  id            String    @id @default(uuid())
+  accountId     String
+  tariffItemId  String
+  periodMonth   Int       // 1-12
+  periodYear    Int
+  amount        Float
+  createdAt     DateTime  @default(now())
+
+  account       PersonalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tariffItem    TariffItem      @relation(fields: [tariffItemId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, tariffItemId, periodMonth, periodYear])
+  @@map("charges")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  accountId      String
+  amount         Float
+  method         PaymentMethod @default(MANUAL)
+  recordedById   String        // staff member who recorded it — always required, this task has no unattended payment source
+  note           String?
+  paidAt         DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+
+  account        PersonalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  recordedBy     User            @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@map("payments")
 }

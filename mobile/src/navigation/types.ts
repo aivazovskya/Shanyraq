@@ -22,4 +22,5 @@ export type RootStackParamList = {
   RequestDetail: { requestId: string };
   Announcements: undefined;
   PinSetup: { returnTo?: string } | undefined;
+  FinanceAccount: undefined;
 };

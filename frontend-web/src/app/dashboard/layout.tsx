@@ -18,6 +18,7 @@ import {
   Users,
   Loader2,
   Globe,
+  CreditCard,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 
@@ -40,6 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: t('navigation.requests'), href: '/dashboard/requests', icon: Wrench },
     { name: t('navigation.verifications'), href: '/dashboard/verifications', icon: UserCheck },
     { name: t('navigation.residents'), href: '/dashboard/residents', icon: Users },
+    { name: t('navigation.finance'), href: '/dashboard/finance', icon: CreditCard, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
     { name: t('navigation.access'), href: '/dashboard/access', icon: KeyRound },
     { name: t('navigation.announcements'), href: '/dashboard/announcements', icon: Bell },
   ];
@@ -114,24 +116,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Nav items */}
           <nav className="p-4 space-y-1.5">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-sky-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
+            {navigation
+              .filter((item) => !item.roles || (user && item.roles.includes(user.role)))
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-sky-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
           </nav>
         </div>
 

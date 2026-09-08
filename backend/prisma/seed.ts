@@ -1,6 +1,7 @@
-import { PrismaClient, UserRole, UnitType, OwnershipType, RequestCategory, RequestStatus, RequestPriority, MeetingStatus, DecisionType, VoteChoice, AccessPointType } from '@prisma/client';
+import { PrismaClient, UserRole, UnitType, OwnershipType, RequestCategory, RequestStatus, RequestPriority, MeetingStatus, DecisionType, VoteChoice, AccessPointType, ChargeCalculationMethod, PaymentMethod } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import { generateAccountNumber } from '../src/modules/finance/personal-account.helper';
 
 const prisma = new PrismaClient();
 
@@ -8,6 +9,10 @@ async function main() {
   console.log('🌱 Начинаем наполнение базы данных демо-данными для ЖК «Шаңырақ Премиум»...');
 
   // 1. Очистка старых данных
+  await prisma.payment.deleteMany();
+  await prisma.charge.deleteMany();
+  await prisma.personalAccount.deleteMany();
+  await prisma.tariffItem.deleteMany();
   await prisma.vote.deleteMany();
   await prisma.agendaItem.deleteMany();
   await prisma.meetingProtocol.deleteMany();
@@ -95,6 +100,28 @@ async function main() {
       type: UnitType.APARTMENT,
       area: 124.0, // 124.0 кв.м
       cadastralNumber: '21:320:135:205',
+    },
+  });
+
+  // Лицевые счета для квартир
+  const acc101 = await prisma.personalAccount.create({
+    data: {
+      unitId: apt101.id,
+      accountNumber: generateAccountNumber('Блок А', '101', apt101.id),
+    },
+  });
+
+  const acc102 = await prisma.personalAccount.create({
+    data: {
+      unitId: apt102.id,
+      accountNumber: generateAccountNumber('Блок А', '102', apt102.id),
+    },
+  });
+
+  const acc205 = await prisma.personalAccount.create({
+    data: {
+      unitId: apt205.id,
+      accountNumber: generateAccountNumber('Блок Б', '205', apt205.id),
     },
   });
 
@@ -341,6 +368,72 @@ async function main() {
       content: 'Уважаемые жильцы! 15 октября с 09:00 до 18:00 будет производиться опрессовка системы отопления. Просим проверить краны Маевского.',
       isUrgent: true,
     },
+  });
+
+  // 12. Финансовый модуль: тарифы ЖК, начисления и оплата
+  const tariffService = await prisma.tariffItem.create({
+    data: {
+      tenantId: tenant.id,
+      name: 'Эксплуатационные расходы (РСЖ)',
+      calculationMethod: ChargeCalculationMethod.PER_AREA,
+      rate: 110.0, // 110 тг / м²
+    },
+  });
+
+  const tariffIntercom = await prisma.tariffItem.create({
+    data: {
+      tenantId: tenant.id,
+      name: 'Обслуживание домофона',
+      calculationMethod: ChargeCalculationMethod.FLAT,
+      rate: 450.0, // 450 тг фиксированно
+    },
+  });
+
+  const tariffElevator = await prisma.tariffItem.create({
+    data: {
+      tenantId: tenant.id,
+      name: 'Техническое обслуживание лифта',
+      calculationMethod: ChargeCalculationMethod.FLAT,
+      rate: 750.0, // 750 тг фиксированно
+    },
+  });
+
+  // Начисления за текущий месяц (Октябрь 2026) для кв. 101 (площадь 68.5 м²)
+  const charge1 = await prisma.charge.create({
+    data: {
+      accountId: acc101.id,
+      tariffItemId: tariffService.id,
+      periodMonth: 10,
+      periodYear: 2026,
+      amount: Math.round(tariffService.rate * apt101.area * 100) / 100, // 110 * 68.5 = 7535.0
+    },
+  });
+
+  const charge2 = await prisma.charge.create({
+    data: {
+      accountId: acc101.id,
+      tariffItemId: tariffIntercom.id,
+      periodMonth: 10,
+      periodYear: 2026,
+      amount: 450.0,
+    },
+  });
+
+  // Платеж от жителя кв. 101, принятый администратором
+  const payment1 = await prisma.payment.create({
+    data: {
+      accountId: acc101.id,
+      amount: 8000.0,
+      method: PaymentMethod.MANUAL,
+      recordedById: adminUser.id,
+      note: 'Оплата через кассу ОСИ (наличные)',
+    },
+  });
+
+  // Баланс кв. 101: 8000 - (7535 + 450) = +15.0 (переплата / аванс)
+  await prisma.personalAccount.update({
+    where: { id: acc101.id },
+    data: { balance: payment1.amount - (charge1.amount + charge2.amount) },
   });
 
   console.log('✅ База данных успешно наполнена тестовыми данными ЖК «Шаңырақ Премиум»!');

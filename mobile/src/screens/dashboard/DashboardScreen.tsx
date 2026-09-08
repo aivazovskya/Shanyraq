@@ -26,6 +26,7 @@ import {
   UserPlus,
   ChevronRight,
   AlertTriangle,
+  CreditCard,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -168,6 +169,23 @@ export const DashboardScreen: React.FC = () => {
             <Text style={styles.quickActionSub}>{t('dashboard.callService')}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Personal Account / Finance Card */}
+        <Card
+          style={styles.financeCard}
+          onPress={() => (navigation as any).navigate('FinanceAccount')}
+        >
+          <View style={styles.financeRow}>
+            <View style={[styles.quickIconCircle, { backgroundColor: '#ECFDF5' }]}>
+              <CreditCard color={Colors.primary} size={22} />
+            </View>
+            <View style={styles.financeTextContainer}>
+              <Text style={styles.financeTitle}>{t('dashboard.financeCardTitle')}</Text>
+              <Text style={styles.financeSub}>{t('dashboard.financeCardSub')}</Text>
+            </View>
+            <ChevronRight color={Colors.textMuted} size={20} />
+          </View>
+        </Card>
 
         {/* Section: Active Votings */}
         <View style={styles.sectionHeaderRow}>
@@ -471,5 +489,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textLight,
     marginTop: 8,
+  },
+  financeCard: {
+    marginBottom: 20,
+    padding: 14,
+  },
+  financeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  financeTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  financeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  financeSub: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
 });

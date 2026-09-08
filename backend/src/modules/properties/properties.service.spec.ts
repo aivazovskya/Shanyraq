@@ -35,6 +35,9 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         findUnique: jest.fn(),
         update: jest.fn(),
       },
+      personalAccount: {
+        create: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({

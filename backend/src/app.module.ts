@@ -10,6 +10,7 @@ import { AccessControlModule } from './modules/access-control/access-control.mod
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     ServiceRequestsModule,
     AccessControlModule,
     AnnouncementsModule,
+    FinanceModule,
   ],
 })
 export class AppModule {}

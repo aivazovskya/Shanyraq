@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto } from './dto/properties.dto';
 import { UserRole } from '@prisma/client';
+import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
 
 @Injectable()
 export class PropertiesService {
@@ -160,6 +161,13 @@ export class PropertiesService {
         area: dto.area,
         cadastralNumber: dto.cadastralNumber,
       },
+    });
+
+    // Auto-create PersonalAccount for the unit
+    await getOrCreatePersonalAccount(this.prisma, {
+      id: unit.id,
+      unitNumber: unit.unitNumber,
+      building: { blockName: building.blockName },
     });
 
     // Update total areas of building and tenant

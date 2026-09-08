@@ -11,6 +11,7 @@ import { CreateRequestScreen } from '../screens/requests/CreateRequestScreen';
 import { RequestDetailScreen } from '../screens/requests/RequestDetailScreen';
 import { AnnouncementsScreen } from '../screens/announcements/AnnouncementsScreen';
 import { PinSetupScreen } from '../screens/access/PinSetupScreen';
+import { AccountScreen } from '../screens/finance/AccountScreen';
 import { LoadingState } from '../components/common/LoadingState';
 import { useTranslation } from 'react-i18next';
 
@@ -43,9 +44,11 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
             <Stack.Screen name="ClaimUnit" component={ClaimUnitScreen} />
             <Stack.Screen name="PinSetup" component={PinSetupScreen} />
+            <Stack.Screen name="FinanceAccount" component={AccountScreen} />
           </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
+

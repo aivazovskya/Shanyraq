@@ -331,6 +331,25 @@
     "openRequests": "Active Requests ({{count}})",
     "noOpenRequests": "No open requests. All issues resolved",
     "newsAndAnnouncements": "News & Announcements",
-    "newsFeed": "Feed"
+    "newsFeed": "Feed",
+    "financeCardTitle": "Personal Account & Balance",
+    "financeCardSub": "Utility charges & payment history"
+  },
+  "finance": {
+    "title": "Personal Account",
+    "emptyTitle": "Account Not Available",
+    "emptyDesc": "Financial details and charges history are available only to verified property owners. If you are an owner, please submit a unit verification request.",
+    "accountNumber": "Account #{{number}}",
+    "currentBalance": "Current Balance",
+    "statusDebt": "Outstanding Debt",
+    "statusCredit": "Advance Credit",
+    "statusZero": "Fully Settled",
+    "tabCharges": "Charges",
+    "tabPayments": "Payments",
+    "noCharges": "No charges yet",
+    "noPayments": "No payments yet",
+    "offlineNotice": "Online payments are in development. Payments can be made at the HOA office or via management company bank details.",
+    "period": "Period",
+    "loadError": "Failed to load account data"
   }
 }
