@@ -25,4 +25,5 @@ export type RootStackParamList = {
   FinanceAccount: undefined;
   Meters: undefined;
   Bookings: undefined;
+  SosHistory: undefined;
 };

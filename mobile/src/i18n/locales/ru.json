@@ -427,5 +427,27 @@
     "statusConfirmed": "Активно",
     "statusCancelled": "Отменено",
     "unverifiedNotice": "Бронирование общих пространств доступно только после подтверждения квартиры в управляющей компании."
+  },
+  "sos": {
+    "buttonTitle": "ЭКСТРЕННЫЙ ВЫЗОВ (SOS)",
+    "buttonSubtitle": "Удерживайте 1.5 сек для вызова охраны",
+    "holding": "Отправка сигнала тревоги...",
+    "releaseToCancel": "Отпустите для отмены",
+    "alertSuccessTitle": "Охрана уведомлена!",
+    "alertSuccessMessage": "Сигнал тревоги передан дежурной службе ЖК. Диспетчер свяжется с вами или направит охрану.",
+    "viewHistoryButton": "Мои вызовы",
+    "viewHistoryLink": "История обращений SOS",
+    "historyTitle": "История вызовов SOS",
+    "noHistoryAlerts": "Нет вызовов SOS",
+    "emptyHistorySubtitle": "Вы пока не совершали экстренных вызовов охраны",
+    "resolutionNoteLabel": "Отчет дежурной службы",
+    "resolvedBy": "Сотрудник",
+    "activeNotice": "Вызов активен. Охрана реагирует на сигнал.",
+    "triggerError": "Не удалось отправить вызов SOS. Повторите попытку.",
+    "status": {
+      "ACTIVE": "Активен",
+      "RESOLVED": "Обработан",
+      "FALSE_ALARM": "Ложный вызов"
+    }
   }
 }

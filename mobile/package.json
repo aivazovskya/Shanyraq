@@ -17,6 +17,7 @@
     "axios": "^1.7.9",
     "expo": "~51.0.38",
     "expo-localization": "^57.0.1",
+    "expo-location": "~17.0.1",
     "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~1.12.1",
     "i18next": "^26.4.2",

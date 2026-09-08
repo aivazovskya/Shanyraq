@@ -427,5 +427,27 @@
     "statusConfirmed": "Active",
     "statusCancelled": "Cancelled",
     "unverifiedNotice": "Booking common spaces is available only after your apartment ownership is verified by the management company."
+  },
+  "sos": {
+    "buttonTitle": "EMERGENCY CALL (SOS)",
+    "buttonSubtitle": "Hold 1.5s to notify security staff",
+    "holding": "Sending distress signal...",
+    "releaseToCancel": "Release to cancel",
+    "alertSuccessTitle": "Security Alerted!",
+    "alertSuccessMessage": "Distress alert delivered to building security. Dispatch will call you or send assistance immediately.",
+    "viewHistoryButton": "My Alerts",
+    "viewHistoryLink": "SOS Alert History",
+    "historyTitle": "SOS Alert History",
+    "noHistoryAlerts": "No SOS Alerts",
+    "emptyHistorySubtitle": "You have not made any emergency calls yet",
+    "resolutionNoteLabel": "Response report",
+    "resolvedBy": "Staff member",
+    "activeNotice": "Alert is active. Security is responding.",
+    "triggerError": "Failed to send SOS alert. Please try again.",
+    "status": {
+      "ACTIVE": "Active",
+      "RESOLVED": "Resolved",
+      "FALSE_ALARM": "False Alarm"
+    }
   }
 }

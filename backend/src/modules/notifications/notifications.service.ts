@@ -1,5 +1,6 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { UserRole } from '@prisma/client';
 import { RegisterDeviceDto } from './dto/notifications.dto';
 
 export interface PushPayload {
@@ -75,6 +76,27 @@ export class NotificationsService {
 
     if (devices.length === 0) {
       this.logger.debug(`[PUSH] В ЖК ${tenantId} нет зарегистрированных устройств`);
+      return { sent: 0 };
+    }
+
+    const tokens = devices.map((d) => d.token);
+    return this.dispatchPushNotifications(tokens, payload);
+  }
+
+  async sendToTenantRoles(tenantId: string, roles: UserRole[], payload: PushPayload) {
+    const devices = await this.prisma.deviceToken.findMany({
+      where: {
+        user: {
+          tenantId,
+          role: { in: roles },
+        },
+      },
+    });
+
+    if (devices.length === 0) {
+      this.logger.debug(
+        `[PUSH] В ЖК ${tenantId} для ролей ${roles.join(', ')} нет зарегистрированных устройств`,
+      );
       return { sent: 0 };
     }
 

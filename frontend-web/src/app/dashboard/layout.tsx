@@ -21,6 +21,7 @@ import {
   CreditCard,
   Gauge,
   Calendar,
+  AlertTriangle,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 
@@ -46,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: t('navigation.meters'), href: '/dashboard/meters', icon: Gauge, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
     { name: t('navigation.finance'), href: '/dashboard/finance', icon: CreditCard, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
     { name: t('navigation.bookings'), href: '/dashboard/bookings', icon: Calendar, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
+    { name: t('navigation.sos'), href: '/dashboard/sos', icon: AlertTriangle, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'SECURITY', 'HOA_CHAIRMAN'] },
     { name: t('navigation.access'), href: '/dashboard/access', icon: KeyRound },
     { name: t('navigation.announcements'), href: '/dashboard/announcements', icon: Bell },
   ];

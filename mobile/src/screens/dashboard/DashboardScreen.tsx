@@ -7,13 +7,17 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
 import { ServiceRequestsApi, ServiceRequestItem } from '../../api/service-requests';
 import { AnnouncementsApi, AnnouncementItem } from '../../api/announcements';
+import { sosApi } from '../../api/sos';
+import { SosHoldButton } from '../../components/sos/SosHoldButton';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Colors } from '../../constants/colors';
@@ -89,6 +93,57 @@ export const DashboardScreen: React.FC = () => {
   const openRequests = requests.filter((r) => r.status !== 'CLOSED' && r.status !== 'REJECTED');
   const urgentAnnouncement = announcements.find((a) => a.isUrgent);
 
+  const [sosTriggering, setSosTriggering] = useState(false);
+
+  const handleTriggerSos = async () => {
+    setSosTriggering(true);
+    let coords: { latitude?: number; longitude?: number } = {};
+
+    try {
+      // Best-effort GPS capture with 3s timeout (Architecture Decision #4)
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const locPromise = Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), 3000),
+        );
+        const locResult = await Promise.race([locPromise, timeoutPromise]);
+        if (locResult && 'coords' in locResult) {
+          coords = {
+            latitude: locResult.coords.latitude,
+            longitude: locResult.coords.longitude,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('GPS location capture skipped/failed:', e);
+    }
+
+    try {
+      await sosApi.triggerSos(coords);
+      Alert.alert(
+        t('sos.alertSuccessTitle'),
+        t('sos.alertSuccessMessage'),
+        [
+          { text: t('common.ok'), style: 'default' },
+          {
+            text: t('sos.viewHistoryButton'),
+            onPress: () => navigation.navigate('SosHistory'),
+          },
+        ],
+      );
+    } catch (err: any) {
+      Alert.alert(
+        t('common.error'),
+        err?.response?.data?.message || err?.message || t('sos.triggerError'),
+      );
+    } finally {
+      setSosTriggering(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -134,6 +189,21 @@ export const DashboardScreen: React.FC = () => {
             </View>
           </Card>
         )}
+
+        {/* Emergency SOS Button */}
+        <View style={styles.sosSection}>
+          <SosHoldButton
+            loading={sosTriggering}
+            onConfirmed={handleTriggerSos}
+          />
+          <TouchableOpacity
+            style={styles.sosHistoryRow}
+            onPress={() => navigation.navigate('SosHistory')}
+          >
+            <Text style={styles.sosHistoryText}>{t('sos.viewHistoryLink')}</Text>
+            <ChevronRight size={14} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
 
         {/* Quick Access Actions */}
         <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
@@ -547,5 +617,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  sosSection: {
+    marginBottom: 20,
+  },
+  sosHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  sosHistoryText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '500',
+    marginRight: 4,
   },
 });

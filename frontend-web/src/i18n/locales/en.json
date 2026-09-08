@@ -33,7 +33,8 @@
     "announcements": "Announcements & News",
     "finance": "Finance",
     "meters": "Meter Readings",
-    "bookings": "Bookings"
+    "bookings": "Bookings",
+    "sos": "Emergency Alerts (SOS)"
   },
   "roles": {
     "superadmin": "Superadministrator",
@@ -514,5 +515,47 @@
     "maxDuration": "Cap: {{minutes}} min",
     "activeBadge": "Active",
     "inactiveBadge": "Inactive"
+  },
+  "sos": {
+    "title": "Emergency Alerts (SOS)",
+    "subtitle": "Real-time monitoring of emergency distress signals from residents",
+    "activeAlerts": "Active Alerts",
+    "history": "Alert History",
+    "noActiveAlerts": "No active emergency alerts. All clear.",
+    "noHistoryAlerts": "No alert history available",
+    "status": {
+      "ACTIVE": "Active",
+      "RESOLVED": "Resolved",
+      "FALSE_ALARM": "False Alarm"
+    },
+    "triggeredBy": "Resident",
+    "phone": "Phone",
+    "unit": "Unit",
+    "time": "Triggered At",
+    "elapsed": "Elapsed Time",
+    "location": "Geolocation",
+    "viewOnMap": "View on Map",
+    "noLocation": "Location not provided",
+    "resolveAction": "Resolve",
+    "falseAlarmAction": "False Alarm",
+    "resolveModalTitle": "Process SOS Alert",
+    "resolutionNoteLabel": "Response Note / Incident Report",
+    "resolutionNotePlaceholder": "Describe actions taken (e.g. security arrived on site, assistance provided)...",
+    "confirmResolve": "Confirm Resolution",
+    "resolving": "Saving...",
+    "resolvedBy": "Resolved By",
+    "resolvedAt": "Resolved At",
+    "readOnlyNotice": "Read-only mode (HOA Chairman)",
+    "callResident": "Call Resident",
+    "refreshing": "Refreshing...",
+    "loadError": "Failed to load SOS alerts",
+    "resolveError": "Failed to process alert",
+    "timeSec": "s",
+    "timeMin": "m",
+    "timeHour": "h",
+    "allAlertsHandled": "All emergency alerts have been handled by staff",
+    "residentFallback": "Resident",
+    "statusHeader": "Status",
+    "noteHeader": "Note"
   }
 }

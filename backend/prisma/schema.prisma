@@ -104,6 +104,7 @@ model Tenant {
   announcements    Announcement[]
   tariffItems      TariffItem[]
   bookableResources BookableResource[]
+  sosAlerts         SosAlert[]
 
   @@map("tenants")
 }
@@ -145,6 +146,7 @@ model Unit {
   personalAccount  PersonalAccount?
   meters           Meter[]
   bookings         Booking[]
+  sosAlerts        SosAlert[]
 
   @@unique([buildingId, unitNumber])
   @@map("units")
@@ -187,6 +189,8 @@ model User {
   reviewedReadings  MeterReading[]   @relation("ReviewedReadings")
   bookingsMade      Booking[]        @relation("BookingsMade")
   bookingsCancelled Booking[]        @relation("BookingsCancelled")
+  sosAlertsTriggered SosAlert[]      @relation("SosTriggered")
+  sosAlertsResolved  SosAlert[]      @relation("SosResolved")
 
   @@map("users")
 }
@@ -620,4 +624,32 @@ model Booking {
 
   @@map("bookings")
 }
+
+enum SosAlertStatus {
+  ACTIVE
+  RESOLVED
+  FALSE_ALARM
+}
+
+model SosAlert {
+  id             String         @id @default(uuid())
+  tenantId       String
+  unitId         String?        // best-effort: the triggering resident's unit if they have one on file, null otherwise — never block on this
+  triggeredById  String
+  latitude       Float?
+  longitude      Float?
+  status         SosAlertStatus @default(ACTIVE)
+  resolvedById   String?
+  resolvedAt     DateTime?
+  resolutionNote String?
+  createdAt      DateTime       @default(now())
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit        Unit?  @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  triggeredBy User   @relation("SosTriggered", fields: [triggeredById], references: [id], onDelete: Cascade)
+  resolvedBy  User?  @relation("SosResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@map("sos_alerts")
+}
+
 

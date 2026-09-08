@@ -14,6 +14,7 @@ import { PinSetupScreen } from '../screens/access/PinSetupScreen';
 import { AccountScreen } from '../screens/finance/AccountScreen';
 import { MetersScreen } from '../screens/meters/MetersScreen';
 import { BookingsScreen } from '../screens/bookings/BookingsScreen';
+import { SosHistoryScreen } from '../screens/sos/SosHistoryScreen';
 import { LoadingState } from '../components/common/LoadingState';
 import { useTranslation } from 'react-i18next';
 
@@ -49,6 +50,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="FinanceAccount" component={AccountScreen} />
             <Stack.Screen name="Meters" component={MetersScreen} />
             <Stack.Screen name="Bookings" component={BookingsScreen} />
+            <Stack.Screen name="SosHistory" component={SosHistoryScreen} />
           </>
         )}
       </Stack.Navigator>

@@ -33,7 +33,8 @@
     "announcements": "Оповещения и новости",
     "finance": "Финансы",
     "meters": "Показания счётчиков",
-    "bookings": "Бронирования"
+    "bookings": "Бронирования",
+    "sos": "Экстренные вызовы (SOS)"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -514,5 +515,47 @@
     "maxDuration": "Лимит: {{minutes}} мин",
     "activeBadge": "Активно",
     "inactiveBadge": "Неактивно"
+  },
+  "sos": {
+    "title": "Экстренные вызовы (SOS)",
+    "subtitle": "Мониторинг тревожных сигналов от жителей ЖК в режиме реального времени",
+    "activeAlerts": "Активные тревоги",
+    "history": "История вызовов",
+    "noActiveAlerts": "Нет активных сигналов тревоги. Все спокойно.",
+    "noHistoryAlerts": "История вызовов пуста",
+    "status": {
+      "ACTIVE": "Активен",
+      "RESOLVED": "Разрешено",
+      "FALSE_ALARM": "Ложный вызов"
+    },
+    "triggeredBy": "Инициатор",
+    "phone": "Телефон",
+    "unit": "Квартира",
+    "time": "Время вызова",
+    "elapsed": "Прошло времени",
+    "location": "Геолокация",
+    "viewOnMap": "Посмотреть на карте",
+    "noLocation": "Локация не передана",
+    "resolveAction": "Разрешить",
+    "falseAlarmAction": "Ложный вызов",
+    "resolveModalTitle": "Обработка сигнала SOS",
+    "resolutionNoteLabel": "Заметка / отчет по реагированию",
+    "resolutionNotePlaceholder": "Опишите принятые меры (напр. охранник прибыл на место, помощь оказана)...",
+    "confirmResolve": "Подтвердить обработку",
+    "resolving": "Сохранение...",
+    "resolvedBy": "Обработал",
+    "resolvedAt": "Время обработки",
+    "readOnlyNotice": "Режим только для чтения (Председатель ОСИ)",
+    "callResident": "Позвонить",
+    "refreshing": "Обновление...",
+    "loadError": "Ошибка загрузки вызовов SOS",
+    "resolveError": "Ошибка обработки сигнала",
+    "timeSec": "сек",
+    "timeMin": "мин",
+    "timeHour": "ч",
+    "allAlertsHandled": "Все тревоги обработаны дежурной службой",
+    "residentFallback": "Житель",
+    "statusHeader": "Статус",
+    "noteHeader": "Заметка"
   }
 }

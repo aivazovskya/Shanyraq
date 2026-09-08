@@ -33,7 +33,8 @@
     "announcements": "Хабарландырулар мен жаңалықтар",
     "finance": "Қаржы",
     "meters": "Есептегіштер көрсеткіші",
-    "bookings": "Брондаулар"
+    "bookings": "Брондаулар",
+    "sos": "Шұғыл шақырулар (SOS)"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -514,5 +515,47 @@
     "maxDuration": "Шектеу: {{minutes}} мин",
     "activeBadge": "Белсенді",
     "inactiveBadge": "Белсенді емес"
+  },
+  "sos": {
+    "title": "Шұғыл шақырулар (SOS)",
+    "subtitle": "ТК тұрғындарының дабыл белгілерін нақты уақыт режимінде бақылау",
+    "activeAlerts": "Белсенді дабылдар",
+    "history": "Шақырулар тарихы",
+    "noActiveAlerts": "Белсенді дабыл белгілері жоқ. Барлығы тыныш.",
+    "noHistoryAlerts": "Шақырулар тарихы бос",
+    "status": {
+      "ACTIVE": "Белсенді",
+      "RESOLVED": "Шешілді",
+      "FALSE_ALARM": "Жалған дабыл"
+    },
+    "triggeredBy": "Бастамашы",
+    "phone": "Телефон",
+    "unit": "Пәтер",
+    "time": "Шақыру уақыты",
+    "elapsed": "Өткен уақыт",
+    "location": "Геолокация",
+    "viewOnMap": "Картадан қарау",
+    "noLocation": "Орналасқан жері берілмеген",
+    "resolveAction": "Шешу",
+    "falseAlarmAction": "Жалған дабыл",
+    "resolveModalTitle": "SOS белгісін өңдеу",
+    "resolutionNoteLabel": "Әрекет ету бойынша ескертпе / есеп",
+    "resolutionNotePlaceholder": "Қабылданған шараларды сипаттаңыз (мыс. күзетші орнына келді, көмек көрсетілді)...",
+    "confirmResolve": "Өңдеуді растау",
+    "resolving": "Сақталуда...",
+    "resolvedBy": "Өңдеген",
+    "resolvedAt": "Өңдеу уақыты",
+    "readOnlyNotice": "Тек оқу режимі (Мүлік иелері бірлестігінің төрағасы)",
+    "callResident": "Қоңырау шалу",
+    "refreshing": "Жаңартылуда...",
+    "loadError": "SOS шақыруларын жүктеу қатесі",
+    "resolveError": "Белгіні өңдеу қатесі",
+    "timeSec": "сек",
+    "timeMin": "мин",
+    "timeHour": "сағ",
+    "allAlertsHandled": "Барлық дабылдар кезекші қызметпен өңделді",
+    "residentFallback": "Тұрғын",
+    "statusHeader": "Мәртебе",
+    "noteHeader": "Ескертпе"
   }
 }
