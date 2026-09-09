@@ -633,6 +633,65 @@
       "PIN_MAX_ATTEMPTS": "Invalid PIN. Maximum number of attempts exceeded. Access blocked for 10 minutes.",
       "PIN_INVALID": "Invalid PIN. Attempts remaining: {{remaining}}",
       "GUEST_PASS_OWN_UNIT_ONLY": "You can only issue a guest pass for your own verified apartment"
+    },
+    "SOS": {
+      "AUTH_REQUIRED": "Authorization required",
+      "TENANT_UNRESOLVED": "Could not determine user's residential complex for emergency call",
+      "CHAIRMAN_VIEW_ONLY": "HOA chairman only has view access to SOS alerts",
+      "ALERT_NOT_FOUND": "SOS alert not found",
+      "CROSS_TENANT_PROCESS_FORBIDDEN": "You cannot process alerts from another residential complex",
+      "PROCESS_FORBIDDEN": "Insufficient permissions to process SOS alert",
+      "ALREADY_PROCESSED": "This SOS alert has already been processed",
+      "LOG_ACCESS_FORBIDDEN": "Insufficient permissions to access the SOS log of this complex",
+      "CROSS_TENANT_VIEW_FORBIDDEN": "You cannot view SOS alerts from another residential complex"
+    },
+    "COMMUNITY_BOARD": {
+      "AUTH_REQUIRED": "Authorization required",
+      "STAFF_CROSS_TENANT_FORBIDDEN": "Staff only has access to resources of their own residential complex",
+      "RESIDENT_ACCESS_FORBIDDEN": "You do not have verified access to the community board of this residential complex",
+      "PUBLISH_VERIFIED_RESIDENTS_ONLY": "Publishing listings is only available to verified residents of this residential complex",
+      "GIVEAWAY_NO_PRICE": "Price cannot be specified for the \"Give away\" category",
+      "LISTING_NOT_FOUND": "Listing not found",
+      "EDIT_OWN_ONLY": "You can only edit your own listings",
+      "CANNOT_EDIT_REMOVED": "Cannot edit a listing that was removed by a moderator",
+      "CANNOT_SELF_ASSIGN_REMOVED_STATUS": "The author cannot assign the removed by moderator status",
+      "MODERATE_FORBIDDEN": "Insufficient permissions to moderate listings",
+      "MODERATE_CROSS_TENANT_FORBIDDEN": "You can only moderate listings of your own residential complex",
+      "ALREADY_REMOVED": "The listing has already been removed by a moderator",
+      "REMOVAL_REASON_REQUIRED": "Removal reason is required"
+    },
+    "CHAT": {
+      "AUTH_REQUIRED": "Authorization required",
+      "STAFF_CROSS_TENANT_FORBIDDEN": "Staff only has access to resources of their own residential complex",
+      "RESIDENT_ACCESS_FORBIDDEN": "You do not have verified access to the resources of this residential complex",
+      "DISPATCHER_ACCESS_FORBIDDEN": "Insufficient permissions to access dispatcher chat",
+      "TENANT_UNRESOLVED": "Could not determine user's residential complex",
+      "MESSAGE_TEXT_OR_PHOTO_REQUIRED": "Message must contain text or a photo",
+      "CONVERSATION_NOT_FOUND": "Conversation not found"
+    },
+    "SERVICE_REQUESTS": {
+      "UNIT_NOT_FOUND": "Unit/premises not found",
+      "REQUEST_NOT_FOUND": "Request not found",
+      "CROSS_TENANT_VIEW_FORBIDDEN": "Access to request from another residential complex is forbidden",
+      "FOREIGN_REQUEST_VIEW_FORBIDDEN": "Access to another user's request is forbidden",
+      "STATUS_CHANGE_FORBIDDEN": "Insufficient permissions to change request status",
+      "CROSS_TENANT_EDIT_FORBIDDEN": "Editing a request from another residential complex is forbidden",
+      "CROSS_TENANT_COMMENT_FORBIDDEN": "Adding comments to requests of another residential complex is forbidden",
+      "FOREIGN_REQUEST_COMMENT_FORBIDDEN": "Adding comments to another user's request is forbidden",
+      "RATING_CREATOR_ONLY": "Only the request creator can rate the completion quality"
+    },
+    "ANNOUNCEMENTS": {
+      "COMPLEX_NOT_FOUND": "Residential complex not found",
+      "TENANT_ID_REQUIRED": "Residential complex identifier is required"
+    },
+    "ANALYTICS": {
+      "ACCESS_FORBIDDEN": "Access to analytics is allowed only for administrators and HOA chairman",
+      "COMPLEX_NOT_FOUND": "Residential complex not found"
+    },
+    "UPLOADS": {
+      "FILE_EMPTY": "File not provided or has zero size",
+      "STORAGE_ERROR": "Error saving file to storage: {{error}}",
+      "FILE_MISSING": "File not provided in the \"file\" field"
     }
   }
 }

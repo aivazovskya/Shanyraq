@@ -28,7 +28,10 @@ export class AnnouncementsService {
   async createAnnouncement(authorId: string, tenantId: string, dto: CreateAnnouncementDto) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
-      throw new NotFoundException('Жилой комплекс не найден');
+      throw new NotFoundException({
+        code: 'ANNOUNCEMENTS.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
     }
 
     const announcement = await this.prisma.announcement.create({

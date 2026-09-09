@@ -292,9 +292,11 @@ describe('ChatService', () => {
     });
 
     it('rejects sending when neither text nor photo is provided', async () => {
-      await expect(
-        service.sendResidentMessage(verifiedResident, { text: '   ', photoUrl: '' }),
-      ).rejects.toThrow(BadRequestException);
+      const promise = service.sendResidentMessage(verifiedResident, { text: '   ', photoUrl: '' });
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'CHAT.MESSAGE_TEXT_OR_PHOTO_REQUIRED' },
+      });
     });
 
     it('rejects unverified resident from sending message', async () => {
@@ -344,9 +346,11 @@ describe('ChatService', () => {
     });
 
     it('rejects staff from another tenant with ForbiddenException', async () => {
-      await expect(
-        service.getTenantConversations(mockTenantId, otherTenantDispatcher),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.getTenantConversations(mockTenantId, otherTenantDispatcher);
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'CHAT.STAFF_CROSS_TENANT_FORBIDDEN' },
+      });
     });
 
     it('rejects HOA_CHAIRMAN from viewing dispatcher chat (Decision #6)', async () => {

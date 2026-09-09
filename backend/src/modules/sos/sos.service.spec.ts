@@ -199,7 +199,11 @@ describe('SosService', () => {
       const userWithoutTenant = { id: 'user-homeless', role: UserRole.RESIDENT_OWNER, tenantId: null };
       prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
 
-      await expect(service.trigger(userWithoutTenant, {})).rejects.toThrow(BadRequestException);
+      const promise = service.trigger(userWithoutTenant, {});
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SOS.TENANT_UNRESOLVED' },
+      });
     });
 
     it('дедупликация: повторный вызов при ACTIVE не создает новый алерт и повторяет push', async () => {
@@ -258,9 +262,11 @@ describe('SosService', () => {
     });
 
     it('запрещает просмотр персоналу чужого ЖК (BOLA)', async () => {
-      await expect(service.getTenantAlerts(mockTenantId, staffOtherTenantUser)).rejects.toThrow(
-        ForbiddenException,
-      );
+      const promise = service.getTenantAlerts(mockTenantId, staffOtherTenantUser);
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SOS.CROSS_TENANT_VIEW_FORBIDDEN' },
+      });
     });
 
     it('разрешает просмотр SUPERADMIN для любого ЖК', async () => {
@@ -317,21 +323,25 @@ describe('SosService', () => {
     });
 
     it('председатель ОСИ (HOA_CHAIRMAN) НЕ может закрыть вызов (read-only)', async () => {
-      await expect(
-        service.resolve(mockAlertId, hoaChairmanUser, {
-          status: SosAlertStatus.RESOLVED,
-        }),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.resolve(mockAlertId, hoaChairmanUser, {
+        status: SosAlertStatus.RESOLVED,
+      });
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SOS.CHAIRMAN_VIEW_ONLY' },
+      });
     });
 
     it('персонал чужого ЖК не может закрыть вызов (BOLA)', async () => {
       prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
 
-      await expect(
-        service.resolve(mockAlertId, staffOtherTenantUser, {
-          status: SosAlertStatus.RESOLVED,
-        }),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.resolve(mockAlertId, staffOtherTenantUser, {
+        status: SosAlertStatus.RESOLVED,
+      });
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN' },
+      });
     });
 
     it('нельзя закрыть уже обработанный вызов повторно', async () => {
@@ -340,11 +350,13 @@ describe('SosService', () => {
         status: SosAlertStatus.RESOLVED,
       });
 
-      await expect(
-        service.resolve(mockAlertId, securityUser, {
-          status: SosAlertStatus.RESOLVED,
-        }),
-      ).rejects.toThrow(BadRequestException);
+      const promise = service.resolve(mockAlertId, securityUser, {
+        status: SosAlertStatus.RESOLVED,
+      });
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SOS.ALREADY_PROCESSED' },
+      });
     });
   });
 

@@ -108,9 +108,11 @@ describe('AnalyticsService', () => {
 
   describe('Tenant isolation (BOLA) and Role Access', () => {
     it('должен отклонять DISPATCHER на всех трех эндпоинтах', async () => {
-      await expect(
-        service.getFinanceAnalytics(mockTenantId, dispatcherUser),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.getFinanceAnalytics(mockTenantId, dispatcherUser);
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'ANALYTICS.ACCESS_FORBIDDEN' },
+      });
 
       await expect(
         service.getRequestsAnalytics(mockTenantId, dispatcherUser),
@@ -173,9 +175,11 @@ describe('AnalyticsService', () => {
     });
 
     it('должен выбрасывать NotFoundException если ЖК не существует', async () => {
-      await expect(
-        service.getFinanceAnalytics('non-existent-tenant', superadminUser),
-      ).rejects.toThrow(NotFoundException);
+      const promise = service.getFinanceAnalytics('non-existent-tenant', superadminUser);
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'ANALYTICS.COMPLEX_NOT_FOUND' },
+      });
     });
   });
 

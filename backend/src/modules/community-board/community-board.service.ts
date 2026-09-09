@@ -27,7 +27,10 @@ export class CommunityBoardService {
    */
   async assertAccessToTenant(user: any, tenantId: string): Promise<boolean> {
     if (!user) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     if (user.role === UserRole.SUPERADMIN) {
@@ -43,7 +46,10 @@ export class CommunityBoardService {
 
     if (staffRoles.includes(user.role)) {
       if (user.tenantId !== tenantId) {
-        throw new ForbiddenException('Персонал имеет доступ только к ресурсам своего жилого комплекса');
+        throw new ForbiddenException({
+          code: 'COMMUNITY_BOARD.STAFF_CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+        });
       }
       return true;
     }
@@ -62,9 +68,11 @@ export class CommunityBoardService {
     });
 
     if (!verifiedOwnership) {
-      throw new ForbiddenException(
-        'У вас нет подтвержденного доступа к доске объявлений данного жилого комплекса',
-      );
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.RESIDENT_ACCESS_FORBIDDEN',
+        message:
+          'У вас нет подтвержденного доступа к доске объявлений данного жилого комплекса',
+      });
     }
 
     return false;
@@ -136,15 +144,20 @@ export class CommunityBoardService {
         },
       });
       if (!hasVerifiedOwnership) {
-        throw new ForbiddenException(
-          'Публикация объявлений доступна только верифицированным жителям данного ЖК',
-        );
+        throw new ForbiddenException({
+          code: 'COMMUNITY_BOARD.PUBLISH_VERIFIED_RESIDENTS_ONLY',
+          message:
+            'Публикация объявлений доступна только верифицированным жителям данного ЖК',
+        });
       }
     }
 
     // Валидация цены: для "Отдам даром" цена не должна указываться
     if (dto.type === ListingType.GIVE_AWAY && dto.price != null && dto.price > 0) {
-      throw new BadRequestException('Для категории "Отдам даром" указание цены недопустимо');
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.GIVEAWAY_NO_PRICE',
+        message: 'Для категории "Отдам даром" указание цены недопустимо',
+      });
     }
 
     const price = dto.type === ListingType.GIVE_AWAY ? null : (dto.price ?? null);
@@ -183,19 +196,31 @@ export class CommunityBoardService {
     });
 
     if (!listing) {
-      throw new NotFoundException('Объявление не найдено');
+      throw new NotFoundException({
+        code: 'COMMUNITY_BOARD.LISTING_NOT_FOUND',
+        message: 'Объявление не найдено',
+      });
     }
 
     if (listing.authorId !== user.id && user.role !== UserRole.SUPERADMIN) {
-      throw new ForbiddenException('Вы можете редактировать только свои объявления');
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.EDIT_OWN_ONLY',
+        message: 'Вы можете редактировать только свои объявления',
+      });
     }
 
     if (listing.status === ListingStatus.REMOVED) {
-      throw new BadRequestException('Нельзя редактировать объявление, снятое модератором');
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.CANNOT_EDIT_REMOVED',
+        message: 'Нельзя редактировать объявление, снятое модератором',
+      });
     }
 
     if (dto.status === ListingStatus.REMOVED) {
-      throw new BadRequestException('Автор не может присвоить статус снятого модератором');
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.CANNOT_SELF_ASSIGN_REMOVED_STATUS',
+        message: 'Автор не может присвоить статус снятого модератором',
+      });
     }
 
     const updateData: any = {};
@@ -206,7 +231,10 @@ export class CommunityBoardService {
 
     if (dto.price !== undefined) {
       if (listing.type === ListingType.GIVE_AWAY && dto.price != null && dto.price > 0) {
-        throw new BadRequestException('Для категории "Отдам даром" указание цены недопустимо');
+        throw new BadRequestException({
+          code: 'COMMUNITY_BOARD.GIVEAWAY_NO_PRICE',
+          message: 'Для категории "Отдам даром" указание цены недопустимо',
+        });
       }
       updateData.price = listing.type === ListingType.GIVE_AWAY ? null : dto.price;
     }
@@ -241,7 +269,10 @@ export class CommunityBoardService {
   async moderateListing(id: string, user: any, dto: ModerateListingDto) {
     const allowedRoles = [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN];
     if (!allowedRoles.includes(user.role)) {
-      throw new ForbiddenException('Недостаточно прав для модерации объявлений');
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.MODERATE_FORBIDDEN',
+        message: 'Недостаточно прав для модерации объявлений',
+      });
     }
 
     const listing = await this.prisma.communityListing.findUnique({
@@ -249,19 +280,31 @@ export class CommunityBoardService {
     });
 
     if (!listing) {
-      throw new NotFoundException('Объявление не найдено');
+      throw new NotFoundException({
+        code: 'COMMUNITY_BOARD.LISTING_NOT_FOUND',
+        message: 'Объявление не найдено',
+      });
     }
 
     if (user.role !== UserRole.SUPERADMIN && user.tenantId !== listing.tenantId) {
-      throw new ForbiddenException('Вы можете модерировать объявления только своего жилого комплекса');
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.MODERATE_CROSS_TENANT_FORBIDDEN',
+        message: 'Вы можете модерировать объявления только своего жилого комплекса',
+      });
     }
 
     if (listing.status === ListingStatus.REMOVED) {
-      throw new BadRequestException('Объявление уже снято с публикации модератором');
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.ALREADY_REMOVED',
+        message: 'Объявление уже снято с публикации модератором',
+      });
     }
 
     if (!dto.reason || !dto.reason.trim()) {
-      throw new BadRequestException('Причина удаления обязательна для заполнения');
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.REMOVAL_REASON_REQUIRED',
+        message: 'Причина удаления обязательна для заполнения',
+      });
     }
 
     return this.prisma.communityListing.update({
@@ -297,7 +340,10 @@ export class CommunityBoardService {
    */
   async getMyListings(user: any) {
     if (!user) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     return this.prisma.communityListing.findMany({

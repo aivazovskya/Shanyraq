@@ -18,7 +18,10 @@ export class ServiceRequestsService {
     });
 
     if (!unit) {
-      throw new NotFoundException('Квартира/помещение не найдено');
+      throw new NotFoundException({
+        code: 'SERVICE_REQUESTS.UNIT_NOT_FOUND',
+        message: 'Квартира/помещение не найдено',
+      });
     }
 
     return this.prisma.serviceRequest.create({
@@ -112,7 +115,10 @@ export class ServiceRequestsService {
     });
 
     if (!request) {
-      throw new NotFoundException('Заявка не найдена');
+      throw new NotFoundException({
+        code: 'SERVICE_REQUESTS.REQUEST_NOT_FOUND',
+        message: 'Заявка не найдена',
+      });
     }
 
     if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
@@ -121,11 +127,17 @@ export class ServiceRequestsService {
       );
       if (isStaff) {
         if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
-          throw new ForbiddenException('Доступ к заявке другого ЖК запрещен');
+          throw new ForbiddenException({
+            code: 'SERVICE_REQUESTS.CROSS_TENANT_VIEW_FORBIDDEN',
+            message: 'Доступ к заявке другого ЖК запрещен',
+          });
         }
       } else {
         if (request.creatorId !== requestingUser.id) {
-          throw new ForbiddenException('Доступ к чужой заявке запрещен');
+          throw new ForbiddenException({
+            code: 'SERVICE_REQUESTS.FOREIGN_REQUEST_VIEW_FORBIDDEN',
+            message: 'Доступ к чужой заявке запрещен',
+          });
         }
       }
     }
@@ -140,7 +152,10 @@ export class ServiceRequestsService {
   ) {
     const request = await this.prisma.serviceRequest.findUnique({ where: { id: requestId } });
     if (!request) {
-      throw new NotFoundException('Заявка не найдена');
+      throw new NotFoundException({
+        code: 'SERVICE_REQUESTS.REQUEST_NOT_FOUND',
+        message: 'Заявка не найдена',
+      });
     }
 
     if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
@@ -148,10 +163,16 @@ export class ServiceRequestsService {
         requestingUser.role as UserRole,
       );
       if (!isStaff) {
-        throw new ForbiddenException('Недостаточно прав для изменения статуса заявки');
+        throw new ForbiddenException({
+          code: 'SERVICE_REQUESTS.STATUS_CHANGE_FORBIDDEN',
+          message: 'Недостаточно прав для изменения статуса заявки',
+        });
       }
       if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
-        throw new ForbiddenException('Редактирование заявки другого ЖК запрещено');
+        throw new ForbiddenException({
+          code: 'SERVICE_REQUESTS.CROSS_TENANT_EDIT_FORBIDDEN',
+          message: 'Редактирование заявки другого ЖК запрещено',
+        });
       }
     }
 
@@ -199,7 +220,10 @@ export class ServiceRequestsService {
   ) {
     const request = await this.prisma.serviceRequest.findUnique({ where: { id: requestId } });
     if (!request) {
-      throw new NotFoundException('Заявка не найдена');
+      throw new NotFoundException({
+        code: 'SERVICE_REQUESTS.REQUEST_NOT_FOUND',
+        message: 'Заявка не найдена',
+      });
     }
 
     if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
@@ -208,11 +232,17 @@ export class ServiceRequestsService {
       );
       if (isStaff) {
         if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
-          throw new ForbiddenException('Добавление комментариев к заявкам другого ЖК запрещено');
+          throw new ForbiddenException({
+            code: 'SERVICE_REQUESTS.CROSS_TENANT_COMMENT_FORBIDDEN',
+            message: 'Добавление комментариев к заявкам другого ЖК запрещено',
+          });
         }
       } else {
         if (request.creatorId !== requestingUser.id) {
-          throw new ForbiddenException('Добавление комментариев к чужой заявке запрещено');
+          throw new ForbiddenException({
+            code: 'SERVICE_REQUESTS.FOREIGN_REQUEST_COMMENT_FORBIDDEN',
+            message: 'Добавление комментариев к чужой заявке запрещено',
+          });
         }
       }
     }
@@ -255,11 +285,17 @@ export class ServiceRequestsService {
   async rateRequest(requestId: string, userId: string, dto: RateRequestDto) {
     const request = await this.prisma.serviceRequest.findUnique({ where: { id: requestId } });
     if (!request) {
-      throw new NotFoundException('Заявка не найдена');
+      throw new NotFoundException({
+        code: 'SERVICE_REQUESTS.REQUEST_NOT_FOUND',
+        message: 'Заявка не найдена',
+      });
     }
 
     if (request.creatorId !== userId) {
-      throw new ForbiddenException('Оценить качество выполнения может только создатель заявки');
+      throw new ForbiddenException({
+        code: 'SERVICE_REQUESTS.RATING_CREATOR_ONLY',
+        message: 'Оценить качество выполнения может только создатель заявки',
+      });
     }
 
     return this.prisma.serviceRequest.update({

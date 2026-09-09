@@ -221,14 +221,16 @@ describe('CommunityBoardService', () => {
         userId: verifiedResidentOwner.id,
       });
 
-      await expect(
-        service.createListing(mockTenantId, verifiedResidentOwner, {
-          type: ListingType.GIVE_AWAY,
-          title: 'Отдам книги даром',
-          description: 'Художественная литература',
-          price: 500,
-        }),
-      ).rejects.toThrow(BadRequestException);
+      const promise = service.createListing(mockTenantId, verifiedResidentOwner, {
+        type: ListingType.GIVE_AWAY,
+        title: 'Отдам книги даром',
+        description: 'Художественная литература',
+        price: 500,
+      });
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'COMMUNITY_BOARD.GIVEAWAY_NO_PRICE' },
+      });
     });
 
     it('sets price to null for GIVE_AWAY listing', async () => {
@@ -377,11 +379,13 @@ describe('CommunityBoardService', () => {
         status: ListingStatus.ACTIVE,
       });
 
-      await expect(
-        service.updateListing(mockListingId, verifiedResidentTenant, {
-          title: 'Попытка взлома',
-        }),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.updateListing(mockListingId, verifiedResidentTenant, {
+        title: 'Попытка взлома',
+      });
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'COMMUNITY_BOARD.EDIT_OWN_ONLY' },
+      });
     });
 
     it('rejects editing an already REMOVED listing', async () => {
@@ -392,11 +396,13 @@ describe('CommunityBoardService', () => {
         status: ListingStatus.REMOVED,
       });
 
-      await expect(
-        service.updateListing(mockListingId, verifiedResidentOwner, {
-          title: 'Попытка обновить снятое',
-        }),
-      ).rejects.toThrow(BadRequestException);
+      const promise = service.updateListing(mockListingId, verifiedResidentOwner, {
+        title: 'Попытка обновить снятое',
+      });
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'COMMUNITY_BOARD.CANNOT_EDIT_REMOVED' },
+      });
     });
   });
 

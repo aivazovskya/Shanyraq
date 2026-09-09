@@ -34,9 +34,11 @@ export class AnalyticsService {
       user.role !== UserRole.HOA_ADMIN &&
       user.role !== UserRole.HOA_CHAIRMAN
     ) {
-      throw new ForbiddenException(
-        'Доступ к аналитике разрешен только для администраторов и председателя ОСИ',
-      );
+      throw new ForbiddenException({
+        code: 'ANALYTICS.ACCESS_FORBIDDEN',
+        message:
+          'Доступ к аналитике разрешен только для администраторов и председателя ОСИ',
+      });
     }
 
     assertUserBelongsToTenant(user, tenantId, 'аналитики');
@@ -45,7 +47,10 @@ export class AnalyticsService {
       where: { id: tenantId },
     });
     if (!tenant) {
-      throw new NotFoundException('Жилой комплекс не найден');
+      throw new NotFoundException({
+        code: 'ANALYTICS.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
     }
   }
 

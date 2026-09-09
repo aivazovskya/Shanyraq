@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger, OnModuleInit, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -80,7 +80,10 @@ export class UploadsService implements OnModuleInit {
 
   async uploadFile(file: Express.Multer.File, category?: UploadCategory) {
     if (!file || !file.buffer) {
-      throw new BadRequestException('Файл не предоставлен или имеет нулевой размер');
+      throw new BadRequestException({
+        code: 'UPLOADS.FILE_EMPTY',
+        message: 'Файл не предоставлен или имеет нулевой размер',
+      });
     }
 
     const bucket = this.resolveBucket(category);
@@ -97,7 +100,11 @@ export class UploadsService implements OnModuleInit {
       );
     } catch (error: any) {
       this.logger.error(`Ошибка загрузки файла в S3: ${error.message}`);
-      throw new BadRequestException(`Ошибка при сохранении файла в хранилище: ${error.message}`);
+      throw new BadRequestException({
+        code: 'UPLOADS.STORAGE_ERROR',
+        message: `Ошибка при сохранении файла в хранилище: ${error.message}`,
+        params: { error: error.message },
+      });
     }
 
     const url = `${this.publicBaseUrl}/${bucket}/${key}`;

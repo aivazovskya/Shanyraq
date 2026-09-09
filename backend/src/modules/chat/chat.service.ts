@@ -29,7 +29,10 @@ export class ChatService {
    */
   async assertAccessToTenant(user: any, tenantId: string): Promise<boolean> {
     if (!user) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'CHAT.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     if (user.role === UserRole.SUPERADMIN) {
@@ -45,7 +48,10 @@ export class ChatService {
 
     if (staffRoles.includes(user.role)) {
       if (user.tenantId !== tenantId) {
-        throw new ForbiddenException('Персонал имеет доступ только к ресурсам своего жилого комплекса');
+        throw new ForbiddenException({
+          code: 'CHAT.STAFF_CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+        });
       }
       return true;
     }
@@ -64,7 +70,10 @@ export class ChatService {
     });
 
     if (!verifiedOwnership) {
-      throw new ForbiddenException('У вас нет подтвержденного доступа к ресурсам данного жилого комплекса');
+      throw new ForbiddenException({
+        code: 'CHAT.RESIDENT_ACCESS_FORBIDDEN',
+        message: 'У вас нет подтвержденного доступа к ресурсам данного жилого комплекса',
+      });
     }
 
     return false;
@@ -74,10 +83,18 @@ export class ChatService {
    * Проверка прав сотрудника диспетчерской/УК (Decision #6: DISPATCHER, HOA_ADMIN, SUPERADMIN).
    */
   private assertStaffRole(user: any): void {
-    if (!user) throw new ForbiddenException('Требуется авторизация');
+    if (!user) {
+      throw new ForbiddenException({
+        code: 'CHAT.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
+    }
     const allowedStaffRoles = [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN];
     if (!allowedStaffRoles.includes(user.role)) {
-      throw new ForbiddenException('Недостаточно прав для доступа к чату диспетчера');
+      throw new ForbiddenException({
+        code: 'CHAT.DISPATCHER_ACCESS_FORBIDDEN',
+        message: 'Недостаточно прав для доступа к чату диспетчера',
+      });
     }
   }
 
@@ -86,7 +103,10 @@ export class ChatService {
    */
   private async resolveResidentTenant(user: any): Promise<string> {
     if (!user || !user.id) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'CHAT.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     const ownership = await this.prisma.unitOwnership.findFirst({
@@ -100,7 +120,10 @@ export class ChatService {
 
     const tenantId = user.tenantId || ownership?.unit?.building?.tenantId;
     if (!tenantId) {
-      throw new BadRequestException('Не удалось определить жилой комплекс пользователя');
+      throw new BadRequestException({
+        code: 'CHAT.TENANT_UNRESOLVED',
+        message: 'Не удалось определить жилой комплекс пользователя',
+      });
     }
 
     return tenantId;
@@ -238,7 +261,10 @@ export class ChatService {
     const photoUrl = dto.photoUrl && dto.photoUrl.trim() ? dto.photoUrl.trim() : null;
 
     if (!text && !photoUrl) {
-      throw new BadRequestException('Сообщение должно содержать текст или фото');
+      throw new BadRequestException({
+        code: 'CHAT.MESSAGE_TEXT_OR_PHOTO_REQUIRED',
+        message: 'Сообщение должно содержать текст или фото',
+      });
     }
 
     const tenantId = await this.resolveResidentTenant(user);
@@ -431,7 +457,10 @@ export class ChatService {
     });
 
     if (!conversation) {
-      throw new NotFoundException('Диалог не найден');
+      throw new NotFoundException({
+        code: 'CHAT.CONVERSATION_NOT_FOUND',
+        message: 'Диалог не найден',
+      });
     }
 
     await this.assertAccessToTenant(user, conversation.tenantId);
@@ -474,7 +503,10 @@ export class ChatService {
     const photoUrl = dto.photoUrl && dto.photoUrl.trim() ? dto.photoUrl.trim() : null;
 
     if (!text && !photoUrl) {
-      throw new BadRequestException('Сообщение должно содержать текст или фото');
+      throw new BadRequestException({
+        code: 'CHAT.MESSAGE_TEXT_OR_PHOTO_REQUIRED',
+        message: 'Сообщение должно содержать текст или фото',
+      });
     }
 
     const conversation = await this.prisma.conversation.findUnique({
@@ -482,7 +514,10 @@ export class ChatService {
     });
 
     if (!conversation) {
-      throw new NotFoundException('Диалог не найден');
+      throw new NotFoundException({
+        code: 'CHAT.CONVERSATION_NOT_FOUND',
+        message: 'Диалог не найден',
+      });
     }
 
     await this.assertAccessToTenant(user, conversation.tenantId);

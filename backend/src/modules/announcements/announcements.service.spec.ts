@@ -126,12 +126,27 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
         tenantId: null,
       };
 
-      await expect(
-        controller.createAnnouncement(userWithoutTenant, {
-          title: 'Новость',
-          content: 'Текст',
-        }),
-      ).rejects.toThrow(BadRequestException);
+      const promise = controller.createAnnouncement(userWithoutTenant, {
+        title: 'Новость',
+        content: 'Текст',
+      });
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'ANNOUNCEMENTS.TENANT_ID_REQUIRED' },
+      });
+    });
+
+    it('должен выбрасывать NotFoundException с кодом при несуществующем tenantId', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue(null);
+
+      const promise = service.createAnnouncement('user-1', 'non-existent', {
+        title: 'Новость',
+        content: 'Текст',
+      });
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'ANNOUNCEMENTS.COMPLEX_NOT_FOUND' },
+      });
     });
   });
 });

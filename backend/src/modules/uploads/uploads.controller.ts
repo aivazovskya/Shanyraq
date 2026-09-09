@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Post,
   UseInterceptors,
@@ -48,7 +48,10 @@ export class UploadsController {
     @Query('category') category?: UploadCategory,
   ) {
     if (!file) {
-      throw new BadRequestException('Файл не передан в поле "file"');
+      throw new BadRequestException({
+        code: 'UPLOADS.FILE_MISSING',
+        message: 'Файл не передан в поле "file"',
+      });
     }
     return this.uploadsService.uploadFile(file, category);
   }

@@ -1,4 +1,4 @@
-﻿import { Test, TestingModule } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { UploadsService } from './uploads.service';
 import { ConfigService } from '@nestjs/config';
 import { UploadCategory } from './dto/uploads.dto';
@@ -47,7 +47,31 @@ describe('UploadsService (MinIO / S3 Хранилище)', () => {
 
   describe('uploadFile', () => {
     it('должен выбрасывать BadRequestException при пустом файле', async () => {
-      await expect(service.uploadFile(null as any)).rejects.toThrow(BadRequestException);
+      const promise = service.uploadFile(null as any);
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'UPLOADS.FILE_EMPTY' },
+      });
+    });
+
+    it('должен выбрасывать BadRequestException с code и params при ошибке S3', async () => {
+      (service as any).s3Client.send = jest.fn().mockRejectedValue(new Error('S3 connection failed'));
+
+      const mockFile = {
+        originalname: 'pipe_leak.jpg',
+        buffer: Buffer.from('fake-image-bytes'),
+        size: 1024,
+        mimetype: 'image/jpeg',
+      } as Express.Multer.File;
+
+      const promise = service.uploadFile(mockFile, UploadCategory.MEDIA);
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: {
+          code: 'UPLOADS.STORAGE_ERROR',
+          params: { error: 'S3 connection failed' },
+        },
+      });
     });
 
     it('должен успешно загружать файл и возвращать публичную ссылку', async () => {

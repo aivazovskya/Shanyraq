@@ -65,9 +65,11 @@ describe('ServiceRequestsService (IDOR / BOLA and Tenant Isolation)', () => {
     it('should throw NotFoundException if request does not exist', async () => {
       prismaMock.serviceRequest.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.getRequestById('non-existent', { id: 'resident-1', role: UserRole.RESIDENT_OWNER }),
-      ).rejects.toThrow(NotFoundException);
+      const promise = service.getRequestById('non-existent', { id: 'resident-1', role: UserRole.RESIDENT_OWNER });
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SERVICE_REQUESTS.REQUEST_NOT_FOUND' },
+      });
     });
 
     it('should allow resident to view their own request', async () => {
@@ -85,13 +87,15 @@ describe('ServiceRequestsService (IDOR / BOLA and Tenant Isolation)', () => {
     it('should throw ForbiddenException if resident tries to view another resident request', async () => {
       prismaMock.serviceRequest.findUnique.mockResolvedValue(mockRequest);
 
-      await expect(
-        service.getRequestById('req-1', {
-          id: 'resident-2',
-          role: UserRole.RESIDENT_OWNER,
-          tenantId: 'tenant-A',
-        }),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.getRequestById('req-1', {
+        id: 'resident-2',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-A',
+      });
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SERVICE_REQUESTS.FOREIGN_REQUEST_VIEW_FORBIDDEN' },
+      });
     });
 
     it('should allow staff (DISPATCHER) from the same tenant to view request', async () => {
@@ -109,13 +113,15 @@ describe('ServiceRequestsService (IDOR / BOLA and Tenant Isolation)', () => {
     it('should throw ForbiddenException if staff from tenant B tries to view request of tenant A', async () => {
       prismaMock.serviceRequest.findUnique.mockResolvedValue(mockRequest);
 
-      await expect(
-        service.getRequestById('req-1', {
-          id: 'dispatcher-2',
-          role: UserRole.DISPATCHER,
-          tenantId: 'tenant-B',
-        }),
-      ).rejects.toThrow(ForbiddenException);
+      const promise = service.getRequestById('req-1', {
+        id: 'dispatcher-2',
+        role: UserRole.DISPATCHER,
+        tenantId: 'tenant-B',
+      });
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SERVICE_REQUESTS.CROSS_TENANT_VIEW_FORBIDDEN' },
+      });
     });
 
     it('should allow SUPERADMIN to view request from any tenant', async () => {

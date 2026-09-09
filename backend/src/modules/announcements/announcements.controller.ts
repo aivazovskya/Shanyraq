@@ -32,7 +32,10 @@ export class AnnouncementsController {
     const targetTenantId = user.role === UserRole.SUPERADMIN ? (dto.tenantId || user.tenantId) : user.tenantId;
 
     if (!targetTenantId) {
-      throw new BadRequestException('Не указан идентификатор жилого комплекса');
+      throw new BadRequestException({
+        code: 'ANNOUNCEMENTS.TENANT_ID_REQUIRED',
+        message: 'Не указан идентификатор жилого комплекса',
+      });
     }
 
     return this.announcementsService.createAnnouncement(user.id, targetTenantId, dto);

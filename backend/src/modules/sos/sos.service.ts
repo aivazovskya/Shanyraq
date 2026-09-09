@@ -30,7 +30,10 @@ export class SosService {
    */
   async trigger(user: any, dto: TriggerSosDto) {
     if (!user || !user.id) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'SOS.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     // 1. Определение юнита (best-effort): любой ownership без требования к isVerified
@@ -47,9 +50,11 @@ export class SosService {
     const tenantId = user.tenantId || ownership?.unit?.building?.tenantId;
 
     if (!tenantId) {
-      throw new BadRequestException(
-        'Не удалось определить жилой комплекс пользователя для вызова экстренных служб',
-      );
+      throw new BadRequestException({
+        code: 'SOS.TENANT_UNRESOLVED',
+        message:
+          'Не удалось определить жилой комплекс пользователя для вызова экстренных служб',
+      });
     }
 
     // Полные данные пользователя для уведомления
@@ -198,7 +203,10 @@ export class SosService {
    */
   async resolve(alertId: string, user: any, dto: ResolveSosDto) {
     if (user.role === UserRole.HOA_CHAIRMAN) {
-      throw new ForbiddenException('Председатель ОСИ имеет доступ только к просмотру сигналов SOS');
+      throw new ForbiddenException({
+        code: 'SOS.CHAIRMAN_VIEW_ONLY',
+        message: 'Председатель ОСИ имеет доступ только к просмотру сигналов SOS',
+      });
     }
 
     const alert = await this.prisma.sosAlert.findUnique({
@@ -206,11 +214,17 @@ export class SosService {
     });
 
     if (!alert) {
-      throw new NotFoundException('Вызов SOS не найден');
+      throw new NotFoundException({
+        code: 'SOS.ALERT_NOT_FOUND',
+        message: 'Вызов SOS не найден',
+      });
     }
 
     if (user.role !== UserRole.SUPERADMIN && alert.tenantId !== user.tenantId) {
-      throw new ForbiddenException('Вы не можете обрабатывать вызовы другого ЖК');
+      throw new ForbiddenException({
+        code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN',
+        message: 'Вы не можете обрабатывать вызовы другого ЖК',
+      });
     }
 
     const allowedRoles = [
@@ -221,11 +235,17 @@ export class SosService {
     ];
 
     if (!allowedRoles.includes(user.role)) {
-      throw new ForbiddenException('Недостаточно прав для обработки сигнала SOS');
+      throw new ForbiddenException({
+        code: 'SOS.PROCESS_FORBIDDEN',
+        message: 'Недостаточно прав для обработки сигнала SOS',
+      });
     }
 
     if (alert.status !== SosAlertStatus.ACTIVE) {
-      throw new BadRequestException('Данный вызов SOS уже был обработан ранее');
+      throw new BadRequestException({
+        code: 'SOS.ALREADY_PROCESSED',
+        message: 'Данный вызов SOS уже был обработан ранее',
+      });
     }
 
     return this.prisma.sosAlert.update({
@@ -264,7 +284,10 @@ export class SosService {
    */
   async getMyAlerts(user: any) {
     if (!user || !user.id) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'SOS.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     return this.prisma.sosAlert.findMany({
@@ -291,7 +314,10 @@ export class SosService {
 
   private assertStaffOrChairmanRole(user: any, tenantId: string): void {
     if (!user) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'SOS.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     if (user.role === UserRole.SUPERADMIN) {
@@ -306,11 +332,17 @@ export class SosService {
     ];
 
     if (!allowedRoles.includes(user.role)) {
-      throw new ForbiddenException('Недостаточно прав для доступа к журналу SOS данного ЖК');
+      throw new ForbiddenException({
+        code: 'SOS.LOG_ACCESS_FORBIDDEN',
+        message: 'Недостаточно прав для доступа к журналу SOS данного ЖК',
+      });
     }
 
     if (user.tenantId !== tenantId) {
-      throw new ForbiddenException('Вы не можете просматривать сигналы SOS другого ЖК');
+      throw new ForbiddenException({
+        code: 'SOS.CROSS_TENANT_VIEW_FORBIDDEN',
+        message: 'Вы не можете просматривать сигналы SOS другого ЖК',
+      });
     }
   }
 }
