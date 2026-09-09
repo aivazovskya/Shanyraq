@@ -14,6 +14,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { MetersModule } from './modules/meters/meters.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { SosModule } from './modules/sos/sos.module';
+import { CommunityBoardModule } from './modules/community-board/community-board.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SosModule } from './modules/sos/sos.module';
     MetersModule,
     BookingsModule,
     SosModule,
+    CommunityBoardModule,
   ],
 })
 export class AppModule {}

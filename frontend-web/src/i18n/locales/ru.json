@@ -34,7 +34,8 @@
     "finance": "Финансы",
     "meters": "Показания счётчиков",
     "bookings": "Бронирования",
-    "sos": "Экстренные вызовы (SOS)"
+    "sos": "Экстренные вызовы (SOS)",
+    "communityBoard": "Доска объявлений"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -557,5 +558,38 @@
     "residentFallback": "Житель",
     "statusHeader": "Статус",
     "noteHeader": "Заметка"
+  },
+  "communityBoard": {
+    "pageTitle": "Модерация доски объявлений",
+    "pageSubtitle": "Управление объявлениями жителей ЖК (продать / сдать / отдать даром)",
+    "loadError": "Ошибка при загрузке объявлений",
+    "moderateError": "Ошибка при модерации объявления",
+    "searchPlaceholder": "Поиск по названию, описанию или автору...",
+    "filterAllTypes": "Все категории",
+    "filterAllStatuses": "Все статусы",
+    "noListingsTitle": "Объявления не найдены",
+    "noListingsSub": "По выбранным фильтрам объявления отсутствуют",
+    "typeSell": "Продажа",
+    "typeRent": "Аренда",
+    "typeGiveAway": "Отдам даром",
+    "typeOther": "Другое",
+    "statusActive": "Активно",
+    "statusClosed": "Закрыто автором",
+    "statusRemoved": "Снято модератором",
+    "authorUnknown": "Житель",
+    "priceNegotiable": "Договорная",
+    "removedByStaff": "Объявление снято модератором",
+    "moderator": "Модератор",
+    "removeAction": "Снять с публикации",
+    "alreadyRemoved": "Уже снято с публикации",
+    "removeModalTitle": "Снятие объявления с публикации",
+    "confirmRemoveNotice": "Вы собираетесь снять объявление «{{title}}» с публикации на доске ЖК.",
+    "removalReasonLabel": "Причина снятия",
+    "removalReasonPlaceholder": "Укажите причину (нарушение правил, спам, нецензурная лексика...)",
+    "reasonRequiredError": "Укажите причину снятия объявления",
+    "confirmRemoveBtn": "Снять объявление",
+    "selectTenantPlaceholder": "Выберите ЖК...",
+    "selectTenantPromptTitle": "Выберите жилой комплекс",
+    "selectTenantPromptSub": "Вы вошли под ролью суперадминистратора. Выберите ЖК из выпадающего списка сверху для просмотра и модерации объявлений."
   }
 }

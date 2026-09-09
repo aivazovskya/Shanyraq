@@ -26,4 +26,6 @@ export type RootStackParamList = {
   Meters: undefined;
   Bookings: undefined;
   SosHistory: undefined;
+  CommunityBoard: undefined;
+  CreateListing: undefined;
 };

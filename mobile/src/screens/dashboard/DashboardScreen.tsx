@@ -33,6 +33,7 @@ import {
   CreditCard,
   Gauge,
   Calendar,
+  ShoppingBag,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -288,6 +289,23 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.financeTextContainer}>
               <Text style={styles.financeTitle}>{t('dashboard.bookingsCardTitle')}</Text>
               <Text style={styles.financeSub}>{t('dashboard.bookingsCardSub')}</Text>
+            </View>
+            <ChevronRight color={Colors.textMuted} size={20} />
+          </View>
+        </Card>
+
+        {/* Community Board Card */}
+        <Card
+          style={[styles.financeCard, { marginTop: 8 }]}
+          onPress={() => (navigation as any).navigate('CommunityBoard')}
+        >
+          <View style={styles.financeRow}>
+            <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
+              <ShoppingBag color="#D97706" size={22} />
+            </View>
+            <View style={styles.financeTextContainer}>
+              <Text style={styles.financeTitle}>{t('dashboard.communityBoardCardTitle')}</Text>
+              <Text style={styles.financeSub}>{t('dashboard.communityBoardCardSub')}</Text>
             </View>
             <ChevronRight color={Colors.textMuted} size={20} />
           </View>

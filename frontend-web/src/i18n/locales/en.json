@@ -34,7 +34,8 @@
     "finance": "Finance",
     "meters": "Meter Readings",
     "bookings": "Bookings",
-    "sos": "Emergency Alerts (SOS)"
+    "sos": "Emergency Alerts (SOS)",
+    "communityBoard": "Community board"
   },
   "roles": {
     "superadmin": "Superadministrator",
@@ -557,5 +558,38 @@
     "residentFallback": "Resident",
     "statusHeader": "Status",
     "noteHeader": "Note"
+  },
+  "communityBoard": {
+    "pageTitle": "Community Board Moderation",
+    "pageSubtitle": "Manage resident classifieds (sell / rent / give away)",
+    "loadError": "Failed to load listings",
+    "moderateError": "Failed to moderate listing",
+    "searchPlaceholder": "Search by title, description or author...",
+    "filterAllTypes": "All categories",
+    "filterAllStatuses": "All statuses",
+    "noListingsTitle": "No listings found",
+    "noListingsSub": "No listings match the selected filters",
+    "typeSell": "Sell",
+    "typeRent": "Rent",
+    "typeGiveAway": "Give away",
+    "typeOther": "Other",
+    "statusActive": "Active",
+    "statusClosed": "Closed",
+    "statusRemoved": "Removed",
+    "authorUnknown": "Resident",
+    "priceNegotiable": "Negotiable",
+    "removedByStaff": "Listing removed by moderator",
+    "moderator": "Moderator",
+    "removeAction": "Remove from board",
+    "alreadyRemoved": "Already removed",
+    "removeModalTitle": "Remove listing from board",
+    "confirmRemoveNotice": "You are about to remove the listing \"{{title}}\" from the community board.",
+    "removalReasonLabel": "Removal reason",
+    "removalReasonPlaceholder": "Specify the reason (rule violation, spam, inappropriate content...)",
+    "reasonRequiredError": "Please specify the removal reason",
+    "confirmRemoveBtn": "Remove listing",
+    "selectTenantPlaceholder": "Select residential complex...",
+    "selectTenantPromptTitle": "Select a residential complex",
+    "selectTenantPromptSub": "You are logged in as superadmin. Select a residential complex from the dropdown above to view and moderate listings."
   }
 }

@@ -34,7 +34,8 @@
     "finance": "Қаржы",
     "meters": "Есептегіштер көрсеткіші",
     "bookings": "Брондаулар",
-    "sos": "Шұғыл шақырулар (SOS)"
+    "sos": "Шұғыл шақырулар (SOS)",
+    "communityBoard": "Хабарландырулар тақтасы"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -557,5 +558,38 @@
     "residentFallback": "Тұрғын",
     "statusHeader": "Мәртебе",
     "noteHeader": "Ескертпе"
+  },
+  "communityBoard": {
+    "pageTitle": "Хабарландырулар тақтасы модерациясы",
+    "pageSubtitle": "Тұрғындардың хабарландыруларын басқару (сату / жалға беру / тегін беру)",
+    "loadError": "Хабарландыруларды жүктеу қатесі",
+    "moderateError": "Хабарландыруды модерациялау қатесі",
+    "searchPlaceholder": "Атауы, сипаттамасы немесе авторы бойынша іздеу...",
+    "filterAllTypes": "Барлық санаттар",
+    "filterAllStatuses": "Барлық күйлер",
+    "noListingsTitle": "Хабарландырулар табылмады",
+    "noListingsSub": "Таңдалған сүзгілер бойынша хабарландырулар жоқ",
+    "typeSell": "Сату",
+    "typeRent": "Жалға беру",
+    "typeGiveAway": "Тегін беремін",
+    "typeOther": "Басқа",
+    "statusActive": "Белсенді",
+    "statusClosed": "Автор жапқан",
+    "statusRemoved": "Модератор алып тастаған",
+    "authorUnknown": "Тұрғын",
+    "priceNegotiable": "Келісімді",
+    "removedByStaff": "Хабарландыруды модератор алып тастады",
+    "moderator": "Модератор",
+    "removeAction": "Жарияланымнан алып тастау",
+    "alreadyRemoved": "Жарияланымнан алынып тасталған",
+    "removeModalTitle": "Хабарландыруды жарияланымнан алып тастау",
+    "confirmRemoveNotice": "Сіз «{{title}}» хабарландыруын ТК тақтасынан алып тастайын деп жатырсыз.",
+    "removalReasonLabel": "Алып тастау себебі",
+    "removalReasonPlaceholder": "Себебін көрсетіңіз (ережелерді бұзу, спам, бейәдеп сөздер...)",
+    "reasonRequiredError": "Хабарландыруды алып тастау себебін көрсетіңіз",
+    "confirmRemoveBtn": "Хабарландыруды алып тастау",
+    "selectTenantPlaceholder": "ТК таңдаңыз...",
+    "selectTenantPromptTitle": "Тұрғын үй кешенін таңдаңыз",
+    "selectTenantPromptSub": "Сіз суперадминистратор рөлімен кірдіңіз. Хабарландыруларды қарау және модерациялау үшін жоғарыдағы тізімнен ТК таңдаңыз."
   }
 }

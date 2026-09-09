@@ -105,6 +105,7 @@ model Tenant {
   tariffItems      TariffItem[]
   bookableResources BookableResource[]
   sosAlerts         SosAlert[]
+  communityListings CommunityListing[]
 
   @@map("tenants")
 }
@@ -191,6 +192,8 @@ model User {
   bookingsCancelled Booking[]        @relation("BookingsCancelled")
   sosAlertsTriggered SosAlert[]      @relation("SosTriggered")
   sosAlertsResolved  SosAlert[]      @relation("SosResolved")
+  listingsAuthored   CommunityListing[] @relation("ListingsAuthored")
+  listingsRemoved    CommunityListing[] @relation("ListingsRemoved")
 
   @@map("users")
 }
@@ -652,4 +655,41 @@ model SosAlert {
   @@map("sos_alerts")
 }
 
+// -------------------------------------------------------------
+// Community Board (Доска объявлений жильцов)
+// -------------------------------------------------------------
 
+enum ListingType {
+  SELL
+  RENT
+  GIVE_AWAY
+  OTHER
+}
+
+enum ListingStatus {
+  ACTIVE
+  CLOSED    // author marked resolved (sold / given away / no longer needed)
+  REMOVED   // moderator took it down
+}
+
+model CommunityListing {
+  id            String        @id @default(uuid())
+  tenantId      String
+  authorId      String
+  type          ListingType
+  title         String
+  description   String
+  price         Float?        // null for GIVE_AWAY or a non-priced OTHER post
+  photoUrls     String[]      @default([])
+  status        ListingStatus @default(ACTIVE)
+  removedById   String?
+  removedReason String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author    User   @relation("ListingsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  removedBy User?  @relation("ListingsRemoved", fields: [removedById], references: [id], onDelete: SetNull)
+
+  @@map("community_listings")
+}
