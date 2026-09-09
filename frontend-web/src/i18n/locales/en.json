@@ -35,7 +35,8 @@
     "meters": "Meter Readings",
     "bookings": "Bookings",
     "sos": "Emergency Alerts (SOS)",
-    "communityBoard": "Community board"
+    "communityBoard": "Community board",
+    "chat": "Resident Chat"
   },
   "roles": {
     "superadmin": "Superadministrator",
@@ -591,5 +592,33 @@
     "selectTenantPlaceholder": "Select residential complex...",
     "selectTenantPromptTitle": "Select a residential complex",
     "selectTenantPromptSub": "You are logged in as superadmin. Select a residential complex from the dropdown above to view and moderate listings."
+  },
+  "chat": {
+    "pageTitle": "Resident Chat",
+    "pageSubtitle": "Live support and direct communication with complex residents",
+    "searchPlaceholder": "Search by name or phone...",
+    "noConversationsTitle": "No active conversations",
+    "noConversationsSub": "Resident inquiries to the dispatcher will appear here",
+    "selectConversationTitle": "Select a conversation",
+    "selectConversationSub": "Choose an inquiry from the list on the left to read and reply",
+    "loadError": "Error loading conversations",
+    "sendError": "Error sending message",
+    "replyPlaceholder": "Write a reply to the resident...",
+    "sendBtn": "Send",
+    "sending": "Sending...",
+    "photoUrlPlaceholder": "Photo URL (optional)",
+    "attachPhoto": "Attach photo",
+    "removePhoto": "Remove",
+    "unreadBadge": "{{count}} new",
+    "residentFallback": "Resident",
+    "dispatcherFallback": "Dispatcher",
+    "noMessages": "No messages in this conversation yet",
+    "selectTenantPromptTitle": "Select a residential complex",
+    "selectTenantPromptSub": "You are logged in as superadmin. Select a complex to view chats.",
+    "selectTenantPlaceholder": "Select complex...",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "apartment": "apt.",
+    "photoLabel": "Photo"
   }
 }

@@ -15,6 +15,7 @@ import { MetersModule } from './modules/meters/meters.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { SosModule } from './modules/sos/sos.module';
 import { CommunityBoardModule } from './modules/community-board/community-board.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CommunityBoardModule } from './modules/community-board/community-board.
     BookingsModule,
     SosModule,
     CommunityBoardModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

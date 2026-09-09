@@ -17,6 +17,7 @@ import { BookingsScreen } from '../screens/bookings/BookingsScreen';
 import { SosHistoryScreen } from '../screens/sos/SosHistoryScreen';
 import { CommunityBoardScreen } from '../screens/community-board/CommunityBoardScreen';
 import { CreateListingScreen } from '../screens/community-board/CreateListingScreen';
+import { ChatScreen } from '../screens/chat/ChatScreen';
 import { LoadingState } from '../components/common/LoadingState';
 import { useTranslation } from 'react-i18next';
 
@@ -55,6 +56,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="SosHistory" component={SosHistoryScreen} />
             <Stack.Screen name="CommunityBoard" component={CommunityBoardScreen} />
             <Stack.Screen name="CreateListing" component={CreateListingScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
           </>
         )}
       </Stack.Navigator>

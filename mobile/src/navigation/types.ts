@@ -28,4 +28,5 @@ export type RootStackParamList = {
   SosHistory: undefined;
   CommunityBoard: undefined;
   CreateListing: undefined;
+  Chat: undefined;
 };

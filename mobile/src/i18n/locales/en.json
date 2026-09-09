@@ -343,7 +343,9 @@
     "bookingsCardTitle": "Amenity Booking",
     "bookingsCardSub": "BBQ, coworking, parking",
     "communityBoardCardTitle": "Community Board",
-    "communityBoardCardSub": "Buy, sell, rent, and trade with neighbors"
+    "communityBoardCardSub": "Buy, sell, rent, and trade with neighbors",
+    "chatCardTitle": "Dispatcher Chat",
+    "chatCardSub": "Contact property management team"
   },
   "finance": {
     "title": "Personal Account",
@@ -494,5 +496,24 @@
     "priceValidation": "Please specify a valid price amount",
     "createSuccessMessage": "Listing successfully published to the community board",
     "publishAction": "Publish Listing"
+  },
+  "chat": {
+    "screenTitle": "Dispatcher Chat",
+    "screenSubtitle": "Support Team",
+    "inputPlaceholder": "Write a message to dispatcher...",
+    "sendError": "Failed to send message",
+    "loadError": "Error loading chat",
+    "emptyTitle": "Start a conversation with the dispatcher",
+    "emptySubtitle": "Ask a question about building services, submit an inquiry or request information",
+    "photoAttached": "Photo attached",
+    "attachPhotoTitle": "Attach photo",
+    "attachPhotoPrompt": "Choose an action to attach a photo to your message",
+    "samplePhotoOption": "Attach sample photo",
+    "unverifiedTitle": "Chat not available",
+    "unverifiedNotice": "Dispatcher chat is available only to verified residents of the residential complex.",
+    "dispatcherFallback": "Dispatcher",
+    "supportTeam": "Support Team",
+    "today": "Today",
+    "photoLabel": "Photo"
   }
 }

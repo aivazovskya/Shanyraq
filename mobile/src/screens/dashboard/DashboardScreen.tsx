@@ -34,6 +34,7 @@ import {
   Gauge,
   Calendar,
   ShoppingBag,
+  MessageSquare,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -306,6 +307,23 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.financeTextContainer}>
               <Text style={styles.financeTitle}>{t('dashboard.communityBoardCardTitle')}</Text>
               <Text style={styles.financeSub}>{t('dashboard.communityBoardCardSub')}</Text>
+            </View>
+            <ChevronRight color={Colors.textMuted} size={20} />
+          </View>
+        </Card>
+
+        {/* Dispatcher Chat Card */}
+        <Card
+          style={[styles.financeCard, { marginTop: 8 }]}
+          onPress={() => (navigation as any).navigate('Chat')}
+        >
+          <View style={styles.financeRow}>
+            <View style={[styles.quickIconCircle, { backgroundColor: '#E0F2FE' }]}>
+              <MessageSquare color="#0284C7" size={22} />
+            </View>
+            <View style={styles.financeTextContainer}>
+              <Text style={styles.financeTitle}>{t('dashboard.chatCardTitle')}</Text>
+              <Text style={styles.financeSub}>{t('dashboard.chatCardSub')}</Text>
             </View>
             <ChevronRight color={Colors.textMuted} size={20} />
           </View>

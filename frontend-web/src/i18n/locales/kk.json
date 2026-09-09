@@ -35,7 +35,8 @@
     "meters": "Есептегіштер көрсеткіші",
     "bookings": "Брондаулар",
     "sos": "Шұғыл шақырулар (SOS)",
-    "communityBoard": "Хабарландырулар тақтасы"
+    "communityBoard": "Хабарландырулар тақтасы",
+    "chat": "Тұрғындармен чат"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -591,5 +592,33 @@
     "selectTenantPlaceholder": "ТК таңдаңыз...",
     "selectTenantPromptTitle": "Тұрғын үй кешенін таңдаңыз",
     "selectTenantPromptSub": "Сіз суперадминистратор рөлімен кірдіңіз. Хабарландыруларды қарау және модерациялау үшін жоғарыдағы тізімнен ТК таңдаңыз."
+  },
+  "chat": {
+    "pageTitle": "Тұрғындармен чат",
+    "pageSubtitle": "Тұрғын үй кешені тұрғындарымен жедел байланыс және кеңес беру",
+    "searchPlaceholder": "Аты немесе телефон бойынша іздеу...",
+    "noConversationsTitle": "Белсенді чаттар жоқ",
+    "noConversationsSub": "Мұнда тұрғындардың диспетчерге жолдаған хабарламалары пайда болады",
+    "selectConversationTitle": "Чатты таңдаңыз",
+    "selectConversationSub": "Жазысуды көру және жауап беру үшін сол жақтағы тізімнен чатты таңдаңыз",
+    "loadError": "Чаттарды жүктеу қатесі",
+    "sendError": "Хабарлама жіберу қатесі",
+    "replyPlaceholder": "Тұрғынға жауап жазыңыз...",
+    "sendBtn": "Жіберу",
+    "sending": "Жіберілуде...",
+    "photoUrlPlaceholder": "Фото URL (міндетті емес)",
+    "attachPhoto": "Фото тіркеу",
+    "removePhoto": "Жою",
+    "unreadBadge": "{{count}} жаңа",
+    "residentFallback": "Тұрғын",
+    "dispatcherFallback": "Диспетчер",
+    "noMessages": "Бұл чатта әлі хабарлама жоқ",
+    "selectTenantPromptTitle": "Тұрғын үй кешенін таңдаңыз",
+    "selectTenantPromptSub": "Сіз суперадминистратор рөлімен кірдіңіз. Чаттарды көру үшін ТК таңдаңыз.",
+    "selectTenantPlaceholder": "ТК таңдаңыз...",
+    "today": "Бүгін",
+    "yesterday": "Кеше",
+    "apartment": "пәтер",
+    "photoLabel": "Фото"
   }
 }

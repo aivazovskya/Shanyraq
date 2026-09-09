@@ -35,7 +35,8 @@
     "meters": "Показания счётчиков",
     "bookings": "Бронирования",
     "sos": "Экстренные вызовы (SOS)",
-    "communityBoard": "Доска объявлений"
+    "communityBoard": "Доска объявлений",
+    "chat": "Чат с жильцами"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -591,5 +592,33 @@
     "selectTenantPlaceholder": "Выберите ЖК...",
     "selectTenantPromptTitle": "Выберите жилой комплекс",
     "selectTenantPromptSub": "Вы вошли под ролью суперадминистратора. Выберите ЖК из выпадающего списка сверху для просмотра и модерации объявлений."
+  },
+  "chat": {
+    "pageTitle": "Чат с жильцами",
+    "pageSubtitle": "Оперативная связь и консультации жителей жилого комплекса",
+    "searchPlaceholder": "Поиск по имени или телефону...",
+    "noConversationsTitle": "Нет активных диалогов",
+    "noConversationsSub": "Здесь появятся обращения жителей ЖК к диспетчеру",
+    "selectConversationTitle": "Выберите диалог",
+    "selectConversationSub": "Выберите обращение из списка слева для просмотра переписки и ответа",
+    "loadError": "Ошибка при загрузке диалогов",
+    "sendError": "Ошибка при отправке сообщения",
+    "replyPlaceholder": "Напишите ответ жителю...",
+    "sendBtn": "Отправить",
+    "sending": "Отправка...",
+    "photoUrlPlaceholder": "Ссылка на фото (необязательно)",
+    "attachPhoto": "Прикрепить фото",
+    "removePhoto": "Удалить",
+    "unreadBadge": "{{count}} новых",
+    "residentFallback": "Житель",
+    "dispatcherFallback": "Диспетчер",
+    "noMessages": "В этом диалоге еще нет сообщений",
+    "selectTenantPromptTitle": "Выберите жилой комплекс",
+    "selectTenantPromptSub": "Вы вошли под ролью суперадминистратора. Выберите ЖК для просмотра чатов.",
+    "selectTenantPlaceholder": "Выберите ЖК...",
+    "today": "Сегодня",
+    "yesterday": "Вчера",
+    "apartment": "кв.",
+    "photoLabel": "Фото"
   }
 }

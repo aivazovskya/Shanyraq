@@ -343,7 +343,9 @@
     "bookingsCardTitle": "Аймақтарды брондау",
     "bookingsCardSub": "Барбекю, коворкинг, паркинг",
     "communityBoardCardTitle": "Хабарландырулар тақтасы",
-    "communityBoardCardSub": "Тұрғындар арасында сату, жалға беру және айырбастау"
+    "communityBoardCardSub": "Тұрғындар арасында сату, жалға беру және айырбастау",
+    "chatCardTitle": "Диспетчермен чат",
+    "chatCardSub": "Басқарушы компаниямен байланыс"
   },
   "finance": {
     "title": "Дербес шот",
@@ -494,5 +496,24 @@
     "priceValidation": "Дұрыс баға сомасын көрсетіңіз",
     "createSuccessMessage": "Хабарландыру ТК тақтасында сәтті жарияланды",
     "publishAction": "Хабарландыруды жариялау"
+  },
+  "chat": {
+    "screenTitle": "Диспетчермен чат",
+    "screenSubtitle": "ТК қамқорлық қызметі",
+    "inputPlaceholder": "Диспетчерге хабарлама жазыңыз...",
+    "sendError": "Хабарлама жіберілмеді",
+    "loadError": "Чатты жүктеу қатесі",
+    "emptyTitle": "Диспетчермен сөйлесуді бастаңыз",
+    "emptySubtitle": "Үйге қызмет көрсету бойынша сұрақ қойыңыз немесе ақпаратты нақтылаңыз",
+    "photoAttached": "Фотосурет тіркелді",
+    "attachPhotoTitle": "Фотосуретті тіркеу",
+    "attachPhotoPrompt": "Хабарламаға фото тіркеу әрекетін таңдаңыз",
+    "samplePhotoOption": "Тесттік фотоны тіркеу",
+    "unverifiedTitle": "Чат қолжетімді емес",
+    "unverifiedNotice": "Диспетчермен чат тек расталған тұрғындарға ғана қолжетімді.",
+    "dispatcherFallback": "Диспетчер",
+    "supportTeam": "Қамқорлық қызметі",
+    "today": "Бүгін",
+    "photoLabel": "Фото"
   }
 }

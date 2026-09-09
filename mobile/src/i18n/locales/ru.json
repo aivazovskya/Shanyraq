@@ -343,7 +343,9 @@
     "bookingsCardTitle": "Бронирование зон",
     "bookingsCardSub": "Барбекю, коворкинг, паркинг",
     "communityBoardCardTitle": "Доска объявлений",
-    "communityBoardCardSub": "Купля, продажа, аренда и обмен между жителями"
+    "communityBoardCardSub": "Купля, продажа, аренда и обмен между жителями",
+    "chatCardTitle": "Чат с диспетчером",
+    "chatCardSub": "Связь с управляющей компанией"
   },
   "finance": {
     "title": "Лицевой счет",
@@ -494,5 +496,24 @@
     "priceValidation": "Укажите корректную сумму цены",
     "createSuccessMessage": "Объявление успешно опубликовано на доске ЖК",
     "publishAction": "Опубликовать объявление"
+  },
+  "chat": {
+    "screenTitle": "Чат с диспетчером",
+    "screenSubtitle": "Служба заботы УК",
+    "inputPlaceholder": "Напишите сообщение диспетчеру...",
+    "sendError": "Не удалось отправить сообщение",
+    "loadError": "Ошибка загрузки чата",
+    "emptyTitle": "Начните диалог с диспетчером",
+    "emptySubtitle": "Задайте вопрос по обслуживанию дома, подайте обращение или уточните информацию",
+    "photoAttached": "Фотография прикреплена",
+    "attachPhotoTitle": "Прикрепить фото",
+    "attachPhotoPrompt": "Выберите действие для прикрепления фото к сообщению",
+    "samplePhotoOption": "Прикрепить тестовое фото",
+    "unverifiedTitle": "Чат недоступен",
+    "unverifiedNotice": "Чат с диспетчером доступен только подтвержденным жителям жилого комплекса.",
+    "dispatcherFallback": "Диспетчер",
+    "supportTeam": "Служба заботы",
+    "today": "Сегодня",
+    "photoLabel": "Фото"
   }
 }
