@@ -17,6 +17,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { createRealtimeSocket } from '@/lib/socket';
 
 interface SosAlertItem {
   id: string;
@@ -108,15 +109,46 @@ export default function SosDashboardPage() {
     }
   }, [loadAlerts, t]);
 
-  // Polling every 15 seconds (Architecture Decision #3)
+  // Real-time WebSocket: подключение к комнате SOS жилого комплекса (Subtask D)
   useEffect(() => {
     if (!tenantId) return;
 
-    const interval = setInterval(() => {
-      loadAlerts(tenantId, true);
-    }, 15000);
+    const socket = createRealtimeSocket();
+    if (!socket) return;
 
-    return () => clearInterval(interval);
+    socket.on('connect', () => {
+      socket.emit('sos:join', { tenantId });
+      // Reconciliation fetch при первичном подключении
+      loadAlerts(tenantId, true);
+    });
+
+    socket.on('reconnect', () => {
+      socket.emit('sos:join', { tenantId });
+      // Reconciliation fetch при реконнекте (Decision #7)
+      loadAlerts(tenantId, true);
+    });
+
+    socket.on('sos:alert:triggered', (newAlert: SosAlertItem) => {
+      setAlerts((prev) => {
+        const index = prev.findIndex((a) => a.id === newAlert.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = newAlert;
+          return updated;
+        }
+        return [newAlert, ...prev];
+      });
+    });
+
+    socket.on('sos:alert:updated', (updatedAlert: SosAlertItem) => {
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === updatedAlert.id ? updatedAlert : a)),
+      );
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, [tenantId, loadAlerts]);
 
   const isChairman = currentUser?.role === 'HOA_CHAIRMAN';

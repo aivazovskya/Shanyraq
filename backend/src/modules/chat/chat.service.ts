@@ -4,7 +4,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserRole } from '@prisma/client';
@@ -17,6 +19,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /**
@@ -82,7 +85,7 @@ export class ChatService {
   /**
    * Проверка прав сотрудника диспетчерской/УК (Decision #6: DISPATCHER, HOA_ADMIN, SUPERADMIN).
    */
-  private assertStaffRole(user: any): void {
+  assertStaffRole(user: any): void {
     if (!user) {
       throw new ForbiddenException({
         code: 'CHAT.AUTH_REQUIRED',
@@ -343,6 +346,17 @@ export class ChatService {
       this.logger.warn(`Failed to send push notification to staff: ${e}`);
     }
 
+    // Real-time событие для WebSocket шлюза (Subtask B)
+    try {
+      this.eventEmitter?.emit('chat.message.created', {
+        message,
+        conversationId: conversation.id,
+        tenantId,
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to emit chat.message.created event: ${e}`);
+    }
+
     return message;
   }
 
@@ -558,6 +572,17 @@ export class ChatService {
       });
     } catch (e) {
       this.logger.warn(`Failed to send push notification to resident: ${e}`);
+    }
+
+    // Real-time событие для WebSocket шлюза (Subtask B)
+    try {
+      this.eventEmitter?.emit('chat.message.created', {
+        message,
+        conversationId: id,
+        tenantId: conversation.tenantId,
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to emit chat.message.created event: ${e}`);
     }
 
     return message;

@@ -4,7 +4,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserRole, SosAlertStatus } from '@prisma/client';
@@ -21,6 +23,7 @@ export class SosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   /**
@@ -152,6 +155,16 @@ export class SosService {
       `[SOS] 🚨 Вызов SOS ${existingActiveAlert ? '(повторный push)' : 'создан'}: ${residentName} (${residentPhone}) в ЖК ${tenantId}`,
     );
 
+    // Real-time событие для WebSocket шлюза (Subtask C)
+    try {
+      this.eventEmitter?.emit('sos.alert.triggered', {
+        alert: alertToNotify,
+        tenantId,
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to emit sos.alert.triggered event: ${e}`);
+    }
+
     return alertToNotify;
   }
 
@@ -248,7 +261,7 @@ export class SosService {
       });
     }
 
-    return this.prisma.sosAlert.update({
+    const updatedAlert = await this.prisma.sosAlert.update({
       where: { id: alertId },
       data: {
         status: dto.status,
@@ -277,6 +290,18 @@ export class SosService {
         },
       },
     });
+
+    // Real-time событие для WebSocket шлюза (Subtask C)
+    try {
+      this.eventEmitter?.emit('sos.alert.updated', {
+        alert: updatedAlert,
+        tenantId: alert.tenantId,
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to emit sos.alert.updated event: ${e}`);
+    }
+
+    return updatedAlert;
   }
 
   /**
@@ -312,7 +337,7 @@ export class SosService {
   // Вспомогательные проверки
   // =============================================================
 
-  private assertStaffOrChairmanRole(user: any, tenantId: string): void {
+  assertStaffOrChairmanRole(user: any, tenantId: string): void {
     if (!user) {
       throw new ForbiddenException({
         code: 'SOS.AUTH_REQUIRED',

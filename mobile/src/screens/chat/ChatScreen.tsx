@@ -17,7 +17,10 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { ChatApi, ChatMessage, Conversation } from '../../api/chat';
+import { TokenStorage } from '../../storage/token-storage';
+import { Config } from '../../constants/config';
 import { Colors } from '../../constants/colors';
+import io, { Socket } from 'socket.io-client';
 import {
   ArrowLeft,
   Send,
@@ -52,26 +55,73 @@ export const ChatScreen: React.FC = () => {
       const conv = await ChatApi.getMyConversation();
       setConversation(conv);
       setMessages(conv.messages || []);
+      return conv;
     } catch (err: any) {
       if (err?.response?.status === 403) {
         setUnverifiedError(true);
       } else if (!isSilent) {
         console.warn('Failed to load chat conversation:', err);
       }
+      return null;
     } finally {
       if (!isSilent) setLoading(false);
     }
   }, []);
 
-  // Poll for new messages every 7s while the screen is focused
+  // Real-time WebSocket connection while screen is focused (Subtask E)
   useFocusEffect(
     useCallback(() => {
-      loadConversation();
-      const interval = setInterval(() => {
-        loadConversation(true);
-      }, 7000);
+      let socket: Socket | null = null;
+      let active = true;
 
-      return () => clearInterval(interval);
+      const initSocket = async () => {
+        const conv = await loadConversation();
+        if (!active) return;
+
+        const token = await TokenStorage.getAccessToken();
+        if (!token || !active) return;
+
+        socket = io(Config.SOCKET_URL, {
+          auth: { token },
+          transports: ['websocket', 'polling'],
+          autoConnect: true,
+        });
+
+        socket.on('connect', () => {
+          if (conv?.id) {
+            socket?.emit('chat:join', { conversationId: conv.id });
+          }
+        });
+
+        socket.on('reconnect', () => {
+          if (conv?.id) {
+            socket?.emit('chat:join', { conversationId: conv.id });
+          }
+          // Reconciliation fetch on reconnect (Decision #7)
+          loadConversation(true);
+        });
+
+        socket.on('chat:message', (newMsg: ChatMessage) => {
+          if (newMsg) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          }
+        });
+      };
+
+      initSocket();
+
+      return () => {
+        active = false;
+        if (socket) {
+          socket.disconnect();
+        }
+      };
     }, [loadConversation]),
   );
 

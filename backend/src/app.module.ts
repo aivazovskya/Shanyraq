@@ -20,6 +20,9 @@ import { CommunityBoardModule } from './modules/community-board/community-board.
 import { ChatModule } from './modules/chat/chat.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { RealtimeModule } from './modules/realtime/realtime.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -47,6 +50,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     CommunityBoardModule,
     ChatModule,
     AnalyticsModule,
+    EventEmitterModule.forRoot(),
+    RealtimeModule,
   ],
   providers: [
     {

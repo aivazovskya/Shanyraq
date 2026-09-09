@@ -15,10 +15,11 @@ import {
   Phone,
   User as UserIcon,
   Home,
-  Clock,
   CheckCheck,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { createRealtimeSocket } from '@/lib/socket';
+import { Socket } from 'socket.io-client';
 
 export interface ChatSender {
   id: string;
@@ -95,6 +96,8 @@ export default function DispatcherChatPage() {
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const prevConvIdRef = useRef<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -156,15 +159,6 @@ export default function DispatcherChatPage() {
     }
   }, [tenantId, loadConversations]);
 
-  // Polling for conversation list every 20 seconds (Decision #1)
-  useEffect(() => {
-    if (!tenantId) return;
-    const interval = setInterval(() => {
-      loadConversations(tenantId, true);
-    }, 20000);
-    return () => clearInterval(interval);
-  }, [tenantId, loadConversations]);
-
   // 3. Fetch messages for selected conversation
   const loadMessages = useCallback(
     async (convId: string, isSilent = false) => {
@@ -198,14 +192,78 @@ export default function DispatcherChatPage() {
     }
   }, [selectedConversationId, loadMessages]);
 
-  // Polling for selected conversation messages every 10 seconds (Decision #1)
+  // Real-time WebSocket: подключение и подписка на входящие ЖК (Subtask D)
   useEffect(() => {
-    if (!selectedConversationId) return;
-    const interval = setInterval(() => {
-      loadMessages(selectedConversationId, true);
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [selectedConversationId, loadMessages]);
+    if (!tenantId) return;
+
+    const socket = createRealtimeSocket();
+    if (!socket) return;
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('chat:join', { tenantId });
+      // Reconciliation fetch при подключении
+      loadConversations(tenantId, true);
+      if (selectedConversationId) {
+        loadMessages(selectedConversationId, true);
+      }
+    });
+
+    socket.on('reconnect', () => {
+      socket.emit('chat:join', { tenantId });
+      if (selectedConversationId) {
+        socket.emit('chat:join', { conversationId: selectedConversationId });
+      }
+      // Reconciliation fetch при реконнекте (Decision #7)
+      loadConversations(tenantId, true);
+      if (selectedConversationId) {
+        loadMessages(selectedConversationId, true);
+      }
+    });
+
+    socket.on('chat:inbox:message', () => {
+      // Обновляем список диалогов и счетчики без поллинга
+      loadConversations(tenantId, true);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [tenantId, loadConversations, loadMessages, selectedConversationId]);
+
+  // Real-time подписка на комнату активного диалога (Subtask D)
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    // Выходим из предыдущего диалога
+    if (prevConvIdRef.current && prevConvIdRef.current !== selectedConversationId) {
+      socket.emit('chat:leave', { conversationId: prevConvIdRef.current });
+    }
+
+    if (selectedConversationId) {
+      socket.emit('chat:join', { conversationId: selectedConversationId });
+      prevConvIdRef.current = selectedConversationId;
+    } else {
+      prevConvIdRef.current = null;
+    }
+
+    const handleIncomingMessage = (newMsg: ChatMessageItem) => {
+      if (newMsg && newMsg.conversationId === selectedConversationId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+      }
+    };
+
+    socket.on('chat:message', handleIncomingMessage);
+
+    return () => {
+      socket.off('chat:message', handleIncomingMessage);
+    };
+  }, [selectedConversationId]);
 
   useEffect(() => {
     if (messages.length > 0) {
