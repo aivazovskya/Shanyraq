@@ -37,8 +37,10 @@ export class PropertiesController {
 
   @Get('tenants/:id')
   @ApiOperation({ summary: 'Информация о ЖК с домами и квартирами' })
-  async getTenantById(@Param('id') id: string) {
-    return this.propertiesService.getTenantById(id);
+  async getTenantById(@Param('id') id: string, @CurrentUser() user: any) {
+    // Аудит безопасности (Subtask C1): доступ к данным ЖК разрешен только для персонала этого ЖК или SUPERADMIN
+    assertUserBelongsToTenant(user, id, 'жилого комплекса');
+    return this.propertiesService.getTenantById(id, user);
   }
 
   @Post('tenants')
@@ -51,8 +53,12 @@ export class PropertiesController {
   @Post('buildings/:buildingId/units')
   @Roles(UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
   @ApiOperation({ summary: 'Добавить квартиру/помещение в блок ЖК' })
-  async addUnit(@Param('buildingId') buildingId: string, @Body() dto: CreateUnitDto) {
-    return this.propertiesService.addUnit(buildingId, dto);
+  async addUnit(
+    @Param('buildingId') buildingId: string,
+    @CurrentUser() user: any,
+    @Body() dto: CreateUnitDto,
+  ) {
+    return this.propertiesService.addUnit(buildingId, user, dto);
   }
 
   @Post('ownerships/claim')

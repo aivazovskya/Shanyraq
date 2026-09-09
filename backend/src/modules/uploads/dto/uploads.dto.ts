@@ -1,4 +1,4 @@
-﻿import { IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum UploadCategory {
@@ -6,15 +6,31 @@ export enum UploadCategory {
   DOCUMENT = 'document',   // Сканы документов права собственности, договоры
 }
 
+export const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
+
+export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
+
 export class PresignUploadDto {
   @ApiProperty({ example: 'photo_leak.jpg', description: 'Имя исходного файла' })
   @IsString()
   @IsNotEmpty()
   filename: string;
 
-  @ApiProperty({ example: 'image/jpeg', description: 'MIME-тип файла' })
+  @ApiProperty({
+    example: 'image/jpeg',
+    description: 'MIME-тип файла (JPEG, PNG, WebP, PDF)',
+    enum: ALLOWED_MIME_TYPES,
+  })
   @IsString()
   @IsNotEmpty()
+  @IsIn(ALLOWED_MIME_TYPES, {
+    message: 'Недопустимый тип файла. Разрешены только JPEG, PNG, WebP и PDF',
+  })
   mimeType: string;
 
   @ApiPropertyOptional({ enum: UploadCategory, default: UploadCategory.MEDIA, description: 'Категория загрузки' })

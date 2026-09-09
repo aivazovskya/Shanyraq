@@ -23,6 +23,7 @@
 | RBAC / tenant-изоляция | ✅ | `TenantGuard`, `RolesGuard`, ролевая модель полностью соответствует Разделу 2 и 6 (все роли из `UserRole` присутствуют) |
 | 2FA/PIN/биометрия перед открытием шлагбаума (п. 5.1) | ✅ | Завершена [Task 0002](0002-barrier-2fa-pin.md): PIN в схеме User, 4 эндпоинта в Auth, проверка PIN и 10-мин lockout в openBarrier, PinEntryModal и PinSetupScreen в мобильном приложении |
 | Мультитенантность (п. 5.2) | ✅ | Заложена архитектурно с первого дня (`Tenant` как корень модели данных) — по факту это уже пункт Фазы 3, сделан раньше графика |
+| Комплексный аудит безопасности (OWASP Top 10) | ✅ | Завершена [Task 0019](0019-security-hardening.md): устранены 12 уязвимостей в 4 эшелонах (Critical: cross-tenant ОСС meeting; High: brute-force lockout на вход по паролю, fail-fast MinIO креденшлы, проверка ЖК в addUnit, server-side MIME allowlist и presigned POST limit; Medium: BOLA в GET /properties/tenants/:id, проверка владения в createRequest, @nestjs/throttler rate-limiting, CORS allowlist, in-memory сессия веб-клиента; Low: скрытие внутренних сетевых ошибок СКУД/S3, helmet headers и сокрытие Swagger на проде). 244/244 тестов бэкенда green, 100% паритет i18n (151 ключ) |
 
 ## Фаза 2 (частично опережает график)
 

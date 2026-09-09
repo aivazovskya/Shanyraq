@@ -44,6 +44,9 @@ describe('ServiceRequestsService (IDOR / BOLA and Tenant Isolation)', () => {
       unit: {
         findUnique: jest.fn(),
       },
+      user: {
+        findUnique: jest.fn(),
+      },
     };
 
     notificationsServiceMock = {
@@ -274,6 +277,86 @@ describe('ServiceRequestsService (IDOR / BOLA and Tenant Isolation)', () => {
           { id: 'dispatcher-2', role: UserRole.DISPATCHER, tenantId: 'tenant-B' },
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('createRequest (Subtask C2: unit ownership check)', () => {
+    const mockUnit = {
+      id: 'unit-target',
+      building: { id: 'b-1', tenantId: 'tenant-A' },
+      ownerships: [
+        { userId: 'legit-owner', isVerified: true },
+        { userId: 'unverified-resident', isVerified: false },
+      ],
+    };
+
+    const mockDto = {
+      unitId: 'unit-target',
+      title: 'Протечка трубы',
+      description: 'Течет вода',
+      category: 'PLUMBING' as any,
+      priority: 'HIGH' as any,
+    };
+
+    it('должен блокировать создание заявки для чужой квартиры посторонним жителем', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'attacker-resident',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-A',
+      });
+
+      try {
+        await service.createRequest('attacker-resident', mockDto);
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect(err.getResponse().code).toBe('SERVICE_REQUESTS.UNIT_ACCESS_FORBIDDEN');
+      }
+    });
+
+    it('должен блокировать создание заявки неподтвержденным жильцом', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'unverified-resident',
+        role: UserRole.RESIDENT_TENANT,
+        tenantId: 'tenant-A',
+      });
+
+      await expect(
+        service.createRequest('unverified-resident', mockDto),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('должен успешно создавать заявку для подтвержденного собственника помещения', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+      prismaMock.serviceRequest.create.mockResolvedValue({
+        id: 'req-new',
+        ...mockDto,
+        tenantId: 'tenant-A',
+        creatorId: 'legit-owner',
+      });
+
+      const res = await service.createRequest('legit-owner', mockDto);
+      expect(res.id).toBe('req-new');
+      expect(prismaMock.serviceRequest.create).toHaveBeenCalled();
+    });
+
+    it('должен разрешать создание заявки диспетчеру данного ЖК от имени жильца', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'dispatcher-1',
+        role: UserRole.DISPATCHER,
+        tenantId: 'tenant-A',
+      });
+      prismaMock.serviceRequest.create.mockResolvedValue({
+        id: 'req-dispatcher',
+        ...mockDto,
+        tenantId: 'tenant-A',
+      });
+
+      const res = await service.createRequest('dispatcher-1', mockDto);
+      expect(res.id).toBe('req-dispatcher');
     });
   });
 });

@@ -796,7 +796,8 @@
       "PIN_LENGTH_INVALID": "PIN must be exactly 4 or 6 digits",
       "PIN_REPEATED_DIGITS": "PIN is too simple: repeated digits are not allowed",
       "PIN_PREDICTABLE": "PIN is too simple or predictable. Please choose a more complex combination",
-      "INVALID_TOKEN_TYPE": "Invalid token type. Refresh token cannot be used to authorize requests"
+      "INVALID_TOKEN_TYPE": "Invalid token type. Refresh token cannot be used to authorize requests",
+      "LOGIN_LOCKED": "Too many failed login attempts. Please try again in {{waitMinutes}} min."
     },
     "VOTINGS": {
       "TENANT_ID_REQUIRED": "Residential complex ID is required",
@@ -873,7 +874,7 @@
     },
     "ACCESS_CONTROL": {
       "HIKVISION_CREDENTIALS_MISSING": "Hikvision intercom credentials are not configured",
-      "HIKVISION_CONNECTION_ERROR": "Device connection error ({{url}}): {{error}}",
+      "HIKVISION_CONNECTION_ERROR": "Access control equipment connection error",
       "HIKVISION_DEVICE_ERROR": "Device error: {{error}}",
       "HIKVISION_TIMEOUT": "Device response timeout exceeded (5 sec)",
       "ADMIN_ONLY_CREATE": "Only administrators can create access points",
@@ -939,7 +940,8 @@
       "CROSS_TENANT_EDIT_FORBIDDEN": "Editing a request from another residential complex is forbidden",
       "CROSS_TENANT_COMMENT_FORBIDDEN": "Adding comments to requests of another residential complex is forbidden",
       "FOREIGN_REQUEST_COMMENT_FORBIDDEN": "Adding comments to another user's request is forbidden",
-      "RATING_CREATOR_ONLY": "Only the request creator can rate the completion quality"
+      "RATING_CREATOR_ONLY": "Only the request creator can rate the completion quality",
+      "UNIT_ACCESS_FORBIDDEN": "You do not have verified access to this property"
     },
     "ANNOUNCEMENTS": {
       "COMPLEX_NOT_FOUND": "Residential complex not found",
@@ -951,8 +953,9 @@
     },
     "UPLOADS": {
       "FILE_EMPTY": "File not provided or has zero size",
-      "STORAGE_ERROR": "Error saving file to storage: {{error}}",
-      "FILE_MISSING": "File not provided in the \"file\" field"
+      "STORAGE_ERROR": "Error saving file to storage",
+      "FILE_MISSING": "File not provided in the \"file\" field",
+      "INVALID_MIME_TYPE": "Invalid file type. Only JPEG, PNG, WebP, and PDF are allowed"
     }
   }
 }

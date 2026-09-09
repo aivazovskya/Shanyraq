@@ -6,10 +6,11 @@ import {
   HeadBucketCommand,
   CreateBucketCommand,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import * as crypto from 'crypto';
 import * as path from 'path';
-import { UploadCategory } from './dto/uploads.dto';
+import * as FileType from 'file-type';
+import { UploadCategory, ALLOWED_MIME_TYPES } from './dto/uploads.dto';
 
 @Injectable()
 export class UploadsService implements OnModuleInit {
@@ -26,8 +27,15 @@ export class UploadsService implements OnModuleInit {
     this.endpoint = this.configService.get<string>('S3_ENDPOINT', 'localhost');
     this.port = parseInt(this.configService.get<string>('S3_PORT', '9000'), 10);
     this.useSsl = this.configService.get<string>('S3_USE_SSL', 'false') === 'true';
-    const accessKey = this.configService.get<string>('S3_ACCESS_KEY', 'shanyraq_minio');
-    const secretKey = this.configService.get<string>('S3_SECRET_KEY', 'shanyraq_minio_secret_key');
+    const accessKey = this.configService.get<string>('S3_ACCESS_KEY');
+    const secretKey = this.configService.get<string>('S3_SECRET_KEY');
+
+    if (!accessKey || !secretKey) {
+      throw new Error(
+        'КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ: S3_ACCESS_KEY или S3_SECRET_KEY не заданы в конфигурации!',
+      );
+    }
+
     this.mediaBucket = this.configService.get<string>('S3_BUCKET_MEDIA', 'shanyraq-media');
     this.docsBucket = this.configService.get<string>('S3_BUCKET_DOCS', 'shanyraq-documents');
 
@@ -86,6 +94,21 @@ export class UploadsService implements OnModuleInit {
       });
     }
 
+    if (!file.mimetype || !ALLOWED_MIME_TYPES.includes(file.mimetype as any)) {
+      throw new BadRequestException({
+        code: 'UPLOADS.INVALID_MIME_TYPE',
+        message: 'Недопустимый тип файла. Разрешены только JPEG, PNG, WebP и PDF',
+      });
+    }
+
+    const detected = await FileType.fromBuffer(file.buffer);
+    if (!detected || !ALLOWED_MIME_TYPES.includes(detected.mime as any) || detected.mime !== file.mimetype) {
+      throw new BadRequestException({
+        code: 'UPLOADS.INVALID_MIME_TYPE',
+        message: 'Недопустимый тип файла. Разрешены только JPEG, PNG, WebP и PDF',
+      });
+    }
+
     const bucket = this.resolveBucket(category);
     const key = this.generateFileKey(file.originalname);
 
@@ -99,11 +122,10 @@ export class UploadsService implements OnModuleInit {
         }),
       );
     } catch (error: any) {
-      this.logger.error(`Ошибка загрузки файла в S3: ${error.message}`);
+      this.logger.error(`Ошибка загрузки файла в S3: ${error.message}`, error.stack);
       throw new BadRequestException({
         code: 'UPLOADS.STORAGE_ERROR',
-        message: `Ошибка при сохранении файла в хранилище: ${error.message}`,
-        params: { error: error.message },
+        message: 'Ошибка при сохранении файла в хранилище',
       });
     }
 
@@ -118,20 +140,34 @@ export class UploadsService implements OnModuleInit {
   }
 
   async getPresignedUploadUrl(filename: string, mimeType: string, category?: UploadCategory) {
+    if (!mimeType || !ALLOWED_MIME_TYPES.includes(mimeType as any)) {
+      throw new BadRequestException({
+        code: 'UPLOADS.INVALID_MIME_TYPE',
+        message: 'Недопустимый тип файла. Разрешены только JPEG, PNG, WebP и PDF',
+      });
+    }
+
     const bucket = this.resolveBucket(category);
     const key = this.generateFileKey(filename);
 
-    const command = new PutObjectCommand({
+    const post = await createPresignedPost(this.s3Client, {
       Bucket: bucket,
       Key: key,
-      ContentType: mimeType,
+      Conditions: [
+        ['content-length-range', 1, 15 * 1024 * 1024], // 1 byte to 15MB
+        ['eq', '$Content-Type', mimeType],
+      ],
+      Fields: {
+        'Content-Type': mimeType,
+      },
+      Expires: 900,
     });
 
-    const uploadUrl = await getSignedUrl(this.s3Client, command, { expiresIn: 900 });
     const fileUrl = `${this.publicBaseUrl}/${bucket}/${key}`;
 
     return {
-      uploadUrl,
+      uploadUrl: post.url,
+      fields: post.fields,
       fileUrl,
       key,
       expiresIn: 900,

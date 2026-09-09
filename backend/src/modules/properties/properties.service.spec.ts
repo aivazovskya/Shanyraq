@@ -17,10 +17,13 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         update: jest.fn(),
       },
       building: {
+        findUnique: jest.fn(),
         update: jest.fn(),
       },
       unit: {
+        findUnique: jest.fn(),
         findMany: jest.fn(),
+        create: jest.fn(),
       },
       unitOwnership: {
         findMany: jest.fn(),
@@ -408,6 +411,107 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         expect(res.success).toBe(true);
         expect(prismaMock.user.update).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('addUnit (Subtask B3: tenant authorization)', () => {
+    const mockBuilding = {
+      id: 'b-1',
+      blockName: 'Блок 1',
+      tenantId: 'tenant-legit',
+    };
+
+    const mockDto = {
+      unitNumber: '101',
+      floor: 1,
+      entrance: 1,
+      type: 'APARTMENT' as any,
+      area: 65.5,
+    };
+
+    it('должен блокировать добавление квартиры администратором чужого ЖК (BOLA/IDOR protection)', async () => {
+      prismaMock.building.findUnique.mockResolvedValue(mockBuilding);
+
+      const foreignAdmin = {
+        id: 'admin-foreign',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-attacker',
+      };
+
+      await expect(
+        service.addUnit('b-1', foreignAdmin, mockDto),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('должен успешно создавать квартиру, если администратор принадлежит тому же ЖК', async () => {
+      prismaMock.building.findUnique.mockResolvedValue(mockBuilding);
+      prismaMock.unit.create.mockResolvedValue({
+        id: 'unit-new-1',
+        buildingId: 'b-1',
+        unitNumber: '101',
+      });
+      prismaMock.unit.findMany.mockResolvedValue([]);
+      prismaMock.personalAccount.findFirst = jest.fn().mockResolvedValue({ id: 'pa-1' });
+
+      const legitAdmin = {
+        id: 'admin-legit',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-legit',
+      };
+
+      const res = await service.addUnit('b-1', legitAdmin, mockDto);
+      expect(res.id).toBe('unit-new-1');
+      expect(prismaMock.unit.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('getTenantById (Subtask C1: tenant authorization)', () => {
+    it('должен блокировать доступ к ЖК для пользователя другого ЖК (BOLA/IDOR protection)', async () => {
+      const foreignUser = {
+        id: 'user-foreign',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-1',
+      };
+
+      await expect(
+        service.getTenantById('tenant-2', foreignUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('должен разрешать доступ к ЖК для персонала своего ЖК', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-1',
+        name: 'ЖК Наш',
+        buildings: [],
+        _count: {},
+      });
+
+      const legitUser = {
+        id: 'user-legit',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-1',
+      };
+
+      const res = await service.getTenantById('tenant-1', legitUser);
+      expect(res.id).toBe('tenant-1');
+    });
+
+    it('должен разрешать доступ к любому ЖК для SUPERADMIN', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-target',
+        name: 'ЖК Любой',
+        buildings: [],
+        _count: {},
+      });
+
+      const superadmin = {
+        id: 'superadmin',
+        role: UserRole.SUPERADMIN,
+        tenantId: null,
+      };
+
+      const res = await service.getTenantById('tenant-target', superadmin);
+      expect(res.id).toBe('tenant-target');
     });
   });
 });

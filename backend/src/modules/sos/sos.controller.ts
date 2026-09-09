@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { SosService } from './sos.service';
 import {
   TriggerSosDto,
@@ -33,6 +34,7 @@ export class SosController {
   constructor(private readonly sosService: SosService) {}
 
   @Post()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Экстренный вызов SOS (для жителей)' })
   async trigger(@Body() dto: TriggerSosDto, @Request() req: any) {
     return this.sosService.trigger(req.user, dto);

@@ -13,6 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { UserRole } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Access Control & Video (СКУД, Шлагбаумы, Камеры)')
 @Controller('access')
@@ -78,6 +79,7 @@ export class AccessControlController {
   }
 
   @Post('guest-pass')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Оформить гостевой пропуск (QR-код / PIN-код для своей квартиры)' })
   async createGuestPass(@CurrentUser() user: any, @Body() dto: CreateGuestPassDto) {
     return this.accessControlService.createGuestPass(user, dto);

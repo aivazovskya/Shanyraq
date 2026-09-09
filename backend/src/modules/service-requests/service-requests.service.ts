@@ -14,7 +14,10 @@ export class ServiceRequestsService {
   async createRequest(userId: string, dto: CreateServiceRequestDto) {
     const unit = await this.prisma.unit.findUnique({
       where: { id: dto.unitId },
-      include: { building: true },
+      include: {
+        building: true,
+        ownerships: true,
+      },
     });
 
     if (!unit) {
@@ -22,6 +25,35 @@ export class ServiceRequestsService {
         code: 'SERVICE_REQUESTS.UNIT_NOT_FOUND',
         message: 'Квартира/помещение не найдено',
       });
+    }
+
+    // Аудит безопасности (Subtask C2): проверка прав на помещение (BOLA/IDOR protection)
+    const hasVerifiedOwnership = unit.ownerships?.some(
+      (o) => o.userId === userId && o.isVerified,
+    );
+
+    if (!hasVerifiedOwnership) {
+      // Разрешаем сотрудникам обслуживающей организации данного ЖК и суперадминам
+      const caller = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true, tenantId: true },
+      });
+
+      const isAuthorizedStaff =
+        caller &&
+        (caller.role === UserRole.SUPERADMIN ||
+          ((caller.role === UserRole.HOA_ADMIN ||
+            caller.role === UserRole.HOA_CHAIRMAN ||
+            caller.role === UserRole.DISPATCHER ||
+            caller.role === UserRole.SECURITY) &&
+            caller.tenantId === unit.building.tenantId));
+
+      if (!isAuthorizedStaff) {
+        throw new ForbiddenException({
+          code: 'SERVICE_REQUESTS.UNIT_ACCESS_FORBIDDEN',
+          message: 'У вас нет подтвержденного доступа к данному помещению',
+        });
+      }
     }
 
     return this.prisma.serviceRequest.create({

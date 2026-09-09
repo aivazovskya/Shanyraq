@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -85,6 +86,8 @@ function buildDigestHeader(
 
 @Injectable()
 export class HikvisionIsapiAdapter implements IBarrierAdapter {
+  private readonly logger = new Logger(HikvisionIsapiAdapter.name);
+
   constructor(private readonly configService: ConfigService) {}
 
   async triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }> {
@@ -109,10 +112,10 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
       res = await this.executeDigestRequest(targetUrl, 'PUT', xmlBody, username, password);
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
+      this.logger.error(`Hikvision connection error (${cleanUrl}): ${err.message || err}`, err.stack);
       throw new BadRequestException({
         code: 'ACCESS_CONTROL.HIKVISION_CONNECTION_ERROR',
-        message: `HIKVISION_CONNECTION_ERROR: Ошибка связи с домофоном (${cleanUrl}): ${err.message || err}`,
-        params: { url: cleanUrl, error: String(err.message || err) },
+        message: 'HIKVISION_CONNECTION_ERROR: Ошибка связи с домофоном',
       });
     }
 
@@ -165,10 +168,10 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
       res = await this.executeDigestRequest(targetUrl, 'GET', undefined, username, password);
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
+      this.logger.error(`Hikvision connection error (${cleanUrl}): ${err.message || err}`, err.stack);
       throw new BadRequestException({
         code: 'ACCESS_CONTROL.HIKVISION_CONNECTION_ERROR',
-        message: `HIKVISION_CONNECTION_ERROR: Устройство недоступно (${cleanUrl}): ${err.message || err}`,
-        params: { url: cleanUrl, error: String(err.message || err) },
+        message: 'HIKVISION_CONNECTION_ERROR: Устройство недоступно',
       });
     }
 

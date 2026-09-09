@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 import { ChatService } from './chat.service';
 import { CreateChatMessageDto } from './dto/chat.dto';
 
@@ -33,6 +34,7 @@ export class ChatController {
   }
 
   @Post('my-conversation/messages')
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
   @ApiOperation({ summary: 'Отправка сообщения жителем в чат с диспетчером' })
   async sendResidentMessage(
     @Request() req: any,

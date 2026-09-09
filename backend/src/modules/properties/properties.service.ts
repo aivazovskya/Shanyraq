@@ -8,6 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto } from './dto/properties.dto';
 import { UserRole } from '@prisma/client';
 import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
 @Injectable()
 export class PropertiesService {
@@ -109,7 +110,10 @@ export class PropertiesService {
     };
   }
 
-  async getTenantById(id: string) {
+  async getTenantById(id: string, user?: any) {
+    if (user) {
+      assertUserBelongsToTenant(user, id, 'жилого комплекса');
+    }
     const tenant = await this.prisma.tenant.findUnique({
       where: { id },
       include: {
@@ -151,13 +155,18 @@ export class PropertiesService {
     });
   }
 
-  async addUnit(buildingId: string, dto: CreateUnitDto) {
+  async addUnit(buildingId: string, user: any, dto: CreateUnitDto) {
     const building = await this.prisma.building.findUnique({ where: { id: buildingId } });
     if (!building) {
       throw new NotFoundException({
         code: 'PROPERTIES.BLOCK_NOT_FOUND',
         message: 'Блок/дом не найден',
       });
+    }
+
+    // Аудит безопасности (Subtask B3): проверка принадлежности администратора к ЖК здания
+    if (user) {
+      assertUserBelongsToTenant(user, building.tenantId, 'квартир');
     }
 
     const unit = await this.prisma.unit.create({

@@ -428,5 +428,103 @@ describe('AuthService (Аудит безопасности авторизаци�
       expect(res.message).toBe('PIN-код успешно сброшен и обновлен');
     });
   });
+
+  describe('loginWithPassword & Brute Force Protection (Subtask B1)', () => {
+    const mockHashedPassword = bcrypt.hashSync('CorrectPassword123!', 10);
+    const mockUser = {
+      id: 'admin-1',
+      phone: '+77017778899',
+      email: 'admin@shanyraq.kz',
+      passwordHash: mockHashedPassword,
+      role: UserRole.HOA_ADMIN,
+      tenantId: 'tenant-1',
+      tokenVersion: 1,
+    };
+
+    it('должен успешно авторизовать пользователя с верным паролем', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(mockUser);
+
+      const res = await service.loginWithPassword({
+        login: '+77017778899',
+        password: 'CorrectPassword123!',
+      });
+
+      expect(res.user.id).toBe('admin-1');
+      expect(res.accessToken).toBeDefined();
+    });
+
+    it('должен отклонять неверный пароль ошибкой AUTH.INVALID_CREDENTIALS', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(mockUser);
+
+      try {
+        await service.loginWithPassword({
+          login: '+77017778899',
+          password: 'WrongPassword!',
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(UnauthorizedException);
+        expect(err.getResponse().code).toBe('AUTH.INVALID_CREDENTIALS');
+      }
+    });
+
+    it('должен блокировать аккаунт (AUTH.LOGIN_LOCKED) на 10 минут после 3 неверных попыток', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(mockUser);
+      const testLogin = 'attacker_target@shanyraq.kz';
+
+      // 1-я неверная попытка
+      try {
+        await service.loginWithPassword({ login: testLogin, password: 'bad1' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('AUTH.INVALID_CREDENTIALS');
+      }
+
+      // 2-я неверная попытка
+      try {
+        await service.loginWithPassword({ login: testLogin, password: 'bad2' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('AUTH.INVALID_CREDENTIALS');
+      }
+
+      // 3-я неверная попытка -> Блокировка
+      try {
+        await service.loginWithPassword({ login: testLogin, password: 'bad3' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('AUTH.LOGIN_LOCKED');
+      }
+
+      // 4-я попытка сразу отклоняется блокировкой без обращения к bcrypt
+      try {
+        await service.loginWithPassword({ login: testLogin, password: 'CorrectPassword123!' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('AUTH.LOGIN_LOCKED');
+      }
+    });
+
+    it('должен отклонять несуществующего пользователя (findFirst -> null) ошибкой AUTH.INVALID_CREDENTIALS без вызова bcrypt.compare', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(null);
+      const compareSpy = jest.spyOn(bcrypt, 'compare');
+
+      try {
+        await service.loginWithPassword({
+          login: '+77000000000',
+          password: 'AnyPassword123!',
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(UnauthorizedException);
+        expect(err.getResponse().code).toBe('AUTH.INVALID_CREDENTIALS');
+        expect(compareSpy).not.toHaveBeenCalled();
+      } finally {
+        compareSpy.mockRestore();
+      }
+    });
+  });
 });
 

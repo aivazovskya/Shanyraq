@@ -17,7 +17,8 @@ export interface AuthSession {
   user: AuthUser;
 }
 
-const STORAGE_KEY = 'shanyraq_auth';
+// Subtask C5: Хранение сессии в оперативной памяти (in-memory) для защиты от XSS-эксфильтрации токена
+let inMemorySession: AuthSession | null = null;
 
 export class NoSessionError extends Error {
   constructor(message = 'Сессия пользователя отсутствует или истекла') {
@@ -27,24 +28,15 @@ export class NoSessionError extends Error {
 }
 
 export function getStoredSession(): AuthSession | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return inMemorySession;
 }
 
 export function saveSession(session: AuthSession): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  inMemorySession = session;
 }
 
 export function clearSession(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(STORAGE_KEY);
+  inMemorySession = null;
 }
 
 /**

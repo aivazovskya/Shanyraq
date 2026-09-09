@@ -11,7 +11,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
 import { UploadsService } from './uploads.service';
-import { PresignUploadDto, UploadCategory } from './dto/uploads.dto';
+import { PresignUploadDto, UploadCategory, ALLOWED_MIME_TYPES } from './dto/uploads.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Uploads (Загрузка медиа и документов в S3/MinIO)')
@@ -40,6 +40,18 @@ export class UploadsController {
     FileInterceptor('file', {
       limits: {
         fileSize: 15 * 1024 * 1024, // 15 MB
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!ALLOWED_MIME_TYPES.includes(file.mimetype as any)) {
+          return callback(
+            new BadRequestException({
+              code: 'UPLOADS.INVALID_MIME_TYPE',
+              message: 'Недопустимый тип файла. Разрешены только JPEG, PNG, WebP и PDF',
+            }),
+            false,
+          );
+        }
+        callback(null, true);
       },
     }),
   )

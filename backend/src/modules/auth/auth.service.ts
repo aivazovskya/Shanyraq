@@ -23,8 +23,12 @@ interface OtpEntry {
 
 const OTP_KEY_PREFIX = 'otp:';
 const LOCKOUT_KEY_PREFIX = 'otp:lockout:';
+const LOGIN_LOCKOUT_KEY_PREFIX = 'login:lockout:';
+const LOGIN_ATTEMPTS_KEY_PREFIX = 'login:attempts:';
 const OTP_TTL_SECONDS = 5 * 60; // 5 minutes
 const LOCKOUT_TTL_SECONDS = 10 * 60; // 10 minutes
+const LOGIN_LOCKOUT_TTL_SECONDS = 10 * 60; // 10 minutes
+const LOGIN_MAX_ATTEMPTS = 3;
 const ACCESS_TOKEN_EXPIRES_IN = '15m';
 const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes in seconds
 
@@ -410,6 +414,63 @@ export class AuthService {
 
   async loginWithPassword(dto: LoginPasswordDto) {
     const { login, password } = dto;
+    const loginKey = (login || '').trim().toLowerCase();
+    const now = Date.now();
+
+    // 1. Проверка блокировки аккаунта (fail-closed if Redis error)
+    try {
+      const lockoutVal = await this.redisService.get(`${LOGIN_LOCKOUT_KEY_PREFIX}${loginKey}`);
+      if (lockoutVal) {
+        const lockedUntil = parseInt(lockoutVal, 10);
+        if (lockedUntil > now) {
+          const waitMinutes = Math.max(1, Math.ceil((lockedUntil - now) / 60000));
+          throw new BadRequestException({
+            code: 'AUTH.LOGIN_LOCKED',
+            message: `Слишком много неудачных попыток входа. Аккаунт временно заблокирован на ${waitMinutes} мин.`,
+            params: { waitMinutes },
+          });
+        }
+      }
+    } catch (err: any) {
+      if (err instanceof BadRequestException) throw err;
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SERVICE_UNAVAILABLE',
+        message: 'Сервис временно недоступен, попробуйте позже',
+      });
+    }
+
+    const registerFailedAttempt = async () => {
+      try {
+        const attemptsVal = await this.redisService.get(`${LOGIN_ATTEMPTS_KEY_PREFIX}${loginKey}`);
+        const currentAttempts = attemptsVal ? parseInt(attemptsVal, 10) + 1 : 1;
+        if (currentAttempts >= LOGIN_MAX_ATTEMPTS) {
+          await this.redisService.del(`${LOGIN_ATTEMPTS_KEY_PREFIX}${loginKey}`);
+          const lockedUntil = now + LOGIN_LOCKOUT_TTL_SECONDS * 1000;
+          await this.redisService.set(
+            `${LOGIN_LOCKOUT_KEY_PREFIX}${loginKey}`,
+            lockedUntil.toString(),
+            LOGIN_LOCKOUT_TTL_SECONDS,
+          );
+          throw new BadRequestException({
+            code: 'AUTH.LOGIN_LOCKED',
+            message: 'Слишком много неудачных попыток входа. Аккаунт временно заблокирован на 10 мин.',
+            params: { waitMinutes: 10 },
+          });
+        } else {
+          await this.redisService.set(
+            `${LOGIN_ATTEMPTS_KEY_PREFIX}${loginKey}`,
+            currentAttempts.toString(),
+            LOGIN_LOCKOUT_TTL_SECONDS,
+          );
+        }
+      } catch (err: any) {
+        if (err instanceof BadRequestException) throw err;
+      }
+      throw new UnauthorizedException({
+        code: 'AUTH.INVALID_CREDENTIALS',
+        message: 'Неверный логин или пароль',
+      });
+    };
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -430,19 +491,19 @@ export class AuthService {
     });
 
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException({
-        code: 'AUTH.INVALID_CREDENTIALS',
-        message: 'Неверный логин или пароль',
-      });
+      return await registerFailedAttempt();
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      throw new UnauthorizedException({
-        code: 'AUTH.INVALID_CREDENTIALS',
-        message: 'Неверный логин или пароль',
-      });
+      return await registerFailedAttempt();
     }
+
+    // Сброс счетчика попыток при успешном входе
+    try {
+      await this.redisService.del(`${LOGIN_ATTEMPTS_KEY_PREFIX}${loginKey}`);
+      await this.redisService.del(`${LOGIN_LOCKOUT_KEY_PREFIX}${loginKey}`);
+    } catch {}
 
     const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
 
