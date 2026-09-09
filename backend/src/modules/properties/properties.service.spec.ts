@@ -125,6 +125,13 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       await expect(service.getTenantStructure('non-existing-id')).rejects.toThrow(
         NotFoundException,
       );
+
+      try {
+        await service.getTenantStructure('non-existing-id');
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('PROPERTIES.COMPLEX_NOT_FOUND');
+      }
     });
   });
 
@@ -338,6 +345,13 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         await expect(
           service.unlinkOwnership('own-unverified', staffUser),
         ).rejects.toThrow(BadRequestException);
+
+        try {
+          await service.unlinkOwnership('own-unverified', staffUser);
+          fail('Should throw');
+        } catch (err: any) {
+          expect(err.getResponse().code).toBe('PROPERTIES.ONLY_CONFIRMED_UNLINK');
+        }
       });
 
       it('должен блокировать отвязку сотрудником чужого ЖК (ForbiddenException)', async () => {

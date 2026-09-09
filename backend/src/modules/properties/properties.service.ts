@@ -88,7 +88,10 @@ export class PropertiesService {
     });
 
     if (!tenant) {
-      throw new NotFoundException('Жилой комплекс не найден');
+      throw new NotFoundException({
+        code: 'PROPERTIES.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
     }
 
     return {
@@ -129,7 +132,10 @@ export class PropertiesService {
     });
 
     if (!tenant) {
-      throw new NotFoundException('Жилой комплекс не найден');
+      throw new NotFoundException({
+        code: 'PROPERTIES.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
     }
 
     return tenant;
@@ -148,7 +154,10 @@ export class PropertiesService {
   async addUnit(buildingId: string, dto: CreateUnitDto) {
     const building = await this.prisma.building.findUnique({ where: { id: buildingId } });
     if (!building) {
-      throw new NotFoundException('Блок/дом не найден');
+      throw new NotFoundException({
+        code: 'PROPERTIES.BLOCK_NOT_FOUND',
+        message: 'Блок/дом не найден',
+      });
     }
 
     const unit = await this.prisma.unit.create({
@@ -183,7 +192,10 @@ export class PropertiesService {
     });
 
     if (!unit) {
-      throw new NotFoundException('Квартира/помещение не найдено');
+      throw new NotFoundException({
+        code: 'PROPERTIES.UNIT_NOT_FOUND',
+        message: 'Квартира/помещение не найдено',
+      });
     }
 
     const existing = await this.prisma.unitOwnership.findUnique({
@@ -196,13 +208,19 @@ export class PropertiesService {
     });
 
     if (existing) {
-      throw new BadRequestException('Заявка на привязку этого объекта уже существует');
+      throw new BadRequestException({
+        code: 'PROPERTIES.OWNERSHIP_REQUEST_EXISTS',
+        message: 'Заявка на привязку этого объекта уже существует',
+      });
     }
 
     // Аудит безопасности: проверка суммы долей по квартире
     const requestedShare = dto.sharePercent !== undefined ? dto.sharePercent : 100.0;
     if (requestedShare <= 0 || requestedShare > 100.0) {
-      throw new BadRequestException('Доля собственности должна быть в диапазоне от 0.01% до 100%');
+      throw new BadRequestException({
+        code: 'PROPERTIES.INVALID_SHARE_RANGE',
+        message: 'Доля собственности должна быть в диапазоне от 0.01% до 100%',
+      });
     }
 
     const existingVerified = await this.prisma.unitOwnership.findMany({
@@ -211,10 +229,13 @@ export class PropertiesService {
     const currentSum = existingVerified.reduce((sum, o) => sum + o.sharePercent, 0);
 
     if (currentSum + requestedShare > 100.0) {
-      throw new BadRequestException(
-        `Суммарная доля собственности по данной квартире не может превышать 100%. ` +
-        `Уже подтверждено: ${currentSum}%, запрошено: ${requestedShare}%`,
-      );
+      throw new BadRequestException({
+        code: 'PROPERTIES.SHARE_EXCEEDS_TOTAL',
+        message:
+          `Суммарная доля собственности по данной квартире не может превышать 100%. ` +
+          `Уже подтверждено: ${currentSum}%, запрошено: ${requestedShare}%`,
+        params: { currentSum, requestedShare },
+      });
     }
 
     // Attach tenant to user if not yet attached
@@ -252,15 +273,19 @@ export class PropertiesService {
     });
 
     if (!record) {
-      throw new NotFoundException('Запись о праве собственности не найдена');
+      throw new NotFoundException({
+        code: 'PROPERTIES.OWNERSHIP_NOT_FOUND',
+        message: 'Запись о праве собственности не найдена',
+      });
     }
 
     // Аудит безопасности (Tenant isolation): сотрудник УК может верифицировать только свой ЖК
     if (verifierUser.role !== UserRole.SUPERADMIN) {
       if (!verifierUser.tenantId || verifierUser.tenantId !== record.unit.building.tenantId) {
-        throw new ForbiddenException(
-          'Доступ запрещен: вы не можете верифицировать права собственности в другом жилом комплексе',
-        );
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_VERIFY_FORBIDDEN',
+          message: 'Доступ запрещен: вы не можете верифицировать права собственности в другом жилом комплексе',
+        });
       }
     }
 
@@ -278,10 +303,13 @@ export class PropertiesService {
       });
       const otherSum = otherOwners.reduce((sum, o) => sum + o.sharePercent, 0);
       if (otherSum + finalSharePercent > 100.0) {
-        throw new BadRequestException(
-          `Невозможно подтвердить долю: сумма долей всех собственников квартиры превысит 100% ` +
-          `(уже подтверждено другим: ${otherSum}%, заявляется: ${finalSharePercent}%)`,
-        );
+        throw new BadRequestException({
+          code: 'PROPERTIES.CONFIRMED_SHARE_EXCEEDS_TOTAL',
+          message:
+            `Невозможно подтвердить долю: сумма долей всех собственников квартиры превысит 100% ` +
+            `(уже подтверждено другим: ${otherSum}%, заявляется: ${finalSharePercent}%)`,
+          params: { otherSum, finalSharePercent },
+        });
       }
     }
 
@@ -480,12 +508,18 @@ export class PropertiesService {
     });
 
     if (!user) {
-      throw new NotFoundException('Жилец не найден');
+      throw new NotFoundException({
+        code: 'PROPERTIES.RESIDENT_NOT_FOUND',
+        message: 'Жилец не найден',
+      });
     }
 
     const hasVerifiedInTenant = user.ownerships.some((o) => o.isVerified);
     if (!hasVerifiedInTenant) {
-      throw new NotFoundException('Жилец не найден в данном жилом комплексе');
+      throw new NotFoundException({
+        code: 'PROPERTIES.RESIDENT_NOT_IN_COMPLEX',
+        message: 'Жилец не найден в данном жилом комплексе',
+      });
     }
 
     return user;
@@ -508,16 +542,20 @@ export class PropertiesService {
     });
 
     if (!targetUser) {
-      throw new NotFoundException('Пользователь не найден');
+      throw new NotFoundException({
+        code: 'PROPERTIES.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
     }
 
     if (
       targetUser.role !== UserRole.RESIDENT_OWNER &&
       targetUser.role !== UserRole.RESIDENT_TENANT
     ) {
-      throw new BadRequestException(
-        'Управление статусом через данный раздел доступно только для учетных записей жильцов',
-      );
+      throw new BadRequestException({
+        code: 'PROPERTIES.STATUS_MANAGEMENT_RESIDENTS_ONLY',
+        message: 'Управление статусом через данный раздел доступно только для учетных записей жильцов',
+      });
     }
 
     if (staffUser.role !== UserRole.SUPERADMIN) {
@@ -528,9 +566,10 @@ export class PropertiesService {
         );
 
       if (!belongsToStaffTenant) {
-        throw new ForbiddenException(
-          'Доступ запрещен: пользователь не относится к вашему жилому комплексу',
-        );
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_USER_FORBIDDEN',
+          message: 'Доступ запрещен: пользователь не относится к вашему жилому комплексу',
+        });
       }
     }
 
@@ -570,20 +609,26 @@ export class PropertiesService {
     });
 
     if (!ownership) {
-      throw new NotFoundException('Право владения не найдено');
+      throw new NotFoundException({
+        code: 'PROPERTIES.OWNERSHIP_LINK_NOT_FOUND',
+        message: 'Право владения не найдено',
+      });
     }
 
     if (!ownership.isVerified) {
-      throw new BadRequestException(
-        'Отвязать можно только подтвержденное право владения. Неподтвержденные заявки обрабатываются через отклонение в очереди верификации',
-      );
+      throw new BadRequestException({
+        code: 'PROPERTIES.ONLY_CONFIRMED_UNLINK',
+        message:
+          'Отвязать можно только подтвержденное право владения. Неподтвержденные заявки обрабатываются через отклонение в очереди верификации',
+      });
     }
 
     if (staffUser.role !== UserRole.SUPERADMIN) {
       if (!staffUser.tenantId || staffUser.tenantId !== ownership.unit.building.tenantId) {
-        throw new ForbiddenException(
-          'Доступ запрещен: вы не можете управлять помещениями в другом жилом комплексе',
-        );
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_MANAGE_FORBIDDEN',
+          message: 'Доступ запрещен: вы не можете управлять помещениями в другом жилом комплексе',
+        });
       }
     }
 

@@ -550,6 +550,44 @@
       "NOT_ELIGIBLE_VOTER": "Only verified property owners have the right to vote. Tenants and unverified users cannot vote.",
       "UNIT_TENANT_MISMATCH": "The premises do not belong to the residential complex holding the meeting",
       "ALREADY_VOTED": "A vote from this apartment has already been recorded for this agenda item"
+    },
+    "PROPERTIES": {
+      "COMPLEX_NOT_FOUND": "Residential complex not found",
+      "BLOCK_NOT_FOUND": "Building/block not found",
+      "UNIT_NOT_FOUND": "Apartment/unit not found",
+      "OWNERSHIP_REQUEST_EXISTS": "Ownership request for this unit already exists",
+      "INVALID_SHARE_RANGE": "Ownership share must be between 0.01% and 100%",
+      "SHARE_EXCEEDS_TOTAL": "Total ownership share for this apartment cannot exceed 100%. Already confirmed: {{currentSum}}%, requested: {{requestedShare}}%",
+      "OWNERSHIP_NOT_FOUND": "Ownership claim not found",
+      "CROSS_TENANT_VERIFY_FORBIDDEN": "Forbidden to verify ownership claims of another complex",
+      "CONFIRMED_SHARE_EXCEEDS_TOTAL": "Cannot confirm share: sum of all owner shares will exceed 100% (already confirmed to others: {{otherSum}}%, claimed: {{finalSharePercent}}%)",
+      "RESIDENT_NOT_FOUND": "Resident not found",
+      "RESIDENT_NOT_IN_COMPLEX": "Resident does not reside in your complex",
+      "USER_NOT_FOUND": "User not found",
+      "STATUS_MANAGEMENT_RESIDENTS_ONLY": "Status management is only available for residents (owners and tenants)",
+      "CROSS_TENANT_USER_FORBIDDEN": "Forbidden to manage users of another complex",
+      "OWNERSHIP_LINK_NOT_FOUND": "Apartment ownership link not found",
+      "ONLY_CONFIRMED_UNLINK": "Only confirmed apartments can be unlinked. To reject an unconfirmed claim, use reject.",
+      "CROSS_TENANT_MANAGE_FORBIDDEN": "Forbidden to manage apartments of another complex"
+    },
+    "FINANCE": {
+      "COMPLEX_NOT_FOUND": "Residential complex not found",
+      "METER_TYPE_REQUIRED": "Meter type must be specified for this tariff type",
+      "TARIFF_NOT_FOUND": "Tariff not found",
+      "NO_ACTIVE_TARIFFS": "No active tariffs for billing",
+      "ACCOUNT_NOT_FOUND": "Personal account not found",
+      "ACCOUNT_ACCESS_CONFIRMED_ONLY": "Access to personal account is only allowed for confirmed residents of this apartment"
+    },
+    "METERS": {
+      "UNIT_NOT_FOUND": "Apartment/unit not found",
+      "FOREIGN_UNIT_FORBIDDEN": "Access to meters of another unit is forbidden",
+      "METER_NOT_FOUND": "Meter not found",
+      "METER_DEACTIVATED": "This meter is deactivated",
+      "SUBMIT_CONFIRMED_RESIDENTS_ONLY": "Submitting readings is only available to confirmed residents of this apartment",
+      "VALUE_BELOW_BASELINE": "New reading ({{value}}) cannot be less than previous verified reading ({{baseline}})",
+      "PERIOD_ALREADY_SUBMITTED": "Readings for the specified period have already been submitted and are pending or verified",
+      "FOREIGN_READINGS_FORBIDDEN": "Access to readings of another apartment is forbidden",
+      "READING_NOT_FOUND": "Meter reading not found"
     }
   }
 }

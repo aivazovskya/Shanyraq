@@ -184,6 +184,13 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       await expect(
         service.generateCharges('tenant-1', { month: 10, year: 2026 }),
       ).rejects.toThrow('В данном ЖК нет активных тарифов для начисления');
+
+      try {
+        await service.generateCharges('tenant-1', { month: 10, year: 2026 });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('FINANCE.NO_ACTIVE_TARIFFS');
+      }
     });
 
     it('должен корректно рассчитывать суммы FLAT и PER_AREA и пропускать дубликаты', async () => {

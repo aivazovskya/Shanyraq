@@ -42,7 +42,10 @@ export class MetersService {
     });
 
     if (!unit) {
-      throw new NotFoundException('Квартира/помещение не найдено');
+      throw new NotFoundException({
+        code: 'METERS.UNIT_NOT_FOUND',
+        message: 'Квартира/помещение не найдено',
+      });
     }
 
     const isStaff = (
@@ -61,7 +64,10 @@ export class MetersService {
         (o) => o.userId === user.id && o.isVerified,
       );
       if (!hasVerifiedOwnership) {
-        throw new ForbiddenException('Доступ к счётчикам чужого помещения запрещён');
+        throw new ForbiddenException({
+          code: 'METERS.FOREIGN_UNIT_FORBIDDEN',
+          message: 'Доступ к счётчикам чужого помещения запрещён',
+        });
       }
     }
 
@@ -88,7 +94,10 @@ export class MetersService {
     });
 
     if (!unit) {
-      throw new NotFoundException('Квартира/помещение не найдено');
+      throw new NotFoundException({
+        code: 'METERS.UNIT_NOT_FOUND',
+        message: 'Квартира/помещение не найдено',
+      });
     }
 
     assertUserBelongsToTenant(user, unit.building.tenantId);
@@ -114,7 +123,10 @@ export class MetersService {
     });
 
     if (!meter) {
-      throw new NotFoundException('Счётчик не найден');
+      throw new NotFoundException({
+        code: 'METERS.METER_NOT_FOUND',
+        message: 'Счётчик не найден',
+      });
     }
 
     assertUserBelongsToTenant(user, meter.unit.building.tenantId);
@@ -146,11 +158,17 @@ export class MetersService {
     });
 
     if (!meter) {
-      throw new NotFoundException('Счётчик не найден');
+      throw new NotFoundException({
+        code: 'METERS.METER_NOT_FOUND',
+        message: 'Счётчик не найден',
+      });
     }
 
     if (!meter.isActive) {
-      throw new BadRequestException('Данный счётчик деактивирован');
+      throw new BadRequestException({
+        code: 'METERS.METER_DEACTIVATED',
+        message: 'Данный счётчик деактивирован',
+      });
     }
 
     const hasVerifiedOwnership = meter.unit.ownerships.some(
@@ -158,9 +176,10 @@ export class MetersService {
     );
 
     if (!hasVerifiedOwnership) {
-      throw new ForbiddenException(
-        'Подача показаний доступна только подтверждённым жителям данной квартиры',
-      );
+      throw new ForbiddenException({
+        code: 'METERS.SUBMIT_CONFIRMED_RESIDENTS_ONLY',
+        message: 'Подача показаний доступна только подтверждённым жителям данной квартиры',
+      });
     }
 
     // Проверка: показания не могут уменьшаться
@@ -171,9 +190,11 @@ export class MetersService {
 
     const baseline = lastVerified ? lastVerified.value : meter.initialValue;
     if (dto.value < baseline) {
-      throw new BadRequestException(
-        `Новое показание (${dto.value}) не может быть меньше предыдущего подтверждённого (${baseline})`,
-      );
+      throw new BadRequestException({
+        code: 'METERS.VALUE_BELOW_BASELINE',
+        message: `Новое показание (${dto.value}) не может быть меньше предыдущего подтверждённого (${baseline})`,
+        params: { value: dto.value, baseline },
+      });
     }
 
     // Проверка уникальности периода: [meterId, periodMonth, periodYear]
@@ -203,9 +224,10 @@ export class MetersService {
         });
       }
 
-      throw new BadRequestException(
-        'Показания за указанный период уже поданы и находятся на рассмотрении или подтверждены',
-      );
+      throw new BadRequestException({
+        code: 'METERS.PERIOD_ALREADY_SUBMITTED',
+        message: 'Показания за указанный период уже поданы и находятся на рассмотрении или подтверждены',
+      });
     }
 
     return this.prisma.meterReading.create({
@@ -235,7 +257,10 @@ export class MetersService {
     });
 
     if (!meter) {
-      throw new NotFoundException('Счётчик не найден');
+      throw new NotFoundException({
+        code: 'METERS.METER_NOT_FOUND',
+        message: 'Счётчик не найден',
+      });
     }
 
     const isStaff = (
@@ -254,7 +279,10 @@ export class MetersService {
         (o) => o.userId === user.id && o.isVerified,
       );
       if (!hasVerifiedOwnership) {
-        throw new ForbiddenException('Доступ к показаниям чужой квартиры запрещён');
+        throw new ForbiddenException({
+          code: 'METERS.FOREIGN_READINGS_FORBIDDEN',
+          message: 'Доступ к показаниям чужой квартиры запрещён',
+        });
       }
     }
 
@@ -334,7 +362,10 @@ export class MetersService {
     });
 
     if (!reading) {
-      throw new NotFoundException('Показание счётчика не найдено');
+      throw new NotFoundException({
+        code: 'METERS.READING_NOT_FOUND',
+        message: 'Показание счётчика не найдено',
+      });
     }
 
     assertUserBelongsToTenant(user, reading.meter.unit.building.tenantId);

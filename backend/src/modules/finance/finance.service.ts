@@ -40,13 +40,18 @@ export class FinanceService {
   async createTariff(tenantId: string, dto: CreateTariffDto) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
-      throw new NotFoundException('Жилой комплекс не найден');
+      throw new NotFoundException({
+        code: 'FINANCE.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
     }
 
     if (dto.calculationMethod === ChargeCalculationMethod.PER_CONSUMPTION && !dto.meterType) {
-      throw new BadRequestException(
-        'Для тарифа по потреблению (PER_CONSUMPTION) необходимо указать тип счётчика (meterType)',
-      );
+      throw new BadRequestException({
+        code: 'FINANCE.METER_TYPE_REQUIRED',
+        message:
+          'Для тарифа по потреблению (PER_CONSUMPTION) необходимо указать тип счётчика (meterType)',
+      });
     }
 
     return this.prisma.tariffItem.create({
@@ -67,7 +72,10 @@ export class FinanceService {
   ) {
     const tariff = await this.prisma.tariffItem.findUnique({ where: { id: tariffId } });
     if (!tariff) {
-      throw new NotFoundException('Тариф не найден');
+      throw new NotFoundException({
+        code: 'FINANCE.TARIFF_NOT_FOUND',
+        message: 'Тариф не найден',
+      });
     }
 
     assertUserBelongsToTenant(user, tariff.tenantId, 'тарифа');
@@ -75,9 +83,11 @@ export class FinanceService {
     const targetMethod = dto.calculationMethod ?? tariff.calculationMethod;
     const targetMeterType = dto.meterType !== undefined ? dto.meterType : tariff.meterType;
     if (targetMethod === ChargeCalculationMethod.PER_CONSUMPTION && !targetMeterType) {
-      throw new BadRequestException(
-        'Для тарифа по потреблению (PER_CONSUMPTION) необходимо указать тип счётчика (meterType)',
-      );
+      throw new BadRequestException({
+        code: 'FINANCE.METER_TYPE_REQUIRED',
+        message:
+          'Для тарифа по потреблению (PER_CONSUMPTION) необходимо указать тип счётчика (meterType)',
+      });
     }
 
     return this.prisma.tariffItem.update({
@@ -98,7 +108,10 @@ export class FinanceService {
   ) {
     const tariff = await this.prisma.tariffItem.findUnique({ where: { id: tariffId } });
     if (!tariff) {
-      throw new NotFoundException('Тариф не найден');
+      throw new NotFoundException({
+        code: 'FINANCE.TARIFF_NOT_FOUND',
+        message: 'Тариф не найден',
+      });
     }
 
     assertUserBelongsToTenant(user, tariff.tenantId, 'тарифа');
@@ -123,7 +136,10 @@ export class FinanceService {
     });
 
     if (activeTariffs.length === 0) {
-      throw new BadRequestException('В данном ЖК нет активных тарифов для начисления');
+      throw new BadRequestException({
+        code: 'FINANCE.NO_ACTIVE_TARIFFS',
+        message: 'В данном ЖК нет активных тарифов для начисления',
+      });
     }
 
     const units = await this.prisma.unit.findMany({
@@ -270,7 +286,10 @@ export class FinanceService {
     });
 
     if (!account) {
-      throw new NotFoundException('Лицевой счет не найден');
+      throw new NotFoundException({
+        code: 'FINANCE.ACCOUNT_NOT_FOUND',
+        message: 'Лицевой счет не найден',
+      });
     }
 
     assertUserBelongsToTenant(staffUser, account.unit.building.tenantId, 'лицевого счета');
@@ -326,7 +345,10 @@ export class FinanceService {
     });
 
     if (!account) {
-      throw new NotFoundException('Лицевой счет не найден');
+      throw new NotFoundException({
+        code: 'FINANCE.ACCOUNT_NOT_FOUND',
+        message: 'Лицевой счет не найден',
+      });
     }
 
     const isStaff =
@@ -348,9 +370,10 @@ export class FinanceService {
     );
 
     if (!isVerifiedOwner) {
-      throw new ForbiddenException(
-        'Доступ к лицевому счету разрешен только подтвержденным собственникам помещения',
-      );
+      throw new ForbiddenException({
+        code: 'FINANCE.ACCOUNT_ACCESS_CONFIRMED_ONLY',
+        message: 'Доступ к лицевому счету разрешен только подтвержденным собственникам помещения',
+      });
     }
 
     return account;

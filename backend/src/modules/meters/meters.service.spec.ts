@@ -219,6 +219,18 @@ describe('MetersService (Приборы учёта, подача и верифи
           user,
         ),
       ).rejects.toThrow(BadRequestException);
+
+      try {
+        await service.submitReading(
+          'meter-1',
+          { value: 75, photoUrl: 'https://s3/photo.jpg', month: 9, year: 2026 },
+          user,
+        );
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('METERS.VALUE_BELOW_BASELINE');
+        expect(err.getResponse().params).toEqual({ value: 75, baseline: 80 });
+      }
     });
 
     it('должен отклонять показание меньшее, чем initialValue, если ещё нет подтверждённых', async () => {
