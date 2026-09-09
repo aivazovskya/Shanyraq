@@ -30,7 +30,8 @@ export class VotingsService {
   }
 
   async createMeeting(creatorTenantId: string, dto: CreateMeetingDto) {
-    const targetTenantId = dto.tenantId || creatorTenantId;
+    // Безопасность: доверяем только tenantId, авторизованному контроллером (предотвращение IDOR/cross-tenant инъекции)
+    const targetTenantId = creatorTenantId;
     if (!targetTenantId) {
       throw new BadRequestException({
         code: 'VOTINGS.TENANT_ID_REQUIRED',

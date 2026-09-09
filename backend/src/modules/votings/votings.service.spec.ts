@@ -103,6 +103,59 @@ describe('VotingsService (Аудит безопасности и алгорит�
         expect(err.getResponse().code).toBe('VOTINGS.ZERO_TOTAL_AREA');
       }
     });
+
+    it('должен игнорировать dto.tenantId и создавать собрание строго в creatorTenantId (Subtask A: защита от cross-tenant инъекции)', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-authorized',
+        name: 'ЖК А',
+        totalArea: 5000,
+      });
+      prismaMock.meeting.create.mockResolvedValue({
+        id: 'meeting-1',
+        tenantId: 'tenant-authorized',
+        title: 'Собрание',
+      });
+
+      const res = await service.createMeeting('tenant-authorized', {
+        title: 'Собрание',
+        startDate: new Date().toISOString(),
+        endDate: new Date(Date.now() + 86400000).toISOString(),
+        tenantId: 'tenant-malicious-target', // Злоумышленник пытается внедрить чужой tenantId
+        agendaItems: [
+          {
+            orderIndex: 1,
+            question: 'Вопрос 1',
+            decisionType: DecisionType.SIMPLE_MAJORITY,
+          },
+        ],
+      });
+
+      expect(prismaMock.tenant.findUnique).toHaveBeenCalledWith({
+        where: { id: 'tenant-authorized' },
+      });
+      expect(prismaMock.meeting.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tenantId: 'tenant-authorized',
+          }),
+        }),
+      );
+    });
+
+    it('должен выбрасывать ошибку, если creatorTenantId не указан', async () => {
+      try {
+        await service.createMeeting('', {
+          title: 'Собрание',
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 86400000).toISOString(),
+          agendaItems: [],
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('VOTINGS.TENANT_ID_REQUIRED');
+      }
+    });
   });
 
   describe('castVote (Безопасность волеизъявления и криптоподпись)', () => {
