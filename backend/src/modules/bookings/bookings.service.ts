@@ -42,7 +42,10 @@ export class BookingsService {
       where: { id },
     });
     if (!resource) {
-      throw new NotFoundException('Пространство не найдено');
+      throw new NotFoundException({
+        code: 'BOOKINGS.RESOURCE_NOT_FOUND',
+        message: 'Пространство не найдено',
+      });
     }
 
     await this.assertAccessToTenant(user, resource.tenantId);
@@ -55,7 +58,10 @@ export class BookingsService {
 
     if (dto.operatingHoursStart && dto.operatingHoursEnd) {
       if (dto.operatingHoursStart >= dto.operatingHoursEnd) {
-        throw new BadRequestException('Время начала работы должно быть раньше времени окончания');
+        throw new BadRequestException({
+          code: 'BOOKINGS.INVALID_OPERATING_HOURS',
+          message: 'Время начала работы должно быть раньше времени окончания',
+        });
       }
     }
 
@@ -78,7 +84,10 @@ export class BookingsService {
       where: { id },
     });
     if (!resource) {
-      throw new NotFoundException('Пространство не найдено');
+      throw new NotFoundException({
+        code: 'BOOKINGS.RESOURCE_NOT_FOUND',
+        message: 'Пространство не найдено',
+      });
     }
 
     this.assertStaffRole(user, resource.tenantId);
@@ -87,7 +96,10 @@ export class BookingsService {
     const end = dto.operatingHoursEnd !== undefined ? dto.operatingHoursEnd : resource.operatingHoursEnd;
 
     if (start && end && start >= end) {
-      throw new BadRequestException('Время начала работы должно быть раньше времени окончания');
+      throw new BadRequestException({
+        code: 'BOOKINGS.INVALID_OPERATING_HOURS',
+        message: 'Время начала работы должно быть раньше времени окончания',
+      });
     }
 
     return this.prisma.bookableResource.update({
@@ -113,7 +125,10 @@ export class BookingsService {
       where: { id: resourceId },
     });
     if (!resource) {
-      throw new NotFoundException('Пространство не найдено');
+      throw new NotFoundException({
+        code: 'BOOKINGS.RESOURCE_NOT_FOUND',
+        message: 'Пространство не найдено',
+      });
     }
 
     const isStaff = await this.assertAccessToTenant(user, resource.tenantId);
@@ -122,10 +137,16 @@ export class BookingsService {
     const toDate = new Date(toStr);
 
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-      throw new BadRequestException('Некорректный формат диапазона дат');
+      throw new BadRequestException({
+        code: 'BOOKINGS.INVALID_DATE_RANGE_FORMAT',
+        message: 'Некорректный формат диапазона дат',
+      });
     }
     if (fromDate >= toDate) {
-      throw new BadRequestException('Дата начала должна быть раньше даты окончания');
+      throw new BadRequestException({
+        code: 'BOOKINGS.DATE_RANGE_INVERTED',
+        message: 'Дата начала должна быть раньше даты окончания',
+      });
     }
 
     const bookings = await this.prisma.booking.findMany({
@@ -183,10 +204,16 @@ export class BookingsService {
       where: { id: resourceId },
     });
     if (!resource) {
-      throw new NotFoundException('Пространство не найдено');
+      throw new NotFoundException({
+        code: 'BOOKINGS.RESOURCE_NOT_FOUND',
+        message: 'Пространство не найдено',
+      });
     }
     if (!resource.isActive) {
-      throw new BadRequestException('Данное пространство временно недоступно для бронирования');
+      throw new BadRequestException({
+        code: 'BOOKINGS.RESOURCE_INACTIVE',
+        message: 'Данное пространство временно недоступно для бронирования',
+      });
     }
 
     // Архитектурное решение #2: Доступно любому верифицированному жителю (собственнику или арендатору)
@@ -204,34 +231,46 @@ export class BookingsService {
     });
 
     if (!ownership) {
-      throw new ForbiddenException(
-        'Для бронирования общих пространств требуется подтвержденное право владения или проживания в данном ЖК',
-      );
+      throw new ForbiddenException({
+        code: 'BOOKINGS.OWNERSHIP_REQUIRED',
+        message: 'Для бронирования общих пространств требуется подтвержденное право владения или проживания в данном ЖК',
+      });
     }
 
     const start = new Date(dto.startTime);
     const end = new Date(dto.endTime);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new BadRequestException('Некорректный формат времени');
+      throw new BadRequestException({
+        code: 'BOOKINGS.INVALID_TIME_FORMAT',
+        message: 'Некорректный формат времени',
+      });
     }
 
     // Валидация: бронирование только в будущем
     if (start.getTime() <= Date.now()) {
-      throw new BadRequestException('Время начала бронирования должно быть в будущем');
+      throw new BadRequestException({
+        code: 'BOOKINGS.START_TIME_MUST_BE_FUTURE',
+        message: 'Время начала бронирования должно быть в будущем',
+      });
     }
 
     // Валидация: start < end
     if (start.getTime() >= end.getTime()) {
-      throw new BadRequestException('Время окончания бронирования должно быть позже времени начала');
+      throw new BadRequestException({
+        code: 'BOOKINGS.END_BEFORE_START',
+        message: 'Время окончания бронирования должно быть позже времени начала',
+      });
     }
 
     // Валидация: лимит длительности
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
     if (resource.maxDurationMinutes && durationMinutes > resource.maxDurationMinutes) {
-      throw new BadRequestException(
-        `Длительность бронирования (${durationMinutes} мин) превышает установленный лимит (${resource.maxDurationMinutes} мин)`,
-      );
+      throw new BadRequestException({
+        code: 'BOOKINGS.DURATION_EXCEEDS_LIMIT',
+        message: `Длительность бронирования (${durationMinutes} мин) превышает установленный лимит (${resource.maxDurationMinutes} мин)`,
+        params: { durationMinutes, maxDurationMinutes: resource.maxDurationMinutes },
+      });
     }
 
     // Валидация: рабочие часы
@@ -252,7 +291,10 @@ export class BookingsService {
       });
 
       if (conflict) {
-        throw new ConflictException('Выбранный временной слот уже занят');
+        throw new ConflictException({
+          code: 'BOOKINGS.SLOT_CONFLICT',
+          message: 'Выбранный временной слот уже занят',
+        });
       }
 
       return tx.booking.create({
@@ -374,18 +416,27 @@ export class BookingsService {
     });
 
     if (!booking) {
-      throw new NotFoundException('Бронирование не найдено');
+      throw new NotFoundException({
+        code: 'BOOKINGS.BOOKING_NOT_FOUND',
+        message: 'Бронирование не найдено',
+      });
     }
 
     if (booking.status === BookingStatus.CANCELLED) {
-      throw new BadRequestException('Бронирование уже было отменено');
+      throw new BadRequestException({
+        code: 'BOOKINGS.ALREADY_CANCELLED',
+        message: 'Бронирование уже было отменено',
+      });
     }
 
     const isBooker = booking.bookedById === user.id;
     const isStaff = this.isStaffUser(user, booking.resource.tenantId);
 
     if (!isBooker && !isStaff) {
-      throw new ForbiddenException('У вас нет прав на отмену этого бронирования');
+      throw new ForbiddenException({
+        code: 'BOOKINGS.CANCEL_FORBIDDEN',
+        message: 'У вас нет прав на отмену этого бронирования',
+      });
     }
 
     return this.prisma.booking.update({
@@ -420,7 +471,10 @@ export class BookingsService {
    */
   private async assertAccessToTenant(user: any, tenantId: string): Promise<boolean> {
     if (!user) {
-      throw new ForbiddenException('Требуется авторизация');
+      throw new ForbiddenException({
+        code: 'BOOKINGS.AUTH_REQUIRED',
+        message: 'Требуется авторизация',
+      });
     }
 
     if (user.role === UserRole.SUPERADMIN) {
@@ -436,7 +490,10 @@ export class BookingsService {
 
     if (staffRoles.includes(user.role)) {
       if (user.tenantId !== tenantId) {
-        throw new ForbiddenException('Персонал имеет доступ только к ресурсам своего жилого комплекса');
+        throw new ForbiddenException({
+          code: 'BOOKINGS.STAFF_CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+        });
       }
       return true;
     }
@@ -455,7 +512,10 @@ export class BookingsService {
     });
 
     if (!verifiedOwnership) {
-      throw new ForbiddenException('У вас нет подтвержденного доступа к общим пространствам данного жилого комплекса');
+      throw new ForbiddenException({
+        code: 'BOOKINGS.RESIDENT_ACCESS_FORBIDDEN',
+        message: 'У вас нет подтвержденного доступа к общим пространствам данного жилого комплекса',
+      });
     }
 
     return false;
@@ -472,7 +532,10 @@ export class BookingsService {
     if (user.role === UserRole.SUPERADMIN) return;
     const staffRoles = [UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER];
     if (!staffRoles.includes(user.role) || user.tenantId !== tenantId) {
-      throw new ForbiddenException('Недостаточно прав для управления бронированиями данного ЖК');
+      throw new ForbiddenException({
+        code: 'BOOKINGS.MANAGE_FORBIDDEN',
+        message: 'Недостаточно прав для управления бронированиями данного ЖК',
+      });
     }
   }
 
@@ -492,9 +555,11 @@ export class BookingsService {
       start.getUTCDate() === end.getUTCDate();
 
     if (!isSameDay || bookingStartMin < opStartMin || bookingEndMin > opEndMin) {
-      throw new BadRequestException(
-        `Бронирование возможно только в часы работы пространства (с ${opStart} до ${opEnd})`,
-      );
+      throw new BadRequestException({
+        code: 'BOOKINGS.OUTSIDE_OPERATING_HOURS',
+        message: `Бронирование возможно только в часы работы пространства (с ${opStart} до ${opEnd})`,
+        params: { opStart, opEnd },
+      });
     }
   }
 }

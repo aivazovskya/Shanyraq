@@ -159,6 +159,22 @@ describe('BookingsService', () => {
           staffAdminUser,
         ),
       ).rejects.toThrow(BadRequestException);
+
+      try {
+        await service.createResource(
+          mockTenantId,
+          {
+            name: 'Коворкинг',
+            type: BookableResourceType.COWORKING,
+            operatingHoursStart: '22:00',
+            operatingHoursEnd: '08:00',
+          },
+          staffAdminUser,
+        );
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('BOOKINGS.INVALID_OPERATING_HOURS');
+      }
     });
   });
 
@@ -384,6 +400,24 @@ describe('BookingsService', () => {
           residentOwnerUser,
         ),
       ).rejects.toThrow(BadRequestException);
+
+      try {
+        await service.createBooking(
+          mockResourceId,
+          {
+            startTime: '2026-10-01T10:00:00.000Z',
+            endTime: '2026-10-01T14:01:00.000Z',
+          },
+          residentOwnerUser,
+        );
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('BOOKINGS.DURATION_EXCEEDS_LIMIT');
+        expect(err.getResponse().params).toEqual({
+          durationMinutes: 241,
+          maxDurationMinutes: 180,
+        });
+      }
     });
 
     it('должен отклонять бронирование вне рабочих часов пространства (08:00 - 22:00 UTC)', async () => {
@@ -431,6 +465,20 @@ describe('BookingsService', () => {
           residentOwnerUser,
         ),
       ).rejects.toThrow(ConflictException);
+
+      try {
+        await service.createBooking(
+          mockResourceId,
+          {
+            startTime: '2026-10-01T11:00:00.000Z',
+            endTime: '2026-10-01T13:00:00.000Z',
+          },
+          residentOwnerUser,
+        );
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('BOOKINGS.SLOT_CONFLICT');
+      }
     });
 
     it('соседние неперекрывающиеся слоты (adjacent) должны успешно создаваться', async () => {

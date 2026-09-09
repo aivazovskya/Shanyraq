@@ -92,9 +92,11 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
     const password = this.configService.get<string>('HIKVISION_DEFAULT_PASSWORD');
 
     if (!username || !password) {
-      throw new BadRequestException(
-        'HIKVISION_CREDENTIALS_MISSING: Учетные данные домофона Hikvision не настроены (HIKVISION_DEFAULT_USERNAME/HIKVISION_DEFAULT_PASSWORD)',
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HIKVISION_CREDENTIALS_MISSING',
+        message:
+          'HIKVISION_CREDENTIALS_MISSING: Учетные данные домофона Hikvision не настроены (HIKVISION_DEFAULT_USERNAME/HIKVISION_DEFAULT_PASSWORD)',
+      });
     }
 
     const startTime = Date.now();
@@ -107,9 +109,11 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
       res = await this.executeDigestRequest(targetUrl, 'PUT', xmlBody, username, password);
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
-      throw new BadRequestException(
-        `HIKVISION_CONNECTION_ERROR: Ошибка связи с домофоном (${cleanUrl}): ${err.message || err}`,
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HIKVISION_CONNECTION_ERROR',
+        message: `HIKVISION_CONNECTION_ERROR: Ошибка связи с домофоном (${cleanUrl}): ${err.message || err}`,
+        params: { url: cleanUrl, error: String(err.message || err) },
+      });
     }
 
     const responseText = await res.text();
@@ -130,9 +134,11 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
 
     if (!isSuccess && (statusCode !== null || !res.ok)) {
       const errMsg = errorMsg || statusString || subStatus || `HTTP ${res.status}`;
-      throw new BadRequestException(
-        `HIKVISION_DEVICE_ERROR: Домофон отклонил команду открытия: ${errMsg}`,
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HIKVISION_DEVICE_ERROR',
+        message: `HIKVISION_DEVICE_ERROR: Домофон отклонил команду открытия: ${errMsg}`,
+        params: { error: errMsg },
+      });
     }
 
     return { success: true, latencyMs };
@@ -143,9 +149,11 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
     const password = this.configService.get<string>('HIKVISION_DEFAULT_PASSWORD');
 
     if (!username || !password) {
-      throw new BadRequestException(
-        'HIKVISION_CREDENTIALS_MISSING: Учетные данные домофона Hikvision не настроены (HIKVISION_DEFAULT_USERNAME/HIKVISION_DEFAULT_PASSWORD)',
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HIKVISION_CREDENTIALS_MISSING',
+        message:
+          'HIKVISION_CREDENTIALS_MISSING: Учетные данные домофона Hikvision не настроены (HIKVISION_DEFAULT_USERNAME/HIKVISION_DEFAULT_PASSWORD)',
+      });
     }
 
     const startTime = Date.now();
@@ -157,18 +165,22 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
       res = await this.executeDigestRequest(targetUrl, 'GET', undefined, username, password);
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
-      throw new BadRequestException(
-        `HIKVISION_CONNECTION_ERROR: Устройство недоступно (${cleanUrl}): ${err.message || err}`,
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HIKVISION_CONNECTION_ERROR',
+        message: `HIKVISION_CONNECTION_ERROR: Устройство недоступно (${cleanUrl}): ${err.message || err}`,
+        params: { url: cleanUrl, error: String(err.message || err) },
+      });
     }
 
     const responseText = await res.text();
     const latencyMs = Date.now() - startTime;
 
     if (!res.ok) {
-      throw new BadRequestException(
-        `HIKVISION_DEVICE_ERROR: Ошибка проверки связи: HTTP ${res.status}`,
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HIKVISION_DEVICE_ERROR',
+        message: `HIKVISION_DEVICE_ERROR: Ошибка проверки связи: HTTP ${res.status}`,
+        params: { status: res.status },
+      });
     }
 
     const modelMatch = responseText.match(/<model>([^<]+)<\/model>/i);
@@ -207,7 +219,10 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
       });
     } catch (err: any) {
       if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-        throw new BadRequestException('HIKVISION_TIMEOUT: Превышено время ожидания ответа (5 сек)');
+        throw new BadRequestException({
+          code: 'ACCESS_CONTROL.HIKVISION_TIMEOUT',
+          message: 'HIKVISION_TIMEOUT: Превышено время ожидания ответа (5 сек)',
+        });
       }
       throw err;
     }
@@ -232,7 +247,10 @@ export class HikvisionIsapiAdapter implements IBarrierAdapter {
           });
         } catch (err: any) {
           if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-            throw new BadRequestException('HIKVISION_TIMEOUT: Превышено время ожидания ответа (5 сек)');
+            throw new BadRequestException({
+              code: 'ACCESS_CONTROL.HIKVISION_TIMEOUT',
+              message: 'HIKVISION_TIMEOUT: Превышено время ожидания ответа (5 сек)',
+            });
           }
           throw err;
         }
@@ -296,7 +314,10 @@ export class AccessControlService {
   ) {
     const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(user.role);
     if (!isPrivilegedStaff) {
-      throw new ForbiddenException('Только администраторы могут создавать точки доступа');
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.ADMIN_ONLY_CREATE',
+        message: 'Только администраторы могут создавать точки доступа',
+      });
     }
     assertUserBelongsToTenant(user, tenantId, 'точек доступа');
 
@@ -320,14 +341,20 @@ export class AccessControlService {
   ) {
     const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(user.role);
     if (!isPrivilegedStaff) {
-      throw new ForbiddenException('Только администраторы могут изменять точки доступа');
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.ADMIN_ONLY_UPDATE',
+        message: 'Только администраторы могут изменять точки доступа',
+      });
     }
 
     const accessPoint = await this.prisma.accessPoint.findUnique({
       where: { id: accessPointId },
     });
     if (!accessPoint) {
-      throw new NotFoundException('Точка доступа не найдена');
+      throw new NotFoundException({
+        code: 'ACCESS_CONTROL.ACCESS_POINT_NOT_FOUND',
+        message: 'Точка доступа не найдена',
+      });
     }
 
     assertUserBelongsToTenant(user, accessPoint.tenantId, 'точек доступа');
@@ -352,24 +379,36 @@ export class AccessControlService {
   ) {
     const isPrivilegedStaff = ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN] as UserRole[]).includes(user.role);
     if (!isPrivilegedStaff) {
-      throw new ForbiddenException('Только администраторы могут выполнять проверку связи с оборудованием');
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.ADMIN_ONLY_HEALTH_CHECK',
+        message: 'Только администраторы могут выполнять проверку связи с оборудованием',
+      });
     }
 
     const accessPoint = await this.prisma.accessPoint.findUnique({
       where: { id: accessPointId },
     });
     if (!accessPoint) {
-      throw new NotFoundException('Точка доступа не найдена');
+      throw new NotFoundException({
+        code: 'ACCESS_CONTROL.ACCESS_POINT_NOT_FOUND',
+        message: 'Точка доступа не найдена',
+      });
     }
 
     assertUserBelongsToTenant(user, accessPoint.tenantId, 'точек доступа');
 
     if (accessPoint.controllerType !== 'HIKVISION_ISAPI') {
-      throw new BadRequestException('Проверка связи по протоколу ISAPI доступна только для контроллеров HIKVISION_ISAPI');
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.HEALTH_CHECK_ISAPI_ONLY',
+        message: 'Проверка связи по протоколу ISAPI доступна только для контроллеров HIKVISION_ISAPI',
+      });
     }
 
     if (!accessPoint.endpointUrl) {
-      throw new BadRequestException('У точки доступа не указан endpointUrl (IP-адрес прибора)');
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.ENDPOINT_URL_MISSING',
+        message: 'У точки доступа не указан endpointUrl (IP-адрес прибора)',
+      });
     }
 
     return this.hikvisionAdapter.checkHealth(accessPoint.endpointUrl);
@@ -384,11 +423,17 @@ export class AccessControlService {
     });
 
     if (!accessPoint || !accessPoint.isActive) {
-      throw new NotFoundException('Камера не найдена или отключена');
+      throw new NotFoundException({
+        code: 'ACCESS_CONTROL.CAMERA_NOT_FOUND',
+        message: 'Камера не найдена или отключена',
+      });
     }
 
     if (accessPoint.type !== AccessPointType.CAMERA) {
-      throw new BadRequestException('Указанная точка доступа не является видеокамерой');
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.NOT_A_CAMERA',
+        message: 'Указанная точка доступа не является видеокамерой',
+      });
     }
 
     const isStaff = ([
@@ -402,7 +447,10 @@ export class AccessControlService {
     if (isStaff) {
       // Аудит безопасности: персонал (кроме SUPERADMIN) может просматривать камеры только своего ЖК
       if (user.role !== UserRole.SUPERADMIN && accessPoint.tenantId !== user.tenantId) {
-        throw new ForbiddenException('Персонал имеет доступ к видеокамерам только своего жилого комплекса');
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.STAFF_CAMERA_CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал имеет доступ к видеокамерам только своего жилого комплекса',
+        });
       }
     } else {
       // Validate resident has verified apartment in this tenant
@@ -419,7 +467,10 @@ export class AccessControlService {
       });
 
       if (!verifiedOwnership) {
-        throw new ForbiddenException('У вас нет подтвержденного доступа к видеокамерам данного жилого комплекса');
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.RESIDENT_CAMERA_ACCESS_FORBIDDEN',
+          message: 'У вас нет подтвержденного доступа к видеокамерам данного жилого комплекса',
+        });
       }
     }
 
@@ -450,7 +501,10 @@ export class AccessControlService {
     });
 
     if (!accessPoint) {
-      throw new NotFoundException('Точка доступа не найдена');
+      throw new NotFoundException({
+        code: 'ACCESS_CONTROL.ACCESS_POINT_NOT_FOUND',
+        message: 'Точка доступа не найдена',
+      });
     }
 
     if (
@@ -458,7 +512,10 @@ export class AccessControlService {
       accessPoint.type !== AccessPointType.GATE &&
       accessPoint.type !== AccessPointType.DOOR_INTERCOM
     ) {
-      throw new ForbiddenException('Указанная точка доступа не является шлагбаумом, воротами или домофоном');
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.NOT_A_BARRIER',
+        message: 'Указанная точка доступа не является шлагбаумом, воротами или домофоном',
+      });
     }
 
     const logAction = accessPoint.type === AccessPointType.DOOR_INTERCOM ? 'OPEN_INTERCOM' : 'OPEN_BARRIER';
@@ -486,7 +543,10 @@ export class AccessControlService {
             note: `Попытка открытия ${typeLabel} сотрудником чужого жилого комплекса`,
           },
         });
-        throw new ForbiddenException(`Сотрудник имеет доступ к управлению точками доступа только своего жилого комплекса`);
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.STAFF_MANAGE_CROSS_TENANT_FORBIDDEN',
+          message: 'Сотрудник имеет доступ к управлению точками доступа только своего жилого комплекса',
+        });
       }
 
       verifiedUnitId = dto.unitId || null;
@@ -513,7 +573,10 @@ export class AccessControlService {
             note: 'Попытка открытия без подтвержденного права доступа к ЖК',
           },
         });
-        throw new ForbiddenException(`У вас нет активного права доступа к точке доступа данного жилого комплекса`);
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.RESIDENT_NO_ACTIVE_ACCESS',
+          message: 'У вас нет активного права доступа к точке доступа данного жилого комплекса',
+        });
       }
 
       verifiedUnitId = verifiedOwnership.unitId;
@@ -536,9 +599,10 @@ export class AccessControlService {
           note: `Попытка открытия ${typeLabel} без настроенного PIN-кода доступа`,
         },
       });
-      throw new BadRequestException(
-        `PIN_NOT_SET: Сначала установите PIN-код доступа в профиле для управления точками доступа`,
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.PIN_NOT_SET',
+        message: 'PIN_NOT_SET: Сначала установите PIN-код доступа в профиле для управления точками доступа',
+      });
     }
 
     const lockoutKey = `barrier:lockout:${user.id}`;
@@ -554,9 +618,10 @@ export class AccessControlService {
           note: `Попытка открытия ${typeLabel} во время блокировки за неверный ввод PIN`,
         },
       });
-      throw new ForbiddenException(
-        'Доступ временно заблокирован на 10 минут из-за превышения попыток ввода PIN-кода',
-      );
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.PIN_LOCKED',
+        message: 'Доступ временно заблокирован на 10 минут из-за превышения попыток ввода PIN-кода',
+      });
     }
 
     const isPinValid = await bcrypt.compare(dto.pin, userRecord.accessPinHash);
@@ -578,9 +643,10 @@ export class AccessControlService {
             note: `Неверный PIN при открытии (превышено число попыток, доступ заблокирован на 10 мин)`,
           },
         });
-        throw new ForbiddenException(
-          'Неверный PIN-код. Превышено максимальное число попыток. Доступ заблокирован на 10 минут.',
-        );
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.PIN_MAX_ATTEMPTS',
+          message: 'Неверный PIN-код. Превышено максимальное число попыток. Доступ заблокирован на 10 минут.',
+        });
       }
 
       const remaining = 3 - attempts;
@@ -594,9 +660,11 @@ export class AccessControlService {
           note: `Неверный PIN при открытии (попытка ${attempts} из 3)`,
         },
       });
-      throw new BadRequestException(
-        `Неверный PIN-код. Осталось попыток: ${remaining}`,
-      );
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.PIN_INVALID',
+        message: `Неверный PIN-код. Осталось попыток: ${remaining}`,
+        params: { remaining },
+      });
     }
 
     await this.redisService.del(`barrier:attempts:${user.id}`);
@@ -636,9 +704,10 @@ export class AccessControlService {
       });
 
       if (!ownership) {
-        throw new ForbiddenException(
-          'IDOR защита: вы можете оформлять гостевой пропуск только для своей подтвержденной квартиры',
-        );
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.GUEST_PASS_OWN_UNIT_ONLY',
+          message: 'IDOR защита: вы можете оформлять гостевой пропуск только для своей подтвержденной квартиры',
+        });
       }
     }
 

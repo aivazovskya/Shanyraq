@@ -507,12 +507,17 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       ).rejects.toThrow('Неверный PIN-код. Осталось попыток: 2');
 
       // Attempt 2
-      await expect(
-        service.openBarrier(
+      try {
+        await service.openBarrier(
           { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
           { accessPointId: 'barrier-1', pin: '2222' },
-        ),
-      ).rejects.toThrow('Неверный PIN-код. Осталось попыток: 1');
+        );
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.message).toBe('Неверный PIN-код. Осталось попыток: 1');
+        expect(err.getResponse().code).toBe('ACCESS_CONTROL.PIN_INVALID');
+        expect(err.getResponse().params).toEqual({ remaining: 1 });
+      }
 
       // Attempt 3 -> lockout triggered
       await expect(
@@ -529,12 +534,15 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       );
 
       // Subsequent attempt while locked out
-      await expect(
-        service.openBarrier(
+      try {
+        await service.openBarrier(
           { id: 'resident-1', role: UserRole.RESIDENT_OWNER },
           { accessPointId: 'barrier-1', pin: '8392' },
-        ),
-      ).rejects.toThrow(ForbiddenException);
+        );
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('ACCESS_CONTROL.PIN_LOCKED');
+      }
     });
 
     it('должен успешно открывать шлагбаум при верном PIN и очищать счетчик попыток', async () => {
@@ -679,6 +687,13 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       await expect(
         hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI'),
       ).rejects.toThrow('HIKVISION_CREDENTIALS_MISSING');
+
+      try {
+        await hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI');
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('ACCESS_CONTROL.HIKVISION_CREDENTIALS_MISSING');
+      }
     });
 
     it('HikvisionIsapiAdapter.triggerOpen должен обрабатывать digest-аутентификацию и успешно парсить ответ <statusCode>1</statusCode>', async () => {
@@ -758,6 +773,14 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         await expect(
           hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI'),
         ).rejects.toThrow('HIKVISION_DEVICE_ERROR');
+
+        try {
+          await hikAdapter.triggerOpen('http://192.168.1.120', 'HIKVISION_ISAPI');
+          fail('Should throw');
+        } catch (err: any) {
+          expect(err.getResponse().code).toBe('ACCESS_CONTROL.HIKVISION_DEVICE_ERROR');
+          expect(err.getResponse().params).toEqual({ error: 'Door 1 locked by schedule' });
+        }
       } finally {
         global.fetch = originalFetch;
       }
