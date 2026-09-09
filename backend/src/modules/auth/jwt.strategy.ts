@@ -36,9 +36,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     // Defense against token type confusion: refresh tokens cannot be used as access tokens
     if (!payload || payload.type !== 'access') {
-      throw new UnauthorizedException(
-        'Недопустимый тип токена. Refresh-токен не может использоваться для авторизации запросов',
-      );
+      throw new UnauthorizedException({
+        code: 'AUTH.INVALID_TOKEN_TYPE',
+        message: 'Недопустимый тип токена. Refresh-токен не может использоваться для авторизации запросов',
+      });
     }
 
     const user = await this.prisma.user.findUnique({
@@ -58,11 +59,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Пользователь заблокирован или не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_BLOCKED_OR_NOT_FOUND',
+        message: 'Пользователь заблокирован или не найден',
+      });
     }
 
     if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
-      throw new UnauthorizedException('Сессия завершена (токен отозван). Пожалуйста, войдите снова.');
+      throw new UnauthorizedException({
+        code: 'AUTH.SESSION_REVOKED',
+        message: 'Сессия завершена (токен отозван). Пожалуйста, войдите снова.',
+      });
     }
 
     return user;

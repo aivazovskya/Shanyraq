@@ -100,6 +100,13 @@ describe('AuthService (Аудит безопасности авторизаци�
       await expect(
         service.requestOtp({ phone: '+77015550101' }),
       ).rejects.toThrow(BadRequestException);
+
+      try {
+        await service.requestOtp({ phone: '+77015550101' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('AUTH.OTP_RATE_LIMITED');
+      }
     });
   });
 
@@ -109,24 +116,40 @@ describe('AuthService (Аудит безопасности авторизаци�
       const req = await service.requestOtp({ phone: '+77019998877' });
 
       // 1-я неверная попытка
-      await expect(
-        service.verifyOtp({ phone: '+77019998877', code: '000000' }),
-      ).rejects.toThrow('Осталось попыток: 2');
+      try {
+        await service.verifyOtp({ phone: '+77019998877', code: '000000' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.message).toBe('Неверный SMS-код. Осталось попыток: 2');
+        expect(err.getResponse().code).toBe('AUTH.OTP_INVALID');
+        expect(err.getResponse().params).toEqual({ remaining: 2 });
+      }
 
       // 2-я неверная попытка
-      await expect(
-        service.verifyOtp({ phone: '+77019998877', code: '000001' }),
-      ).rejects.toThrow('Осталось попыток: 1');
+      try {
+        await service.verifyOtp({ phone: '+77019998877', code: '000001' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.message).toBe('Неверный SMS-код. Осталось попыток: 1');
+        expect(err.getResponse().code).toBe('AUTH.OTP_INVALID');
+        expect(err.getResponse().params).toEqual({ remaining: 1 });
+      }
 
       // 3-я неверная попытка -> Блокировка
-      await expect(
-        service.verifyOtp({ phone: '+77019998877', code: '000002' }),
-      ).rejects.toThrow('Превышено максимальное количество попыток ввода кода (3). Номер заблокирован на 10 минут.');
+      try {
+        await service.verifyOtp({ phone: '+77019998877', code: '000002' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('AUTH.OTP_MAX_ATTEMPTS');
+      }
 
       // 4-я попытка даже с любым кодом сразу отклоняется блокировкой
-      await expect(
-        service.verifyOtp({ phone: '+77019998877', code: '000003' }),
-      ).rejects.toThrow('Номер временно заблокирован');
+      try {
+        await service.verifyOtp({ phone: '+77019998877', code: '000003' });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('AUTH.PHONE_LOCKED');
+      }
     });
 
     it('должен разделять токены на access и refresh с разными типами', async () => {

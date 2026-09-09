@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
 import { changeWebLanguage, SupportedLocale, SUPPORTED_LOCALES } from '@/i18n';
-import { API_BASE_URL, saveSession } from '@/lib/api';
+import { API_BASE_URL, saveSession, getApiErrorMessage } from '@/lib/api';
 
 const LANGUAGE_LABELS: Record<SupportedLocale, string> = {
   kk: 'Қазақша',
@@ -47,14 +47,17 @@ export default function LoginPage() {
       });
 
       if (!res.ok) {
-        let errorMsg = t('auth.invalidCredentials');
+        let errData: any = {};
         try {
-          const data = await res.json();
-          if (data.message) {
-            errorMsg = Array.isArray(data.message) ? data.message.join(', ') : data.message;
-          }
+          errData = await res.json();
         } catch {}
-        throw new Error(errorMsg);
+        const errorMsg = Array.isArray(errData.message)
+          ? errData.message.join(', ')
+          : errData.message || t('auth.invalidCredentials');
+        const err = new Error(errorMsg);
+        (err as any).code = errData.code;
+        (err as any).params = errData.params;
+        throw err;
       }
 
       const data = await res.json();
@@ -65,7 +68,7 @@ export default function LoginPage() {
 
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || t('auth.connectionError'));
+      setError(getApiErrorMessage(err, t) || t('auth.connectionError'));
     } finally {
       setIsLoading(false);
     }

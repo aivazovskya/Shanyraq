@@ -32,7 +32,10 @@ export class VotingsService {
   async createMeeting(creatorTenantId: string, dto: CreateMeetingDto) {
     const targetTenantId = dto.tenantId || creatorTenantId;
     if (!targetTenantId) {
-      throw new BadRequestException('Не указан идентификатор жилого комплекса');
+      throw new BadRequestException({
+        code: 'VOTINGS.TENANT_ID_REQUIRED',
+        message: 'Не указан идентификатор жилого комплекса',
+      });
     }
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -40,15 +43,20 @@ export class VotingsService {
     });
 
     if (!tenant) {
-      throw new NotFoundException('Жилой комплекс не найден');
+      throw new NotFoundException({
+        code: 'VOTINGS.TENANT_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
     }
 
     // Аудит безопасности: категорический запрет фиктивной площади
     if (!tenant.totalArea || tenant.totalArea <= 0) {
-      throw new BadRequestException(
-        'Невозможно инициировать собрание ОСС: суммарная площадь помещений ЖК не рассчитана или равна 0. ' +
-        'Сначала внесите жилой фонд (дома и квартиры с площадями в кв.м) в систему.',
-      );
+      throw new BadRequestException({
+        code: 'VOTINGS.ZERO_TOTAL_AREA',
+        message:
+          'Невозможно инициировать собрание ОСС: суммарная площадь помещений ЖК не рассчитана или равна 0. ' +
+          'Сначала внесите жилой фонд (дома и квартиры с площадями в кв.м) в систему.',
+      });
     }
 
     return this.prisma.meeting.create({
@@ -121,13 +129,19 @@ export class VotingsService {
     });
 
     if (!meeting) {
-      throw new NotFoundException('Собрание ОСС не найдено');
+      throw new NotFoundException({
+        code: 'VOTINGS.MEETING_NOT_FOUND',
+        message: 'Собрание ОСС не найдено',
+      });
     }
 
     // Аудит безопасности (Tenant isolation): проверка принадлежности собрания к ЖК пользователя
     if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
       if (!requestingUser.tenantId || requestingUser.tenantId !== meeting.tenantId) {
-        throw new ForbiddenException('Доступ к собранию другого жилого комплекса запрещен');
+        throw new ForbiddenException({
+          code: 'VOTINGS.CROSS_TENANT_FORBIDDEN',
+          message: 'Доступ к собранию другого жилого комплекса запрещен',
+        });
       }
     }
 
@@ -141,7 +155,10 @@ export class VotingsService {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Пользователь не найден или заблокирован');
+      throw new UnauthorizedException({
+        code: 'VOTINGS.USER_NOT_FOUND_OR_BLOCKED',
+        message: 'Пользователь не найден или заблокирован',
+      });
     }
 
     // 2. Verify agenda item & active meeting
@@ -151,16 +168,25 @@ export class VotingsService {
     });
 
     if (!agendaItem) {
-      throw new NotFoundException('Вопрос повестки дня не найден');
+      throw new NotFoundException({
+        code: 'VOTINGS.AGENDA_ITEM_NOT_FOUND',
+        message: 'Вопрос повестки дня не найден',
+      });
     }
 
     if (agendaItem.meeting.status !== MeetingStatus.ACTIVE) {
-      throw new BadRequestException('Голосование по данному собранию не активно');
+      throw new BadRequestException({
+        code: 'VOTINGS.MEETING_NOT_ACTIVE',
+        message: 'Голосование по данному собранию не активно',
+      });
     }
 
     const now = new Date();
     if (now < agendaItem.meeting.startDate || now > agendaItem.meeting.endDate) {
-      throw new BadRequestException('Срок проведения голосования истек или еще не начался');
+      throw new BadRequestException({
+        code: 'VOTINGS.OUTSIDE_VOTING_PERIOD',
+        message: 'Срок проведения голосования истек или еще не начался',
+      });
     }
 
     // 3. Verify ownership and right to vote (only verified OWNER can vote under RK law)
@@ -181,15 +207,20 @@ export class VotingsService {
     });
 
     if (!ownership) {
-      throw new ForbiddenException(
-        'Право голоса на ОСС имеют только подтвержденные собственники помещения. ' +
-        'Арендаторы и неподтвержденные пользователи голосовать не могут.',
-      );
+      throw new ForbiddenException({
+        code: 'VOTINGS.NOT_ELIGIBLE_VOTER',
+        message:
+          'Право голоса на ОСС имеют только подтвержденные собственники помещения. ' +
+          'Арендаторы и неподтвержденные пользователи голосовать не могут.',
+      });
     }
 
     // 4. Verify that unit belongs to the meeting's tenant
     if (ownership.unit.building.tenantId !== agendaItem.meeting.tenantId) {
-      throw new ForbiddenException('Помещение не принадлежит жилому комплексу, в котором проводится собрание');
+      throw new ForbiddenException({
+        code: 'VOTINGS.UNIT_TENANT_MISMATCH',
+        message: 'Помещение не принадлежит жилому комплексу, в котором проводится собрание',
+      });
     }
 
     // 5. Check for duplicate vote by this unit for this agenda item
@@ -203,7 +234,10 @@ export class VotingsService {
     });
 
     if (existingVote) {
-      throw new BadRequestException('Голос от данной квартиры по этому вопросу уже был учтен ранее');
+      throw new BadRequestException({
+        code: 'VOTINGS.ALREADY_VOTED',
+        message: 'Голос от данной квартиры по этому вопросу уже был учтен ранее',
+      });
     }
 
     // 6. Аудит безопасности: обязательная криптографическая проверка SMS-OTP кода

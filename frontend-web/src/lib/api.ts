@@ -97,6 +97,8 @@ export async function apiRequest<T = any>(
 
   if (!response.ok) {
     let errorDetail = `Ошибка ${response.status}: ${response.statusText}`;
+    let code: string | undefined;
+    let params: Record<string, any> | undefined;
     try {
       const errData = await response.json();
       if (errData.message) {
@@ -104,13 +106,38 @@ export async function apiRequest<T = any>(
           ? errData.message.join(', ')
           : errData.message;
       }
+      code = errData.code;
+      params = errData.params;
     } catch {
       // Игнорируем ошибку парсинга тела
     }
     const err = new Error(errorDetail);
     (err as any).status = response.status;
+    (err as any).code = code;
+    (err as any).params = params;
     throw err;
   }
 
   return response.json();
 }
+
+/**
+ * Разрешает локализованный текст ошибки по коду (errors.<code\>), если он распознан,
+ * иначе возвращает исходное сообщение об ошибке.
+ */
+export function getApiErrorMessage(
+  err: any,
+  t?: (key: string, options?: any) => string,
+): string {
+  const code = err?.code;
+  const params = err?.params;
+  if (code && t) {
+    const key = `errors.${code}`;
+    const translated = t(key, params);
+    if (translated && translated !== key) {
+      return translated;
+    }
+  }
+  return err?.message || 'Произошла непредвиденная ошибка при обращении к серверу';
+}
+

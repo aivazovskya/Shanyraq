@@ -1,6 +1,7 @@
-﻿import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { Config } from '../constants/config';
 import { TokenStorage } from '../storage/token-storage';
+import i18n from '../i18n';
 
 export const apiClient = axios.create({
   baseURL: Config.API_URL,
@@ -123,6 +124,11 @@ apiClient.interceptors.response.use(
 );
 
 export function getApiErrorMessage(error: any): string {
+  const code = error?.response?.data?.code;
+  const params = error?.response?.data?.params;
+  if (code && i18n.exists(`errors.${code}`)) {
+    return i18n.t(`errors.${code}`, params) as string;
+  }
   if (error?.response?.data?.message) {
     const msg = error.response.data.message;
     return Array.isArray(msg) ? msg.join(', ') : msg;

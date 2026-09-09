@@ -84,8 +84,8 @@ describe('VotingsService (Аудит безопасности и алгорит�
         totalArea: 0, // Не заполнена
       });
 
-      await expect(
-        service.createMeeting('tenant-1', {
+      try {
+        await service.createMeeting('tenant-1', {
           title: 'Собрание',
           startDate: new Date().toISOString(),
           endDate: new Date(Date.now() + 86400000).toISOString(),
@@ -96,8 +96,12 @@ describe('VotingsService (Аудит безопасности и алгорит�
               decisionType: DecisionType.SIMPLE_MAJORITY,
             },
           ],
-        }),
-      ).rejects.toThrow(BadRequestException);
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('VOTINGS.ZERO_TOTAL_AREA');
+      }
     });
   });
 
@@ -132,14 +136,18 @@ describe('VotingsService (Аудит безопасности и алгорит�
       prismaMock.agendaItem.findUnique.mockResolvedValue(mockAgendaItem);
       prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.castVote('owner-1', {
+      try {
+        await service.castVote('owner-1', {
           agendaItemId: 'agenda-1',
           unitId: 'unit-42',
           choice: VoteChoice.FOR,
           otpCode: '849201',
-        }),
-      ).rejects.toThrow(ForbiddenException);
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect(err.getResponse().code).toBe('VOTINGS.NOT_ELIGIBLE_VOTER');
+      }
     });
 
     it('должен проверять SMS-OTP код и отклонять голос, если код неверный', async () => {

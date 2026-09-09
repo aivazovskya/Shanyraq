@@ -515,5 +515,41 @@
     "supportTeam": "Support Team",
     "today": "Today",
     "photoLabel": "Photo"
+  },
+  "errors": {
+    "AUTH": {
+      "SMS_SERVICE_UNAVAILABLE": "SMS service is temporarily unavailable. Please try again later.",
+      "PHONE_LOCKED": "Phone number is temporarily locked due to too many attempts. Please try again later.",
+      "OTP_RATE_LIMITED": "SMS code can only be requested once per minute. Please wait.",
+      "OTP_EXPIRED": "The verification code has expired. Please request a new code.",
+      "OTP_MAX_ATTEMPTS": "Maximum number of code entry attempts (3) exceeded. Phone number locked for 10 minutes.",
+      "OTP_INVALID": "Invalid SMS code. Remaining attempts: {{remaining}}",
+      "INVALID_CREDENTIALS": "Invalid login or password",
+      "USER_BLOCKED_OR_NOT_FOUND": "User is blocked or not found",
+      "REFRESH_TOKEN_INVALID": "Invalid or expired refresh token",
+      "REFRESH_TOKEN_WRONG_TYPE": "The provided token is not a refresh token",
+      "SESSION_REVOKED": "Session expired (token revoked). Please log in again.",
+      "USER_NOT_FOUND": "User not found",
+      "CURRENT_PIN_REQUIRED": "Current PIN is required to change your PIN",
+      "CURRENT_PIN_INVALID": "Incorrect current PIN",
+      "PIN_LENGTH_INVALID": "PIN must be exactly 4 or 6 digits",
+      "PIN_REPEATED_DIGITS": "PIN is too simple: repeated digits are not allowed",
+      "PIN_PREDICTABLE": "PIN is too simple or predictable. Please choose a more complex combination",
+      "INVALID_TOKEN_TYPE": "Invalid token type. Refresh token cannot be used to authorize requests"
+    },
+    "VOTINGS": {
+      "TENANT_ID_REQUIRED": "Residential complex ID is required",
+      "TENANT_NOT_FOUND": "Residential complex not found",
+      "ZERO_TOTAL_AREA": "Cannot initiate general meeting: total area of complex premises is not calculated or is 0. Please enter the housing stock (buildings and units with area in sq.m) first.",
+      "MEETING_NOT_FOUND": "General meeting not found",
+      "CROSS_TENANT_FORBIDDEN": "Access to another residential complex's meeting is forbidden",
+      "USER_NOT_FOUND_OR_BLOCKED": "User not found or blocked",
+      "AGENDA_ITEM_NOT_FOUND": "Agenda item not found",
+      "MEETING_NOT_ACTIVE": "Voting for this meeting is not active",
+      "OUTSIDE_VOTING_PERIOD": "Voting period has expired or has not started yet",
+      "NOT_ELIGIBLE_VOTER": "Only verified property owners have the right to vote. Tenants and unverified users cannot vote.",
+      "UNIT_TENANT_MISMATCH": "The premises do not belong to the residential complex holding the meeting",
+      "ALREADY_VOTED": "A vote from this apartment has already been recorded for this agenda item"
+    }
   }
 }

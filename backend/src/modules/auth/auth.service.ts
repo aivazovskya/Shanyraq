@@ -60,14 +60,19 @@ export class AuthService {
         const lockedUntil = parseInt(lockoutVal, 10);
         if (lockedUntil > now) {
           const waitMinutes = Math.ceil((lockedUntil - now) / 60000);
-          throw new BadRequestException(
-            `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
-          );
+          throw new BadRequestException({
+            code: 'AUTH.PHONE_LOCKED',
+            message: `Номер временно заблокирован из-за множественных неверных попыток. Попробуйте через ${waitMinutes} мин.`,
+            params: { waitMinutes },
+          });
         }
       }
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
-      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SERVICE_UNAVAILABLE',
+        message: 'Сервис временно недоступен, попробуйте позже',
+      });
     }
 
     // 2. Rate limiting: maximum 1 SMS per 60 seconds per phone (fail-closed if Redis error)
@@ -77,14 +82,19 @@ export class AuthService {
         const existing: OtpEntry = JSON.parse(existingRaw);
         if (now - existing.lastRequestedAt < 60000) {
           const waitSeconds = Math.ceil((60000 - (now - existing.lastRequestedAt)) / 1000);
-          throw new BadRequestException(
-            `Слишком частый запрос кода. Повторная отправка SMS возможна через ${waitSeconds} сек.`,
-          );
+          throw new BadRequestException({
+            code: 'AUTH.OTP_RATE_LIMITED',
+            message: `Слишком частый запрос кода. Повторная отправка SMS возможна через ${waitSeconds} сек.`,
+            params: { waitSeconds },
+          });
         }
       }
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
-      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SERVICE_UNAVAILABLE',
+        message: 'Сервис временно недоступен, попробуйте позже',
+      });
     }
 
     // 3. Generate cryptographically secure 6-digit random code (100000 - 999999)
@@ -105,7 +115,10 @@ export class AuthService {
         OTP_TTL_SECONDS,
       );
     } catch (err: any) {
-      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SERVICE_UNAVAILABLE',
+        message: 'Сервис временно недоступен, попробуйте позже',
+      });
     }
 
     console.log(`[SECURE-SMS] 📨 SMS отправлен на ${phone}: "Код подтверждения Shanyraq: ${code}"`);
@@ -128,23 +141,35 @@ export class AuthService {
       if (lockoutVal) {
         const lockedUntil = parseInt(lockoutVal, 10);
         if (lockedUntil > now) {
-          throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+          throw new BadRequestException({
+            code: 'AUTH.PHONE_LOCKED',
+            message: 'Номер временно заблокирован. Попробуйте позже.',
+          });
         }
       }
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
-      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SERVICE_UNAVAILABLE',
+        message: 'Сервис временно недоступен, попробуйте позже',
+      });
     }
 
     let raw: string | null = null;
     try {
       raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
     } catch {
-      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.',
+      });
     }
 
     if (!raw) {
-      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.',
+      });
     }
 
     let record: OtpEntry;
@@ -152,12 +177,18 @@ export class AuthService {
       record = JSON.parse(raw);
     } catch {
       try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
-      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.',
+      });
     }
 
     if (record.expiresAt < now) {
       try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
-      throw new BadRequestException('Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.');
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода истек или код не запрашивался. Запросите новый код.',
+      });
     }
 
     // 2. Constant-time comparison to prevent timing attacks
@@ -177,9 +208,10 @@ export class AuthService {
             LOCKOUT_TTL_SECONDS,
           );
         } catch {}
-        throw new BadRequestException(
-          'Превышено максимальное количество попыток ввода кода (3). Номер заблокирован на 10 минут.',
-        );
+        throw new BadRequestException({
+          code: 'AUTH.OTP_MAX_ATTEMPTS',
+          message: 'Превышено максимальное количество попыток ввода кода (3). Номер заблокирован на 10 минут.',
+        });
       }
 
       // Preserve remaining TTL (fail closed if Redis set fails)
@@ -191,12 +223,17 @@ export class AuthService {
           remainingSeconds,
         );
       } catch (err: any) {
-        throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+        throw new ServiceUnavailableException({
+          code: 'AUTH.SERVICE_UNAVAILABLE',
+          message: 'Сервис временно недоступен, попробуйте позже',
+        });
       }
 
-      throw new BadRequestException(
-        `Неверный SMS-код. Осталось попыток: ${3 - record.attempts}`,
-      );
+      throw new BadRequestException({
+        code: 'AUTH.OTP_INVALID',
+        message: `Неверный SMS-код. Осталось попыток: ${3 - record.attempts}`,
+        params: { remaining: 3 - record.attempts },
+      });
     }
 
     // OTP verified successfully -> clear state
@@ -271,27 +308,35 @@ export class AuthService {
       if (lockoutVal) {
         const lockedUntil = parseInt(lockoutVal, 10);
         if (lockedUntil > now) {
-          throw new BadRequestException('Номер временно заблокирован. Попробуйте позже.');
+          throw new BadRequestException({
+            code: 'AUTH.PHONE_LOCKED',
+            message: 'Номер временно заблокирован. Попробуйте позже.',
+          });
         }
       }
     } catch (err: any) {
       if (err instanceof BadRequestException) throw err;
-      throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SERVICE_UNAVAILABLE',
+        message: 'Сервис временно недоступен, попробуйте позже',
+      });
     }
 
     let raw: string | null = null;
     try {
       raw = await this.redisService.get(`${OTP_KEY_PREFIX}${phone}`);
     } catch {
-      throw new BadRequestException(
-        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
-      );
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      });
     }
 
     if (!raw) {
-      throw new BadRequestException(
-        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
-      );
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      });
     }
 
     let record: OtpEntry;
@@ -299,16 +344,18 @@ export class AuthService {
       record = JSON.parse(raw);
     } catch {
       try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
-      throw new BadRequestException(
-        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
-      );
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      });
     }
 
     if (record.expiresAt < now) {
       try { await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`); } catch {}
-      throw new BadRequestException(
-        'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
-      );
+      throw new BadRequestException({
+        code: 'AUTH.OTP_EXPIRED',
+        message: 'Срок действия SMS-кода подтверждения голоса истек или код не запрашивался. Сначала запросите SMS-код.',
+      });
     }
 
     const isMatch =
@@ -327,7 +374,10 @@ export class AuthService {
             LOCKOUT_TTL_SECONDS,
           );
         } catch {}
-        throw new BadRequestException('Превышено количество попыток ввода. Номер заблокирован.');
+        throw new BadRequestException({
+          code: 'AUTH.OTP_MAX_ATTEMPTS',
+          message: 'Превышено количество попыток ввода. Номер заблокирован.',
+        });
       }
 
       const remainingSeconds = Math.max(1, Math.ceil((record.expiresAt - now) / 1000));
@@ -338,10 +388,17 @@ export class AuthService {
           remainingSeconds,
         );
       } catch (err: any) {
-        throw new ServiceUnavailableException('Сервис временно недоступен, попробуйте позже');
+        throw new ServiceUnavailableException({
+          code: 'AUTH.SERVICE_UNAVAILABLE',
+          message: 'Сервис временно недоступен, попробуйте позже',
+        });
       }
 
-      throw new BadRequestException(`Неверный SMS-код подтверждения голоса. Осталось попыток: ${3 - record.attempts}`);
+      throw new BadRequestException({
+        code: 'AUTH.OTP_INVALID',
+        message: `Неверный SMS-код подтверждения голоса. Осталось попыток: ${3 - record.attempts}`,
+        params: { remaining: 3 - record.attempts },
+      });
     }
 
     // Code consumed
@@ -373,12 +430,18 @@ export class AuthService {
     });
 
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Неверный логин или пароль');
+      throw new UnauthorizedException({
+        code: 'AUTH.INVALID_CREDENTIALS',
+        message: 'Неверный логин или пароль',
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      throw new UnauthorizedException('Неверный логин или пароль');
+      throw new UnauthorizedException({
+        code: 'AUTH.INVALID_CREDENTIALS',
+        message: 'Неверный логин или пароль',
+      });
     }
 
     const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
@@ -406,11 +469,17 @@ export class AuthService {
         secret: this.refreshSecret,
       });
     } catch {
-      throw new UnauthorizedException('Недействительный или истекший refresh-токен');
+      throw new UnauthorizedException({
+        code: 'AUTH.REFRESH_TOKEN_INVALID',
+        message: 'Недействительный или истекший refresh-токен',
+      });
     }
 
     if (!payload || payload.type !== 'refresh') {
-      throw new UnauthorizedException('Предоставленный токен не является refresh-токеном');
+      throw new UnauthorizedException({
+        code: 'AUTH.REFRESH_TOKEN_WRONG_TYPE',
+        message: 'Предоставленный токен не является refresh-токеном',
+      });
     }
 
     const user = await this.prisma.user.findUnique({
@@ -418,11 +487,17 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Пользователь заблокирован или не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_BLOCKED_OR_NOT_FOUND',
+        message: 'Пользователь заблокирован или не найден',
+      });
     }
 
     if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
-      throw new UnauthorizedException('Сессия завершена (токен отозван). Пожалуйста, войдите снова.');
+      throw new UnauthorizedException({
+        code: 'AUTH.SESSION_REVOKED',
+        message: 'Сессия завершена (токен отозван). Пожалуйста, войдите снова.',
+      });
     }
 
     return this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
@@ -460,7 +535,10 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
     }
 
     return user;
@@ -473,7 +551,10 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
     }
 
     return { isPinSet: Boolean(user.accessPinHash) };
@@ -486,19 +567,28 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
     }
 
     this.validatePinStrength(dto.newPin);
 
     if (user.accessPinHash) {
       if (!dto.currentPin) {
-        throw new BadRequestException('Для изменения PIN-кода необходимо указать текущий PIN-код');
+        throw new BadRequestException({
+          code: 'AUTH.CURRENT_PIN_REQUIRED',
+          message: 'Для изменения PIN-кода необходимо указать текущий PIN-код',
+        });
       }
 
       const isCurrentValid = await bcrypt.compare(dto.currentPin, user.accessPinHash);
       if (!isCurrentValid) {
-        throw new BadRequestException('Неверный текущий PIN-код');
+        throw new BadRequestException({
+          code: 'AUTH.CURRENT_PIN_INVALID',
+          message: 'Неверный текущий PIN-код',
+        });
       }
     }
 
@@ -526,7 +616,10 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
     }
 
     return this.requestOtp({ phone: user.phone });
@@ -539,7 +632,10 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Пользователь не найден');
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
     }
 
     this.validatePinStrength(dto.newPin);
@@ -566,13 +662,19 @@ export class AuthService {
 
   private validatePinStrength(pin: string) {
     if (!/^\d{4}$|^\d{6}$/.test(pin)) {
-      throw new BadRequestException('PIN-код должен состоять ровно из 4 или 6 цифр');
+      throw new BadRequestException({
+        code: 'AUTH.PIN_LENGTH_INVALID',
+        message: 'PIN-код должен состоять ровно из 4 или 6 цифр',
+      });
     }
 
     // Check all identical digits (0000, 1111, 222222, etc.)
     const allSame = pin.split('').every((digit) => digit === pin[0]);
     if (allSame) {
-      throw new BadRequestException('Слишком простой PIN-код: нельзя использовать одинаковые цифры');
+      throw new BadRequestException({
+        code: 'AUTH.PIN_REPEATED_DIGITS',
+        message: 'Слишком простой PIN-код: нельзя использовать одинаковые цифры',
+      });
     }
 
     // Blocklist of common weak sequences
@@ -582,7 +684,10 @@ export class AuthService {
     ]);
 
     if (blockedPins.has(pin)) {
-      throw new BadRequestException('Слишком простой или предсказуемый PIN-код. Выберите более сложную комбинацию');
+      throw new BadRequestException({
+        code: 'AUTH.PIN_PREDICTABLE',
+        message: 'Слишком простой или предсказуемый PIN-код. Выберите более сложную комбинацию',
+      });
     }
   }
 
