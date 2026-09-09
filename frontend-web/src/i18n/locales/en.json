@@ -36,7 +36,8 @@
     "bookings": "Bookings",
     "sos": "Emergency Alerts (SOS)",
     "communityBoard": "Community board",
-    "chat": "Resident Chat"
+    "chat": "Resident Chat",
+    "analytics": "Analytics"
   },
   "roles": {
     "superadmin": "Superadministrator",
@@ -620,5 +621,103 @@
     "yesterday": "Yesterday",
     "apartment": "apt.",
     "photoLabel": "Photo"
+  },
+  "analytics": {
+    "pageTitle": "Extended Analytics",
+    "pageSubtitle": "Consolidated financial metrics, ticket statistics, and resident engagement",
+    "tabs": {
+      "finance": "Finance & Collections",
+      "requests": "Tickets & Service",
+      "activity": "Resident Activity"
+    },
+    "filters": {
+      "month": "Month",
+      "year": "Year",
+      "periodLabel": "Analysis period:",
+      "period7d": "7 days",
+      "period30d": "30 days",
+      "period90d": "90 days"
+    },
+    "finance": {
+      "loadError": "Failed to load financial analytics",
+      "totalCharged": "Total Charged",
+      "totalCollected": "Total Collected",
+      "collectionRate": "Collection Rate",
+      "tariffBreakdown": "Charges Breakdown by Tariff",
+      "topDebtors": "Top 10 Debtors",
+      "debtorAccount": "Account",
+      "debtorUnit": "Unit",
+      "debtorBalance": "Debt Balance",
+      "noDebtors": "No debts found — all personal accounts are fully paid",
+      "noTariffData": "No tariff charges data for selected month",
+      "percentOfCharges": "{{percent}}% of billed charges",
+      "noCharges": "No charges billed",
+      "amount": "Amount (₸)"
+    },
+    "requests": {
+      "loadError": "Failed to load ticket statistics",
+      "totalRequests": "Total Requests",
+      "avgResolutionTime": "Avg Resolution Time",
+      "hours": "h",
+      "avgRating": "Average Rating",
+      "ratedRequestsCount": "Rated Requests",
+      "statusBreakdown": "Requests by Status",
+      "categoryBreakdown": "Requests by Category",
+      "noRequestsData": "No requests submitted in this period",
+      "periodSummary": "for {{period}}",
+      "forResolvedAndClosed": "for resolved and closed requests",
+      "noRatings": "No ratings for period",
+      "count": "Count"
+    },
+    "activity": {
+      "loadError": "Failed to load resident activity",
+      "totalRegistered": "Total Residents",
+      "verifiedResidents": "Verified",
+      "adoptionRate": "Verification Rate",
+      "activityCounts": "Module Activity in Period",
+      "votesCast": "Votes Cast (Meetings)",
+      "requestsCreated": "Tickets Created",
+      "bookingsCreated": "Bookings Created",
+      "listingsCreated": "Listings Posted",
+      "chatMessagesSent": "Chat Messages Sent",
+      "meterReadingsSubmitted": "Meter Readings Submitted",
+      "registeredSub": "registered in the mobile app",
+      "verifiedSub": "verified owners/tenants",
+      "adoptionRateSub": "verification share of all registered users",
+      "actionsCount": "Actions"
+    },
+    "statuses": {
+      "PENDING": "Pending",
+      "IN_PROGRESS": "In Progress",
+      "RESOLVED": "Resolved",
+      "CLOSED": "Closed",
+      "CANCELLED": "Cancelled"
+    },
+    "categories": {
+      "PLUMBING": "Plumbing",
+      "ELECTRICAL": "Electrical",
+      "HVAC": "HVAC / Heating",
+      "CLEANING": "Cleaning",
+      "ELEVATOR": "Elevators",
+      "INTERCOM": "Intercom",
+      "SECURITY": "Security",
+      "OTHER": "Other"
+    },
+    "months": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "selectTenantPromptTitle": "Select Housing Complex",
+    "selectTenantPromptSub": "You are logged in as superadmin. Select a complex from the dropdown above to view extended analytics."
   }
 }

@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   ShoppingBag,
   MessageSquare,
+  BarChart3,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 
@@ -42,6 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const navigation = [
     { name: t('navigation.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: t('navigation.analytics'), href: '/dashboard/analytics', icon: BarChart3, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
     { name: t('navigation.votings'), href: '/dashboard/votings', icon: Vote },
     { name: t('navigation.requests'), href: '/dashboard/requests', icon: Wrench },
     { name: t('navigation.verifications'), href: '/dashboard/verifications', icon: UserCheck },

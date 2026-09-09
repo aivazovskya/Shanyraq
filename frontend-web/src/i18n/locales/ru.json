@@ -36,7 +36,8 @@
     "bookings": "Бронирования",
     "sos": "Экстренные вызовы (SOS)",
     "communityBoard": "Доска объявлений",
-    "chat": "Чат с жильцами"
+    "chat": "Чат с жильцами",
+    "analytics": "Аналитика"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -620,5 +621,103 @@
     "yesterday": "Вчера",
     "apartment": "кв.",
     "photoLabel": "Фото"
+  },
+  "analytics": {
+    "pageTitle": "Расширенная аналитика",
+    "pageSubtitle": "Сводные финансовые показатели, статистика заявок и активность жителей",
+    "tabs": {
+      "finance": "Финансы и сборы",
+      "requests": "Заявки и сервис",
+      "activity": "Активность жильцов"
+    },
+    "filters": {
+      "month": "Месяц",
+      "year": "Год",
+      "periodLabel": "Период анализа:",
+      "period7d": "7 дней",
+      "period30d": "30 дней",
+      "period90d": "90 дней"
+    },
+    "finance": {
+      "loadError": "Ошибка загрузки финансовой аналитики",
+      "totalCharged": "Начислено",
+      "totalCollected": "Собрано",
+      "collectionRate": "Собираемость",
+      "tariffBreakdown": "Структура начислений по тарифам",
+      "topDebtors": "Топ-10 должников ЖК",
+      "debtorAccount": "Лицевой счёт",
+      "debtorUnit": "Помещение",
+      "debtorBalance": "Задолженность",
+      "noDebtors": "Задолженностей нет — все счета оплачены вовремя",
+      "noTariffData": "Нет данных по тарифам за выбранный месяц",
+      "percentOfCharges": "{{percent}}% от начислений",
+      "noCharges": "Нет начислений",
+      "amount": "Сумма (₸)"
+    },
+    "requests": {
+      "loadError": "Ошибка загрузки статистики заявок",
+      "totalRequests": "Всего заявок",
+      "avgResolutionTime": "Ср. время решения",
+      "hours": "ч.",
+      "avgRating": "Средняя оценка",
+      "ratedRequestsCount": "Оценено жителями",
+      "statusBreakdown": "Заявки по статусам",
+      "categoryBreakdown": "Заявки по категориям",
+      "noRequestsData": "За выбранный период заявок не поступало",
+      "periodSummary": "за {{period}}",
+      "forResolvedAndClosed": "для решённых и закрытых заявок",
+      "noRatings": "Нет оценок за период",
+      "count": "Количество"
+    },
+    "activity": {
+      "loadError": "Ошибка загрузки активности жильцов",
+      "totalRegistered": "Всего жильцов",
+      "verifiedResidents": "Верифицировано",
+      "adoptionRate": "Доля верификации",
+      "activityCounts": "Активность в сервисах ЖК за период",
+      "votesCast": "Голосов на ОСС",
+      "requestsCreated": "Создано заявок",
+      "bookingsCreated": "Бронирований зон",
+      "listingsCreated": "Объявлений на доске",
+      "chatMessagesSent": "Сообщений в чат",
+      "meterReadingsSubmitted": "Подано показаний",
+      "registeredSub": "зарегистрировано в приложении",
+      "verifiedSub": "подтверждённые собственники/арендаторы",
+      "adoptionRateSub": "доля верификации от всех зарегистрированных",
+      "actionsCount": "Действий"
+    },
+    "statuses": {
+      "PENDING": "Новая",
+      "IN_PROGRESS": "В работе",
+      "RESOLVED": "Решена",
+      "CLOSED": "Закрыта",
+      "CANCELLED": "Отменена"
+    },
+    "categories": {
+      "PLUMBING": "Сантехника",
+      "ELECTRICAL": "Электрика",
+      "HVAC": "Отопление / Вент.",
+      "CLEANING": "Клининг / Уборка",
+      "ELEVATOR": "Лифтовое хозяйство",
+      "INTERCOM": "Домофония",
+      "SECURITY": "Безопасность",
+      "OTHER": "Прочее"
+    },
+    "months": {
+      "1": "Январь",
+      "2": "Февраль",
+      "3": "Март",
+      "4": "Апрель",
+      "5": "Май",
+      "6": "Июнь",
+      "7": "Июль",
+      "8": "Август",
+      "9": "Сентябрь",
+      "10": "Октябрь",
+      "11": "Ноябрь",
+      "12": "Декабрь"
+    },
+    "selectTenantPromptTitle": "Выберите жилой комплекс",
+    "selectTenantPromptSub": "Вы вошли под ролью суперадминистратора. Выберите ЖК в выпадающем списке сверху для просмотра расширенной аналитики."
   }
 }

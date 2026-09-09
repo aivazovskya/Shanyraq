@@ -36,7 +36,8 @@
     "bookings": "Брондаулар",
     "sos": "Шұғыл шақырулар (SOS)",
     "communityBoard": "Хабарландырулар тақтасы",
-    "chat": "Тұрғындармен чат"
+    "chat": "Тұрғындармен чат",
+    "analytics": "Талдау"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -620,5 +621,103 @@
     "yesterday": "Кеше",
     "apartment": "пәтер",
     "photoLabel": "Фото"
+  },
+  "analytics": {
+    "pageTitle": "Кеңейтілген талдау",
+    "pageSubtitle": "Жиынтық қаржылық көрсеткіштер, өтінімдер статистикасы және тұрғындар белсенділігі",
+    "tabs": {
+      "finance": "Қаржы және төлемдер",
+      "requests": "Өтінімдер және қызмет",
+      "activity": "Тұрғындар белсенділігі"
+    },
+    "filters": {
+      "month": "Ай",
+      "year": "Жыл",
+      "periodLabel": "Талдау кезеңі:",
+      "period7d": "7 күн",
+      "period30d": "30 күн",
+      "period90d": "90 күн"
+    },
+    "finance": {
+      "loadError": "Қаржылық талдауды жүктеу қатесі",
+      "totalCharged": "Есептелді",
+      "totalCollected": "Жиналды",
+      "collectionRate": "Жиналымдылық",
+      "tariffBreakdown": "Тарифтер бойынша есептеу құрылымы",
+      "topDebtors": "ТК үздік 10 борышкері",
+      "debtorAccount": "Дербес шот",
+      "debtorUnit": "Үй-жай",
+      "debtorBalance": "Берешек",
+      "noDebtors": "Берешектер жоқ — барлық шоттар уақытында төленген",
+      "noTariffData": "Таңдалған айда тарифтер бойынша деректер жоқ",
+      "percentOfCharges": "есептелгеннің {{percent}}%",
+      "noCharges": "Есептеулер жоқ",
+      "amount": "Сомасы (₸)"
+    },
+    "requests": {
+      "loadError": "Өтінімдер статистикасын жүктеу қатесі",
+      "totalRequests": "Барлық өтінімдер",
+      "avgResolutionTime": "Шешудің орташа уақыты",
+      "hours": "сағ.",
+      "avgRating": "Орташа баға",
+      "ratedRequestsCount": "Тұрғындар бағалаған",
+      "statusBreakdown": "Мәртебелер бойынша өтінімдер",
+      "categoryBreakdown": "Санаттар бойынша өтінімдер",
+      "noRequestsData": "Таңдалған кезеңде өтінімдер түскен жоқ",
+      "periodSummary": "{{period}} ішінде",
+      "forResolvedAndClosed": "шешілген және жабылған өтінімдер үшін",
+      "noRatings": "Кезеңде бағалар жоқ",
+      "count": "Саны"
+    },
+    "activity": {
+      "loadError": "Тұрғындар белсенділігін жүктеу қатесі",
+      "totalRegistered": "Барлық тұрғындар",
+      "verifiedResidents": "Тексерілген",
+      "adoptionRate": "Тексерілу үлесі",
+      "activityCounts": "Кезеңдегі ТК сервистеріндегі белсенділік",
+      "votesCast": "ОСС дауыстары",
+      "requestsCreated": "Жасалған өтінімдер",
+      "bookingsCreated": "Аймақтарды брондау",
+      "listingsCreated": "Тақтадағы хабарландырулар",
+      "chatMessagesSent": "Чат хабарламалары",
+      "meterReadingsSubmitted": "Берілген көрсеткіштер",
+      "registeredSub": "қосымшада тіркелген",
+      "verifiedSub": "расталған меншік иелері/жалға алушылар",
+      "adoptionRateSub": "барлық тіркелгендерден тексерілгендер үлесі",
+      "actionsCount": "Әрекеттер"
+    },
+    "statuses": {
+      "PENDING": "Жаңа",
+      "IN_PROGRESS": "Орындалуда",
+      "RESOLVED": "Шешілді",
+      "CLOSED": "Жабылды",
+      "CANCELLED": "Бас тартылды"
+    },
+    "categories": {
+      "PLUMBING": "Сантехника",
+      "ELECTRICAL": "Электрика",
+      "HVAC": "Жылыту / Желдету",
+      "CLEANING": "Клининг / Тазалық",
+      "ELEVATOR": "Лифт шаруашылығы",
+      "INTERCOM": "Домофония",
+      "SECURITY": "Қауіпсіздік",
+      "OTHER": "Басқа"
+    },
+    "months": {
+      "1": "Қаңтар",
+      "2": "Ақпан",
+      "3": "Наурыз",
+      "4": "Сәуір",
+      "5": "Мамыр",
+      "6": "Маусым",
+      "7": "Шілде",
+      "8": "Тамыз",
+      "9": "Қыркүйек",
+      "10": "Қазан",
+      "11": "Қараша",
+      "12": "Желтоқсан"
+    },
+    "selectTenantPromptTitle": "Тұрғын үй кешенін таңдаңыз",
+    "selectTenantPromptSub": "Сіз суперадминистратор рөлімен кірдіңіз. Кеңейтілген талдауды көру үшін жоғарыдағы тізімнен ТК таңдаңыз."
   }
 }

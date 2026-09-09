@@ -16,6 +16,7 @@ import { BookingsModule } from './modules/bookings/bookings.module';
 import { SosModule } from './modules/sos/sos.module';
 import { CommunityBoardModule } from './modules/community-board/community-board.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ChatModule } from './modules/chat/chat.module';
     SosModule,
     CommunityBoardModule,
     ChatModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
