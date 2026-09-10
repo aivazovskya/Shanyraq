@@ -697,7 +697,35 @@ export class AccessControlService {
   }
 
   async createGuestPass(user: { id: string; role: UserRole; tenantId?: string | null }, dto: CreateGuestPassDto) {
-    if (user.role !== UserRole.SUPERADMIN) {
+    const isStaff = ([
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ] as UserRole[]).includes(user.role);
+
+    if (user.role === UserRole.SUPERADMIN) {
+      // SUPERADMIN bypasses all ownership and tenant checks
+    } else if (isStaff) {
+      const unit = await this.prisma.unit.findUnique({
+        where: { id: dto.unitId },
+        include: { building: true },
+      });
+
+      if (!unit) {
+        throw new NotFoundException({
+          code: 'ACCESS_CONTROL.UNIT_NOT_FOUND',
+          message: 'Квартира/помещение не найдено',
+        });
+      }
+
+      if (unit.building?.tenantId !== user.tenantId) {
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.GUEST_PASS_CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал имеет право оформлять гостевые пропуска только для квартир своего жилого комплекса',
+        });
+      }
+    } else {
       const ownership = await this.prisma.unitOwnership.findFirst({
         where: {
           userId: user.id,

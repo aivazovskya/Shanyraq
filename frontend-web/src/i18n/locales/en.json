@@ -949,7 +949,9 @@
       "PIN_LOCKED": "Access is temporarily blocked for 10 minutes due to exceeding PIN attempts",
       "PIN_MAX_ATTEMPTS": "Invalid PIN. Maximum number of attempts exceeded. Access blocked for 10 minutes.",
       "PIN_INVALID": "Invalid PIN. Attempts remaining: {{remaining}}",
-      "GUEST_PASS_OWN_UNIT_ONLY": "You can only issue a guest pass for your own verified apartment"
+      "GUEST_PASS_OWN_UNIT_ONLY": "You can only issue a guest pass for your own verified apartment",
+      "GUEST_PASS_CROSS_TENANT_FORBIDDEN": "Staff can only issue guest passes for units in their own property complex",
+      "UNIT_NOT_FOUND": "Unit/apartment not found"
     },
     "SOS": {
       "AUTH_REQUIRED": "Authorization required",

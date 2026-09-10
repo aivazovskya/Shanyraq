@@ -47,6 +47,9 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       unitOwnership: {
         findFirst: jest.fn(),
       },
+      unit: {
+        findUnique: jest.fn(),
+      },
       accessLog: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -858,6 +861,161 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       } finally {
         global.fetch = originalFetch;
       }
+    });
+  });
+
+  describe('createGuestPass (Оформление гостевых пропусков)', () => {
+    const validUnitTenant1 = {
+      id: 'unit-1',
+      building: {
+        tenantId: 'tenant-1',
+      },
+    };
+
+    const validUnitTenant2 = {
+      id: 'unit-2',
+      building: {
+        tenantId: 'tenant-2',
+      },
+    };
+
+    const passDto = {
+      unitId: 'unit-1',
+      guestName: 'Азамат Гость',
+      guestPlateNumber: '777KZ01',
+      validFrom: new Date().toISOString(),
+      validTo: new Date(Date.now() + 86400000).toISOString(),
+    };
+
+    it('должен выбрасывать UNIT_NOT_FOUND (404) если квартира не существует', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createGuestPass(
+          { id: 'disp-1', role: UserRole.DISPATCHER, tenantId: 'tenant-1' },
+          passDto,
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      prismaMock.unit.findUnique.mockResolvedValue(null);
+      try {
+        await service.createGuestPass(
+          { id: 'disp-1', role: UserRole.DISPATCHER, tenantId: 'tenant-1' },
+          passDto,
+        );
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('ACCESS_CONTROL.UNIT_NOT_FOUND');
+      }
+    });
+
+    it('персонал своего ЖК (DISPATCHER, HOA_ADMIN, SECURITY, HOA_CHAIRMAN) может успешно оформлять пропуск для любой квартиры своего ЖК', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(validUnitTenant1);
+      prismaMock.guestPass.create.mockImplementation((args: any) =>
+        Promise.resolve({ id: 'pass-123', ...args.data }),
+      );
+
+      const staffRoles = [
+        UserRole.DISPATCHER,
+        UserRole.HOA_ADMIN,
+        UserRole.SECURITY,
+        UserRole.HOA_CHAIRMAN,
+      ];
+
+      for (const role of staffRoles) {
+        const pass = await service.createGuestPass(
+          { id: `staff-${role}`, role, tenantId: 'tenant-1' },
+          passDto,
+        );
+        expect(pass.id).toBe('pass-123');
+        expect(pass.unitId).toBe('unit-1');
+        expect(pass.guestName).toBe('Азамат Гость');
+        expect(pass.accessCode).toBeDefined();
+        expect(pass.creatorId).toBe(`staff-${role}`);
+      }
+    });
+
+    it('персонал (DISPATCHER) чужого ЖК получает отказ с GUEST_PASS_CROSS_TENANT_FORBIDDEN', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(validUnitTenant2);
+
+      await expect(
+        service.createGuestPass(
+          { id: 'disp-1', role: UserRole.DISPATCHER, tenantId: 'tenant-1' },
+          { ...passDto, unitId: 'unit-2' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      try {
+        await service.createGuestPass(
+          { id: 'disp-1', role: UserRole.DISPATCHER, tenantId: 'tenant-1' },
+          { ...passDto, unitId: 'unit-2' },
+        );
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('ACCESS_CONTROL.GUEST_PASS_CROSS_TENANT_FORBIDDEN');
+      }
+    });
+
+    it('житель со своей подтвержденной квартирой может успешно оформить пропуск', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(validUnitTenant1);
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-1',
+        userId: 'res-1',
+        unitId: 'unit-1',
+        isVerified: true,
+      });
+      prismaMock.guestPass.create.mockImplementation((args: any) =>
+        Promise.resolve({ id: 'pass-res-1', ...args.data }),
+      );
+
+      const pass = await service.createGuestPass(
+        { id: 'res-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+        passDto,
+      );
+
+      expect(pass.id).toBe('pass-res-1');
+      expect(pass.creatorId).toBe('res-1');
+      expect(prismaMock.unitOwnership.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'res-1',
+          unitId: 'unit-1',
+          isVerified: true,
+        },
+      });
+    });
+
+    it('житель без подтвержденного права собственности получает GUEST_PASS_OWN_UNIT_ONLY', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(validUnitTenant1);
+      prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createGuestPass(
+          { id: 'res-2', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+          passDto,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      try {
+        await service.createGuestPass(
+          { id: 'res-2', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+          passDto,
+        );
+      } catch (err: any) {
+        expect(err.getResponse().code).toBe('ACCESS_CONTROL.GUEST_PASS_OWN_UNIT_ONLY');
+      }
+    });
+
+    it('SUPERADMIN обходит проверки владения и ЖК и может оформить пропуск', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue(validUnitTenant2);
+      prismaMock.guestPass.create.mockImplementation((args: any) =>
+        Promise.resolve({ id: 'pass-super', ...args.data }),
+      );
+
+      const pass = await service.createGuestPass(
+        { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null },
+        { ...passDto, unitId: 'unit-2' },
+      );
+
+      expect(pass.id).toBe('pass-super');
+      expect(pass.creatorId).toBe('super-1');
     });
   });
 
