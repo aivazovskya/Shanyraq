@@ -42,6 +42,31 @@ export interface CreateGuestPassDto {
   validTo: string;
 }
 
+export interface AccessLogItem {
+  id: string;
+  accessPointId: string;
+  userId?: string | null;
+  unitId?: string | null;
+  action: string;
+  status: string;
+  note?: string | null;
+  createdAt: string;
+  accessPoint: AccessPoint;
+  user?: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
+  unit?: {
+    id: string;
+    unitNumber: string;
+    building?: {
+      id: string;
+      blockName: string;
+    } | null;
+  } | null;
+}
+
 export const AccessApi = {
   async getAccessPoints(tenantId: string): Promise<AccessPoint[]> {
     const res = await apiClient.get(`/access/tenant/${tenantId}/points`);
@@ -66,4 +91,10 @@ export const AccessApi = {
     const res = await apiClient.get(`/access/points/${pointId}/stream`);
     return res.data;
   },
+
+  async getAccessLogs(tenantId: string): Promise<AccessLogItem[]> {
+    const res = await apiClient.get(`/access/tenant/${tenantId}/logs`);
+    return res.data;
+  },
 };
+

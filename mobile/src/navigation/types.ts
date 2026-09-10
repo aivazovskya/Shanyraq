@@ -27,6 +27,8 @@ export type RootStackParamList = {
   Main: NavigatorScreenParams<MainTabsParamList>;
   StaffMain: NavigatorScreenParams<StaffTabsParamList>;
   StaffChatThread: { conversationId: string; residentName?: string; unitInfo?: string };
+  StaffAccessLog: undefined;
+  StaffGuestPass: undefined;
   VotingDetails: { meetingId: string };
   CreateRequest: undefined;
   RequestDetail: { requestId: string };

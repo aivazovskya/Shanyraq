@@ -26,6 +26,8 @@ import {
   MessageSquare,
   ClipboardList,
   ChevronRight,
+  Shield,
+  KeyRound,
 } from 'lucide-react-native';
 
 export const StaffHomeScreen: React.FC = () => {
@@ -35,6 +37,12 @@ export const StaffHomeScreen: React.FC = () => {
 
   const canAccessChat = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN';
   const canAccessRequests = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN' || user?.role === 'HOA_CHAIRMAN';
+  const canAccessLogs = user?.role === 'SECURITY' || user?.role === 'HOA_ADMIN';
+  const canAccessGuestPass =
+    user?.role === 'HOA_ADMIN' ||
+    user?.role === 'HOA_CHAIRMAN' ||
+    user?.role === 'DISPATCHER' ||
+    user?.role === 'SECURITY';
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -200,6 +208,54 @@ export const StaffHomeScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
+        {/* Access Log Quick Action (SECURITY & HOA_ADMIN only) */}
+        {canAccessLogs && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('StaffAccessLog')}
+            activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.accessLogCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.accessLogIconCircle]}>
+                  <Shield size={20} color="#059669" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#059669' }]}>
+                    {t('staff.accessLog.cardLabel')}
+                  </Text>
+                  <Text style={styles.accessLogCardTitle}>{t('staff.accessLog.cardTitle')}</Text>
+                  <Text style={styles.accessLogCardSubtitle}>{t('staff.accessLog.cardSubtitle')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
+        {/* Guest Pass Issuance Quick Action (all 4 staff roles) */}
+        {canAccessGuestPass && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('StaffGuestPass')}
+            activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.guestPassCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.guestPassIconCircle]}>
+                  <KeyRound size={20} color="#D97706" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#D97706' }]}>
+                    {t('staff.guestPass.cardLabel')}
+                  </Text>
+                  <Text style={styles.guestPassCardTitle}>{t('staff.guestPass.cardTitle')}</Text>
+                  <Text style={styles.guestPassCardSubtitle}>{t('staff.guestPass.cardSubtitle')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
         {/* Operational Modules Preview / Status */}
         <Card style={styles.card}>
           <View style={styles.cardHeader}>
@@ -326,6 +382,44 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   requestsCardSubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  accessLogCard: {
+    borderColor: Colors.border,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  accessLogIconCircle: {
+    backgroundColor: '#ECFDF5',
+  },
+  accessLogCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 2,
+  },
+  accessLogCardSubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  guestPassCard: {
+    borderColor: Colors.border,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  guestPassIconCircle: {
+    backgroundColor: '#FFFBEB',
+  },
+  guestPassCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 2,
+  },
+  guestPassCardSubtitle: {
     fontSize: 13,
     color: Colors.textMuted,
     marginTop: 2,
