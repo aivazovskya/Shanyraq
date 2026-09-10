@@ -37,7 +37,7 @@ export class TenantGuard implements CanActivate {
  * Вспомогательная функция для проверки принадлежности сущности к ЖК пользователя
  */
 export function assertUserBelongsToTenant(
-  user: { tenantId?: string | null; role: UserRole },
+  user: { tenantId?: string | null; role?: UserRole },
   targetTenantId: string,
   entityNameOrError: string | { code: string; message: string } = 'ресурса',
 ) {

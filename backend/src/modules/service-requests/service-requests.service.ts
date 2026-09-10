@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateServiceRequestDto, UpdateRequestStatusDto, AddCommentDto, RateRequestDto } from './dto/service-requests.dto';
 import { RequestStatus, UserRole } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
 @Injectable()
 export class ServiceRequestsService {
@@ -39,21 +40,25 @@ export class ServiceRequestsService {
         select: { role: true, tenantId: true },
       });
 
-      const isAuthorizedStaff =
-        caller &&
-        (caller.role === UserRole.SUPERADMIN ||
-          ((caller.role === UserRole.HOA_ADMIN ||
-            caller.role === UserRole.HOA_CHAIRMAN ||
-            caller.role === UserRole.DISPATCHER ||
-            caller.role === UserRole.SECURITY) &&
-            caller.tenantId === unit.building.tenantId));
+      const staffRoles = [
+        UserRole.HOA_ADMIN,
+        UserRole.HOA_CHAIRMAN,
+        UserRole.DISPATCHER,
+        UserRole.SECURITY,
+      ];
+      const isStaff = caller && (staffRoles as UserRole[]).includes(caller.role);
 
-      if (!isAuthorizedStaff) {
+      if (!caller || (!isStaff && caller.role !== UserRole.SUPERADMIN)) {
         throw new ForbiddenException({
           code: 'SERVICE_REQUESTS.UNIT_ACCESS_FORBIDDEN',
           message: 'У вас нет подтвержденного доступа к данному помещению',
         });
       }
+
+      assertUserBelongsToTenant(caller, unit.building.tenantId, {
+        code: 'SERVICE_REQUESTS.UNIT_ACCESS_FORBIDDEN',
+        message: 'У вас нет подтвержденного доступа к данному помещению',
+      });
     }
 
     return this.prisma.serviceRequest.create({
@@ -158,12 +163,10 @@ export class ServiceRequestsService {
         requestingUser.role as UserRole,
       );
       if (isStaff) {
-        if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
-          throw new ForbiddenException({
-            code: 'SERVICE_REQUESTS.CROSS_TENANT_VIEW_FORBIDDEN',
-            message: 'Доступ к заявке другого ЖК запрещен',
-          });
-        }
+        assertUserBelongsToTenant(requestingUser, request.tenantId, {
+          code: 'SERVICE_REQUESTS.CROSS_TENANT_VIEW_FORBIDDEN',
+          message: 'Доступ к заявке другого ЖК запрещен',
+        });
       } else {
         if (request.creatorId !== requestingUser.id) {
           throw new ForbiddenException({
@@ -200,12 +203,10 @@ export class ServiceRequestsService {
           message: 'Недостаточно прав для изменения статуса заявки',
         });
       }
-      if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
-        throw new ForbiddenException({
-          code: 'SERVICE_REQUESTS.CROSS_TENANT_EDIT_FORBIDDEN',
-          message: 'Редактирование заявки другого ЖК запрещено',
-        });
-      }
+      assertUserBelongsToTenant(requestingUser, request.tenantId, {
+        code: 'SERVICE_REQUESTS.CROSS_TENANT_EDIT_FORBIDDEN',
+        message: 'Редактирование заявки другого ЖК запрещено',
+      });
     }
 
     const updated = await this.prisma.serviceRequest.update({
@@ -263,12 +264,10 @@ export class ServiceRequestsService {
         requestingUser.role as UserRole,
       );
       if (isStaff) {
-        if (!requestingUser.tenantId || requestingUser.tenantId !== request.tenantId) {
-          throw new ForbiddenException({
-            code: 'SERVICE_REQUESTS.CROSS_TENANT_COMMENT_FORBIDDEN',
-            message: 'Добавление комментариев к заявкам другого ЖК запрещено',
-          });
-        }
+        assertUserBelongsToTenant(requestingUser, request.tenantId, {
+          code: 'SERVICE_REQUESTS.CROSS_TENANT_COMMENT_FORBIDDEN',
+          message: 'Добавление комментариев к заявкам другого ЖК запрещено',
+        });
       } else {
         if (request.creatorId !== requestingUser.id) {
           throw new ForbiddenException({

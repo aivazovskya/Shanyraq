@@ -21,6 +21,7 @@ import {
   drawFooter,
   TableColumn,
 } from '../../common/pdf/pdf-document.helper';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
 @Injectable()
 export class VotingsService {
@@ -148,13 +149,11 @@ export class VotingsService {
     }
 
     // Аудит безопасности (Tenant isolation): проверка принадлежности собрания к ЖК пользователя
-    if (requestingUser && requestingUser.role !== UserRole.SUPERADMIN) {
-      if (!requestingUser.tenantId || requestingUser.tenantId !== meeting.tenantId) {
-        throw new ForbiddenException({
-          code: 'VOTINGS.CROSS_TENANT_FORBIDDEN',
-          message: 'Доступ к собранию другого жилого комплекса запрещен',
-        });
-      }
+    if (requestingUser) {
+      assertUserBelongsToTenant(requestingUser, meeting.tenantId, {
+        code: 'VOTINGS.CROSS_TENANT_FORBIDDEN',
+        message: 'Доступ к собранию другого жилого комплекса запрещен',
+      });
     }
 
     return this.enrichMeetingWithResults(meeting, requestingUser);

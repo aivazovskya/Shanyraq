@@ -15,6 +15,7 @@ import {
   ResolveSosDto,
   GetTenantAlertsQueryDto,
 } from './dto/sos.dto';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
 @Injectable()
 export class SosService {
@@ -233,12 +234,10 @@ export class SosService {
       });
     }
 
-    if (user.role !== UserRole.SUPERADMIN && alert.tenantId !== user.tenantId) {
-      throw new ForbiddenException({
-        code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN',
-        message: 'Вы не можете обрабатывать вызовы другого ЖК',
-      });
-    }
+    assertUserBelongsToTenant(user, alert.tenantId, {
+      code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN',
+      message: 'Вы не можете обрабатывать вызовы другого ЖК',
+    });
 
     const allowedRoles = [
       UserRole.SECURITY,
