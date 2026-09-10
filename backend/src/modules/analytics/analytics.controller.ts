@@ -5,7 +5,9 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -43,6 +45,28 @@ export class AnalyticsController {
     @Request() req: any,
   ) {
     return this.analyticsService.getFinanceAnalytics(tenantId, req.user, query);
+  }
+
+  @Get('tenants/:tenantId/finance/export')
+  @ApiOperation({
+    summary:
+      'Экспорт финансовой аналитики ЖК в формате CSV (сводка, тарифы, полный список должников)',
+  })
+  @ApiQuery({ name: 'month', required: false, type: Number })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  async exportFinanceAnalyticsCsv(
+    @Param('tenantId') tenantId: string,
+    @Query() query: FinanceAnalyticsQueryDto,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } =
+      await this.analyticsService.exportFinanceAnalyticsCsv(tenantId, req.user, query);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 
   @Get('tenants/:tenantId/requests')

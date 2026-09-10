@@ -764,7 +764,9 @@
       "noTariffData": "Нет данных по тарифам за выбранный месяц",
       "percentOfCharges": "{{percent}}% от начислений",
       "noCharges": "Нет начислений",
-      "amount": "Сумма (₸)"
+      "amount": "Сумма (₸)",
+      "exportCsv": "Скачать CSV",
+      "exporting": "Экспорт..."
     },
     "requests": {
       "loadError": "Ошибка загрузки статистики заявок",

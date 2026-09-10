@@ -1,6 +1,6 @@
 # Task 0030: Code-quality cleanup — low-risk items
 
-**Status:** Ready for Antigravity
+**Status:** Completed
 **Assignee:** Antigravity
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 
@@ -206,3 +206,28 @@ deleted along with the duplicated method). Use your judgment per-comment
 - PR description lists each of the four findings (A-D) and confirms
   which was verified how (e.g. "Finding C: added a test proving both
   `YARD` and `YARD_TERRITORY` resolve to the same label").
+
+---
+
+## Review addendum (2026-09-10) — accepted, no issues found
+
+**Verified good:** Finding A — only the dead staff-branch `Chat` route
+removed, resident branch's identical registration untouched. Finding B —
+`canAccessChat`/`canAccessRequests`/`canAccessLogs` added to
+`AuthContext.tsx` with byte-identical role sets, all four consumer files
+(`StaffMainTabs.tsx`, `StaffHomeScreen.tsx`, `StaffAccessLogScreen.tsx`,
+`StaffGuestPassScreen.tsx`) now import and use them; the guest-pass
+four-role check correctly switched to the pre-existing `isStaffUser`
+rather than being re-defined as a fifth near-duplicate. Finding C — new
+`mobile/src/utils/requestLabels.ts` correctly includes the
+`YARD_TERRITORY`/`INTERCOM_ACCESS` aliases, fixing
+`RequestsListScreen.tsx`'s gap as a side effect of the extraction exactly
+as scoped; all three screens migrated. Finding D — grepped
+`Subtask|Decision #|Task 00|per Task` across all `.ts`/`.tsx` post-fix:
+zero hits in production source, only the expected hits remain in
+`*.spec.ts` describe/it strings (correctly left alone per decision #2).
+Also caught and fixed one instance not explicitly listed in the task
+(`schema.prisma`'s `Payment.recordedById` comment referencing "this
+task") — a legitimate extension of the same finding, not scope creep.
+`tsc --noEmit` clean in `mobile/`, all existing tests pass unmodified.
+Task accepted, no fixes required.

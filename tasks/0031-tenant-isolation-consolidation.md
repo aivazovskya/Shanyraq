@@ -1,6 +1,6 @@
 # Task 0031: Consolidate duplicated tenant-isolation authorization logic
 
-**Status:** Ready for Antigravity
+**Status:** Completed
 **Assignee:** Antigravity
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 
@@ -178,3 +178,54 @@ pass unmodified.
   across all six modules" (or explains precisely which one needed a
   change and why, if any did — that would be worth flagging to the
   reviewer rather than silently included).
+
+---
+
+## Review addendum (2026-09-10) — accepted, no issues found
+
+**Subtask A (new shared helper):** `assertAccessToTenant` extracted into
+`tenant.guard.ts` exactly matching the three-way logic (SUPERADMIN
+bypass → staff tenant-match → resident verified-ownership DB query),
+parameterized by an `errorCodes: TenantAccessErrorCodes` object.
+`assertUserBelongsToTenant`'s signature was extended backward-compatibly
+(the plain-string `entityName` form still works unchanged; a new
+`{ code, message }` object form was added as an alternative) — no
+existing call site needed to change. New `tenant-access.spec.ts` covers
+all six required scenarios (no user, SUPERADMIN bypass, staff
+same/cross-tenant, resident verified/unverified) plus both forms of
+`assertUserBelongsToTenant`.
+
+**Subtask B (bookings/chat/community-board):** all three services kept
+their original method name and signature — `bookings.service.ts`'s
+private method and `chat.service.ts`/`community-board.service.ts`'s
+public methods (still called externally by `RealtimeGateway`, confirmed
+`realtime.gateway.ts` needed zero changes) — now as thin wrappers
+delegating to the shared helper with each module's own error-code triple
+passed through unchanged. Compared every `code`/`message` string
+byte-for-byte against the pre-refactor version myself: identical in all
+three modules. The stale "copied verbatim"/"полностью повторяет"
+doc-comments were correctly removed along with the duplicated code they
+described.
+
+**Subtask C (sos/votings/service-requests):** traced all branches of
+`service-requests.service.ts`'s `createRequest` by hand — the
+restructured check (split from one combined boolean into an eligibility
+check followed by `assertUserBelongsToTenant`) produces an identical
+throw/no-throw outcome with the identical `{code, message}` in every one
+of the five reachable cases (no caller, SUPERADMIN, staff same-tenant,
+staff cross-tenant, resident). The other three call sites
+(`getRequestById`, `updateStatus`, `addComment`) and `sos.service.ts`'s
+`resolve()`/`votings.service.ts`'s `getMeetingDetails()` are direct,
+lower-risk 1:1 replacements — confirmed the resident-facing `creatorId`
+branches in `service-requests.service.ts` were left completely untouched,
+per decision #3.
+
+**Verification:** zero existing `*.spec.ts` files were modified in
+either commit — only the new `tenant-access.spec.ts` was added,
+confirmed via `git show --stat -- "*.spec.ts"` on both commits. Re-ran
+all seven affected test suites directly: 117/117 pass
+(`bookings`, `chat`, `community-board`, `sos`, `votings`,
+`service-requests`, `tenant-access`). Full backend suite: unaffected.
+`tsc --noEmit` clean. Delivered as two separate commits exactly as
+requested (new-helper introduction isolated from the simple-comparison
+migrations). Task accepted, no fixes required.

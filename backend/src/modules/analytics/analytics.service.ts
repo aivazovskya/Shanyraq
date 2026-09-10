@@ -17,6 +17,7 @@ import {
   RequestStatusCount,
   RequestCategoryCount,
 } from './dto/analytics.dto';
+import { buildCsv } from '../../common/csv/csv.helper';
 
 interface RequestUser {
   id: string;
@@ -192,6 +193,167 @@ export class AnalyticsService {
       byTariff,
       topDebtors,
     };
+  }
+
+  /**
+   * Экспорт финансовой аналитики в формате CSV (сводка, тарифы, полный список должников).
+   * Выгружает всех должников (отрицательный баланс) без ограничения take: 10.
+   */
+  async exportFinanceAnalyticsCsv(
+    tenantId: string,
+    user: RequestUser,
+    query?: FinanceAnalyticsQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    await this.assertStaffAccess(user, tenantId);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const now = new Date();
+    const periodMonth = query?.month
+      ? parseInt(String(query.month), 10)
+      : now.getMonth() + 1;
+    const periodYear = query?.year
+      ? parseInt(String(query.year), 10)
+      : now.getFullYear();
+
+    // 1. Начислено за выбранный период (месяц/год)
+    const chargesAgg = await this.prisma.charge.aggregate({
+      where: {
+        periodMonth,
+        periodYear,
+        account: {
+          unit: {
+            building: {
+              tenantId,
+            },
+          },
+        },
+      },
+      _sum: { amount: true },
+    });
+    const totalCharged = chargesAgg._sum.amount
+      ? Math.round(chargesAgg._sum.amount * 100) / 100
+      : 0;
+
+    // 2. Оплачено в этом месяце (по дате paidAt)
+    const startOfMonth = new Date(Date.UTC(periodYear, periodMonth - 1, 1, 0, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(periodYear, periodMonth, 1, 0, 0, 0, 0));
+
+    const paymentsAgg = await this.prisma.payment.aggregate({
+      where: {
+        account: {
+          unit: {
+            building: {
+              tenantId,
+            },
+          },
+        },
+        paidAt: {
+          gte: startOfMonth,
+          lt: endOfMonth,
+        },
+      },
+      _sum: { amount: true },
+    });
+    const totalCollected = paymentsAgg._sum.amount
+      ? Math.round(paymentsAgg._sum.amount * 100) / 100
+      : 0;
+
+    const collectionRatePercent =
+      totalCharged > 0
+        ? Math.round((totalCollected / totalCharged) * 1000) / 10
+        : 0;
+
+    // 3. Структура начислений по тарифам (byTariff)
+    const groupedCharges = await this.prisma.charge.groupBy({
+      by: ['tariffItemId'],
+      where: {
+        periodMonth,
+        periodYear,
+        account: {
+          unit: {
+            building: {
+              tenantId,
+            },
+          },
+        },
+      },
+      _sum: { amount: true },
+    });
+
+    const tariffIds = groupedCharges.map((g) => g.tariffItemId);
+    const tariffs =
+      tariffIds.length > 0
+        ? await this.prisma.tariffItem.findMany({
+            where: { id: { in: tariffIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+    const tariffNameMap = new Map(tariffs.map((t) => [t.id, t.name]));
+
+    const byTariff: TariffBreakdownItem[] = groupedCharges.map((g) => ({
+      tariffId: g.tariffItemId,
+      tariffName: tariffNameMap.get(g.tariffItemId) || 'Услуга',
+      amount: g._sum.amount ? Math.round(g._sum.amount * 100) / 100 : 0,
+    }));
+
+    // 4. Все должники ЖК (без ограничения take: 10)
+    const debtorAccounts = await this.prisma.personalAccount.findMany({
+      where: {
+        unit: {
+          building: {
+            tenantId,
+          },
+        },
+        balance: { lt: 0 },
+      },
+      orderBy: { balance: 'asc' },
+      include: {
+        unit: {
+          include: {
+            building: true,
+          },
+        },
+      },
+    });
+
+    // 5. Формирование строк CSV
+    const rows: unknown[][] = [
+      ['Финансовая аналитика ЖК'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', `${String(periodMonth).padStart(2, '0')}.${periodYear}`],
+      ['Начислено всего (₸)', totalCharged],
+      ['Оплачено всего (₸)', totalCollected],
+      ['Собираемость', `${collectionRatePercent}%`],
+      [],
+      ['Начисления по тарифам'],
+      ['Тариф', 'Сумма (₸)'],
+    ];
+
+    for (const item of byTariff) {
+      rows.push([item.tariffName, item.amount]);
+    }
+
+    rows.push([]);
+    rows.push(['Должники']);
+    rows.push(['Лицевой счет', 'Квартира/Помещение', 'Блок/Подъезд', 'Баланс (₸)']);
+
+    for (const acc of debtorAccounts) {
+      rows.push([
+        acc.accountNumber,
+        acc.unit?.unitNumber ?? '',
+        acc.unit?.building?.blockName ?? '',
+        Math.round(acc.balance * 100) / 100,
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `finance-analytics-${tenantId}-${periodYear}-${String(periodMonth).padStart(2, '0')}.csv`;
+
+    return { buffer, filename };
   }
 
   // -------------------------------------------------------------

@@ -133,3 +133,69 @@ export function getApiErrorMessage(
   return err?.message || 'Произошла непредвиденная ошибка при обращении к серверу';
 }
 
+/**
+ * Авторизованный fetch-метод для скачивания бинарных файлов (CSV, PDF) через Blob URL.
+ */
+export async function apiDownload(
+  endpoint: string,
+  fallbackFilename = 'report.csv',
+): Promise<void> {
+  const session = getStoredSession();
+
+  if (!session || !session.token) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+    throw new NoSessionError('Требуется авторизация в системе');
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${session.token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    clearSession();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+    throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+  }
+
+  if (!response.ok) {
+    let errorDetail = `Ошибка ${response.status}: ${response.statusText}`;
+    try {
+      const errData = await response.json();
+      if (errData.message) {
+        errorDetail = Array.isArray(errData.message)
+          ? errData.message.join(', ')
+          : errData.message;
+      }
+    } catch {
+      // Игнорируем ошибку парсинга
+    }
+    throw new Error(errorDetail);
+  }
+
+  let filename = fallbackFilename;
+  const disposition = response.headers.get('content-disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match?.[1]) {
+      filename = decodeURIComponent(match[1]);
+    }
+  }
+
+  const blob = await response.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+

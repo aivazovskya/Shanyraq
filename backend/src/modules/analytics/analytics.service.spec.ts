@@ -434,4 +434,105 @@ describe('AnalyticsService', () => {
       );
     });
   });
+
+  describe('exportFinanceAnalyticsCsv', () => {
+    it('должен генерировать валидный CSV-буфер, начинающийся с UTF-8 BOM', async () => {
+      prismaMock.charge.aggregate.mockResolvedValue({ _sum: { amount: 100000 } });
+      prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amount: 90000 } });
+      prismaMock.charge.groupBy.mockResolvedValue([
+        { tariffItemId: 't1', _sum: { amount: 100000 } },
+      ]);
+      prismaMock.tariffItem.findMany.mockResolvedValue([
+        { id: 't1', name: 'Базовый тариф' },
+      ]);
+      prismaMock.personalAccount.findMany.mockResolvedValue([
+        {
+          id: 'acc-1',
+          accountNumber: 'SH-001',
+          unitId: 'unit-1',
+          balance: -5000,
+          unit: { unitNumber: '10', building: { blockName: 'Блок 1' } },
+        },
+      ]);
+
+      const result = await service.exportFinanceAnalyticsCsv(mockTenantId, hoaAdminUser, {
+        month: 9,
+        year: 2026,
+      });
+
+      expect(result.filename).toBe('finance-analytics-tenant-1-2026-09.csv');
+      expect(result.buffer).toBeInstanceOf(Buffer);
+      // UTF-8 BOM check
+      expect(result.buffer[0]).toBe(0xef);
+      expect(result.buffer[1]).toBe(0xbb);
+      expect(result.buffer[2]).toBe(0xbf);
+
+      const content = result.buffer.toString('utf-8');
+      expect(content).toContain('Финансовая аналитика ЖК');
+      expect(content).toContain('ЖК Шанырак');
+      expect(content).toContain('Базовый тариф');
+      expect(content).toContain('SH-001');
+    });
+
+    it('должен выгружать более 10 должников без обрезки (uncapped query)', async () => {
+      prismaMock.charge.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      prismaMock.charge.groupBy.mockResolvedValue([]);
+
+      // 15 должников
+      const debtors = Array.from({ length: 15 }, (_, i) => ({
+        id: `acc-${i + 1}`,
+        accountNumber: `ACC-DEBT-${i + 1}`,
+        unitId: `unit-${i + 1}`,
+        balance: -(1000 * (i + 1)),
+        unit: { unitNumber: `${i + 1}`, building: { blockName: `Блок ${i + 1}` } },
+      }));
+      prismaMock.personalAccount.findMany.mockResolvedValue(debtors);
+
+      const result = await service.exportFinanceAnalyticsCsv(mockTenantId, hoaChairmanUser, {
+        month: 5,
+        year: 2026,
+      });
+
+      // Проверяем, что в вызов findMany не передавался take: 10
+      expect(prismaMock.personalAccount.findMany).toHaveBeenCalledWith(
+        expect.not.objectContaining({ take: expect.anything() }),
+      );
+
+      const content = result.buffer.toString('utf-8');
+      for (let i = 1; i <= 15; i++) {
+        expect(content).toContain(`ACC-DEBT-${i}`);
+      }
+    });
+
+    it('должен корректно экранировать запятые и кавычки в названиях тарифов', async () => {
+      prismaMock.charge.aggregate.mockResolvedValue({ _sum: { amount: 50000 } });
+      prismaMock.payment.aggregate.mockResolvedValue({ _sum: { amount: 50000 } });
+      prismaMock.charge.groupBy.mockResolvedValue([
+        { tariffItemId: 't-complex', _sum: { amount: 50000 } },
+      ]);
+      prismaMock.tariffItem.findMany.mockResolvedValue([
+        { id: 't-complex', name: 'Отопление, подогрев "Люкс"' },
+      ]);
+      prismaMock.personalAccount.findMany.mockResolvedValue([]);
+
+      const result = await service.exportFinanceAnalyticsCsv(mockTenantId, superadminUser, {
+        month: 12,
+        year: 2026,
+      });
+
+      const content = result.buffer.toString('utf-8');
+      expect(content).toContain('"Отопление, подогрев ""Люкс"""');
+    });
+
+    it('должен отклонять доступ для не-стафф пользователей (RESIDENT) или чужого ЖК', async () => {
+      await expect(
+        service.exportFinanceAnalyticsCsv(mockTenantId, residentUser as any),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.exportFinanceAnalyticsCsv(mockTenantId, foreignHoaAdmin as any),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

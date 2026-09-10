@@ -764,7 +764,9 @@
       "noTariffData": "No tariff charges data for selected month",
       "percentOfCharges": "{{percent}}% of billed charges",
       "noCharges": "No charges billed",
-      "amount": "Amount (₸)"
+      "amount": "Amount (₸)",
+      "exportCsv": "Export CSV",
+      "exporting": "Exporting..."
     },
     "requests": {
       "loadError": "Failed to load ticket statistics",

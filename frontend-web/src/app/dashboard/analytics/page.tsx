@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Gauge,
   Percent,
+  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -37,7 +38,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession, AuthUser } from '@/lib/api';
 
 interface TenantItem {
   id: string;
@@ -148,6 +149,7 @@ export default function AnalyticsDashboardPage() {
   const [financeMonth, setFinanceMonth] = useState<number>(currentDate.getMonth() + 1);
   const [financeYear, setFinanceYear] = useState<number>(currentDate.getFullYear());
   const [financeData, setFinanceData] = useState<FinanceAnalyticsData | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Requests filters & data
   const [requestsPreset, setRequestsPreset] = useState<PeriodPreset>('30d');
@@ -190,6 +192,22 @@ export default function AnalyticsDashboardPage() {
     },
     [t],
   );
+
+  const handleExportCsv = async () => {
+    if (!tenantId || exportingCsv) return;
+    try {
+      setExportingCsv(true);
+      await apiDownload(
+        `/analytics/tenants/${tenantId}/finance/export?month=${financeMonth}&year=${financeYear}`,
+        `finance-analytics-${tenantId}-${financeYear}-${String(financeMonth).padStart(2, '0')}.csv`,
+      );
+    } catch (err: any) {
+      console.error('Failed to export finance analytics CSV:', err);
+      setErrorMsg(err.message || 'Ошибка экспорта CSV');
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   // 2. Fetch Requests
   const fetchRequests = useCallback(
@@ -435,6 +453,25 @@ export default function AnalyticsDashboardPage() {
                   </option>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={exportingCsv || !financeData}
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-medium rounded-xl border border-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+                title={t('analytics.finance.exportCsv')}
+              >
+                {exportingCsv ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                ) : (
+                  <Download className="w-4 h-4 text-emerald-600" />
+                )}
+                <span>
+                  {exportingCsv
+                    ? t('analytics.finance.exporting')
+                    : t('analytics.finance.exportCsv')}
+                </span>
+              </button>
             </div>
           </div>
 
