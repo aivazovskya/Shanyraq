@@ -6,8 +6,11 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
 import {
@@ -134,6 +137,38 @@ export class FinanceController {
   @ApiOperation({ summary: 'Лицевые счета текущего жильца (для мобильного приложения)' })
   async getMyAccounts(@CurrentUser('id') userId: string) {
     return this.financeService.getMyAccounts(userId);
+  }
+
+  @Get('accounts/:accountId/statement')
+  @Roles(
+    UserRole.HOA_ADMIN,
+    UserRole.SUPERADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.RESIDENT_OWNER,
+  )
+  @ApiOperation({ summary: 'Скачать выписку по лицевому счету в формате PDF' })
+  async downloadStatement(
+    @Param('accountId') accountId: string,
+    @CurrentUser() user: any,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+    @Res() res?: Response,
+  ) {
+    const query = {
+      month: month ? parseInt(month, 10) : undefined,
+      year: year ? parseInt(year, 10) : undefined,
+    };
+    const { buffer, filename } =
+      await this.financeService.generateAccountStatementPdf(
+        accountId,
+        user,
+        query,
+      );
+
+    res!.setHeader('Content-Type', 'application/pdf');
+    res!.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res!.setHeader('Content-Length', buffer.length);
+    res!.end(buffer);
   }
 
   @Get('accounts/:accountId')

@@ -8,9 +8,19 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { ConfigService } from '@nestjs/config';
+import { UploadsService } from '../uploads/uploads.service';
+import { UploadCategory } from '../uploads/dto/uploads.dto';
 import { CreateMeetingDto, CastVoteDto } from './dto/votings.dto';
 import { MeetingStatus, OwnershipType, VoteChoice, DecisionType, UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
+import {
+  createPdfBuffer,
+  drawHeader,
+  drawSectionTitle,
+  drawTable,
+  drawFooter,
+  TableColumn,
+} from '../../common/pdf/pdf-document.helper';
 
 @Injectable()
 export class VotingsService {
@@ -20,6 +30,7 @@ export class VotingsService {
     private prisma: PrismaService,
     private authService: AuthService,
     private configService: ConfigService,
+    private uploadsService: UploadsService,
   ) {
     this.voteSigningKey = this.configService.get<string>('VOTE_SIGNING_KEY');
     if (!this.voteSigningKey) {
@@ -285,7 +296,10 @@ export class VotingsService {
     };
   }
 
-  async closeMeetingAndGenerateProtocol(meetingId: string, closingUser: { id: string; role: UserRole; tenantId?: string | null }) {
+  async closeMeetingAndGenerateProtocol(
+    meetingId: string,
+    closingUser: { id: string; role: UserRole; tenantId?: string | null },
+  ) {
     const enriched = await this.getMeetingDetails(meetingId, closingUser);
 
     // Close meeting
@@ -294,8 +308,32 @@ export class VotingsService {
       data: { status: MeetingStatus.COMPLETED },
     });
 
+    // Fetch tenant details for document header
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: enriched.tenantId },
+    });
+
     // Generate Protocol Number (e.g. ОСС-2026/03)
     const protocolNumber = `ОСС-${new Date().getFullYear()}/${meetingId.slice(0, 6).toUpperCase()}`;
+
+    // Build real PDF document
+    const pdfBuffer = await this.buildMeetingProtocolPdf(enriched, tenant, protocolNumber);
+
+    // Upload generated PDF to S3/MinIO in shanyraq-documents bucket
+    const file: Express.Multer.File = {
+      buffer: pdfBuffer,
+      mimetype: 'application/pdf',
+      originalname: `protocol_${meetingId.slice(0, 8)}.pdf`,
+      size: pdfBuffer.length,
+      fieldname: 'file',
+      encoding: '7bit',
+      destination: '',
+      filename: '',
+      path: '',
+      stream: null as any,
+    };
+
+    const uploadResult = await this.uploadsService.uploadFile(file, UploadCategory.DOCUMENT);
 
     const protocol = await this.prisma.meetingProtocol.upsert({
       where: { meetingId },
@@ -303,10 +341,11 @@ export class VotingsService {
         meetingId,
         protocolNumber,
         isSigned: true,
-        pdfUrl: `https://storage.shanyraq.kz/protocols/${protocolNumber}.pdf`,
+        pdfUrl: uploadResult.url,
       },
       update: {
         isSigned: true,
+        pdfUrl: uploadResult.url,
       },
     });
 
@@ -314,6 +353,141 @@ export class VotingsService {
       meeting: enriched,
       protocol,
     };
+  }
+
+  private async buildMeetingProtocolPdf(
+    meeting: any,
+    tenant: any,
+    protocolNumber: string,
+  ): Promise<Buffer> {
+    const formatDate = (date: Date | string) => {
+      const d = new Date(date);
+      return d.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    };
+
+    return createPdfBuffer((doc) => {
+      // 1. Header
+      const headerY = drawHeader(doc, {
+        title: 'ПРОТОКОЛ ОБЩЕГО СОБРАНИЯ СОБСТВЕННИКОВ',
+        subtitle: `№ ${protocolNumber} от ${formatDate(new Date())}`,
+        meta: [
+          { label: 'Жилой комплекс', value: tenant?.name || 'Жилой комплекс' },
+          { label: 'Адрес', value: tenant?.address || 'Не указан' },
+          { label: 'Тема собрания', value: meeting.title },
+          {
+            label: 'Период проведения',
+            value: `${formatDate(meeting.startDate)} — ${formatDate(meeting.endDate)}`,
+          },
+        ],
+      });
+
+      // 2. Quorum section
+      drawSectionTitle(doc, '1. Сведения о кворуме и правомочности собрания', headerY);
+
+      const q = meeting.quorum || {};
+      const quorumText =
+        `Общая площадь помещений ЖК: ${q.totalEligibleArea ?? 0} м²\n` +
+        `Площадь помещений участников, принявших участие: ${q.totalVotedArea ?? 0} м² (${q.quorumPercent ?? 0}%)\n` +
+        `Количество принявших участие помещений (квартир/паркингов): ${q.participatedUnitsCount ?? 0}\n` +
+        `ИТОГ КВОРУМА: ${
+          q.isQuorumAchieved
+            ? 'КВОРУМ ИМЕЕТСЯ. Собрание правомочно принимать решения.'
+            : 'КВОРУМ НЕ НАБРАН. Собрание неправомочно.'
+        }`;
+
+      doc.font('DejaVuSans').fontSize(9).fillColor('#1E293B').text(quorumText, {
+        lineGap: 3,
+      });
+
+      doc.moveDown(0.8);
+
+      // 3. Agenda and results table
+      drawSectionTitle(doc, '2. Повестка дня и принятые решения');
+
+      const columns: TableColumn[] = [
+        { header: '№', width: 25, align: 'center' },
+        { header: 'Вопрос повестки дня', width: 215, align: 'left' },
+        { header: 'Тип решения', width: 95, align: 'center' },
+        { header: 'Итоги голосования', width: 100, align: 'left' },
+        { header: 'Решение', width: 80, align: 'center' },
+      ];
+
+      const rows = (meeting.agendaItems || []).map((item: any) => {
+        const r = item.results || {};
+        const decisionTypeLabel =
+          item.decisionType === DecisionType.SIMPLE_MAJORITY
+            ? 'Простое (>50% голосов)'
+            : 'Квалиф. (≥2/3 от ЖК)';
+
+        const voteBreakdown =
+          `За: ${r.forPercentFromVoted ?? 0}%\n` +
+          `Против: ${r.areaAgainst ?? 0} м²\n` +
+          `Воздерж.: ${r.areaAbstain ?? 0} м²`;
+
+        const statusLabel = r.isApproved ? 'ПРИНЯТО' : 'ОТКЛОНЕНО';
+
+        return [
+          item.orderIndex,
+          item.question,
+          decisionTypeLabel,
+          voteBreakdown,
+          statusLabel,
+        ];
+      });
+
+      drawTable(doc, { columns, rows });
+
+      // 4. Signatures and legal validity note
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 90) {
+        doc.addPage();
+      }
+
+      drawSectionTitle(doc, '3. Заключительные положения и подписи');
+      doc
+        .font('DejaVuSans')
+        .fontSize(8.5)
+        .fillColor('#475569')
+        .text(
+          'Голоса собственников зафиксированы в электронном виде, верифицированы посредством SMS-OTP ' +
+            'и защищены криптографическими сигнатурами HMAC-SHA256 в соответствии с регламентом платформы Shanyraq.',
+          { lineGap: 2 },
+        );
+
+      doc.moveDown(1.2);
+
+      const signY = doc.y;
+      const colW =
+        (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2 - 10;
+
+      doc.font('DejaVuSans-Bold').fontSize(9).fillColor('#1E293B');
+      doc.text('Председатель собрания:', doc.page.margins.left, signY);
+      doc
+        .font('DejaVuSans')
+        .fontSize(9)
+        .text(
+          '____________________ / ____________________',
+          doc.page.margins.left,
+          signY + 16,
+        );
+
+      const rightX = doc.page.margins.left + colW + 20;
+      doc.font('DejaVuSans-Bold').fontSize(9).fillColor('#1E293B');
+      doc.text('Секретарь собрания:', rightX, signY);
+      doc
+        .font('DejaVuSans')
+        .fontSize(9)
+        .text('____________________ / ____________________', rightX, signY + 16);
+
+      // Footer
+      drawFooter(
+        doc,
+        `Протокол № ${protocolNumber} | Документ имеет юридическую силу в системе Shanyraq`,
+      );
+    });
   }
 
   private async updateMeetingQuorum(meetingId: string) {

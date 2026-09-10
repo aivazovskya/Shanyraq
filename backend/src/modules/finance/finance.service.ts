@@ -21,6 +21,14 @@ import {
   RecordPaymentDto,
 } from './dto/finance.dto';
 import { getOrCreatePersonalAccount } from './personal-account.helper';
+import {
+  createPdfBuffer,
+  drawHeader,
+  drawSectionTitle,
+  drawTable,
+  drawFooter,
+  TableColumn,
+} from '../../common/pdf/pdf-document.helper';
 
 @Injectable()
 export class FinanceService {
@@ -501,5 +509,240 @@ export class FinanceService {
     });
 
     return balance;
+  }
+
+  // -------------------------------------------------------------
+  // 6. Формирование PDF-выписки по лицевому счету
+  // -------------------------------------------------------------
+
+  async generateAccountStatementPdf(
+    accountId: string,
+    user: { id: string; tenantId?: string | null; role: UserRole },
+    query?: { month?: number; year?: number },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    // 1. Re-use getAccountById to enforce strict authorization
+    const account = await this.getAccountById(accountId, user);
+
+    // 2. Fetch tenant & verified owners for rich document header
+    const [tenant, verifiedOwnerships] = await Promise.all([
+      this.prisma.tenant.findUnique({
+        where: { id: account.unit.building.tenantId },
+      }),
+      this.prisma.unitOwnership.findMany({
+        where: { unitId: account.unitId, isVerified: true },
+        include: { user: true },
+      }),
+    ]);
+
+    // 3. Filter charges & payments by month and/or year if provided
+    let charges = account.charges || [];
+    let payments = account.payments || [];
+
+    if (query?.year) {
+      const targetYear = Number(query.year);
+      charges = charges.filter((c: any) => c.periodYear === targetYear);
+      payments = payments.filter((p: any) => new Date(p.paidAt).getFullYear() === targetYear);
+    }
+
+    if (query?.month) {
+      const targetMonth = Number(query.month);
+      charges = charges.filter((c: any) => c.periodMonth === targetMonth);
+      payments = payments.filter((p: any) => new Date(p.paidAt).getMonth() + 1 === targetMonth);
+    }
+
+    const ownersNames =
+      verifiedOwnerships
+        .map((o) => `${o.user.lastName} ${o.user.firstName}`)
+        .join(', ') || 'Не указан';
+
+    // 4. Build PDF buffer
+    const buffer = await this.buildAccountStatementPdf({
+      account,
+      tenant,
+      charges,
+      payments,
+      ownersNames,
+      query,
+    });
+
+    const periodPart = query?.year
+      ? `_${query.year}${query.month ? '-' + String(query.month).padStart(2, '0') : ''}`
+      : '_all';
+    const filename = `statement_${account.accountNumber}${periodPart}.pdf`;
+
+    return { buffer, filename };
+  }
+
+  private async buildAccountStatementPdf(data: {
+    account: any;
+    tenant: any;
+    charges: any[];
+    payments: any[];
+    ownersNames: string;
+    query?: { month?: number; year?: number };
+  }): Promise<Buffer> {
+    const { account, tenant, charges, payments, ownersNames, query } = data;
+
+    const formatDate = (date: Date | string) => {
+      const d = new Date(date);
+      return d.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    };
+
+    const formatMoney = (val: number) => {
+      return (
+        val.toLocaleString('ru-RU', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }) + ' ₸'
+      );
+    };
+
+    let periodLabel = 'За все время';
+    if (query?.year && query?.month) {
+      periodLabel = `${String(query.month).padStart(2, '0')}.${query.year}`;
+    } else if (query?.year) {
+      periodLabel = `${query.year} год`;
+    }
+
+    const totalCharges = charges.reduce((acc, c) => acc + (c.amount || 0), 0);
+    const totalPayments = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
+
+    return createPdfBuffer((doc) => {
+      // 1. Header
+      const headerY = drawHeader(doc, {
+        title: 'ВЫПИСКА ПО ЛИЦЕВОМУ СЧЕТУ',
+        subtitle: `Лицевой счет № ${account.accountNumber}`,
+        meta: [
+          { label: 'Жилой комплекс', value: tenant?.name || 'Жилой комплекс' },
+          { label: 'Адрес', value: tenant?.address || 'Не указан' },
+          {
+            label: 'Помещение',
+            value: `кв. ${account.unit.unitNumber}, Блок ${account.unit.building.blockName} (${account.unit.area} м²)`,
+          },
+          { label: 'Собственник(и)', value: ownersNames },
+          { label: 'Период выписки', value: periodLabel },
+          {
+            label: 'Текущий баланс',
+            value: `${account.balance >= 0 ? '+' : ''}${formatMoney(account.balance)} ${
+              account.balance < 0 ? '(Задолженность)' : '(Аванс)'
+            }`,
+          },
+        ],
+      });
+
+      // 2. Charges Table
+      drawSectionTitle(doc, '1. Начисления за период', headerY);
+
+      const chargeCols: TableColumn[] = [
+        { header: '№', width: 25, align: 'center' },
+        { header: 'Период', width: 75, align: 'center' },
+        { header: 'Статья начисления / Тариф', width: 200, align: 'left' },
+        { header: 'Метод расчета', width: 110, align: 'center' },
+        { header: 'Сумма', width: 100, align: 'right' },
+      ];
+
+      const methodLabels: Record<string, string> = {
+        FLAT: 'Фиксированный',
+        PER_AREA: 'За площадь (м²)',
+        PER_CONSUMPTION: 'По счетчику',
+      };
+
+      const chargeRows = charges.map((c: any, index: number) => {
+        const period = `${String(c.periodMonth).padStart(2, '0')}.${c.periodYear}`;
+        const name = c.tariffItem?.name || 'Коммунальные услуги';
+        const method =
+          methodLabels[c.tariffItem?.calculationMethod] ||
+          c.tariffItem?.calculationMethod ||
+          '—';
+        const amount = formatMoney(c.amount);
+        return [index + 1, period, name, method, amount];
+      });
+
+      drawTable(doc, { columns: chargeCols, rows: chargeRows });
+
+      doc
+        .font('DejaVuSans-Bold')
+        .fontSize(9)
+        .fillColor('#1E293B')
+        .text(`Итого начислено: ${formatMoney(totalCharges)}`, {
+          align: 'right',
+        });
+
+      doc.moveDown(0.8);
+
+      // Check if new page needed
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 120) {
+        doc.addPage();
+      }
+
+      // 3. Payments Table
+      drawSectionTitle(doc, '2. Поступившие оплаты');
+
+      const paymentCols: TableColumn[] = [
+        { header: '№', width: 25, align: 'center' },
+        { header: 'Дата оплаты', width: 80, align: 'center' },
+        { header: 'Способ', width: 85, align: 'center' },
+        { header: 'Зафиксировал сотрудник', width: 200, align: 'left' },
+        { header: 'Сумма', width: 120, align: 'right' },
+      ];
+
+      const paymentRows = payments.map((p: any, index: number) => {
+        const date = formatDate(p.paidAt);
+        const method = p.method === PaymentMethod.MANUAL ? 'Вручную (касса)' : p.method;
+        const staff = p.recordedBy
+          ? `${p.recordedBy.firstName} ${p.recordedBy.lastName}`
+          : 'Сотрудник УК';
+        const amount = formatMoney(p.amount);
+        return [index + 1, date, method, staff, amount];
+      });
+
+      drawTable(doc, { columns: paymentCols, rows: paymentRows });
+
+      doc
+        .font('DejaVuSans-Bold')
+        .fontSize(9)
+        .fillColor('#1E293B')
+        .text(`Итого оплачено: ${formatMoney(totalPayments)}`, {
+          align: 'right',
+        });
+
+      doc.moveDown(0.8);
+
+      // 4. Summary box
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 80) {
+        doc.addPage();
+      }
+
+      drawSectionTitle(doc, '3. Сводный итог по выписке');
+      const diff = totalPayments - totalCharges;
+
+      doc
+        .font('DejaVuSans')
+        .fontSize(9)
+        .fillColor('#334155')
+        .text(
+          `Начислено за период: ${formatMoney(totalCharges)}\n` +
+            `Оплачено за период: ${formatMoney(totalPayments)}\n` +
+            `Разница за период: ${diff >= 0 ? '+' : ''}${formatMoney(diff)}\n` +
+            `Итоговое сальдо (с учетом предыдущих периодов): ${
+              account.balance >= 0 ? '+' : ''
+            }${formatMoney(account.balance)} ${
+              account.balance < 0
+                ? '(Имеется задолженность к оплате)'
+                : '(Задолженность отсутствует)'
+            }`,
+          { lineGap: 3 },
+        );
+
+      // Footer
+      drawFooter(
+        doc,
+        `Лицевой счет: ${account.accountNumber} | Документ сформирован автоматически в системе Shanyraq`,
+      );
+    });
   }
 }

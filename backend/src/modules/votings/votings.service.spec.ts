@@ -3,6 +3,7 @@ import { VotingsService } from './votings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { ConfigService } from '@nestjs/config';
+import { UploadsService } from '../uploads/uploads.service';
 import { MeetingStatus, OwnershipType, VoteChoice, DecisionType, UserRole } from '@prisma/client';
 import { ForbiddenException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
@@ -12,6 +13,7 @@ describe('VotingsService (Аудит безопасности и алгорит�
   let prismaMock: any;
   let authServiceMock: any;
   let configServiceMock: any;
+  let uploadsServiceMock: any;
 
   const mockSigningKey = 'test_secret_hmac_signing_key_for_votes_2026';
 
@@ -55,6 +57,15 @@ describe('VotingsService (Аудит безопасности и алгорит�
       }),
     };
 
+    uploadsServiceMock = {
+      uploadFile: jest.fn().mockResolvedValue({
+        url: 'http://localhost:9000/shanyraq-documents/test_protocol.pdf',
+        key: 'test_protocol.pdf',
+        size: 25000,
+        mimeType: 'application/pdf',
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VotingsService,
@@ -69,6 +80,10 @@ describe('VotingsService (Аудит безопасности и алгорит�
         {
           provide: ConfigService,
           useValue: configServiceMock,
+        },
+        {
+          provide: UploadsService,
+          useValue: uploadsServiceMock,
         },
       ],
     }).compile();
@@ -346,6 +361,97 @@ describe('VotingsService (Аудит безопасности и алгорит�
 
       expect(details.agendaItems[0].votes).toBeDefined();
       expect(details.agendaItems[0].votes.length).toBe(2);
+    });
+  });
+
+  describe('closeMeetingAndGenerateProtocol (Subtask B: реальная генерация и загрузка PDF протокола ОСС)', () => {
+    it('должен генерировать реальный PDF-документ, загружать его в S3 и сохранять реальный URL', async () => {
+      const mockMeeting = {
+        id: 'meeting-closed-1',
+        tenantId: 'tenant-1',
+        title: 'Годовое общее собрание собственников 2026',
+        description: 'Отчет управляющей компании и выборы совета дома',
+        startDate: new Date('2026-03-01T00:00:00Z'),
+        endDate: new Date('2026-03-15T00:00:00Z'),
+        status: MeetingStatus.ACTIVE,
+        totalEligibleArea: 1000.0,
+        quorumThresholdPercent: 50.0,
+        agendaItems: [
+          {
+            id: 'item-1',
+            orderIndex: 1,
+            question: 'Утвердить отчет ревизионной комиссии',
+            decisionType: DecisionType.SIMPLE_MAJORITY,
+            votes: [
+              {
+                id: 'vote-1',
+                unitId: 'unit-1',
+                userId: 'owner-1',
+                choice: VoteChoice.FOR,
+                areaWeight: 600.0,
+              },
+            ],
+          },
+        ],
+      };
+
+      prismaMock.meeting.findUnique.mockResolvedValue(mockMeeting);
+      prismaMock.meeting.update.mockResolvedValue({
+        ...mockMeeting,
+        status: MeetingStatus.COMPLETED,
+      });
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-1',
+        name: 'ЖК «Шаңырақ Премиум»',
+        address: 'г. Алматы, пр. Достык, 100',
+      });
+      prismaMock.meetingProtocol.upsert.mockImplementation((args: any) => ({
+        id: 'protocol-1',
+        meetingId: args.create.meetingId,
+        protocolNumber: args.create.protocolNumber,
+        pdfUrl: args.create.pdfUrl,
+        isSigned: true,
+      }));
+
+      const res = await service.closeMeetingAndGenerateProtocol('meeting-closed-1', {
+        id: 'chairman-1',
+        role: UserRole.HOA_CHAIRMAN,
+        tenantId: 'tenant-1',
+      });
+
+      // 1. Meeting status updated to COMPLETED
+      expect(prismaMock.meeting.update).toHaveBeenCalledWith({
+        where: { id: 'meeting-closed-1' },
+        data: { status: MeetingStatus.COMPLETED },
+      });
+
+      // 2. UploadsService was called with valid synthetic Express.Multer.File containing real PDF buffer
+      expect(uploadsServiceMock.uploadFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mimetype: 'application/pdf',
+          size: expect.any(Number),
+          buffer: expect.any(Buffer),
+        }),
+        'document',
+      );
+
+      const passedFile = uploadsServiceMock.uploadFile.mock.calls[0][0];
+      // Assert PDF header magic bytes "%PDF-"
+      expect(passedFile.buffer.slice(0, 5).toString()).toBe('%PDF-');
+      expect(passedFile.buffer.length).toBeGreaterThan(1000);
+
+      // 3. MeetingProtocol upsert received real S3 url, not fake placeholder
+      expect(prismaMock.meetingProtocol.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            pdfUrl: 'http://localhost:9000/shanyraq-documents/test_protocol.pdf',
+            isSigned: true,
+          }),
+        }),
+      );
+
+      expect(res.protocol.pdfUrl).toBe('http://localhost:9000/shanyraq-documents/test_protocol.pdf');
+      expect(res.meeting.status).toBe(MeetingStatus.ACTIVE); // original enriched status before close
     });
   });
 });

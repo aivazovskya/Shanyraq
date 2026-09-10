@@ -718,4 +718,119 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       expect(prismaMock.charge.create).not.toHaveBeenCalled();
     });
   });
+
+  describe('generateAccountStatementPdf (Subtask C: формирование PDF-выписки)', () => {
+    const mockAccount = {
+      id: 'acc-statement-1',
+      accountNumber: 'ACC-BLOKA-101-ABCD12',
+      balance: -15000,
+      unitId: 'unit-101',
+      unit: {
+        id: 'unit-101',
+        unitNumber: '101',
+        area: 75.5,
+        building: {
+          blockName: 'Блок А',
+          tenantId: 'tenant-1',
+        },
+        ownerships: [
+          {
+            userId: 'user-owner-1',
+            ownershipType: OwnershipType.OWNER,
+            isVerified: true,
+          },
+        ],
+      },
+      charges: [
+        {
+          id: 'charge-1',
+          periodMonth: 9,
+          periodYear: 2026,
+          amount: 12000,
+          createdAt: new Date('2026-09-01T03:00:00Z'),
+          tariffItem: {
+            name: 'Эксплуатационные расходы',
+            calculationMethod: ChargeCalculationMethod.PER_AREA,
+          },
+        },
+        {
+          id: 'charge-2',
+          periodMonth: 8,
+          periodYear: 2026,
+          amount: 11000,
+          createdAt: new Date('2026-08-01T03:00:00Z'),
+          tariffItem: {
+            name: 'Эксплуатационные расходы',
+            calculationMethod: ChargeCalculationMethod.PER_AREA,
+          },
+        },
+      ],
+      payments: [
+        {
+          id: 'payment-1',
+          amount: 8000,
+          method: PaymentMethod.MANUAL,
+          paidAt: new Date('2026-09-05T14:30:00Z'),
+          recordedBy: {
+            firstName: 'Иван',
+            lastName: 'Иванов',
+          },
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      prismaMock.personalAccount.findUnique.mockResolvedValue(mockAccount);
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-1',
+        name: 'ЖК «Шаңырақ Премиум»',
+        address: 'г. Алматы, пр. Достык, 100',
+      });
+      prismaMock.unitOwnership.findMany.mockResolvedValue([
+        {
+          userId: 'user-owner-1',
+          isVerified: true,
+          user: {
+            firstName: 'Азамат',
+            lastName: 'Касымов',
+          },
+        },
+      ]);
+    });
+
+    it('позволяет верифицированному собственнику успешно сформировать выписку в PDF', async () => {
+      const res = await service.generateAccountStatementPdf(
+        'acc-statement-1',
+        { id: 'user-owner-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+        { month: 9, year: 2026 },
+      );
+
+      expect(res.buffer).toBeInstanceOf(Buffer);
+      expect(res.buffer.slice(0, 5).toString()).toBe('%PDF-');
+      expect(res.buffer.length).toBeGreaterThan(1000);
+      expect(res.filename).toBe('statement_ACC-BLOKA-101-ABCD12_2026-09.pdf');
+    });
+
+    it('блокирует скачивание выписки жителю, не являющемуся подтвержденным собственником (FINANCE.ACCOUNT_ACCESS_CONFIRMED_ONLY)', async () => {
+      await expect(
+        service.generateAccountStatementPdf(
+          'acc-statement-1',
+          { id: 'user-stranger', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+          { month: 9, year: 2026 },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('позволяет сотруднику УК (HOA_ADMIN) своего ЖК скачивать выписку за все время', async () => {
+      const res = await service.generateAccountStatementPdf('acc-statement-1', {
+        id: 'staff-1',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-1',
+      });
+
+      expect(res.buffer).toBeInstanceOf(Buffer);
+      expect(res.buffer.slice(0, 5).toString()).toBe('%PDF-');
+      expect(res.filename).toBe('statement_ACC-BLOKA-101-ABCD12_all.pdf');
+    });
+  });
 });
