@@ -5,6 +5,8 @@ import { RootStackParamList } from './types';
 import { useAuth } from '../context/AuthContext';
 import { AuthStack } from './AuthStack';
 import { MainTabs } from './MainTabs';
+import { StaffMainTabs } from './StaffMainTabs';
+import { StaffChatThreadScreen } from '../screens/staff/StaffChatThreadScreen';
 import { ClaimUnitScreen } from '../screens/onboarding/ClaimUnitScreen';
 import { VotingDetailsScreen } from '../screens/votings/VotingDetailsScreen';
 import { CreateRequestScreen } from '../screens/requests/CreateRequestScreen';
@@ -25,7 +27,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator: React.FC = () => {
   const { t } = useTranslation();
-  const { isLoading, isAuthenticated, hasOwnership } = useAuth();
+  const { isLoading, isAuthenticated, hasOwnership, isStaffRole } = useAuth();
 
   if (isLoading) {
     return <LoadingState message={t('common.loading')} />;
@@ -37,6 +39,13 @@ export const RootNavigator: React.FC = () => {
         {!isAuthenticated ? (
           // Unauthenticated -> Phone & OTP flow
           <Stack.Screen name="Auth" component={AuthStack} />
+        ) : isStaffRole ? (
+          // Staff member (HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, SECURITY) -> Staff Main Tabs
+          <>
+            <Stack.Screen name="StaffMain" component={StaffMainTabs} />
+            <Stack.Screen name="StaffChatThread" component={StaffChatThreadScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
+          </>
         ) : !hasOwnership ? (
           // Authenticated but no apartment attached -> Claim Unit Onboarding
           <Stack.Screen name="ClaimUnit" component={ClaimUnitScreen} />

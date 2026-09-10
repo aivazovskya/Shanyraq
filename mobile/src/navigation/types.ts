@@ -13,10 +13,19 @@ export type MainTabsParamList = {
   ProfileTab: undefined;
 };
 
+export type StaffTabsParamList = {
+  HomeTab: undefined;
+  SosTab: undefined;
+  ChatInboxTab: undefined;
+  ProfileTab: undefined;
+};
+
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   ClaimUnit: undefined;
   Main: NavigatorScreenParams<MainTabsParamList>;
+  StaffMain: NavigatorScreenParams<StaffTabsParamList>;
+  StaffChatThread: { conversationId: string; residentName?: string; unitInfo?: string };
   VotingDetails: { meetingId: string };
   CreateRequest: undefined;
   RequestDetail: { requestId: string };

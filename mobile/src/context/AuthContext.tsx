@@ -1,13 +1,28 @@
-﻿import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { TokenStorage } from '../storage/token-storage';
 import { AuthApi, UserProfile, AuthTokensResponse } from '../api/auth';
 import { setAuthFailureCallback } from '../api/client';
+
+export const STAFF_ROLES = [
+  'HOA_ADMIN',
+  'HOA_CHAIRMAN',
+  'DISPATCHER',
+  'SECURITY',
+] as const;
+
+export type StaffRole = typeof STAFF_ROLES[number];
+
+export function isStaffUser(role?: string | null): boolean {
+  if (!role) return false;
+  return (STAFF_ROLES as readonly string[]).includes(role);
+}
 
 interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   hasOwnership: boolean;
+  isStaffRole: boolean;
   activeTenantId: string | null;
   login: (authData: AuthTokensResponse) => Promise<void>;
   logout: () => Promise<void>;
@@ -72,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isStaffRole = Boolean(user && isStaffUser(user.role));
   const hasOwnership = Boolean(user && user.ownerships && user.ownerships.length > 0);
   const activeTenantId = user?.tenantId || (user?.ownerships && user.ownerships[0]?.unit ? (user as any).tenantId : null) || null;
 
@@ -82,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isAuthenticated: Boolean(user),
         hasOwnership,
+        isStaffRole,
         activeTenantId,
         login,
         logout,

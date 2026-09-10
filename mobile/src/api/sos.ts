@@ -25,6 +25,12 @@ export interface SosAlert {
     firstName: string;
     lastName: string;
   } | null;
+  triggeredBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
 }
 
 export interface TriggerSosData {
@@ -40,6 +46,19 @@ export const sosApi = {
 
   getMySosAlerts: async (): Promise<SosAlert[]> => {
     const res = await apiClient.get<SosAlert[]>('/sos/my');
+    return res.data;
+  },
+
+  getTenantSosAlerts: async (tenantId: string): Promise<SosAlert[]> => {
+    const res = await apiClient.get<SosAlert[]>(`/sos/tenants/${tenantId}`);
+    return res.data;
+  },
+
+  resolveSosAlert: async (
+    id: string,
+    data: { status: 'RESOLVED' | 'FALSE_ALARM'; note?: string },
+  ): Promise<SosAlert> => {
+    const res = await apiClient.patch<SosAlert>(`/sos/${id}/resolve`, data);
     return res.data;
   },
 };
