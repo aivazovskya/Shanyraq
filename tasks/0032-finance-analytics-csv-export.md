@@ -1,6 +1,6 @@
 # Task 0032: CSV export of financial analytics (debtors + tariff breakdown)
 
-**Status:** Ready for Antigravity
+**Status:** Completed
 **Assignee:** Antigravity
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 
@@ -134,3 +134,32 @@ name with one) round-trips correctly when the CSV is parsed back.
 - One commit or PR.
 - PR description confirms how Cyrillic rendering was verified (decision
   #3) — same expectation Task 0022 set for its PDF Cyrillic verification.
+
+---
+
+## Review addendum (2026-09-10) — accepted, no issues found
+
+**Verified good:** `csv.helper.ts` implements RFC 4180 escaping correctly
+(comma/quote/CR/LF trigger quoting, internal quotes doubled, CRLF line
+endings) with the UTF-8 BOM prefix — verified via a test asserting the
+raw output bytes are exactly `0xEF, 0xBB, 0xBF`, stronger than a manual
+spreadsheet check since it's an automated, repeatable proof rather than
+a one-time visual confirmation. `exportFinanceAnalyticsCsv` is a
+dedicated method with its own uncapped `personalAccount.findMany` query
+(no `take`) — confirmed via a test with 15 mock debtors that explicitly
+asserts the Prisma call was made `not.objectContaining({ take:
+expect.anything() })`, and confirms all 15 account numbers appear in the
+output; the existing capped `getFinanceAnalytics` dashboard method is
+completely untouched. Comma+quote escaping tested with a realistic
+compound case ("Отопление, подогрев "Люкс""). Controller endpoint
+inherits the existing `@Roles(SUPERADMIN, HOA_ADMIN, HOA_CHAIRMAN)` at
+the class level — no new role decision — and streams via `@Res()`
+matching Task 0022's established PDF-download pattern exactly, with a
+server-controlled filename (no header-injection surface). Web download
+uses a genuinely reusable `apiDownload` helper (fetch + blob +
+temporary-anchor pattern) with sensible session-expiry handling and
+`Content-Disposition` filename parsing, wired to a button reflecting the
+currently-selected `financeMonth`/`financeYear`. 316/316 backend tests
+pass, `tsc --noEmit` clean in both `backend/` and `frontend-web/`, full
+kk/ru/en parity (932/932/932 web keys). Task accepted, no fixes
+required.
