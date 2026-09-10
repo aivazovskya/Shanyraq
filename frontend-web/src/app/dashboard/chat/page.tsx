@@ -192,7 +192,7 @@ export default function DispatcherChatPage() {
     }
   }, [selectedConversationId, loadMessages]);
 
-  // Real-time WebSocket: подключение и подписка на входящие ЖК (Subtask D)
+  // Real-time WebSocket: подключение и подписка на входящие ЖК
   useEffect(() => {
     if (!tenantId) return;
 
@@ -214,7 +214,7 @@ export default function DispatcherChatPage() {
       if (selectedConversationId) {
         socket.emit('chat:join', { conversationId: selectedConversationId });
       }
-      // Reconciliation fetch при реконнекте (Decision #7)
+      // Reconciliation fetch при реконнекте
       loadConversations(tenantId, true);
       if (selectedConversationId) {
         loadMessages(selectedConversationId, true);
@@ -232,7 +232,7 @@ export default function DispatcherChatPage() {
     };
   }, [tenantId, loadConversations, loadMessages, selectedConversationId]);
 
-  // Real-time подписка на комнату активного диалога (Subtask D)
+  // Real-time подписка на комнату активного диалога
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;

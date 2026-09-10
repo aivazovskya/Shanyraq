@@ -524,7 +524,7 @@ model Payment {
   accountId      String
   amount         Float
   method         PaymentMethod @default(MANUAL)
-  recordedById   String        // staff member who recorded it — always required, this task has no unattended payment source
+  recordedById   String        // staff member who recorded it — always required, no unattended payment source exists
   note           String?
   paidAt         DateTime      @default(now())
   createdAt      DateTime      @default(now())

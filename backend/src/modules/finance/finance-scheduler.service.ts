@@ -32,7 +32,7 @@ export class FinanceSchedulerService {
   ) {}
 
   /**
-   * Subtask A: Automated monthly charge generation.
+   * Automated monthly charge generation.
    * Runs at 03:00 on the 1st day of every month in Asia/Almaty timezone.
    */
   @Cron('0 3 1 * *', { timeZone: 'Asia/Almaty' })
@@ -86,7 +86,7 @@ export class FinanceSchedulerService {
   }
 
   /**
-   * Subtask B: Overdue-balance reminder push.
+   * Overdue-balance reminder push.
    * Runs at 10:00 on the 5th day of every month in Asia/Almaty timezone.
    */
   @Cron('0 10 5 * *', { timeZone: 'Asia/Almaty' })

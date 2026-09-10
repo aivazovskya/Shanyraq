@@ -38,7 +38,7 @@ export class PropertiesController {
   @Get('tenants/:id')
   @ApiOperation({ summary: 'Информация о ЖК с домами и квартирами' })
   async getTenantById(@Param('id') id: string, @CurrentUser() user: any) {
-    // Аудит безопасности (Subtask C1): доступ к данным ЖК разрешен только для персонала этого ЖК или SUPERADMIN
+    // Аудит безопасности: доступ к данным ЖК разрешен только для персонала этого ЖК или SUPERADMIN
     assertUserBelongsToTenant(user, id, 'жилого комплекса');
     return this.propertiesService.getTenantById(id, user);
   }

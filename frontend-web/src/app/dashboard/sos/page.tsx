@@ -109,7 +109,7 @@ export default function SosDashboardPage() {
     }
   }, [loadAlerts, t]);
 
-  // Real-time WebSocket: подключение к комнате SOS жилого комплекса (Subtask D)
+  // Real-time WebSocket: подключение к комнате SOS жилого комплекса
   useEffect(() => {
     if (!tenantId) return;
 
@@ -124,7 +124,7 @@ export default function SosDashboardPage() {
 
     socket.on('reconnect', () => {
       socket.emit('sos:join', { tenantId });
-      // Reconciliation fetch при реконнекте (Decision #7)
+      // Reconciliation fetch при реконнекте
       loadAlerts(tenantId, true);
     });
 

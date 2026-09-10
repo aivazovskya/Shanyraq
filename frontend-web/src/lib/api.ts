@@ -17,7 +17,7 @@ export interface AuthSession {
   user: AuthUser;
 }
 
-// Subtask C5: Хранение сессии в оперативной памяти (in-memory) для защиты от XSS-эксфильтрации токена
+// Хранение сессии в оперативной памяти (in-memory) для защиты от XSS-эксфильтрации токена
 let inMemorySession: AuthSession | null = null;
 
 export class NoSessionError extends Error {

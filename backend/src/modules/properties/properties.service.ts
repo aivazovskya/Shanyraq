@@ -240,7 +240,7 @@ export class PropertiesService {
       });
     }
 
-    // Аудит безопасности (Subtask B3): проверка принадлежности администратора к ЖК здания
+    // Аудит безопасности: проверка принадлежности администратора к ЖК здания
     if (user) {
       assertUserBelongsToTenant(user, building.tenantId, 'квартир');
     }

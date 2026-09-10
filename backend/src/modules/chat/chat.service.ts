@@ -24,7 +24,6 @@ export class ChatService {
 
   /**
    * Проверка доступа пользователя к ресурсам тенанта.
-   * Скопировано verbatim из bookings.service.ts согласно Decision #3.
    * - SUPERADMIN: доступ ко всем ЖК.
    * - Персонал (HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, SECURITY): доступ только к своему ЖК (user.tenantId === tenantId).
    * - Жители (OWNER, TENANT): доступ только при наличии верифицированного владения/проживания в зданиях данного ЖК.
@@ -83,7 +82,7 @@ export class ChatService {
   }
 
   /**
-   * Проверка прав сотрудника диспетчерской/УК (Decision #6: DISPATCHER, HOA_ADMIN, SUPERADMIN).
+   * Проверка прав сотрудника диспетчерской/УК (DISPATCHER, HOA_ADMIN, SUPERADMIN).
    */
   assertStaffRole(user: any): void {
     if (!user) {
@@ -346,7 +345,7 @@ export class ChatService {
       this.logger.warn(`Failed to send push notification to staff: ${e}`);
     }
 
-    // Real-time событие для WebSocket шлюза (Subtask B)
+    // Real-time событие для WebSocket шлюза
     try {
       this.eventEmitter?.emit('chat.message.created', {
         message,
@@ -574,7 +573,7 @@ export class ChatService {
       this.logger.warn(`Failed to send push notification to resident: ${e}`);
     }
 
-    // Real-time событие для WebSocket шлюза (Subtask B)
+    // Real-time событие для WebSocket шлюза
     try {
       this.eventEmitter?.emit('chat.message.created', {
         message,

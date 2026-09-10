@@ -16,6 +16,11 @@ import {
   ServiceRequestItem,
   RequestStatus,
 } from '../../api/service-requests';
+import {
+  getCategoryLabel,
+  getPriorityLabel,
+  getStatusInfo,
+} from '../../utils/requestLabels';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Input } from '../../components/common/Input';
@@ -65,44 +70,6 @@ export const StaffRequestsListScreen: React.FC = () => {
     loadRequests();
   };
 
-  const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case 'PLUMBING': return t('requests.catPlumbing');
-      case 'ELECTRICAL': return t('requests.catElectrical');
-      case 'ELEVATOR': return t('requests.catElevator');
-      case 'HEATING': return t('requests.catHeating');
-      case 'YARD_TERRITORY':
-      case 'YARD': return t('requests.catYard');
-      case 'INTERCOM_ACCESS':
-      case 'INTERCOM': return t('requests.catIntercom');
-      case 'CLEANING': return t('requests.catCleaning');
-      case 'OTHER': return t('requests.catOther');
-      default: return cat;
-    }
-  };
-
-  const getPriorityLabel = (prio: string) => {
-    switch (prio) {
-      case 'LOW': return t('requests.prioLow');
-      case 'MEDIUM': return t('requests.prioMedium');
-      case 'HIGH': return t('requests.prioHigh');
-      case 'EMERGENCY': return t('requests.prioEmergency');
-      default: return prio;
-    }
-  };
-
-  const getStatusInfo = (status: RequestStatus): { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'default' } => {
-    switch (status) {
-      case 'PENDING': return { label: t('requests.statusPending'), variant: 'warning' };
-      case 'ASSIGNED': return { label: t('requests.statusAssigned'), variant: 'info' };
-      case 'IN_PROGRESS': return { label: t('requests.statusInProgress'), variant: 'info' };
-      case 'RESOLVED': return { label: t('requests.statusResolved'), variant: 'success' };
-      case 'REJECTED': return { label: t('requests.statusRejected'), variant: 'danger' };
-      case 'CLOSED': return { label: t('requests.statusClosed'), variant: 'default' };
-      default: return { label: status, variant: 'default' };
-    }
-  };
-
   const filterOptions: { key: FilterStatus; label: string }[] = [
     { key: 'ALL', label: t('staff.requests.filterAll') },
     { key: 'PENDING', label: t('requests.statusPending') },
@@ -129,7 +96,7 @@ export const StaffRequestsListScreen: React.FC = () => {
   });
 
   const renderRequestItem = ({ item }: { item: ServiceRequestItem }) => {
-    const statusInfo = getStatusInfo(item.status);
+    const statusInfo = getStatusInfo(item.status, t);
     const unitText = item.unit?.unitNumber
       ? `${t('staff.requests.unitPrefix', { unit: item.unit.unitNumber })}${item.unit.building?.blockName ? ` (${item.unit.building.blockName})` : ''}`
       : null;
@@ -144,7 +111,7 @@ export const StaffRequestsListScreen: React.FC = () => {
             <View style={styles.itemMetaLeft}>
               <Badge label={statusInfo.label} variant={statusInfo.variant} />
               {item.priority === 'EMERGENCY' && (
-                <Badge label={getPriorityLabel(item.priority)} variant="danger" />
+                <Badge label={getPriorityLabel(item.priority, t)} variant="danger" />
               )}
             </View>
             <Text style={styles.itemDate}>
@@ -171,12 +138,12 @@ export const StaffRequestsListScreen: React.FC = () => {
               )}
               <View style={styles.tag}>
                 <Wrench size={13} color={Colors.textMuted} />
-                <Text style={styles.tagText}>{getCategoryLabel(item.category)}</Text>
+                <Text style={styles.tagText}>{getCategoryLabel(item.category, t)}</Text>
               </View>
               {item.priority !== 'EMERGENCY' && (
                 <View style={styles.tag}>
                   <AlertCircle size={13} color={Colors.textMuted} />
-                  <Text style={styles.tagText}>{getPriorityLabel(item.priority)}</Text>
+                  <Text style={styles.tagText}>{getPriorityLabel(item.priority, t)}</Text>
                 </View>
               )}
             </View>

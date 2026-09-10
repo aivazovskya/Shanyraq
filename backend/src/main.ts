@@ -7,7 +7,7 @@ import helmet from 'helmet';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Security Headers (Subtask D2)
+  // Security Headers
   app.use(helmet());
 
   // Enable CORS for web-admin and mobile clients
@@ -39,7 +39,7 @@ async function bootstrap() {
     }),
   );
 
-  // OpenAPI / Swagger Documentation (Subtask D2: gated behind non-production)
+  // OpenAPI / Swagger Documentation (gated behind non-production)
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Shanyraq (Шаңырақ) Core API')

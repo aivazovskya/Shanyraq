@@ -10,7 +10,13 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '../../context/AuthContext';
+import {
+  useAuth,
+  canAccessChat,
+  canAccessRequests,
+  canAccessLogs,
+  isStaffUser,
+} from '../../context/AuthContext';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -35,14 +41,10 @@ export const StaffHomeScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
 
-  const canAccessChat = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN';
-  const canAccessRequests = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN' || user?.role === 'HOA_CHAIRMAN';
-  const canAccessLogs = user?.role === 'SECURITY' || user?.role === 'HOA_ADMIN';
-  const canAccessGuestPass =
-    user?.role === 'HOA_ADMIN' ||
-    user?.role === 'HOA_CHAIRMAN' ||
-    user?.role === 'DISPATCHER' ||
-    user?.role === 'SECURITY';
+  const canShowChat = canAccessChat(user?.role);
+  const canShowRequests = canAccessRequests(user?.role);
+  const canShowLogs = canAccessLogs(user?.role);
+  const canShowGuestPass = isStaffUser(user?.role);
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -161,7 +163,7 @@ export const StaffHomeScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Resident Chat Inbox Quick Action (DISPATCHER & HOA_ADMIN only) */}
-        {canAccessChat && (
+        {canShowChat && (
           <TouchableOpacity
             onPress={() => navigation.navigate('ChatInboxTab')}
             activeOpacity={0.85}
@@ -185,7 +187,7 @@ export const StaffHomeScreen: React.FC = () => {
         )}
 
         {/* Service Requests Quick Action (DISPATCHER, HOA_ADMIN & HOA_CHAIRMAN) */}
-        {canAccessRequests && (
+        {canShowRequests && (
           <TouchableOpacity
             onPress={() => navigation.navigate('RequestsTab')}
             activeOpacity={0.85}
@@ -209,7 +211,7 @@ export const StaffHomeScreen: React.FC = () => {
         )}
 
         {/* Access Log Quick Action (SECURITY & HOA_ADMIN only) */}
-        {canAccessLogs && (
+        {canShowLogs && (
           <TouchableOpacity
             onPress={() => navigation.navigate('StaffAccessLog')}
             activeOpacity={0.85}
@@ -233,7 +235,7 @@ export const StaffHomeScreen: React.FC = () => {
         )}
 
         {/* Guest Pass Issuance Quick Action (all 4 staff roles) */}
-        {canAccessGuestPass && (
+        {canShowGuestPass && (
           <TouchableOpacity
             onPress={() => navigation.navigate('StaffGuestPass')}
             activeOpacity={0.85}

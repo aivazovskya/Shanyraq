@@ -27,7 +27,7 @@ export class ServiceRequestsService {
       });
     }
 
-    // Аудит безопасности (Subtask C2): проверка прав на помещение (BOLA/IDOR protection)
+    // Аудит безопасности: проверка прав на помещение (BOLA/IDOR protection)
     const hasVerifiedOwnership = unit.ownerships?.some(
       (o) => o.userId === userId && o.isVerified,
     );

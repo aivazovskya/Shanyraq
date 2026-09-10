@@ -155,7 +155,7 @@ export class SosService {
       `[SOS] 🚨 Вызов SOS ${existingActiveAlert ? '(повторный push)' : 'создан'}: ${residentName} (${residentPhone}) в ЖК ${tenantId}`,
     );
 
-    // Real-time событие для WebSocket шлюза (Subtask C)
+    // Real-time событие для WebSocket шлюза
     try {
       this.eventEmitter?.emit('sos.alert.triggered', {
         alert: alertToNotify,
@@ -291,7 +291,7 @@ export class SosService {
       },
     });
 
-    // Real-time событие для WebSocket шлюза (Subtask C)
+    // Real-time событие для WebSocket шлюза
     try {
       this.eventEmitter?.emit('sos.alert.updated', {
         alert: updatedAlert,

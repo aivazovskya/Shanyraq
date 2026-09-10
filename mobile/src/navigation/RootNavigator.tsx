@@ -49,7 +49,6 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="RequestDetail" component={RequestDetailScreen} />
             <Stack.Screen name="StaffAccessLog" component={StaffAccessLogScreen} />
             <Stack.Screen name="StaffGuestPass" component={StaffGuestPassScreen} />
-            <Stack.Screen name="Chat" component={ChatScreen} />
           </>
         ) : !hasOwnership ? (
           // Authenticated but no apartment attached -> Claim Unit Onboarding

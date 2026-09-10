@@ -261,7 +261,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Access Points Card (replaces hardcoded barrier passes counter per Subtask C) */}
+        {/* Access Points Card */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">

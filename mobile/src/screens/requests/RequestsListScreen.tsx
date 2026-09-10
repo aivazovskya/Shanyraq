@@ -11,6 +11,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { ServiceRequestsApi, ServiceRequestItem, RequestStatus } from '../../api/service-requests';
+import { getCategoryLabel, getStatusInfo } from '../../utils/requestLabels';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -25,32 +26,6 @@ export const RequestsListScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'DONE'>('ALL');
-
-  const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case 'PLUMBING': return t('requests.catPlumbing');
-      case 'ELECTRICAL': return t('requests.catElectrical');
-      case 'ELEVATOR': return t('requests.catElevator');
-      case 'HEATING': return t('requests.catHeating');
-      case 'YARD': return t('requests.catYard');
-      case 'INTERCOM': return t('requests.catIntercom');
-      case 'CLEANING': return t('requests.catCleaning');
-      case 'OTHER': return t('requests.catOther');
-      default: return cat;
-    }
-  };
-
-  const getStatusInfo = (status: RequestStatus): { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'default' } => {
-    switch (status) {
-      case 'PENDING': return { label: t('requests.statusPending'), variant: 'warning' };
-      case 'ASSIGNED': return { label: t('requests.statusAssigned'), variant: 'info' };
-      case 'IN_PROGRESS': return { label: t('requests.statusInProgress'), variant: 'info' };
-      case 'RESOLVED': return { label: t('requests.statusResolved'), variant: 'success' };
-      case 'REJECTED': return { label: t('requests.statusRejected'), variant: 'danger' };
-      case 'CLOSED': return { label: t('requests.statusClosed'), variant: 'default' };
-      default: return { label: status, variant: 'default' };
-    }
-  };
 
   const fetchRequests = async () => {
     try {
@@ -150,14 +125,14 @@ export const RequestsListScreen: React.FC = () => {
           </View>
         }
         renderItem={({ item }) => {
-          const statusInfo = getStatusInfo(item.status);
+          const statusInfo = getStatusInfo(item.status, t);
           return (
             <Card
               style={styles.card}
               onPress={() => navigation.navigate('RequestDetail', { requestId: item.id })}
             >
               <View style={styles.cardHeader}>
-                <Text style={styles.categoryBadge}>{getCategoryLabel(item.category)}</Text>
+                <Text style={styles.categoryBadge}>{getCategoryLabel(item.category, t)}</Text>
                 <Badge label={statusInfo.label} variant={statusInfo.variant} />
               </View>
 

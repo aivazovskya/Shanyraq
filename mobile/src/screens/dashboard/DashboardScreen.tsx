@@ -102,7 +102,7 @@ export const DashboardScreen: React.FC = () => {
     let coords: { latitude?: number; longitude?: number } = {};
 
     try {
-      // Best-effort GPS capture with 3s timeout (Architecture Decision #4)
+      // Best-effort GPS capture with 3s timeout
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const locPromise = Location.getCurrentPositionAsync({

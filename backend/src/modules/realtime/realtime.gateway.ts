@@ -54,7 +54,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   /**
-   * Decision #5: Socket-level auth.
+   * Socket-level auth.
    * Extracts JWT token from handshake auth or headers, verifies it,
    * validates user active status and tokenVersion, or disconnects immediately.
    */
@@ -120,7 +120,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   // =========================================================================
-  // Room Subscriptions (Decision #4)
+  // Room Subscriptions
   // =========================================================================
 
   @SubscribeMessage('chat:join')
@@ -256,7 +256,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   // =========================================================================
-  // Domain Event Listeners (Decision #2)
+  // Domain Event Listeners
   // =========================================================================
 
   @OnEvent('chat.message.created')

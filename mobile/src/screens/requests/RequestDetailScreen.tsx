@@ -20,6 +20,11 @@ import {
   RequestComment,
   RequestStatus,
 } from '../../api/service-requests';
+import {
+  getCategoryLabel,
+  getPriorityLabel,
+  getStatusInfo,
+} from '../../utils/requestLabels';
 import { getApiErrorMessage } from '../../api/client';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -48,44 +53,6 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [rating, setRating] = useState(5);
   const [ratingFeedback, setRatingFeedback] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
-
-  const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case 'PLUMBING': return t('requests.catPlumbing');
-      case 'ELECTRICAL': return t('requests.catElectrical');
-      case 'ELEVATOR': return t('requests.catElevator');
-      case 'HEATING': return t('requests.catHeating');
-      case 'YARD_TERRITORY':
-      case 'YARD': return t('requests.catYard');
-      case 'INTERCOM_ACCESS':
-      case 'INTERCOM': return t('requests.catIntercom');
-      case 'CLEANING': return t('requests.catCleaning');
-      case 'OTHER': return t('requests.catOther');
-      default: return cat;
-    }
-  };
-
-  const getPriorityLabel = (prio: string) => {
-    switch (prio) {
-      case 'LOW': return t('requests.prioLow');
-      case 'MEDIUM': return t('requests.prioMedium');
-      case 'HIGH': return t('requests.prioHigh');
-      case 'EMERGENCY': return t('requests.prioEmergency');
-      default: return prio;
-    }
-  };
-
-  const getStatusInfo = (status: string): { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'default' } => {
-    switch (status) {
-      case 'PENDING': return { label: t('requests.statusPending'), variant: 'warning' };
-      case 'ASSIGNED': return { label: t('requests.statusAssigned'), variant: 'info' };
-      case 'IN_PROGRESS': return { label: t('requests.statusInProgress'), variant: 'info' };
-      case 'RESOLVED': return { label: t('requests.statusResolved'), variant: 'success' };
-      case 'REJECTED': return { label: t('requests.statusRejected'), variant: 'danger' };
-      case 'CLOSED': return { label: t('requests.statusClosed'), variant: 'default' };
-      default: return { label: status, variant: 'default' };
-    }
-  };
 
   const loadDetails = async () => {
     try {
@@ -150,7 +117,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const isResolved = request.status === 'RESOLVED';
   const hasRated = request.rating !== null && request.rating !== undefined;
-  const statusInfo = getStatusInfo(request.status);
+  const statusInfo = getStatusInfo(request.status, t);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -183,10 +150,10 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
             <View style={styles.infoMeta}>
               <Text style={styles.metaItem}>
-                {t('requests.categoryMeta', { category: getCategoryLabel(request.category) })}
+                {t('requests.categoryMeta', { category: getCategoryLabel(request.category, t) })}
               </Text>
               <Text style={styles.metaItem}>
-                {t('requests.priorityMeta', { priority: getPriorityLabel(request.priority) })}
+                {t('requests.priorityMeta', { priority: getPriorityLabel(request.priority, t) })}
               </Text>
             </View>
 
@@ -221,7 +188,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               </Text>
               <View style={styles.statusButtonsGrid}>
                 {(['PENDING', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'] as RequestStatus[]).map((st) => {
-                  const stInfo = getStatusInfo(st);
+                  const stInfo = getStatusInfo(st, t);
                   const isCurrent = request.status === st;
                   return (
                     <TouchableOpacity

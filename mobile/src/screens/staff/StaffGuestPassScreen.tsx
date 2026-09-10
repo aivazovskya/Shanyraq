@@ -14,7 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-native-qrcode-svg';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, isStaffUser } from '../../context/AuthContext';
 import { AccessApi, GuestPass } from '../../api/access';
 import { PropertiesApi, TenantStructureResponse } from '../../api/properties';
 import { getApiErrorMessage } from '../../api/client';
@@ -63,11 +63,7 @@ export const StaffGuestPassScreen: React.FC = () => {
   const [unitModalVisible, setUnitModalVisible] = useState(false);
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
 
-  const isStaff =
-    user?.role === 'HOA_ADMIN' ||
-    user?.role === 'HOA_CHAIRMAN' ||
-    user?.role === 'DISPATCHER' ||
-    user?.role === 'SECURITY';
+  const isStaff = isStaffUser(user?.role);
 
   useEffect(() => {
     const fetchStructure = async () => {

@@ -7,7 +7,7 @@ import { StaffSosScreen } from '../screens/staff/StaffSosScreen';
 import { StaffChatInboxScreen } from '../screens/staff/StaffChatInboxScreen';
 import { StaffRequestsListScreen } from '../screens/staff/StaffRequestsListScreen';
 import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, canAccessChat, canAccessRequests } from '../context/AuthContext';
 import { Colors } from '../constants/colors';
 import { Building2, AlertTriangle, MessageSquare, ClipboardList, User } from 'lucide-react-native';
 
@@ -17,8 +17,8 @@ export const StaffMainTabs: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
 
-  const canAccessChat = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN';
-  const canAccessRequests = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN' || user?.role === 'HOA_CHAIRMAN';
+  const canShowChat = canAccessChat(user?.role);
+  const canShowRequests = canAccessRequests(user?.role);
 
   return (
     <Tab.Navigator
@@ -56,7 +56,7 @@ export const StaffMainTabs: React.FC = () => {
           tabBarIcon: ({ color, size }) => <AlertTriangle color={color} size={size} />,
         }}
       />
-      {canAccessChat && (
+      {canShowChat && (
         <Tab.Screen
           name="ChatInboxTab"
           component={StaffChatInboxScreen}
@@ -66,7 +66,7 @@ export const StaffMainTabs: React.FC = () => {
           }}
         />
       )}
-      {canAccessRequests && (
+      {canShowRequests && (
         <Tab.Screen
           name="RequestsTab"
           component={StaffRequestsListScreen}

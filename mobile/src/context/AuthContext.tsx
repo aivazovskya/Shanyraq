@@ -17,6 +17,19 @@ export function isStaffUser(role?: string | null): boolean {
   return (STAFF_ROLES as readonly string[]).includes(role);
 }
 
+export function canAccessChat(role?: string | null): boolean {
+  return role === 'DISPATCHER' || role === 'HOA_ADMIN';
+}
+
+export function canAccessRequests(role?: string | null): boolean {
+  return role === 'DISPATCHER' || role === 'HOA_ADMIN' || role === 'HOA_CHAIRMAN';
+}
+
+export function canAccessLogs(role?: string | null): boolean {
+  return role === 'SECURITY' || role === 'HOA_ADMIN';
+}
+
+
 interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;

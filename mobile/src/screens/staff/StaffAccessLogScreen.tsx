@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, canAccessLogs } from '../../context/AuthContext';
 import { AccessApi, AccessLogItem } from '../../api/access';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -49,10 +49,10 @@ export const StaffAccessLogScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const canAccessLogs = user?.role === 'SECURITY' || user?.role === 'HOA_ADMIN';
+  const hasAccess = canAccessLogs(user?.role);
 
   const fetchLogs = useCallback(async () => {
-    if (!user?.tenantId || !canAccessLogs) {
+    if (!user?.tenantId || !hasAccess) {
       setLoading(false);
       setRefreshing(false);
       return;
@@ -69,7 +69,7 @@ export const StaffAccessLogScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.tenantId, canAccessLogs, t]);
+  }, [user?.tenantId, hasAccess, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -142,7 +142,7 @@ export const StaffAccessLogScreen: React.FC = () => {
     });
   }, [logs, statusFilter, searchQuery]);
 
-  if (!canAccessLogs) {
+  if (!hasAccess) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>

@@ -68,7 +68,7 @@ export const ChatScreen: React.FC = () => {
     }
   }, []);
 
-  // Real-time WebSocket connection while screen is focused (Subtask E)
+  // Real-time WebSocket connection while screen is focused
   useFocusEffect(
     useCallback(() => {
       let socket: Socket | null = null;
@@ -97,7 +97,7 @@ export const ChatScreen: React.FC = () => {
           if (conv?.id) {
             socket?.emit('chat:join', { conversationId: conv.id });
           }
-          // Reconciliation fetch on reconnect (Decision #7)
+          // Reconciliation fetch on reconnect
           loadConversation(true);
         });
 
