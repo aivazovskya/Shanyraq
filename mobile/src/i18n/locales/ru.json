@@ -771,6 +771,22 @@
       "threadTitle": "Диалог",
       "goToChat": "Перейти к чатам с жителями",
       "activeChatsNote": "Прямая связь с собственниками и арендаторами ЖК"
+    },
+    "requestsTab": "Заявки",
+    "requests": {
+      "title": "Заявки жителей",
+      "subtitle": "Сервис-деск и технические обращения ЖК",
+      "searchPlaceholder": "Поиск по теме, квартире или описанию...",
+      "filterAll": "Все",
+      "emptyTitle": "Заявок не найдено",
+      "emptySubtitle": "В выбранной категории нет обращений жителей",
+      "changeStatusTitle": "Сменить статус заявки",
+      "statusUpdating": "Обновление статуса...",
+      "statusUpdateSuccess": "Статус заявки успешно изменен",
+      "readOnlyNotice": "Режим только для чтения (Председатель ОСИ)",
+      "goToRequests": "Перейти к заявкам ЖК",
+      "activeRequestsNote": "Service Desk: управление обращениями и смена статусов",
+      "unitPrefix": "кв. {{unit}}"
     }
   }
 }

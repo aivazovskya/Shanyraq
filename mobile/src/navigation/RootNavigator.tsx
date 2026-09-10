@@ -44,6 +44,7 @@ export const RootNavigator: React.FC = () => {
           <>
             <Stack.Screen name="StaffMain" component={StaffMainTabs} />
             <Stack.Screen name="StaffChatThread" component={StaffChatThreadScreen} />
+            <Stack.Screen name="RequestDetail" component={RequestDetailScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
           </>
         ) : !hasOwnership ? (

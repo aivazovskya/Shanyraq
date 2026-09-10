@@ -5,10 +5,11 @@ import { StaffTabsParamList } from './types';
 import { StaffHomeScreen } from '../screens/staff/StaffHomeScreen';
 import { StaffSosScreen } from '../screens/staff/StaffSosScreen';
 import { StaffChatInboxScreen } from '../screens/staff/StaffChatInboxScreen';
+import { StaffRequestsListScreen } from '../screens/staff/StaffRequestsListScreen';
 import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
 import { useAuth } from '../context/AuthContext';
 import { Colors } from '../constants/colors';
-import { Building2, AlertTriangle, MessageSquare, User } from 'lucide-react-native';
+import { Building2, AlertTriangle, MessageSquare, ClipboardList, User } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator<StaffTabsParamList>();
 
@@ -17,6 +18,7 @@ export const StaffMainTabs: React.FC = () => {
   const { user } = useAuth();
 
   const canAccessChat = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN';
+  const canAccessRequests = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN' || user?.role === 'HOA_CHAIRMAN';
 
   return (
     <Tab.Navigator
@@ -61,6 +63,16 @@ export const StaffMainTabs: React.FC = () => {
           options={{
             tabBarLabel: t('staff.chatTab'),
             tabBarIcon: ({ color, size }) => <MessageSquare color={color} size={size} />,
+          }}
+        />
+      )}
+      {canAccessRequests && (
+        <Tab.Screen
+          name="RequestsTab"
+          component={StaffRequestsListScreen}
+          options={{
+            tabBarLabel: t('staff.requestsTab'),
+            tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size} />,
           }}
         />
       )}

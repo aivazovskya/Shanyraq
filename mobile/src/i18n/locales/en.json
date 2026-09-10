@@ -771,6 +771,22 @@
       "threadTitle": "Chat",
       "goToChat": "Go to Resident Chats",
       "activeChatsNote": "Direct messaging with property owners and tenants"
+    },
+    "requestsTab": "Requests",
+    "requests": {
+      "title": "Service Requests",
+      "subtitle": "Building maintenance & resident service requests",
+      "searchPlaceholder": "Search by title, unit or description...",
+      "filterAll": "All",
+      "emptyTitle": "No requests found",
+      "emptySubtitle": "No service requests found in this category",
+      "changeStatusTitle": "Change Request Status",
+      "statusUpdating": "Updating status...",
+      "statusUpdateSuccess": "Request status updated successfully",
+      "readOnlyNotice": "Read-only mode (HOA Chairman)",
+      "goToRequests": "Go to Service Requests",
+      "activeRequestsNote": "Service desk management and status triage",
+      "unitPrefix": "apt. {{unit}}"
     }
   }
 }

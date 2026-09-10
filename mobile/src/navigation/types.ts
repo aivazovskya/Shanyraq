@@ -17,6 +17,7 @@ export type StaffTabsParamList = {
   HomeTab: undefined;
   SosTab: undefined;
   ChatInboxTab: undefined;
+  RequestsTab: undefined;
   ProfileTab: undefined;
 };
 

@@ -12,11 +12,13 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../navigation/types';
 import {
   ServiceRequestsApi,
   ServiceRequestItem,
   RequestComment,
+  RequestStatus,
 } from '../../api/service-requests';
 import { getApiErrorMessage } from '../../api/client';
 import { Card } from '../../components/common/Card';
@@ -31,12 +33,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RequestDetail'>;
 
 export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const { requestId } = route.params;
 
   const [request, setRequest] = useState<ServiceRequestItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const canChangeStatus = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN';
 
   // Rating state
   const [rating, setRating] = useState(5);
@@ -124,6 +130,20 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
+  const handleUpdateStatus = async (newStatus: RequestStatus) => {
+    if (!request || request.status === newStatus || updatingStatus) return;
+    setUpdatingStatus(true);
+    try {
+      await ServiceRequestsApi.updateStatus(requestId, newStatus);
+      Alert.alert(t('common.success'), t('staff.requests.statusUpdateSuccess'));
+      await loadDetails();
+    } catch (e: any) {
+      Alert.alert(t('common.error'), getApiErrorMessage(e));
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   if (loading || !request) {
     return <LoadingState message={t('requests.loadingRequestDetails')} />;
   }
@@ -170,6 +190,15 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               </Text>
             </View>
 
+            {request.unit?.unitNumber && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.metaItem}>
+                  {t('staff.requests.unitPrefix', { unit: request.unit.unitNumber })}
+                  {request.unit.building?.blockName ? ` (${request.unit.building.blockName})` : ''}
+                </Text>
+              </View>
+            )}
+
             {/* Assignee Contact */}
             {request.assignee ? (
               <View style={styles.assigneeBox}>
@@ -184,8 +213,44 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             ) : null}
           </Card>
 
-          {/* Rating Section (When Resolved) */}
-          {isResolved && !hasRated && (
+          {/* Staff Status Change Section (DISPATCHER & HOA_ADMIN only) */}
+          {canChangeStatus && (
+            <Card style={styles.statusChangeCard}>
+              <Text style={styles.statusChangeTitle}>
+                {t('staff.requests.changeStatusTitle')}
+              </Text>
+              <View style={styles.statusButtonsGrid}>
+                {(['PENDING', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REJECTED'] as RequestStatus[]).map((st) => {
+                  const stInfo = getStatusInfo(st);
+                  const isCurrent = request.status === st;
+                  return (
+                    <TouchableOpacity
+                      key={st}
+                      style={[
+                        styles.statusButton,
+                        isCurrent && styles.statusButtonCurrent,
+                      ]}
+                      onPress={() => handleUpdateStatus(st)}
+                      disabled={isCurrent || updatingStatus}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.statusButtonText,
+                          isCurrent && styles.statusButtonTextCurrent,
+                        ]}
+                      >
+                        {stInfo.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </Card>
+          )}
+
+          {/* Rating Section (When Resolved, creator only) */}
+          {isResolved && !hasRated && user?.id === request.creatorId && (
             <Card style={styles.ratingCard}>
               <Text style={styles.ratingTitle}>{t('requests.rateMasterTitle')}</Text>
               <Text style={styles.ratingSub}>
@@ -461,5 +526,41 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  statusChangeCard: {
+    marginBottom: 16,
+    padding: 16,
+  },
+  statusChangeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  statusButtonsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statusButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  statusButtonCurrent: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  statusButtonText: {
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  statusButtonTextCurrent: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

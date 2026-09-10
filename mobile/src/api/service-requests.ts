@@ -1,4 +1,4 @@
-﻿import { apiClient } from './client';
+import { apiClient } from './client';
 
 export type RequestStatus =
   | 'PENDING'
@@ -78,10 +78,22 @@ export interface CreateServiceRequestDto {
 }
 
 export const ServiceRequestsApi = {
-  async getRequests(tenantId?: string): Promise<ServiceRequestItem[]> {
+  async getRequests(filter?: { status?: RequestStatus; tenantId?: string } | string): Promise<ServiceRequestItem[]> {
+    let params: Record<string, string> = {};
+    if (typeof filter === 'string') {
+      params.tenantId = filter;
+    } else if (filter) {
+      if (filter.status) params.status = filter.status;
+      if (filter.tenantId) params.tenantId = filter.tenantId;
+    }
     const res = await apiClient.get('/service-requests', {
-      params: tenantId ? { tenantId } : undefined,
+      params: Object.keys(params).length > 0 ? params : undefined,
     });
+    return res.data;
+  },
+
+  async updateStatus(requestId: string, status: RequestStatus): Promise<ServiceRequestItem> {
+    const res = await apiClient.patch(`/service-requests/${requestId}/status`, { status });
     return res.data;
   },
 

@@ -24,6 +24,7 @@ import {
   Clock,
   AlertTriangle,
   MessageSquare,
+  ClipboardList,
   ChevronRight,
 } from 'lucide-react-native';
 
@@ -33,6 +34,7 @@ export const StaffHomeScreen: React.FC = () => {
   const { t } = useTranslation();
 
   const canAccessChat = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN';
+  const canAccessRequests = user?.role === 'DISPATCHER' || user?.role === 'HOA_ADMIN' || user?.role === 'HOA_CHAIRMAN';
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -174,6 +176,30 @@ export const StaffHomeScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
+        {/* Service Requests Quick Action (DISPATCHER, HOA_ADMIN & HOA_CHAIRMAN) */}
+        {canAccessRequests && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('RequestsTab')}
+            activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.requestsCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.requestsIconCircle]}>
+                  <ClipboardList size={20} color="#2563EB" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#2563EB' }]}>
+                    {t('staff.requestsTab')}
+                  </Text>
+                  <Text style={styles.requestsCardTitle}>{t('staff.requests.title')}</Text>
+                  <Text style={styles.requestsCardSubtitle}>{t('staff.requests.activeRequestsNote')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
         {/* Operational Modules Preview / Status */}
         <Card style={styles.card}>
           <View style={styles.cardHeader}>
@@ -281,6 +307,25 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chatCardSubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  requestsCard: {
+    borderColor: Colors.border,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  requestsIconCircle: {
+    backgroundColor: '#EFF6FF',
+  },
+  requestsCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 2,
+  },
+  requestsCardSubtitle: {
     fontSize: 13,
     color: Colors.textMuted,
     marginTop: 2,
