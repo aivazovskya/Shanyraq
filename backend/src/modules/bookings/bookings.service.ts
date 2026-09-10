@@ -13,6 +13,7 @@ import {
   CreateBookingDto,
   GetBookingsQueryDto,
 } from './dto/bookings.dto';
+import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
 
 @Injectable()
 export class BookingsService {
@@ -462,63 +463,32 @@ export class BookingsService {
   // Вспомогательные методы
   // =============================================================
 
+  private static readonly BOOKINGS_ACCESS_ERRORS: TenantAccessErrorCodes = {
+    authRequired: {
+      code: 'BOOKINGS.AUTH_REQUIRED',
+      message: 'Требуется авторизация',
+    },
+    staffForbidden: {
+      code: 'BOOKINGS.STAFF_CROSS_TENANT_FORBIDDEN',
+      message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+    },
+    residentForbidden: {
+      code: 'BOOKINGS.RESIDENT_ACCESS_FORBIDDEN',
+      message: 'У вас нет подтвержденного доступа к общим пространствам данного жилого комплекса',
+    },
+  };
+
   /**
    * Проверка доступа пользователя к ресурсам/каталогу тенанта.
-   * - SUPERADMIN: доступ ко всем ЖК.
-   * - Персонал (HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, SECURITY): доступ только к своему ЖК (user.tenantId === tenantId).
-   * - Жители (OWNER, TENANT): доступ только при наличии верифицированного владения/проживания в зданиях данного ЖК.
-   * Возвращает true, если пользователь является персоналом (или SUPERADMIN), и false, если жителем.
+   * Делегирует единому хелперу assertAccessToTenant.
    */
   private async assertAccessToTenant(user: any, tenantId: string): Promise<boolean> {
-    if (!user) {
-      throw new ForbiddenException({
-        code: 'BOOKINGS.AUTH_REQUIRED',
-        message: 'Требуется авторизация',
-      });
-    }
-
-    if (user.role === UserRole.SUPERADMIN) {
-      return true;
-    }
-
-    const staffRoles = [
-      UserRole.HOA_ADMIN,
-      UserRole.HOA_CHAIRMAN,
-      UserRole.DISPATCHER,
-      UserRole.SECURITY,
-    ];
-
-    if (staffRoles.includes(user.role)) {
-      if (user.tenantId !== tenantId) {
-        throw new ForbiddenException({
-          code: 'BOOKINGS.STAFF_CROSS_TENANT_FORBIDDEN',
-          message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
-        });
-      }
-      return true;
-    }
-
-    // Проверяем подтвержденное владение/проживание в здании данного ЖК (зеркально getCameraStream)
-    const verifiedOwnership = await this.prisma.unitOwnership.findFirst({
-      where: {
-        userId: user.id,
-        isVerified: true,
-        unit: {
-          building: {
-            tenantId,
-          },
-        },
-      },
-    });
-
-    if (!verifiedOwnership) {
-      throw new ForbiddenException({
-        code: 'BOOKINGS.RESIDENT_ACCESS_FORBIDDEN',
-        message: 'У вас нет подтвержденного доступа к общим пространствам данного жилого комплекса',
-      });
-    }
-
-    return false;
+    return assertAccessToTenant(
+      this.prisma,
+      user,
+      tenantId,
+      BookingsService.BOOKINGS_ACCESS_ERRORS,
+    );
   }
 
   private isStaffUser(user: any, tenantId: string): boolean {
