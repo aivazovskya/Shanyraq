@@ -47,3 +47,6 @@ Thumbs.db
 .minio/
 /uploads/
 /backend/uploads/
+
+# i18n review export artifacts
+/i18n-review-kk-en.csv
