@@ -10,12 +10,13 @@ import {
   Alert,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
 import { ServiceRequestsApi, ServiceRequestItem } from '../../api/service-requests';
 import { AnnouncementsApi, AnnouncementItem } from '../../api/announcements';
+import { NotificationsApi } from '../../api/notifications';
 import { sosApi } from '../../api/sos';
 import { SosHoldButton } from '../../components/sos/SosHoldButton';
 import { Card } from '../../components/common/Card';
@@ -49,6 +50,20 @@ export const DashboardScreen: React.FC = () => {
   const [votings, setVotings] = useState<MeetingItem[]>([]);
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+
+  const fetchUnreadNotifs = useCallback(async () => {
+    try {
+      const res = await NotificationsApi.getUnreadCount();
+      setUnreadNotifsCount(res.unreadCount ?? res.count ?? 0);
+    } catch {}
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadNotifs();
+    }, [fetchUnreadNotifs])
+  );
 
   const getRequestStatusLabel = (status: string) => {
     switch (status) {
@@ -87,7 +102,7 @@ export const DashboardScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
+    await Promise.all([fetchDashboardData(), fetchUnreadNotifs()]);
     setRefreshing(false);
   };
 
@@ -161,7 +176,7 @@ export const DashboardScreen: React.FC = () => {
       >
         {/* Header Profile Summary */}
         <View style={styles.header}>
-          <View>
+          <View style={{ flex: 1, marginRight: 8 }}>
             <Text style={styles.greeting}>
               {t('dashboard.welcome', { name: user?.firstName || t('dashboard.defaultResident') })}
             </Text>
@@ -169,11 +184,27 @@ export const DashboardScreen: React.FC = () => {
               {user?.tenant?.name || t('dashboard.defaultComplex')} • {t('dashboard.unitFormat', { unit: primaryOwnership?.unit?.unitNumber || '—' })}
             </Text>
           </View>
-          <View style={styles.statusBadge}>
-            <Badge
-              label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
-              variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
-            />
+          <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Notifications')}
+              style={styles.notificationButton}
+              accessibilityLabel={t('notifications.title')}
+            >
+              <Bell size={22} color={Colors.text} />
+              {unreadNotifsCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadNotifsCount > 99 ? '99+' : unreadNotifsCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <View style={styles.statusBadge}>
+              <Badge
+                label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
+                variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
+              />
+            </View>
           </View>
         </View>
 
@@ -453,8 +484,35 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 2,
   },
+  headerRightActions: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#DC2626',
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
   statusBadge: {
-    marginTop: 4,
+    marginTop: 2,
   },
   urgentCard: {
     backgroundColor: '#FEF2F2',

@@ -41,4 +41,5 @@ export type RootStackParamList = {
   CommunityBoard: undefined;
   CreateListing: undefined;
   Chat: undefined;
+  Notifications: undefined;
 };

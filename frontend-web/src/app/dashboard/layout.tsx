@@ -27,6 +27,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
+import { NotificationBell } from '@/components/NotificationBell';
 
 const LANGUAGE_LABELS: Record<SupportedLocale, string> = {
   kk: 'Қазақша',
@@ -191,6 +192,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-xs font-semibold px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
               {t('dashboard.standardBadge')}
             </span>
+
+            {/* In-app Notification Center */}
+            <NotificationBell />
 
             {/* Language Switcher Dropdown */}
             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">

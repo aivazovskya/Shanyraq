@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { RegisterDeviceDto } from './dto/notifications.dto';
@@ -52,6 +52,8 @@ export class NotificationsService {
   }
 
   async sendToUser(userId: string, payload: PushPayload) {
+    await this.persistNotifications([userId], payload);
+
     const devices = await this.prisma.deviceToken.findMany({
       where: { userId },
     });
@@ -79,6 +81,9 @@ export class NotificationsService {
       return { sent: 0 };
     }
 
+    const uniqueUserIds = Array.from(new Set(devices.map((d) => d.userId).filter(Boolean)));
+    await this.persistNotifications(uniqueUserIds, payload);
+
     const tokens = devices.map((d) => d.token);
     return this.dispatchPushNotifications(tokens, payload);
   }
@@ -100,8 +105,99 @@ export class NotificationsService {
       return { sent: 0 };
     }
 
+    const uniqueUserIds = Array.from(new Set(devices.map((d) => d.userId).filter(Boolean)));
+    await this.persistNotifications(uniqueUserIds, payload);
+
     const tokens = devices.map((d) => d.token);
     return this.dispatchPushNotifications(tokens, payload);
+  }
+
+  private async persistNotifications(userIds: string[], payload: PushPayload) {
+    if (!userIds || userIds.length === 0) return;
+    try {
+      if (!this.prisma.notification) return;
+      const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+      if (uniqueIds.length === 0) return;
+
+      await this.prisma.notification.createMany({
+        data: uniqueIds.map((userId) => ({
+          userId,
+          title: payload.title,
+          body: payload.body,
+          ...(payload.data !== undefined ? { data: payload.data } : {}),
+        })),
+      });
+    } catch (err: any) {
+      this.logger.warn(`[NOTIFICATIONS] Не удалось сохранить уведомления в БД: ${err?.message}`);
+    }
+  }
+
+  async getNotifications(userId: string, query?: { take?: number; skip?: number }) {
+    const take = query?.take ? Math.min(Math.max(1, Number(query.take)), 100) : 20;
+    const skip = query?.skip ? Math.max(0, Number(query.skip)) : 0;
+
+    return this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip,
+    });
+  }
+
+  async getUnreadCount(userId: string) {
+    const count = await this.prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
+    });
+
+    return {
+      count,
+      unreadCount: count,
+    };
+  }
+
+  async markAsRead(id: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id },
+    });
+
+    if (!notification) {
+      throw new NotFoundException({
+        code: 'NOTIFICATIONS.NOT_FOUND',
+        message: 'Уведомление не найдено',
+      });
+    }
+
+    if (notification.userId !== userId) {
+      throw new ForbiddenException({
+        code: 'NOTIFICATIONS.FORBIDDEN',
+        message: 'Нет доступа к чужому уведомлению',
+      });
+    }
+
+    return this.prisma.notification.update({
+      where: { id },
+      data: { isRead: true },
+    });
+  }
+
+  async markAllAsRead(userId: string) {
+    const result = await this.prisma.notification.updateMany({
+      where: {
+        userId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    return {
+      success: true,
+      updated: result.count,
+    };
   }
 
   private async dispatchPushNotifications(tokens: string[], payload: PushPayload) {

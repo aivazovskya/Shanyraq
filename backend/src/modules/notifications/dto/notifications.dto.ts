@@ -1,4 +1,4 @@
-﻿import { IsString, IsNotEmpty, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDeviceDto {
@@ -28,4 +28,22 @@ export class UnregisterDeviceDto {
   @IsString()
   @IsNotEmpty()
   token: string;
+}
+
+export class GetNotificationsQueryDto {
+  @ApiProperty({
+    required: false,
+    default: 20,
+    description: 'Количество записей (по умолчанию 20, макс 100)',
+  })
+  @IsOptional()
+  take?: number;
+
+  @ApiProperty({
+    required: false,
+    default: 0,
+    description: 'Смещение выборки',
+  })
+  @IsOptional()
+  skip?: number;
 }

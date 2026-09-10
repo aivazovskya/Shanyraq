@@ -1016,5 +1016,16 @@
       "FILE_MISSING": "File not provided in the \"file\" field",
       "INVALID_MIME_TYPE": "Invalid file type. Only JPEG, PNG, WebP, and PDF are allowed"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet",
+    "markAllAsRead": "Mark all as read",
+    "markAsRead": "Mark as read",
+    "unreadBadge": "Unread: {{count}}",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
   }
 }

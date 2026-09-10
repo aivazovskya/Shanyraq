@@ -833,5 +833,17 @@
       "unauthorizedTitle": "Доступ ограничен",
       "unauthorizedMsg": "Выписка гостевых пропусков доступна только сотрудникам ЖК."
     }
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "empty": "Нет уведомлений",
+    "emptySubtitle": "Здесь будут отображаться важные события и сообщения",
+    "markAllAsRead": "Прочитать все",
+    "unreadBadge": "Непрочитанных: {{count}}",
+    "justNow": "Только что",
+    "minutesAgo": "{{count}} мин. назад",
+    "hoursAgo": "{{count}} ч. назад",
+    "daysAgo": "{{count}} дн. назад",
+    "allRead": "Все уведомления прочитаны"
   }
 }

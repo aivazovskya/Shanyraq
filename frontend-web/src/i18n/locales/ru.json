@@ -1016,5 +1016,16 @@
       "FILE_MISSING": "Файл не передан в поле \"file\"",
       "INVALID_MIME_TYPE": "Недопустимый тип файла. Разрешены только JPEG, PNG, WebP и PDF"
     }
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "empty": "Нет уведомлений",
+    "markAllAsRead": "Прочитать все",
+    "markAsRead": "Пометить как прочитанное",
+    "unreadBadge": "Непрочитанных: {{count}}",
+    "justNow": "Только что",
+    "minutesAgo": "{{count}} мин. назад",
+    "hoursAgo": "{{count}} ч. назад",
+    "daysAgo": "{{count}} дн. назад"
   }
 }

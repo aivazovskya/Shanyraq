@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
   useAuth,
   canAccessChat,
@@ -17,6 +17,7 @@ import {
   canAccessLogs,
   isStaffUser,
 } from '../../context/AuthContext';
+import { NotificationsApi } from '../../api/notifications';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -34,12 +35,28 @@ import {
   ChevronRight,
   Shield,
   KeyRound,
+  Bell,
 } from 'lucide-react-native';
 
 export const StaffHomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
   const { t } = useTranslation();
+
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+
+  const fetchUnreadNotifs = useCallback(async () => {
+    try {
+      const res = await NotificationsApi.getUnreadCount();
+      setUnreadNotifsCount(res.unreadCount ?? res.count ?? 0);
+    } catch {}
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadNotifs();
+    }, [fetchUnreadNotifs])
+  );
 
   const canShowChat = canAccessChat(user?.role);
   const canShowRequests = canAccessRequests(user?.role);
@@ -83,10 +100,26 @@ export const StaffHomeScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t('staff.headerTitle')}</Text>
-          <Badge
-            label={user?.role || 'STAFF'}
-            variant="info"
-          />
+          <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Notifications')}
+              style={styles.notificationButton}
+              accessibilityLabel={t('notifications.title')}
+            >
+              <Bell size={22} color={Colors.text} />
+              {unreadNotifsCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadNotifsCount > 99 ? '99+' : unreadNotifsCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <Badge
+              label={user?.role || 'STAFF'}
+              variant="info"
+            />
+          </View>
         </View>
 
         {/* Complex / Tenant Info */}
@@ -307,6 +340,34 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: Colors.text,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#DC2626',
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
   card: {
     marginBottom: 16,

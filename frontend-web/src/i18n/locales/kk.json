@@ -1016,5 +1016,16 @@
       "FILE_MISSING": "Файл \"file\" өрісіне берілмеген",
       "INVALID_MIME_TYPE": "Файл түріне рұқсат етілмеген. Тек JPEG, PNG, WebP және PDF рұқсат етілген"
     }
+  },
+  "notifications": {
+    "title": "Хабарламалар",
+    "empty": "Хабарламалар жоқ",
+    "markAllAsRead": "Барлығын оқылды деп белгілеу",
+    "markAsRead": "Оқылды деп белгілеу",
+    "unreadBadge": "Оқылмаған: {{count}}",
+    "justNow": "Жаңа ғана",
+    "minutesAgo": "{{count}} мин. бұрын",
+    "hoursAgo": "{{count}} сағ. бұрын",
+    "daysAgo": "{{count}} күн бұрын"
   }
 }

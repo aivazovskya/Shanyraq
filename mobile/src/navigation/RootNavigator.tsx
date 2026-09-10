@@ -22,6 +22,7 @@ import { SosHistoryScreen } from '../screens/sos/SosHistoryScreen';
 import { CommunityBoardScreen } from '../screens/community-board/CommunityBoardScreen';
 import { CreateListingScreen } from '../screens/community-board/CreateListingScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
+import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 import { LoadingState } from '../components/common/LoadingState';
 import { useTranslation } from 'react-i18next';
 
@@ -49,6 +50,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="RequestDetail" component={RequestDetailScreen} />
             <Stack.Screen name="StaffAccessLog" component={StaffAccessLogScreen} />
             <Stack.Screen name="StaffGuestPass" component={StaffGuestPassScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         ) : !hasOwnership ? (
           // Authenticated but no apartment attached -> Claim Unit Onboarding
@@ -70,6 +72,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="CommunityBoard" component={CommunityBoardScreen} />
             <Stack.Screen name="CreateListing" component={CreateListingScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         )}
       </Stack.Navigator>

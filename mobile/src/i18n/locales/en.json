@@ -833,5 +833,17 @@
       "unauthorizedTitle": "Access Restricted",
       "unauthorizedMsg": "Guest pass issuance is only available to residential staff."
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications",
+    "emptySubtitle": "Important events and updates will appear here",
+    "markAllAsRead": "Mark all as read",
+    "unreadBadge": "Unread: {{count}}",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago",
+    "allRead": "All notifications read"
   }
 }
