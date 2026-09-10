@@ -9,7 +9,7 @@ export interface JwtPayload {
   phone: string;
   role: string;
   tenantId?: string | null;
-  type: 'access' | 'refresh';
+  type: 'access' | 'refresh' | 'password_change';
   tokenVersion?: number;
 }
 

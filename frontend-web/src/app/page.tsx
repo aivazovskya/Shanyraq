@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Building2, ShieldCheck, ArrowRight, Loader2, AlertCircle, Globe } from 'lucide-react';
+import { Building2, ShieldCheck, ArrowRight, Loader2, AlertCircle, Globe, KeyRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
@@ -19,6 +19,9 @@ export default function LoginPage() {
   const { t, i18n } = useTranslation();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [changePasswordToken, setChangePasswordToken] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +64,15 @@ export default function LoginPage() {
       }
 
       const data = await res.json();
+
+      // Если требуется смена временного пароля при первом входе
+      if (data.mustChangePassword && data.changePasswordToken) {
+        setChangePasswordToken(data.changePasswordToken);
+        setPassword('');
+        setError(null);
+        return;
+      }
+
       saveSession({
         token: data.accessToken,
         user: data.user,
@@ -72,6 +84,71 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSetInitialPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      setError(t('auth.loginRequired'));
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError(t('auth.passwordTooShort'));
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError(t('auth.passwordMismatch'));
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/set-initial-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changePasswordToken,
+          newPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        let errData: any = {};
+        try {
+          errData = await res.json();
+        } catch {}
+        const errorMsg = Array.isArray(errData.message)
+          ? errData.message.join(', ')
+          : errData.message || t('auth.invalidCredentials');
+        const err = new Error(errorMsg);
+        (err as any).code = errData.code;
+        (err as any).params = errData.params;
+        throw err;
+      }
+
+      const data = await res.json();
+      saveSession({
+        token: data.accessToken,
+        user: data.user,
+      });
+
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, t) || t('auth.connectionError'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelPasswordChange = () => {
+    setChangePasswordToken(null);
+    setNewPassword('');
+    setConfirmPassword('');
+    setError(null);
   };
 
   return (
@@ -116,54 +193,125 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form className="space-y-5" onSubmit={handleLogin}>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                {t('auth.loginLabel')}
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <input
-                  type="text"
-                  value={login}
-                  onChange={(e) => setLogin(e.target.value)}
-                  className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
-                  placeholder={t('auth.loginPlaceholder')}
-                  required
-                />
+          {changePasswordToken ? (
+            <form className="space-y-5" onSubmit={handleSetInitialPassword}>
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+                <div className="font-semibold text-amber-900 mb-1 flex items-center gap-1.5">
+                  <KeyRound className="w-4 h-4 text-amber-700" />
+                  <span>{t('auth.setInitialPasswordTitle')}</span>
+                </div>
+                <p className="text-amber-800">{t('auth.setInitialPasswordSubtitle')}</p>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700">
-                {t('auth.passwordLabel')}
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
-                  placeholder={t('auth.passwordPlaceholder')}
-                  required
-                />
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  {t('auth.newPasswordLabel')}
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
+                    placeholder={t('auth.newPasswordPlaceholder')}
+                    required
+                    minLength={8}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <ArrowRight className="mr-2 w-4 h-4" />
-                )}
-                <span>{isLoading ? t('auth.loggingIn') : t('auth.loginButton')}</span>
-              </button>
-            </div>
-          </form>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  {t('auth.confirmPasswordLabel')}
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
+                    placeholder={t('auth.confirmPasswordPlaceholder')}
+                    required
+                    minLength={8}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <KeyRound className="mr-2 w-4 h-4" />
+                  )}
+                  <span>{isLoading ? t('auth.settingInitialPassword') : t('auth.setInitialPasswordButton')}</span>
+                </button>
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleCancelPasswordChange}
+                  className="text-xs text-slate-500 hover:text-slate-800 transition-colors"
+                >
+                  {t('auth.backToLogin')}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form className="space-y-5" onSubmit={handleLogin}>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  {t('auth.loginLabel')}
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <input
+                    type="text"
+                    value={login}
+                    onChange={(e) => setLogin(e.target.value)}
+                    className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
+                    placeholder={t('auth.loginPlaceholder')}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  {t('auth.passwordLabel')}
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
+                    placeholder={t('auth.passwordPlaceholder')}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <ArrowRight className="mr-2 w-4 h-4" />
+                  )}
+                  <span>{isLoading ? t('auth.loggingIn') : t('auth.loginButton')}</span>
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-500 space-y-1">
             <div className="flex items-center gap-1.5 text-emerald-700 font-medium">

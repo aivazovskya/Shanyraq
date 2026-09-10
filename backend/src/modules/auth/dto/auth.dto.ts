@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Matches, Length, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, Length, IsOptional, MinLength } from 'class-validator';
 
 export class RequestOtpDto {
   @ApiProperty({ example: '+77015550101', description: 'Номер телефона в международном формате (+7XXXXXXXXXX)' })
@@ -68,3 +68,17 @@ export class ResetPinConfirmDto {
   @Matches(/^\d{4}$|^\d{6}$/, { message: 'PIN-код должен состоять ровно из 4 или 6 цифр' })
   newPin: string;
 }
+
+export class SetInitialPasswordDto {
+  @ApiProperty({ description: 'Одноразовый токен смены пароля (type: password_change)' })
+  @IsNotEmpty()
+  @IsString()
+  changePasswordToken: string;
+
+  @ApiProperty({ example: 'NewPassword2026!', description: 'Новый пароль (минимум 8 символов)' })
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(8, { message: 'Пароль должен содержать не менее 8 символов' })
+  newPassword: string;
+}
+

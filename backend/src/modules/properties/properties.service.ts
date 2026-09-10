@@ -5,8 +5,10 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto } from './dto/properties.dto';
 import { UserRole } from '@prisma/client';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
@@ -153,6 +155,80 @@ export class PropertiesService {
         city: dto.city || 'Астана',
       },
     });
+  }
+
+  async createStaff(tenantId: string, dto: CreateStaffDto) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
+    }
+
+    const allowedRoles: UserRole[] = [
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ];
+
+    if (!allowedRoles.includes(dto.role)) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.INVALID_STAFF_ROLE',
+        message: 'Недопустимая роль сотрудника. Допустимые роли: HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, SECURITY',
+      });
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: dto.phone },
+          ...(dto.email ? [{ email: dto.email }] : []),
+        ],
+      },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.USER_ALREADY_EXISTS',
+        message: 'Пользователь с таким номером телефона или email уже зарегистрирован в системе',
+      });
+    }
+
+    const tempPassword = crypto.randomBytes(8).toString('hex');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(tempPassword, salt);
+
+    const user = await this.prisma.user.create({
+      data: {
+        firstName: dto.firstName.trim(),
+        lastName: dto.lastName.trim(),
+        phone: dto.phone.trim(),
+        email: dto.email ? dto.email.trim().toLowerCase() : null,
+        role: dto.role,
+        tenantId: tenant.id,
+        passwordHash,
+        mustChangePassword: true,
+        isActive: true,
+      },
+    });
+
+    return {
+      id: user.id,
+      phone: user.phone,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      tenantId: user.tenantId,
+      mustChangePassword: user.mustChangePassword,
+      createdAt: user.createdAt,
+      tempPassword,
+    };
   }
 
   async addUnit(buildingId: string, user: any, dto: CreateUnitDto) {

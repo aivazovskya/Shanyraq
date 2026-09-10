@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto } from './dto/auth.dto';
 import { UserRole } from '@prisma/client';
 import { JwtPayload } from './jwt.strategy';
 import { RedisService } from '../../redis/redis.service';
@@ -505,6 +505,28 @@ export class AuthService {
       await this.redisService.del(`${LOGIN_LOCKOUT_KEY_PREFIX}${loginKey}`);
     } catch {}
 
+    // Проверка необходимости смены временного пароля при первом входе
+    if (user.mustChangePassword) {
+      const changePasswordPayload: JwtPayload = {
+        sub: user.id,
+        phone: user.phone,
+        role: user.role,
+        tenantId: user.tenantId,
+        type: 'password_change',
+        tokenVersion: user.tokenVersion,
+      };
+
+      const changePasswordToken = this.jwtService.sign(changePasswordPayload, {
+        secret: this.accessSecret,
+        expiresIn: '10m',
+      });
+
+      return {
+        mustChangePassword: true,
+        changePasswordToken,
+      };
+    }
+
     const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
 
     return {
@@ -517,6 +539,86 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId,
         tenantName: user.tenant?.name,
+      },
+      ...tokens,
+    };
+  }
+
+  async setInitialPassword(dto: SetInitialPasswordDto) {
+    let payload: JwtPayload;
+
+    try {
+      payload = this.jwtService.verify(dto.changePasswordToken, {
+        secret: this.accessSecret,
+      });
+    } catch {
+      throw new UnauthorizedException({
+        code: 'AUTH.CHANGE_PASSWORD_TOKEN_INVALID',
+        message: 'Недействительный или истекший токен смены пароля',
+      });
+    }
+
+    if (!payload || payload.type !== 'password_change') {
+      throw new UnauthorizedException({
+        code: 'AUTH.INVALID_TOKEN_TYPE',
+        message: 'Предоставленный токен не предназначен для смены пароля',
+      });
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: {
+        tenant: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_BLOCKED_OR_NOT_FOUND',
+        message: 'Пользователь заблокирован или не найден',
+      });
+    }
+
+    if (payload.tokenVersion !== undefined && user.tokenVersion !== payload.tokenVersion) {
+      throw new UnauthorizedException({
+        code: 'AUTH.SESSION_REVOKED',
+        message: 'Сессия завершена (токен отозван). Пожалуйста, войдите снова.',
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(dto.newPassword, salt);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        tokenVersion: { increment: 1 },
+      },
+      include: {
+        tenant: true,
+      },
+    });
+
+    const tokens = this.generateTokens(
+      updatedUser.id,
+      updatedUser.phone,
+      updatedUser.role,
+      updatedUser.tenantId,
+      updatedUser.tokenVersion,
+    );
+
+    return {
+      user: {
+        id: updatedUser.id,
+        phone: updatedUser.phone,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        role: updatedUser.role,
+        tenantId: updatedUser.tenantId,
+        tenantName: updatedUser.tenant?.name,
       },
       ...tokens,
     };

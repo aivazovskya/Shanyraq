@@ -3,6 +3,7 @@ import { PropertiesService } from './properties.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserRole, OwnershipType } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 describe('PropertiesService (Поиск ЖК, структура объектов и реестр жильцов)', () => {
   let service: PropertiesService;
@@ -36,6 +37,8 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       user: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
         update: jest.fn(),
       },
       personalAccount: {
@@ -512,6 +515,100 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
 
       const res = await service.getTenantById('tenant-target', superadmin);
       expect(res.id).toBe('tenant-target');
+    });
+  });
+
+  describe('createStaff (Task 0023)', () => {
+    const validStaffDto = {
+      firstName: 'Аслан',
+      lastName: 'Омаров',
+      phone: '+77015559988',
+      email: 'aslan@shanyraq.kz',
+      role: UserRole.HOA_ADMIN,
+    };
+
+    it('должен выбрасывать NotFoundException PROPERTIES.COMPLEX_NOT_FOUND при несуществующем ЖК', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue(null);
+
+      try {
+        await service.createStaff('non-existent-tenant', validStaffDto);
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(NotFoundException);
+        expect(err.getResponse().code).toBe('PROPERTIES.COMPLEX_NOT_FOUND');
+      }
+    });
+
+    it('должен отклонять недопустимые роли сотрудников (RESIDENT_OWNER, SUPERADMIN)', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1', name: 'ЖК Шаңырақ' });
+
+      // Попытка создать жильца через staff endpoint
+      try {
+        await service.createStaff('tenant-1', {
+          ...validStaffDto,
+          role: UserRole.RESIDENT_OWNER as any,
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('PROPERTIES.INVALID_STAFF_ROLE');
+      }
+
+      // Попытка создать SUPERADMIN через tenant staff endpoint
+      try {
+        await service.createStaff('tenant-1', {
+          ...validStaffDto,
+          role: UserRole.SUPERADMIN as any,
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('PROPERTIES.INVALID_STAFF_ROLE');
+      }
+    });
+
+    it('должен отклонять создание, если пользователь с таким телефоном уже существует', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1', name: 'ЖК Шаңырақ' });
+      prismaMock.user.findFirst.mockResolvedValue({ id: 'existing-user-1', phone: validStaffDto.phone });
+
+      try {
+        await service.createStaff('tenant-1', validStaffDto);
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.getResponse().code).toBe('PROPERTIES.USER_ALREADY_EXISTS');
+      }
+    });
+
+    it('должен успешно создавать сотрудника, возвращать tempPassword (валидируемый bcrypt) и устанавливать mustChangePassword: true', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1', name: 'ЖК Шаңырақ' });
+      prismaMock.user.findFirst.mockResolvedValue(null);
+
+      let savedData: any = null;
+      prismaMock.user.create.mockImplementation(({ data }: any) => {
+        savedData = data;
+        return Promise.resolve({
+          id: 'user-new-staff',
+          ...data,
+          createdAt: new Date(),
+        });
+      });
+
+      const res = await service.createStaff('tenant-1', validStaffDto);
+
+      expect(res.id).toBe('user-new-staff');
+      expect(res.tenantId).toBe('tenant-1');
+      expect(res.role).toBe(UserRole.HOA_ADMIN);
+      expect(res.mustChangePassword).toBe(true);
+      expect(res.tempPassword).toBeDefined();
+
+      // Проверяем, что в БД пароль сохранен как корректный bcrypt-хэш, соответствующий открытому tempPassword
+      expect(savedData.passwordHash).toBeDefined();
+      expect(savedData.passwordHash).not.toBe(res.tempPassword);
+      const isMatch = await bcrypt.compare(res.tempPassword, savedData.passwordHash);
+      expect(isMatch).toBe(true);
+      expect(savedData.mustChangePassword).toBe(true);
+      expect(savedData.tenantId).toBe('tenant-1');
     });
   });
 });

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto } from './dto/properties.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -48,6 +48,16 @@ export class PropertiesController {
   @ApiOperation({ summary: 'Создать новый ЖК (только для суперадмина)' })
   async createTenant(@Body() dto: CreateTenantDto) {
     return this.propertiesService.createTenant(dto);
+  }
+
+  @Post('tenants/:tenantId/staff')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Создать сотрудника ЖК с генерацией одноразового временного пароля (только для SUPERADMIN)' })
+  async createStaff(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: CreateStaffDto,
+  ) {
+    return this.propertiesService.createStaff(tenantId, dto);
   }
 
   @Post('buildings/:buildingId/units')

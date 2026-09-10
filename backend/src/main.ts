@@ -10,13 +10,20 @@ async function bootstrap() {
   // Security Headers (Subtask D2)
   app.use(helmet());
 
-  // Enable CORS for web-admin and mobile clients (Subtask C4: restricted allowlist)
+  // Enable CORS for web-admin and mobile clients
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
     ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim())
-    : ['http://localhost:3000', 'http://localhost:3001'];
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8081'];
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow mobile apps, curl, or dev servers
+      if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   });
 

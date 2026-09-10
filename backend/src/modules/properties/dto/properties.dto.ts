@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, Min, Max } from 'class-validator';
-import { UnitType, OwnershipType } from '@prisma/client';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, Min, Max, Matches, IsEmail, IsIn } from 'class-validator';
+import { UnitType, OwnershipType, UserRole } from '@prisma/client';
 
 export class CreateTenantDto {
   @ApiProperty({ example: 'ЖК «Шаңырақ Премиум»' })
@@ -88,3 +88,38 @@ export class UpdateResidentStatusDto {
   @IsBoolean()
   isActive: boolean;
 }
+
+export class CreateStaffDto {
+  @ApiProperty({ example: 'Иван' })
+  @IsNotEmpty({ message: 'Имя обязательно' })
+  @IsString()
+  firstName: string;
+
+  @ApiProperty({ example: 'Иванов' })
+  @IsNotEmpty({ message: 'Фамилия обязательна' })
+  @IsString()
+  lastName: string;
+
+  @ApiProperty({ example: '+77015550101', description: 'Номер телефона в формате +7XXXXXXXXXX' })
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString()
+  @Matches(/^\+7\d{10}$/, { message: 'Номер телефона должен быть в формате +7XXXXXXXXXX' })
+  phone: string;
+
+  @ApiProperty({ example: 'staff@shanyraq.kz', required: false })
+  @IsOptional()
+  @IsEmail({}, { message: 'Некорректный формат email' })
+  email?: string;
+
+  @ApiProperty({
+    enum: [UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SECURITY],
+    example: UserRole.HOA_ADMIN,
+    description: 'Роль сотрудника ЖК: HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER или SECURITY',
+  })
+  @IsNotEmpty({ message: 'Роль обязательна' })
+  @IsIn([UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SECURITY], {
+    message: 'Недопустимая роль сотрудника. Допустимые роли: HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, SECURITY',
+  })
+  role: UserRole;
+}
+

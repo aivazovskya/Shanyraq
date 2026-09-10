@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -32,6 +32,14 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Успешный вход' })
   async loginWithPassword(@Body() dto: LoginPasswordDto) {
     return this.authService.loginWithPassword(dto);
+  }
+
+  @Post('set-initial-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Установить постоянный пароль по одноразовому токену смены пароля' })
+  @ApiResponse({ status: 200, description: 'Пароль успешно установлен, возвращены токены сессии' })
+  async setInitialPassword(@Body() dto: SetInitialPasswordDto) {
+    return this.authService.setInitialPassword(dto);
   }
 
   @Post('refresh')

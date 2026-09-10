@@ -62,6 +62,9 @@ describe('AuthService (Аудит безопасности авторизаци�
         if (token.startsWith('jwt_access_token_')) {
           return { sub: 'user-1', type: 'access', phone: '+77015550101', role: UserRole.RESIDENT_OWNER };
         }
+        if (token.startsWith('jwt_password_change_token_')) {
+          return { sub: 'admin-1', type: 'password_change', phone: '+77017778899', role: UserRole.HOA_ADMIN, tokenVersion: 1 };
+        }
         throw new Error('Invalid token');
       }),
     };
@@ -439,6 +442,8 @@ describe('AuthService (Аудит безопасности авторизаци�
       role: UserRole.HOA_ADMIN,
       tenantId: 'tenant-1',
       tokenVersion: 1,
+      mustChangePassword: false,
+      isActive: true,
     };
 
     it('должен успешно авторизовать пользователя с верным паролем', async () => {
@@ -449,8 +454,8 @@ describe('AuthService (Аудит безопасности авторизаци�
         password: 'CorrectPassword123!',
       });
 
-      expect(res.user.id).toBe('admin-1');
-      expect(res.accessToken).toBeDefined();
+      expect((res as any).user.id).toBe('admin-1');
+      expect((res as any).accessToken).toBeDefined();
     });
 
     it('должен отклонять неверный пароль ошибкой AUTH.INVALID_CREDENTIALS', async () => {
@@ -524,6 +529,102 @@ describe('AuthService (Аудит безопасности авторизаци�
       } finally {
         compareSpy.mockRestore();
       }
+    });
+
+    it('должен возвращать changePasswordToken при mustChangePassword: true вместо обычных токенов', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        ...mockUser,
+        mustChangePassword: true,
+      });
+
+      const res = await service.loginWithPassword({
+        login: '+77017778899',
+        password: 'CorrectPassword123!',
+      });
+
+      expect(res.mustChangePassword).toBe(true);
+      expect(res.changePasswordToken).toBeDefined();
+      expect((res as any).accessToken).toBeUndefined();
+    });
+
+    describe('setInitialPassword', () => {
+      it('должен успешно менять временный пароль, сбрасывать mustChangePassword, инкрементировать tokenVersion и возвращать сессию', async () => {
+        const initialUser = {
+          ...mockUser,
+          mustChangePassword: true,
+          tokenVersion: 1,
+        };
+        const updatedUser = {
+          ...mockUser,
+          mustChangePassword: false,
+          tokenVersion: 2,
+        };
+
+        prismaMock.user.findUnique.mockResolvedValue(initialUser);
+        prismaMock.user.update.mockResolvedValue(updatedUser);
+
+        const res = await service.setInitialPassword({
+          changePasswordToken: 'jwt_password_change_token_admin-1',
+          newPassword: 'BrandNewPassword2026!',
+        });
+
+        expect(prismaMock.user.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'admin-1' },
+            data: expect.objectContaining({
+              mustChangePassword: false,
+              tokenVersion: { increment: 1 },
+            }),
+          }),
+        );
+        expect(res.user.id).toBe('admin-1');
+        expect(res.accessToken).toBeDefined();
+        expect(res.refreshToken).toBeDefined();
+      });
+
+      it('должен отклонять невалидный токен смены пароля', async () => {
+        try {
+          await service.setInitialPassword({
+            changePasswordToken: 'invalid_token_xyz',
+            newPassword: 'BrandNewPassword2026!',
+          });
+          fail('Should throw');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(UnauthorizedException);
+          expect(err.getResponse().code).toBe('AUTH.CHANGE_PASSWORD_TOKEN_INVALID');
+        }
+      });
+
+      it('должен отклонять токен неверного типа (например, access-токен)', async () => {
+        try {
+          await service.setInitialPassword({
+            changePasswordToken: 'jwt_access_token_admin-1',
+            newPassword: 'BrandNewPassword2026!',
+          });
+          fail('Should throw');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(UnauthorizedException);
+          expect(err.getResponse().code).toBe('AUTH.INVALID_TOKEN_TYPE');
+        }
+      });
+
+      it('должен отклонять токен с устаревшим tokenVersion (AUTH.SESSION_REVOKED)', async () => {
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...mockUser,
+          tokenVersion: 2,
+        });
+
+        try {
+          await service.setInitialPassword({
+            changePasswordToken: 'jwt_password_change_token_admin-1',
+            newPassword: 'BrandNewPassword2026!',
+          });
+          fail('Should throw');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(UnauthorizedException);
+          expect(err.getResponse().code).toBe('AUTH.SESSION_REVOKED');
+        }
+      });
     });
   });
 });

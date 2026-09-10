@@ -54,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: t('navigation.bookings'), href: '/dashboard/bookings', icon: Calendar, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
     { name: t('navigation.sos'), href: '/dashboard/sos', icon: AlertTriangle, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'SECURITY', 'HOA_CHAIRMAN'] },
     { name: t('navigation.communityBoard'), href: '/dashboard/community-board', icon: ShoppingBag, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER'] },
+    { name: t('navigation.tenants'), href: '/dashboard/tenants', icon: Building2, roles: ['SUPERADMIN'] },
     { name: t('navigation.access'), href: '/dashboard/access', icon: KeyRound },
     { name: t('navigation.announcements'), href: '/dashboard/announcements', icon: Bell },
   ];
