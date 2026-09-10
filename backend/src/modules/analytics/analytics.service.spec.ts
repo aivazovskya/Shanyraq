@@ -56,6 +56,7 @@ describe('AnalyticsService', () => {
           }
           return Promise.resolve(null);
         }),
+        findMany: jest.fn(),
       },
       charge: {
         aggregate: jest.fn(),
@@ -76,8 +77,12 @@ describe('AnalyticsService', () => {
         findMany: jest.fn(),
         aggregate: jest.fn(),
       },
+      sosAlert: {
+        groupBy: jest.fn(),
+      },
       user: {
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
       vote: {
         count: jest.fn(),
@@ -533,6 +538,156 @@ describe('AnalyticsService', () => {
       await expect(
         service.exportFinanceAnalyticsCsv(mockTenantId, foreignHoaAdmin as any),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('getPlatformOverview (SUPERADMIN Cross-Tenant Overview)', () => {
+    it('должен отклонять доступ для не-SUPERADMIN ролей (HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, RESIDENT)', async () => {
+      const nonSuperadmins = [hoaAdminUser, hoaChairmanUser, dispatcherUser, residentUser];
+
+      for (const nonAdmin of nonSuperadmins) {
+        await expect(service.getPlatformOverview(nonAdmin as any)).rejects.toThrow(
+          ForbiddenException,
+        );
+        await expect(service.getPlatformOverview(nonAdmin as any)).rejects.toMatchObject({
+          response: { code: 'ANALYTICS.PLATFORM_ACCESS_FORBIDDEN' },
+        });
+      }
+    });
+
+    it('должен корректно агрегировать метрики по нескольким ЖК и сводить общие итоги', async () => {
+      const mockTenants = [
+        { id: 'tenant-1', name: 'ЖК Шаңырақ-1' },
+        { id: 'tenant-2', name: 'ЖК Сарыарка' },
+        { id: 'tenant-3', name: 'ЖК Байтерек' }, // ЖК с нулевой активностью
+      ];
+      prismaMock.tenant.findMany.mockResolvedValue(mockTenants);
+
+      // Жители: всего
+      prismaMock.user.groupBy
+        .mockResolvedValueOnce([
+          { tenantId: 'tenant-1', _count: 10 },
+          { tenantId: 'tenant-2', _count: 20 },
+        ])
+        // Жители: верифицированные
+        .mockResolvedValueOnce([
+          { tenantId: 'tenant-1', _count: 8 },
+          { tenantId: 'tenant-2', _count: 15 },
+        ]);
+
+      // SOS-сигналы
+      prismaMock.sosAlert.groupBy.mockResolvedValue([
+        { tenantId: 'tenant-1', _count: 2 },
+      ]);
+
+      // Открытые заявки
+      prismaMock.serviceRequest.groupBy.mockResolvedValue([
+        { tenantId: 'tenant-1', _count: 5 },
+        { tenantId: 'tenant-2', _count: 3 },
+      ]);
+
+      // Задолженность (PersonalAccount)
+      prismaMock.personalAccount.findMany.mockResolvedValue([
+        {
+          balance: -150000.5,
+          unit: { building: { tenantId: 'tenant-1' } },
+        },
+        {
+          balance: -80000.25,
+          unit: { building: { tenantId: 'tenant-2' } },
+        },
+      ]);
+
+      const result = await service.getPlatformOverview(superadminUser);
+
+      // Проверка структуры верхнего уровня (платформенные итоги)
+      expect(result.tenantsCount).toBe(3);
+      expect(result.totalResidentsCount).toBe(30);
+      expect(result.verifiedResidentsCount).toBe(23);
+      expect(result.activeSosAlertsCount).toBe(2);
+      expect(result.openServiceRequestsCount).toBe(8);
+      expect(result.totalOutstandingDebt).toBe(230000.75);
+
+      // Проверка детализации по каждому ЖК
+      expect(result.tenants).toHaveLength(3);
+
+      const t1 = result.tenants.find((t) => t.tenantId === 'tenant-1');
+      expect(t1).toEqual({
+        tenantId: 'tenant-1',
+        tenantName: 'ЖК Шаңырақ-1',
+        totalResidentsCount: 10,
+        verifiedResidentsCount: 8,
+        activeSosAlertsCount: 2,
+        openServiceRequestsCount: 5,
+        outstandingDebt: 150000.5,
+      });
+
+      const t2 = result.tenants.find((t) => t.tenantId === 'tenant-2');
+      expect(t2).toEqual({
+        tenantId: 'tenant-2',
+        tenantName: 'ЖК Сарыарка',
+        totalResidentsCount: 20,
+        verifiedResidentsCount: 15,
+        activeSosAlertsCount: 0,
+        openServiceRequestsCount: 3,
+        outstandingDebt: 80000.25,
+      });
+
+      // ЖК с нулями: должен присутствовать со всеми явными 0, а не undefined/пропуском
+      const t3 = result.tenants.find((t) => t.tenantId === 'tenant-3');
+      expect(t3).toEqual({
+        tenantId: 'tenant-3',
+        tenantName: 'ЖК Байтерек',
+        totalResidentsCount: 0,
+        verifiedResidentsCount: 0,
+        activeSosAlertsCount: 0,
+        openServiceRequestsCount: 0,
+        outstandingDebt: 0,
+      });
+
+      // Сумма по ЖК строго равна общим итогам платформы
+      const sumResidents = result.tenants.reduce((acc, t) => acc + t.totalResidentsCount, 0);
+      const sumVerified = result.tenants.reduce((acc, t) => acc + t.verifiedResidentsCount, 0);
+      const sumSos = result.tenants.reduce((acc, t) => acc + t.activeSosAlertsCount, 0);
+      const sumRequests = result.tenants.reduce((acc, t) => acc + t.openServiceRequestsCount, 0);
+      const sumDebt = Math.round(result.tenants.reduce((acc, t) => acc + t.outstandingDebt, 0) * 100) / 100;
+
+      expect(sumResidents).toBe(result.totalResidentsCount);
+      expect(sumVerified).toBe(result.verifiedResidentsCount);
+      expect(sumSos).toBe(result.activeSosAlertsCount);
+      expect(sumRequests).toBe(result.openServiceRequestsCount);
+      expect(sumDebt).toBe(result.totalOutstandingDebt);
+    });
+
+    it('должен вызывать каждый метод groupBy ровно один раз без N+1 цикла по тенантам', async () => {
+      const mockTenants = [
+        { id: 't-1', name: 'ЖК 1' },
+        { id: 't-2', name: 'ЖК 2' },
+        { id: 't-3', name: 'ЖК 3' },
+        { id: 't-4', name: 'ЖК 4' },
+      ];
+      prismaMock.tenant.findMany.mockResolvedValue(mockTenants);
+      prismaMock.user.groupBy.mockResolvedValue([]);
+      prismaMock.sosAlert.groupBy.mockResolvedValue([]);
+      prismaMock.serviceRequest.groupBy.mockResolvedValue([]);
+      prismaMock.personalAccount.findMany.mockResolvedValue([]);
+
+      await service.getPlatformOverview(superadminUser);
+
+      // Ровно 1 вызов findMany для списка ЖК
+      expect(prismaMock.tenant.findMany).toHaveBeenCalledTimes(1);
+
+      // Ровно 1 вызов groupBy для SOS
+      expect(prismaMock.sosAlert.groupBy).toHaveBeenCalledTimes(1);
+
+      // Ровно 1 вызов groupBy для заявок
+      expect(prismaMock.serviceRequest.groupBy).toHaveBeenCalledTimes(1);
+
+      // Ровно 2 вызова groupBy для пользователей (всего + верифицированные)
+      expect(prismaMock.user.groupBy).toHaveBeenCalledTimes(2);
+
+      // Ровно 1 вызов findMany для должников
+      expect(prismaMock.personalAccount.findMany).toHaveBeenCalledTimes(1);
     });
   });
 });

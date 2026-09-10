@@ -32,6 +32,15 @@ import {
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
+  @Get('platform/overview')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({
+    summary: 'Обзор платформы по всем ЖК (только для SUPERADMIN)',
+  })
+  async getPlatformOverview(@Request() req: any) {
+    return this.analyticsService.getPlatformOverview(req.user);
+  }
+
   @Get('tenants/:tenantId/finance')
   @ApiOperation({
     summary:

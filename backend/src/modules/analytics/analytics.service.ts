@@ -16,6 +16,8 @@ import {
   TopDebtorItem,
   RequestStatusCount,
   RequestCategoryCount,
+  PlatformOverviewResponse,
+  PlatformTenantSummary,
 } from './dto/analytics.dto';
 import { buildCsv } from '../../common/csv/csv.helper';
 
@@ -563,6 +565,154 @@ export class AnalyticsService {
       listingsCreated,
       chatMessagesSent,
       meterReadingsSubmitted,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 4. Обзор всей платформы (Cross-tenant platform overview, SUPERADMIN only)
+  // -------------------------------------------------------------
+
+  async getPlatformOverview(user: RequestUser): Promise<PlatformOverviewResponse> {
+    if (!user || user.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException({
+        code: 'ANALYTICS.PLATFORM_ACCESS_FORBIDDEN',
+        message: 'Доступ к общей аналитике платформы разрешен только суперадминистратору',
+      });
+    }
+
+    const [
+      tenants,
+      totalResidentsGroupBy,
+      verifiedResidentsGroupBy,
+      activeSosGroupBy,
+      openRequestsGroupBy,
+      debtAccounts,
+    ] = await Promise.all([
+      this.prisma.tenant.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.user.groupBy({
+        by: ['tenantId'],
+        where: {
+          role: { in: [UserRole.RESIDENT_OWNER, UserRole.RESIDENT_TENANT] },
+          tenantId: { not: null },
+        },
+        _count: true,
+      }),
+      this.prisma.user.groupBy({
+        by: ['tenantId'],
+        where: {
+          role: { in: [UserRole.RESIDENT_OWNER, UserRole.RESIDENT_TENANT] },
+          isVerified: true,
+          tenantId: { not: null },
+        },
+        _count: true,
+      }),
+      this.prisma.sosAlert.groupBy({
+        by: ['tenantId'],
+        where: { status: 'ACTIVE' },
+        _count: true,
+      }),
+      this.prisma.serviceRequest.groupBy({
+        by: ['tenantId'],
+        where: {
+          status: {
+            notIn: [
+              RequestStatus.RESOLVED,
+              RequestStatus.REJECTED,
+              RequestStatus.CLOSED,
+            ],
+          },
+        },
+        _count: true,
+      }),
+      this.prisma.personalAccount.findMany({
+        where: {
+          balance: { lt: 0 },
+        },
+        select: {
+          balance: true,
+          unit: {
+            select: {
+              building: {
+                select: {
+                  tenantId: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const debtByTenant: Record<string, number> = {};
+    let totalOutstandingDebt = 0;
+    for (const acc of debtAccounts) {
+      const tId = acc.unit?.building?.tenantId;
+      const debt = Math.abs(acc.balance);
+      totalOutstandingDebt += debt;
+      if (tId) {
+        debtByTenant[tId] = (debtByTenant[tId] || 0) + debt;
+      }
+    }
+
+    const totalResidentsMap = new Map<string, number>();
+    for (const row of totalResidentsGroupBy) {
+      if (row.tenantId) totalResidentsMap.set(row.tenantId, row._count);
+    }
+
+    const verifiedResidentsMap = new Map<string, number>();
+    for (const row of verifiedResidentsGroupBy) {
+      if (row.tenantId) verifiedResidentsMap.set(row.tenantId, row._count);
+    }
+
+    const activeSosMap = new Map<string, number>();
+    for (const row of activeSosGroupBy) {
+      activeSosMap.set(row.tenantId, row._count);
+    }
+
+    const openRequestsMap = new Map<string, number>();
+    for (const row of openRequestsGroupBy) {
+      openRequestsMap.set(row.tenantId, row._count);
+    }
+
+    let totalResidentsCount = 0;
+    let verifiedResidentsCount = 0;
+    let activeSosAlertsCount = 0;
+    let openServiceRequestsCount = 0;
+
+    const tenantSummaries: PlatformTenantSummary[] = tenants.map((t) => {
+      const resCount = totalResidentsMap.get(t.id) || 0;
+      const verCount = verifiedResidentsMap.get(t.id) || 0;
+      const sosCount = activeSosMap.get(t.id) || 0;
+      const reqCount = openRequestsMap.get(t.id) || 0;
+      const debt = Math.round((debtByTenant[t.id] || 0) * 100) / 100;
+
+      totalResidentsCount += resCount;
+      verifiedResidentsCount += verCount;
+      activeSosAlertsCount += sosCount;
+      openServiceRequestsCount += reqCount;
+
+      return {
+        tenantId: t.id,
+        tenantName: t.name,
+        totalResidentsCount: resCount,
+        verifiedResidentsCount: verCount,
+        activeSosAlertsCount: sosCount,
+        openServiceRequestsCount: reqCount,
+        outstandingDebt: debt,
+      };
+    });
+
+    return {
+      tenantsCount: tenants.length,
+      totalResidentsCount,
+      verifiedResidentsCount,
+      activeSosAlertsCount,
+      openServiceRequestsCount,
+      totalOutstandingDebt: Math.round(totalOutstandingDebt * 100) / 100,
+      tenants: tenantSummaries,
     };
   }
 }

@@ -17,6 +17,9 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
+  Users,
+  Wrench,
+  CreditCard,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, getApiErrorMessage } from '@/lib/api';
 
@@ -35,6 +38,26 @@ interface TenantItem {
   }>;
 }
 
+interface PlatformTenantSummary {
+  tenantId: string;
+  tenantName: string;
+  totalResidentsCount: number;
+  verifiedResidentsCount: number;
+  activeSosAlertsCount: number;
+  openServiceRequestsCount: number;
+  outstandingDebt: number;
+}
+
+interface PlatformOverview {
+  tenantsCount: number;
+  totalResidentsCount: number;
+  verifiedResidentsCount: number;
+  activeSosAlertsCount: number;
+  openServiceRequestsCount: number;
+  totalOutstandingDebt: number;
+  tenants: PlatformTenantSummary[];
+}
+
 interface CreatedStaffResult {
   tenantName: string;
   userName: string;
@@ -48,6 +71,7 @@ export default function TenantsPage() {
   const { t } = useTranslation();
 
   const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,14 +117,33 @@ export default function TenantsPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiRequest<TenantItem[]>('/properties/tenants');
-      setTenants(data);
+      const [tenantsData, overviewData] = await Promise.all([
+        apiRequest<TenantItem[]>('/properties/tenants'),
+        apiRequest<PlatformOverview>('/analytics/platform/overview').catch((err) => {
+          console.error('Failed to load platform overview:', err);
+          return null;
+        }),
+      ]);
+      setTenants(tenantsData);
+      if (overviewData) {
+        setPlatformOverview(overviewData);
+      }
     } catch (err: any) {
       setError(getApiErrorMessage(err, t));
     } finally {
       setLoading(false);
     }
   }, [t]);
+
+  const overviewMap = React.useMemo(() => {
+    const map = new Map<string, PlatformTenantSummary>();
+    if (platformOverview?.tenants) {
+      for (const item of platformOverview.tenants) {
+        map.set(item.tenantId, item);
+      }
+    }
+    return map;
+  }, [platformOverview]);
 
   useEffect(() => {
     fetchTenants();
@@ -295,6 +338,163 @@ export default function TenantsPage() {
         </div>
       )}
 
+      {/* Platform Overview Stat Cards (SUPERADMIN cross-tenant summary) */}
+      {platformOverview && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {t('tenants.platformOverviewTitle')}
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Total ЖК */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {t('tenants.totalTenants')}
+                </span>
+                <div className="p-2 bg-sky-50 text-sky-600 rounded-xl">
+                  <Building2 className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-bold text-slate-900">
+                  {platformOverview.tenantsCount}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 font-medium">
+                  <span>{t('tenants.activeComplexes')}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Residents */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {t('tenants.totalResidents')}
+                </span>
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Users className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-bold text-slate-900">
+                  {platformOverview.totalResidentsCount}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-indigo-600 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>
+                    {t('tenants.verifiedResidents', {
+                      verified: platformOverview.verifiedResidentsCount,
+                    })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Active SOS Alerts */}
+            <div
+              className={`p-4.5 rounded-2xl border shadow-sm transition-all ${
+                platformOverview.activeSosAlertsCount > 0
+                  ? 'bg-red-50/90 border-red-200 shadow-red-500/10'
+                  : 'bg-white border-slate-200'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-xs font-semibold uppercase tracking-wider ${
+                    platformOverview.activeSosAlertsCount > 0
+                      ? 'text-red-700'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {t('tenants.activeSosAlerts')}
+                </span>
+                <div
+                  className={`p-2 rounded-xl ${
+                    platformOverview.activeSosAlertsCount > 0
+                      ? 'bg-red-100 text-red-600 animate-pulse'
+                      : 'bg-slate-50 text-slate-400'
+                  }`}
+                >
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div
+                  className={`text-2xl font-bold ${
+                    platformOverview.activeSosAlertsCount > 0
+                      ? 'text-red-700'
+                      : 'text-slate-900'
+                  }`}
+                >
+                  {platformOverview.activeSosAlertsCount}
+                </div>
+                <div
+                  className={`flex items-center gap-1.5 mt-1 text-xs font-medium ${
+                    platformOverview.activeSosAlertsCount > 0
+                      ? 'text-red-600'
+                      : 'text-emerald-600'
+                  }`}
+                >
+                  {platformOverview.activeSosAlertsCount > 0 ? (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>{t('tenants.attentionNeeded')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>{t('tenants.allServicesNormal')}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Open Service Requests */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {t('tenants.openRequests')}
+                </span>
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <Wrench className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-bold text-slate-900">
+                  {platformOverview.openServiceRequestsCount}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 font-medium">
+                  <span>{t('tenants.openRequestsSub')}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Outstanding Debt */}
+            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {t('tenants.totalOutstandingDebt')}
+                </span>
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="text-2xl font-bold text-slate-900">
+                  {platformOverview.totalOutstandingDebt.toLocaleString('ru-RU')} ₸
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500 font-medium">
+                  <span>{t('tenants.debtorsBalance')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search Bar */}
       <div className="relative">
         <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -341,6 +541,7 @@ export default function TenantsPage() {
                 (sum, b) => sum + (b._count?.units || 0),
                 0,
               ) || tItem.totalUnitsCount || 0;
+            const tenantOverview = overviewMap.get(tItem.id);
 
             return (
               <div
@@ -352,9 +553,21 @@ export default function TenantsPage() {
                     <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
                       <Building2 className="w-5 h-5" />
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
-                      {tItem.city || 'Астана'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {tenantOverview && tenantOverview.activeSosAlertsCount > 0 && (
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-red-100 border border-red-200 text-red-700 font-bold flex items-center gap-1 animate-pulse">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            {t('tenants.activeSosBadge', {
+                              count: tenantOverview.activeSosAlertsCount,
+                            })}
+                          </span>
+                        </span>
+                      )}
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
+                        {tItem.city || 'Астана'}
+                      </span>
+                    </div>
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900 mb-1">
@@ -364,7 +577,7 @@ export default function TenantsPage() {
                     {tItem.address}
                   </p>
 
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 text-xs text-slate-600 mb-4">
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100 text-xs text-slate-600 mb-2">
                     <div>
                       <span className="text-slate-400 block">{t('tenants.buildingsCount')}</span>
                       <span className="font-semibold text-slate-800">{blocksCount}</span>
@@ -374,6 +587,33 @@ export default function TenantsPage() {
                       <span className="font-semibold text-slate-800">{unitsCount}</span>
                     </div>
                   </div>
+
+                  {tenantOverview && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600 mb-4">
+                      <div>
+                        <span className="text-slate-400 block">{t('tenants.residentsCount')}</span>
+                        <span className="font-semibold text-slate-800">
+                          {tenantOverview.verifiedResidentsCount} / {tenantOverview.totalResidentsCount}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">{t('tenants.openRequestsCount')}</span>
+                        <span className="font-semibold text-slate-800">
+                          {tenantOverview.openServiceRequestsCount}
+                        </span>
+                      </div>
+                      <div className="col-span-2 pt-1">
+                        <span className="text-slate-400 block">{t('tenants.outstandingDebt')}</span>
+                        <span
+                          className={`font-semibold ${
+                            tenantOverview.outstandingDebt > 0 ? 'text-amber-700 font-bold' : 'text-slate-800'
+                          }`}
+                        >
+                          {tenantOverview.outstandingDebt.toLocaleString('ru-RU')} ₸
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">

@@ -115,7 +115,23 @@
     "roleHoaAdmin": "Администратор ЖК (HOA_ADMIN)",
     "roleHoaChairman": "Председатель ОСИ (HOA_CHAIRMAN)",
     "roleDispatcher": "Диспетчер (DISPATCHER)",
-    "roleSecurity": "Охрана (SECURITY)"
+    "roleSecurity": "Охрана (SECURITY)",
+    "platformOverviewTitle": "Сводка по всей платформе",
+    "totalTenants": "Всего ЖК",
+    "totalResidents": "Всего жителей",
+    "verifiedResidents": "{{verified}} вериф.",
+    "activeSosAlerts": "Активных SOS-сигналов",
+    "openRequests": "Открытых заявок",
+    "totalOutstandingDebt": "Суммарная задолженность",
+    "residentsCount": "Жителей (вериф. / всего)",
+    "openRequestsCount": "Открытых заявок",
+    "outstandingDebt": "Задолженность",
+    "activeSosBadge": "🚨 SOS: {{count}}",
+    "allServicesNormal": "Все службы в норме",
+    "attentionNeeded": "Требует внимания",
+    "openRequestsSub": "В обработке и новые",
+    "debtorsBalance": "Отрицательные балансы",
+    "activeComplexes": "Подключено к платформе"
   },
   "dashboard": {
     "systemOnline": "● Система онлайн",
@@ -1008,6 +1024,7 @@
     },
     "ANALYTICS": {
       "ACCESS_FORBIDDEN": "Доступ к аналитике разрешен только для администраторов и председателя ОСИ",
+      "PLATFORM_ACCESS_FORBIDDEN": "Доступ к общей аналитике платформы разрешен только суперадминистратору",
       "COMPLEX_NOT_FOUND": "Жилой комплекс не найден"
     },
     "UPLOADS": {

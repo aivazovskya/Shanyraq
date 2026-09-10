@@ -84,3 +84,23 @@ export interface ActivityAnalyticsResponse {
   chatMessagesSent: number;
   meterReadingsSubmitted: number;
 }
+
+export interface PlatformTenantSummary {
+  tenantId: string;
+  tenantName: string;
+  totalResidentsCount: number;
+  verifiedResidentsCount: number;
+  activeSosAlertsCount: number;
+  openServiceRequestsCount: number;
+  outstandingDebt: number;
+}
+
+export interface PlatformOverviewResponse {
+  tenantsCount: number;
+  totalResidentsCount: number;
+  verifiedResidentsCount: number;
+  activeSosAlertsCount: number;
+  openServiceRequestsCount: number;
+  totalOutstandingDebt: number;
+  tenants: PlatformTenantSummary[];
+}

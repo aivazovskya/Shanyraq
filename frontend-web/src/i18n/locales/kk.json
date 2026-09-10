@@ -115,7 +115,23 @@
     "roleHoaAdmin": "ТК әкімшісі (HOA_ADMIN)",
     "roleHoaChairman": "МТБ төрағасы (HOA_CHAIRMAN)",
     "roleDispatcher": "Диспетчер (DISPATCHER)",
-    "roleSecurity": "Күзет (SECURITY)"
+    "roleSecurity": "Күзет (SECURITY)",
+    "platformOverviewTitle": "Бүкіл платформа бойынша жиынтық",
+    "totalTenants": "Барлық ТҮК",
+    "totalResidents": "Барлық тұрғындар",
+    "verifiedResidents": "{{verified}} расталған",
+    "activeSosAlerts": "Белсенді SOS дабылдары",
+    "openRequests": "Ашық өтінімдер",
+    "totalOutstandingDebt": "Жалпы берешек",
+    "residentsCount": "Тұрғындар (расталған / барлығы)",
+    "openRequestsCount": "Ашық өтінімдер",
+    "outstandingDebt": "Берешек",
+    "activeSosBadge": "🚨 SOS: {{count}}",
+    "allServicesNormal": "Барлық қызметтер штаттық режимде",
+    "attentionNeeded": "Назар аудару қажет",
+    "openRequestsSub": "Өңделуде және жаңа",
+    "debtorsBalance": "Теріс теңгерімдер",
+    "activeComplexes": "Платформаға қосылған"
   },
   "dashboard": {
     "systemOnline": "● Жүйе байланыста",
@@ -1008,6 +1024,7 @@
     },
     "ANALYTICS": {
       "ACCESS_FORBIDDEN": "Аналитикаға қолжетімділік тек әкімшілер мен МҮБ төрағасына рұқсат етілген",
+      "PLATFORM_ACCESS_FORBIDDEN": "Платформаның жалпы аналитикасына қолжетімділік тек суперадминистраторға рұқсат етілген",
       "COMPLEX_NOT_FOUND": "Тұрғын үй кешені табылмады"
     },
     "UPLOADS": {

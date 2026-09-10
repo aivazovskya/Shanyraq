@@ -115,7 +115,23 @@
     "roleHoaAdmin": "Complex Administrator (HOA_ADMIN)",
     "roleHoaChairman": "HOA Chairman (HOA_CHAIRMAN)",
     "roleDispatcher": "Dispatcher (DISPATCHER)",
-    "roleSecurity": "Security (SECURITY)"
+    "roleSecurity": "Security (SECURITY)",
+    "platformOverviewTitle": "Platform Overview",
+    "totalTenants": "Total Residential Complexes",
+    "totalResidents": "Total Residents",
+    "verifiedResidents": "{{verified}} verified",
+    "activeSosAlerts": "Active SOS Alerts",
+    "openRequests": "Open Requests",
+    "totalOutstandingDebt": "Total Outstanding Debt",
+    "residentsCount": "Residents (verified / total)",
+    "openRequestsCount": "Open Requests",
+    "outstandingDebt": "Outstanding Debt",
+    "activeSosBadge": "🚨 SOS: {{count}}",
+    "allServicesNormal": "All services normal",
+    "attentionNeeded": "Requires attention",
+    "openRequestsSub": "In progress & new",
+    "debtorsBalance": "Negative balances",
+    "activeComplexes": "Connected to platform"
   },
   "dashboard": {
     "systemOnline": "● System Online",
@@ -1008,6 +1024,7 @@
     },
     "ANALYTICS": {
       "ACCESS_FORBIDDEN": "Access to analytics is allowed only for administrators and HOA chairman",
+      "PLATFORM_ACCESS_FORBIDDEN": "Access to platform overview analytics is allowed only for superadmin",
       "COMPLEX_NOT_FOUND": "Residential complex not found"
     },
     "UPLOADS": {
