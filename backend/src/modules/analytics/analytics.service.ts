@@ -20,6 +20,8 @@ import {
   PlatformTenantSummary,
   ResourceUtilizationItem,
   BookingUtilizationResponse,
+  StaffResponseTimeItem,
+  StaffResponseTimeAnalyticsResponse,
 } from './dto/analytics.dto';
 import { buildCsv } from '../../common/csv/csv.helper';
 
@@ -1051,6 +1053,137 @@ export class AnalyticsService {
       from: from.toISOString(),
       to: to.toISOString(),
       resources: resourceItems,
+    };
+  }
+
+  /**
+   * Аналитика скорости реагирования персонала: среднее время закрытия
+   * заявок (ServiceRequest) и среднее время реагирования на SOS
+   * (SosAlert) в разбивке по конкретному сотруднику.
+   */
+  async getStaffResponseTimeAnalytics(
+    tenantId: string,
+    user: RequestUser,
+    query?: DateRangeAnalyticsQueryDto,
+  ): Promise<StaffResponseTimeAnalyticsResponse> {
+    await this.assertStaffAccess(user, tenantId);
+
+    const now = new Date();
+    const to = query?.to ? new Date(query.to) : now;
+    const from = query?.from
+      ? new Date(query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // 1. Заявки, закрытые за период, с назначенным исполнителем
+    const resolvedRequests = await this.prisma.serviceRequest.findMany({
+      where: {
+        tenantId,
+        assigneeId: { not: null },
+        status: { in: [RequestStatus.RESOLVED, RequestStatus.CLOSED] },
+        createdAt: { gte: from, lte: to },
+      },
+      select: {
+        assigneeId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const requestsByStaff = new Map<string, { count: number; totalHours: number }>();
+    for (const r of resolvedRequests) {
+      const diffHours = Math.max(
+        0,
+        (r.updatedAt.getTime() - r.createdAt.getTime()) / (1000 * 60 * 60),
+      );
+      const current = requestsByStaff.get(r.assigneeId!) || { count: 0, totalHours: 0 };
+      current.count += 1;
+      current.totalHours += diffHours;
+      requestsByStaff.set(r.assigneeId!, current);
+    }
+
+    // 2. SOS-вызовы, разрешенные за период
+    const resolvedAlerts = await this.prisma.sosAlert.findMany({
+      where: {
+        tenantId,
+        resolvedById: { not: null },
+        resolvedAt: { not: null },
+        createdAt: { gte: from, lte: to },
+      },
+      select: {
+        resolvedById: true,
+        createdAt: true,
+        resolvedAt: true,
+      },
+    });
+
+    const sosByStaff = new Map<string, { count: number; totalMinutes: number }>();
+    for (const a of resolvedAlerts) {
+      const diffMinutes = Math.max(
+        0,
+        (a.resolvedAt!.getTime() - a.createdAt.getTime()) / (1000 * 60),
+      );
+      const current = sosByStaff.get(a.resolvedById!) || { count: 0, totalMinutes: 0 };
+      current.count += 1;
+      current.totalMinutes += diffMinutes;
+      sosByStaff.set(a.resolvedById!, current);
+    }
+
+    // 3. Объединение id сотрудников, встретившихся хотя бы в одном из наборов
+    const staffIds = Array.from(new Set([...requestsByStaff.keys(), ...sosByStaff.keys()]));
+
+    if (staffIds.length === 0) {
+      return { from: from.toISOString(), to: to.toISOString(), staff: [] };
+    }
+
+    const staffUsers = await this.prisma.user.findMany({
+      where: { id: { in: staffIds } },
+      select: { id: true, firstName: true, lastName: true, role: true },
+    });
+    const staffById = new Map(staffUsers.map((u) => [u.id, u]));
+
+    const staffItems: StaffResponseTimeItem[] = staffIds.map((staffId) => {
+      const staffUser = staffById.get(staffId);
+      const staffName = staffUser
+        ? [staffUser.firstName, staffUser.lastName].filter(Boolean).join(' ')
+        : 'Неизвестный сотрудник';
+      const staffRole = staffUser?.role || '';
+
+      const requestsAgg = requestsByStaff.get(staffId);
+      const sosAgg = sosByStaff.get(staffId);
+
+      const requestsResolvedCount = requestsAgg?.count || 0;
+      const avgRequestResolutionHours = requestsAgg
+        ? Math.round((requestsAgg.totalHours / requestsAgg.count) * 10) / 10
+        : 0;
+
+      const sosResolvedCount = sosAgg?.count || 0;
+      const avgSosResponseMinutes = sosAgg
+        ? Math.round((sosAgg.totalMinutes / sosAgg.count) * 10) / 10
+        : 0;
+
+      return {
+        staffId,
+        staffName,
+        staffRole,
+        requestsResolvedCount,
+        avgRequestResolutionHours,
+        sosResolvedCount,
+        avgSosResponseMinutes,
+      };
+    });
+
+    // 4. Сортировка по суммарному количеству обработанных обращений (desc)
+    staffItems.sort(
+      (a, b) =>
+        b.requestsResolvedCount +
+        b.sosResolvedCount -
+        (a.requestsResolvedCount + a.sosResolvedCount),
+    );
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      staff: staffItems,
     };
   }
 }

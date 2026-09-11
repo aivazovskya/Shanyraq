@@ -793,7 +793,8 @@
       "finance": "Finance & Collections",
       "requests": "Tickets & Service",
       "activity": "Resident Activity",
-      "bookings": "Bookings & Spaces"
+      "bookings": "Bookings & Spaces",
+      "staff": "Staff Speed"
     },
     "filters": {
       "month": "Month",
@@ -872,6 +873,20 @@
       "mostPopular": "Most Saturated",
       "periodSummary": "for {{period}}",
       "hoursUnit": "h"
+    },
+    "staff": {
+      "loadError": "Failed to load staff performance analytics",
+      "title": "Staff Response Time",
+      "subtitle": "Average ticket resolution and SOS response time per staff member over the period",
+      "thStaff": "Staff Member",
+      "thRole": "Role",
+      "thRequestsResolved": "Tickets Resolved",
+      "thAvgRequestTime": "Avg Time (Tickets)",
+      "thSosResolved": "SOS Resolved",
+      "thAvgSosTime": "Avg Time (SOS)",
+      "empty": "No staff activity data for this period",
+      "hoursUnit": "h",
+      "minutesUnit": "min"
     },
     "statuses": {
       "PENDING": "Pending",

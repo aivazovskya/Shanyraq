@@ -24,6 +24,7 @@ import {
   Gauge,
   Percent,
   Download,
+  Timer,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -124,6 +125,22 @@ interface BookingUtilizationData {
   resources: ResourceUtilizationItem[];
 }
 
+interface StaffResponseTimeItem {
+  staffId: string;
+  staffName: string;
+  staffRole: string;
+  requestsResolvedCount: number;
+  avgRequestResolutionHours: number;
+  sosResolvedCount: number;
+  avgSosResponseMinutes: number;
+}
+
+interface StaffResponseTimeData {
+  from: string;
+  to: string;
+  staff: StaffResponseTimeItem[];
+}
+
 type PeriodPreset = '7d' | '30d' | '90d';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -156,7 +173,7 @@ export default function AnalyticsDashboardPage() {
   const [loadingTenants, setLoadingTenants] = useState(false);
 
   // View state
-  const [activeTab, setActiveTab] = useState<'finance' | 'requests' | 'activity' | 'bookings'>('finance');
+  const [activeTab, setActiveTab] = useState<'finance' | 'requests' | 'activity' | 'bookings' | 'staff'>('finance');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -179,6 +196,10 @@ export default function AnalyticsDashboardPage() {
   // Bookings filters & data
   const [bookingsPreset, setBookingsPreset] = useState<PeriodPreset>('30d');
   const [bookingsData, setBookingsData] = useState<BookingUtilizationData | null>(null);
+
+  // Staff performance filters & data
+  const [staffPreset, setStaffPreset] = useState<PeriodPreset>('30d');
+  const [staffData, setStaffData] = useState<StaffResponseTimeData | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -293,6 +314,27 @@ export default function AnalyticsDashboardPage() {
     [t],
   );
 
+  // 5. Fetch Staff Response Time
+  const fetchStaff = useCallback(
+    async (tId: string, preset: PeriodPreset) => {
+      if (!tId) return;
+      try {
+        setLoading(true);
+        setErrorMsg(null);
+        const { from, to } = getPresetDates(preset);
+        const data = await apiRequest<StaffResponseTimeData>(
+          `/analytics/tenants/${tId}/staff-performance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        );
+        setStaffData(data);
+      } catch (err: any) {
+        setErrorMsg(err.message || t('analytics.staff.loadError'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
+
   const handleExportActivityCsv = async () => {
     if (!tenantId || exportingActivityCsv) return;
     try {
@@ -351,6 +393,8 @@ export default function AnalyticsDashboardPage() {
       fetchActivity(tenantId, activityPreset);
     } else if (activeTab === 'bookings') {
       fetchBookings(tenantId, bookingsPreset);
+    } else if (activeTab === 'staff') {
+      fetchStaff(tenantId, staffPreset);
     }
   }, [
     tenantId,
@@ -360,10 +404,12 @@ export default function AnalyticsDashboardPage() {
     requestsPreset,
     activityPreset,
     bookingsPreset,
+    staffPreset,
     fetchFinance,
     fetchRequests,
     fetchActivity,
     fetchBookings,
+    fetchStaff,
   ]);
 
   const handleRefresh = () => {
@@ -376,6 +422,8 @@ export default function AnalyticsDashboardPage() {
       fetchActivity(tenantId, activityPreset);
     } else if (activeTab === 'bookings') {
       fetchBookings(tenantId, bookingsPreset);
+    } else if (activeTab === 'staff') {
+      fetchStaff(tenantId, staffPreset);
     }
   };
 
@@ -393,6 +441,22 @@ export default function AnalyticsDashboardPage() {
         return t('bookings.typeKids');
       default:
         return t('bookings.typeOther');
+    }
+  };
+
+  // Same role-label mapping the sidebar (dashboard/layout.tsx) already uses.
+  const getStaffRoleLabel = (role: string) => {
+    switch (role) {
+      case 'SUPERADMIN':
+        return t('roles.superadmin');
+      case 'HOA_CHAIRMAN':
+        return t('roles.hoa_chairman');
+      case 'DISPATCHER':
+        return t('roles.dispatcher');
+      case 'SECURITY':
+        return t('roles.security');
+      default:
+        return t('roles.management_company');
     }
   };
 
@@ -494,6 +558,18 @@ export default function AnalyticsDashboardPage() {
         >
           <CalendarDays className="w-4 h-4" />
           <span>{t('analytics.tabs.bookings')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('staff')}
+          className={`flex items-center gap-2 py-3 px-4 font-semibold text-sm border-b-2 transition-all ${
+            activeTab === 'staff'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Timer className="w-4 h-4" />
+          <span>{t('analytics.tabs.staff')}</span>
         </button>
       </div>
 
@@ -1313,6 +1389,92 @@ export default function AnalyticsDashboardPage() {
                 )}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: STAFF RESPONSE TIME */}
+      {activeTab === 'staff' && tenantId && (
+        <div className="space-y-6">
+          {/* Controls bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <span>{t('analytics.filters.periodLabel')}</span>
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setStaffPreset(p)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      staffPreset === p
+                        ? 'bg-white text-sky-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t(`analytics.filters.period${p}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {staffData && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100">
+                <h3 className="font-bold text-slate-900">{t('analytics.staff.title')}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{t('analytics.staff.subtitle')}</p>
+              </div>
+
+              {staffData.staff.length === 0 ? (
+                <div className="p-12 text-center text-slate-400 text-sm">
+                  {t('analytics.staff.empty')}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        <th className="py-3.5 px-4">{t('analytics.staff.thStaff')}</th>
+                        <th className="py-3.5 px-4">{t('analytics.staff.thRole')}</th>
+                        <th className="py-3.5 px-4 text-center">{t('analytics.staff.thRequestsResolved')}</th>
+                        <th className="py-3.5 px-4 text-right">{t('analytics.staff.thAvgRequestTime')}</th>
+                        <th className="py-3.5 px-4 text-center">{t('analytics.staff.thSosResolved')}</th>
+                        <th className="py-3.5 px-4 text-right">{t('analytics.staff.thAvgSosTime')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {staffData.staff.map((s) => (
+                        <tr key={s.staffId} className="hover:bg-slate-50/60 transition">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900">{s.staffName}</td>
+                          <td className="py-3.5 px-4 text-slate-600">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                              {getStaffRoleLabel(s.staffRole)}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-semibold text-slate-800">
+                            {s.requestsResolvedCount}
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-slate-600">
+                            {s.requestsResolvedCount > 0
+                              ? `${s.avgRequestResolutionHours} ${t('analytics.staff.hoursUnit')}`
+                              : '—'}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-semibold text-slate-800">
+                            {s.sosResolvedCount}
+                          </td>
+                          <td className="py-3.5 px-4 text-right text-slate-600">
+                            {s.sosResolvedCount > 0
+                              ? `${s.avgSosResponseMinutes} ${t('analytics.staff.minutesUnit')}`
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -121,3 +121,19 @@ export interface BookingUtilizationResponse {
   resources: ResourceUtilizationItem[];
 }
 
+export interface StaffResponseTimeItem {
+  staffId: string;
+  staffName: string;
+  staffRole: string;
+  requestsResolvedCount: number;
+  avgRequestResolutionHours: number;
+  sosResolvedCount: number;
+  avgSosResponseMinutes: number;
+}
+
+export interface StaffResponseTimeAnalyticsResponse {
+  from: string;
+  to: string;
+  staff: StaffResponseTimeItem[];
+}
+

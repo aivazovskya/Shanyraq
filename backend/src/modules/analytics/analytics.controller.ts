@@ -143,5 +143,20 @@ export class AnalyticsController {
   ) {
     return this.analyticsService.getBookingUtilizationAnalytics(tenantId, req.user, query);
   }
+
+  @Get('tenants/:tenantId/staff-performance')
+  @ApiOperation({
+    summary:
+      'Скорость реагирования персонала (среднее время закрытия заявок и реагирования на SOS по сотруднику)',
+  })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async getStaffResponseTimeAnalytics(
+    @Param('tenantId') tenantId: string,
+    @Query() query: DateRangeAnalyticsQueryDto,
+    @Request() req: any,
+  ) {
+    return this.analyticsService.getStaffResponseTimeAnalytics(tenantId, req.user, query);
+  }
 }
 

@@ -79,6 +79,7 @@ describe('AnalyticsService', () => {
       },
       sosAlert: {
         groupBy: jest.fn(),
+        findMany: jest.fn(),
       },
       user: {
         count: jest.fn(),
@@ -1124,6 +1125,160 @@ describe('AnalyticsService', () => {
 
       await expect(
         service.getBookingUtilizationAnalytics(mockTenantId, superadminUser),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('getStaffResponseTimeAnalytics (Task 0061: Per-staff response time analytics)', () => {
+    it('сотрудник с 3 закрытыми заявками и 0 SOS-вызовами показывает корректное среднее время заявок и явные нули по SOS', async () => {
+      prismaMock.serviceRequest.findMany.mockResolvedValue([
+        {
+          assigneeId: 'staff-1',
+          createdAt: new Date('2026-09-01T10:00:00Z'),
+          updatedAt: new Date('2026-09-01T12:00:00Z'), // 2h
+        },
+        {
+          assigneeId: 'staff-1',
+          createdAt: new Date('2026-09-02T10:00:00Z'),
+          updatedAt: new Date('2026-09-02T14:00:00Z'), // 4h
+        },
+        {
+          assigneeId: 'staff-1',
+          createdAt: new Date('2026-09-03T10:00:00Z'),
+          updatedAt: new Date('2026-09-03T16:00:00Z'), // 6h
+        },
+      ]);
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+      prismaMock.user.findMany.mockResolvedValue([
+        { id: 'staff-1', firstName: 'Ерлан', lastName: 'Диспетчеров', role: 'DISPATCHER' },
+      ]);
+
+      const result = await service.getStaffResponseTimeAnalytics(mockTenantId, hoaAdminUser, {
+        from: '2026-09-01',
+        to: '2026-09-10',
+      });
+
+      expect(result.staff).toHaveLength(1);
+      expect(result.staff[0].staffId).toBe('staff-1');
+      expect(result.staff[0].requestsResolvedCount).toBe(3);
+      expect(result.staff[0].avgRequestResolutionHours).toBe(4); // (2+4+6)/3 = 4
+      expect(result.staff[0].sosResolvedCount).toBe(0);
+      expect(result.staff[0].avgSosResponseMinutes).toBe(0);
+    });
+
+    it('заявка, еще не закрытая (PENDING/ASSIGNED/IN_PROGRESS), исключается из расчета времени закрытия', async () => {
+      prismaMock.serviceRequest.findMany.mockResolvedValue([]);
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      await service.getStaffResponseTimeAnalytics(mockTenantId, hoaAdminUser);
+
+      // Подтверждаем, что фильтр статуса передан в Prisma-запрос
+      expect(prismaMock.serviceRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: { in: ['RESOLVED', 'CLOSED'] },
+          }),
+        }),
+      );
+    });
+
+    it('SOS-вызов в статусе ACTIVE (resolvedAt: null) исключается из расчета времени реагирования', async () => {
+      prismaMock.serviceRequest.findMany.mockResolvedValue([]);
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      await service.getStaffResponseTimeAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(prismaMock.sosAlert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            resolvedById: { not: null },
+            resolvedAt: { not: null },
+          }),
+        }),
+      );
+    });
+
+    it('сотрудник с активностью и в заявках, и в SOS показывает обе метрики в одной строке', async () => {
+      prismaMock.serviceRequest.findMany.mockResolvedValue([
+        {
+          assigneeId: 'staff-2',
+          createdAt: new Date('2026-09-01T10:00:00Z'),
+          updatedAt: new Date('2026-09-01T13:00:00Z'), // 3h
+        },
+      ]);
+      prismaMock.sosAlert.findMany.mockResolvedValue([
+        {
+          resolvedById: 'staff-2',
+          createdAt: new Date('2026-09-01T09:00:00Z'),
+          resolvedAt: new Date('2026-09-01T09:10:00Z'), // 10 min
+        },
+      ]);
+      prismaMock.user.findMany.mockResolvedValue([
+        { id: 'staff-2', firstName: 'Руслан', lastName: 'Охранов', role: 'SECURITY' },
+      ]);
+
+      const result = await service.getStaffResponseTimeAnalytics(mockTenantId, hoaChairmanUser);
+
+      expect(result.staff).toHaveLength(1);
+      expect(result.staff[0].staffId).toBe('staff-2');
+      expect(result.staff[0].requestsResolvedCount).toBe(1);
+      expect(result.staff[0].avgRequestResolutionHours).toBe(3);
+      expect(result.staff[0].sosResolvedCount).toBe(1);
+      expect(result.staff[0].avgSosResponseMinutes).toBe(10);
+    });
+
+    it('результаты сортируются по суммарному количеству обработанных обращений (запросы + SOS) по убыванию', async () => {
+      prismaMock.serviceRequest.findMany.mockResolvedValue([
+        // staff-busy: 5 requests
+        ...Array.from({ length: 5 }, (_, i) => ({
+          assigneeId: 'staff-busy',
+          createdAt: new Date(2026, 8, 1, i),
+          updatedAt: new Date(2026, 8, 1, i + 1),
+        })),
+        // staff-quiet: 1 request
+        {
+          assigneeId: 'staff-quiet',
+          createdAt: new Date('2026-09-01T10:00:00Z'),
+          updatedAt: new Date('2026-09-01T11:00:00Z'),
+        },
+      ]);
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+      prismaMock.user.findMany.mockResolvedValue([
+        { id: 'staff-busy', firstName: 'Busy', lastName: 'Staff', role: 'DISPATCHER' },
+        { id: 'staff-quiet', firstName: 'Quiet', lastName: 'Staff', role: 'DISPATCHER' },
+      ]);
+
+      const result = await service.getStaffResponseTimeAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(result.staff[0].staffId).toBe('staff-busy');
+      expect(result.staff[1].staffId).toBe('staff-quiet');
+    });
+
+    it('доступ отклоняется для диспетчера, жильца и сотрудников других ЖК (assertStaffAccess)', async () => {
+      prismaMock.serviceRequest.findMany.mockResolvedValue([]);
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.getStaffResponseTimeAnalytics(mockTenantId, dispatcherUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getStaffResponseTimeAnalytics(mockTenantId, residentUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getStaffResponseTimeAnalytics(mockTenantId, foreignHoaAdmin),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getStaffResponseTimeAnalytics(mockTenantId, hoaChairmanUser),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.getStaffResponseTimeAnalytics(mockTenantId, superadminUser),
       ).resolves.toBeDefined();
     });
   });
