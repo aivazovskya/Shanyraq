@@ -57,6 +57,9 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       guestPass: {
         create: jest.fn(),
       },
+      tenant: {
+        findUnique: jest.fn(),
+      },
     };
 
     configServiceMock = {
@@ -1019,4 +1022,129 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
     });
   });
 
+  describe('exportAccessLogsCsv (CSV экспорт журнала СКУД)', () => {
+    const mockUserSecurity = {
+      id: 'sec-1',
+      role: UserRole.SECURITY,
+      tenantId: 'tenant-1',
+    };
+
+    const mockUserAlien = {
+      id: 'sec-alien',
+      role: UserRole.SECURITY,
+      tenantId: 'tenant-alien',
+    };
+
+    const sampleLogs = [
+      {
+        id: 'log-1',
+        createdAt: new Date('2026-09-05T12:00:00Z'),
+        action: 'OPEN_BARRIER',
+        status: 'SUCCESS',
+        accessPoint: { name: 'Шлагбаум Въезд', type: AccessPointType.BARRIER },
+        user: { firstName: 'Арман', lastName: 'Жумабаев', phone: '+77015550101' },
+        unit: { unitNumber: '101', building: { blockName: 'Блок А' } },
+        note: 'Открыто через мобильное приложение',
+      },
+    ];
+
+    beforeEach(() => {
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-1',
+        name: 'ЖК Шанырақ Премиум',
+      });
+      prismaMock.accessLog.findMany.mockResolvedValue(sampleLogs);
+    });
+
+    it('должен по умолчанию применять диапазон за последние 30 дней, если from и to не переданы', async () => {
+      const { filename } = await service.exportAccessLogsCsv('tenant-1', mockUserSecurity, {});
+
+      expect(prismaMock.accessLog.findMany).toHaveBeenCalledTimes(1);
+      const queryArgs = prismaMock.accessLog.findMany.mock.calls[0][0];
+
+      expect(queryArgs.where.accessPoint.tenantId).toBe('tenant-1');
+      expect(queryArgs.where.createdAt.gte).toBeInstanceOf(Date);
+      expect(queryArgs.where.createdAt.lte).toBeInstanceOf(Date);
+
+      const diffDays = Math.round(
+        (queryArgs.where.createdAt.lte.getTime() - queryArgs.where.createdAt.gte.getTime()) /
+          (24 * 60 * 60 * 1000),
+      );
+      expect(diffDays).toBe(30);
+      expect(queryArgs.take).toBeUndefined();
+      expect(filename).toMatch(/^access-log-tenant-1-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv$/);
+    });
+
+    it('должен выгружать все строки без ограничения take: 100 при наличии >100 записей (например 150)', async () => {
+      const mock150Logs = Array.from({ length: 150 }, (_, i) => ({
+        id: `log-${i}`,
+        createdAt: new Date('2026-09-02T10:00:00Z'),
+        action: 'OPEN_BARRIER',
+        status: 'SUCCESS',
+        accessPoint: { name: `Точка-${i}`, type: AccessPointType.BARRIER },
+        user: { firstName: `Имя-${i}`, lastName: 'Тестов', phone: `+770100000${i}` },
+        unit: { unitNumber: `${i + 1}`, building: { blockName: 'Блок Б' } },
+        note: `Тестовая запись ${i}`,
+      }));
+
+      prismaMock.accessLog.findMany.mockResolvedValue(mock150Logs);
+
+      const { buffer } = await service.exportAccessLogsCsv('tenant-1', mockUserSecurity, {
+        from: '2026-09-01',
+        to: '2026-09-10',
+      });
+
+      const queryArgs = prismaMock.accessLog.findMany.mock.calls[0][0];
+      expect(queryArgs.take).toBeUndefined();
+
+      const csvString = buffer.toString('utf-8');
+      for (let i = 0; i < 150; i++) {
+        expect(csvString).toContain(`Точка-${i}`);
+        expect(csvString).toContain(`Имя-${i}`);
+      }
+    });
+
+    it('сотрудник с ролью SECURITY может успешно экспортировать журнал своего ЖК', async () => {
+      const result = await service.exportAccessLogsCsv('tenant-1', mockUserSecurity, {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-08T00:00:00Z',
+      });
+
+      expect(result.buffer).toBeDefined();
+      expect(result.filename).toBe('access-log-tenant-1-2026-09-01_2026-09-08.csv');
+      const csvString = result.buffer.toString('utf-8');
+      expect(csvString).toContain('ЖК Шанырақ Премиум');
+      expect(csvString).toContain('Арман');
+      expect(csvString).toContain('+77015550101');
+    });
+
+    it('сформированный CSV буфер должен содержать байты UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      const { buffer } = await service.exportAccessLogsCsv('tenant-1', mockUserSecurity);
+
+      expect(buffer).toBeInstanceOf(Buffer);
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
+    });
+
+    it('должен блокировать экспорт чужого ЖК с ForbiddenException (межарендаторный доступ)', async () => {
+      await expect(
+        service.exportAccessLogsCsv('tenant-1', mockUserAlien, {}),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prismaMock.accessLog.findMany).not.toHaveBeenCalled();
+    });
+
+    it('SUPERADMIN может экспортировать журнал любого ЖК без ограничений', async () => {
+      const superadminUser = {
+        id: 'super-1',
+        role: UserRole.SUPERADMIN,
+        tenantId: null,
+      };
+
+      const result = await service.exportAccessLogsCsv('tenant-1', superadminUser);
+      expect(result.buffer).toBeDefined();
+      expect(result.filename).toContain('access-log-tenant-1');
+    });
+  });
 });

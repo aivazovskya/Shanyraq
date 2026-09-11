@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AccessControlService } from './access-control.service';
 import {
   OpenBarrierDto,
@@ -92,5 +93,30 @@ export class AccessControlController {
     // Аудит безопасности: охрана одного ЖК не может просматривать журнал въездов другого ЖК
     assertUserBelongsToTenant(user, tenantId, 'журнала проездов');
     return this.accessControlService.getAccessLogs(tenantId);
+  }
+
+  @Get('tenant/:tenantId/logs/export')
+  @Roles(UserRole.SECURITY, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Экспорт журнала доступа в формате CSV' })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async exportAccessLogsCsv(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Res() res: Response,
+  ) {
+    assertUserBelongsToTenant(user, tenantId, 'журнала проездов');
+    const { buffer, filename } =
+      await this.accessControlService.exportAccessLogsCsv(tenantId, user, {
+        from,
+        to,
+      });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 }

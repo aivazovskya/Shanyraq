@@ -18,6 +18,7 @@ import {
 } from './dto/access-control.dto';
 import { AccessPointType, UserRole } from '@prisma/client';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { buildCsv } from '../../common/csv/csv.helper';
 
 export interface IBarrierAdapter {
   triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }>;
@@ -775,5 +776,91 @@ export class AccessControlService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+  }
+
+  async exportAccessLogsCsv(
+    tenantId: string,
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    query?: { from?: string; to?: string },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    assertUserBelongsToTenant(user, tenantId, 'журнала проездов');
+
+    const now = new Date();
+    const to = query?.to ? new Date(query.to) : now;
+    const from = query?.from
+      ? new Date(query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const logs = await this.prisma.accessLog.findMany({
+      where: {
+        accessPoint: { tenantId },
+        createdAt: { gte: from, lte: to },
+      },
+      include: {
+        accessPoint: true,
+        user: {
+          select: { firstName: true, lastName: true, phone: true },
+        },
+        unit: {
+          include: { building: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const fromDateStr = from.toISOString().split('T')[0];
+    const toDateStr = to.toISOString().split('T')[0];
+
+    const rows: unknown[][] = [
+      ['Журнал контроля доступа (СКУД)'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', `${fromDateStr} — ${toDateStr}`],
+      [],
+      [
+        'Дата и время',
+        'Точка доступа',
+        'Тип точки',
+        'Действие',
+        'Статус',
+        'Пользователь / Гость',
+        'Телефон',
+        'Квартира / Помещение',
+        'Блок / Подъезд',
+        'Примечание',
+      ],
+    ];
+
+    for (const log of logs) {
+      const userFullName = [log.user?.firstName, log.user?.lastName]
+        .filter(Boolean)
+        .join(' ');
+      const userOrGuest = userFullName || (log.userId ? log.userId : 'Гость');
+      const phone = log.user?.phone || '';
+      const unitNumber = log.unit?.unitNumber || '';
+      const blockName = log.unit?.building?.blockName || '';
+
+      rows.push([
+        log.createdAt.toISOString(),
+        log.accessPoint?.name || '',
+        log.accessPoint?.type || '',
+        log.action,
+        log.status,
+        userOrGuest,
+        phone,
+        unitNumber,
+        blockName,
+        log.note || '',
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `access-log-${tenantId}-${fromDateStr}_${toDateStr}.csv`;
+
+    return { buffer, filename };
   }
 }

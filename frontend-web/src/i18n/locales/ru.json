@@ -345,7 +345,21 @@
     "pointTypeBarrier": "Шлагбаум",
     "pointTypeGate": "Ворота",
     "pointTypeIntercom": "Домофон",
-    "pointTypeCamera": "Камера"
+    "pointTypeCamera": "Камера",
+    "exportCsvBtn": "Скачать CSV",
+    "exportingCsv": "Экспорт...",
+    "dateFrom": "Период с",
+    "dateTo": "по",
+    "logsEmpty": "За выбранный период событий не найдено",
+    "logsLoading": "Загрузка журнала...",
+    "guestLabel": "Гость",
+    "thUnit": "Помещение",
+    "thNote": "Примечание",
+    "actionOpenBarrier": "Открытие шлагбаума / ворот",
+    "actionOpenIntercom": "Открытие домофона",
+    "actionViewCamera": "Просмотр видеокамеры",
+    "actionGuestCodeEntry": "Ввод гостевого кода",
+    "exportError": "Ошибка при скачивании отчета: {{error}}"
   },
   "announcements": {
     "title": "Оповещения и новости ЖК",

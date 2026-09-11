@@ -20,8 +20,10 @@ import {
   RefreshCw,
   Check,
   AlertCircle,
+  Download,
+  Calendar,
 } from 'lucide-react';
-import { apiRequest, getStoredSession } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
 interface AccessPointItem {
   id: string;
@@ -34,6 +36,34 @@ interface AccessPointItem {
   isActive: boolean;
   tenantId: string;
   createdAt?: string;
+}
+
+interface AccessLogItem {
+  id: string;
+  userId?: string | null;
+  unitId?: string | null;
+  action: string;
+  status: string;
+  note?: string | null;
+  createdAt: string;
+  accessPoint?: {
+    id: string;
+    name: string;
+    type: string;
+  } | null;
+  user?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+  } | null;
+  unit?: {
+    id: string;
+    unitNumber: string;
+    building?: {
+      id: string;
+      blockName: string;
+    } | null;
+  } | null;
 }
 
 interface HealthCheckResult {
@@ -49,6 +79,10 @@ export default function AccessPage() {
   const user = session?.user;
   const tenantId = user?.tenantId;
   const canManage = user?.role === 'HOA_ADMIN' || user?.role === 'SUPERADMIN';
+  const canViewLogs =
+    user?.role === 'SECURITY' ||
+    user?.role === 'HOA_ADMIN' ||
+    user?.role === 'SUPERADMIN';
 
   const [points, setPoints] = useState<AccessPointItem[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
@@ -70,6 +104,22 @@ export default function AccessPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  // Logs state
+  const [initialDates] = useState(() => {
+    const toDate = new Date();
+    const fromDate = new Date(toDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      from: fromDate.toISOString().split('T')[0],
+      to: toDate.toISOString().split('T')[0],
+    };
+  });
+  const [logFrom, setLogFrom] = useState(initialDates.from);
+  const [logTo, setLogTo] = useState(initialDates.to);
+  const [logs, setLogs] = useState<AccessLogItem[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const fetchPoints = useCallback(async () => {
     if (!tenantId) {
       setLoadingPoints(false);
@@ -86,9 +136,80 @@ export default function AccessPage() {
     }
   }, [tenantId]);
 
+  const fetchLogs = useCallback(async () => {
+    if (!tenantId || !canViewLogs) {
+      setLoadingLogs(false);
+      return;
+    }
+    setLoadingLogs(true);
+    try {
+      const data = await apiRequest<AccessLogItem[]>(`/access/tenant/${tenantId}/logs`);
+      setLogs(data);
+    } catch (err: any) {
+      console.warn('Failed to load access logs:', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, [tenantId, canViewLogs]);
+
   useEffect(() => {
     fetchPoints();
-  }, [fetchPoints]);
+    if (canViewLogs) {
+      fetchLogs();
+    }
+  }, [fetchPoints, fetchLogs, canViewLogs]);
+
+  const handleExportCsv = async () => {
+    if (!tenantId) return;
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      const queryParams = new URLSearchParams();
+      if (logFrom) queryParams.set('from', logFrom);
+      if (logTo) queryParams.set('to', logTo);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      await apiDownload(
+        `/access/tenant/${tenantId}/logs/export${queryString}`,
+        `access-log-${tenantId}.csv`,
+      );
+    } catch (err: any) {
+      setExportError(err.message || 'Error exporting CSV');
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case 'OPEN_BARRIER':
+        return t('access.actionOpenBarrier');
+      case 'OPEN_INTERCOM':
+        return t('access.actionOpenIntercom');
+      case 'VIEW_CAMERA':
+        return t('access.actionViewCamera');
+      case 'GUEST_CODE_ENTRY':
+        return t('access.actionGuestCodeEntry');
+      default:
+        return action;
+    }
+  };
+
+  const filteredLogs = logs.filter((log) => {
+    if (!logFrom && !logTo) return true;
+    const logDate = new Date(log.createdAt);
+    if (logFrom) {
+      const fromD = new Date(logFrom);
+      fromD.setHours(0, 0, 0, 0);
+      if (logDate < fromD) return false;
+    }
+    if (logTo) {
+      const toD = new Date(logTo);
+      toD.setHours(23, 59, 59, 999);
+      if (logDate > toD) return false;
+    }
+    return true;
+  });
 
   const handleOpenPoint = async (point: AccessPointItem) => {
     setOpeningPointId(point.id);
@@ -160,45 +281,6 @@ export default function AccessPage() {
   const barriers = points.filter((p) => p.type === 'BARRIER' || p.type === 'GATE');
   const intercoms = points.filter((p) => p.type === 'DOOR_INTERCOM');
   const cameras = points.filter((p) => p.type === 'CAMERA');
-
-  const sampleLogs = [
-    {
-      id: 'LOG-451',
-      time: '13:38:12',
-      point: `${t('access.barrierEntry')} (Въезд)`,
-      action: t('access.actionMobileApp'),
-      user: `Арман Жумабаев (${t('common.unitShort')} 101)`,
-      plate: '012 KZ 01',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'LOG-450',
-      time: '13:15:04',
-      point: `${t('access.barrierEntry')} (Въезд)`,
-      action: t('access.actionGuestPass'),
-      user: `Гость ${t('common.unitShort')} 42 (Руслан)`,
-      plate: '777 KZ 01',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'LOG-449',
-      time: '12:54:30',
-      point: `${t('access.barrierEntry')} (Въезд)`,
-      action: t('access.actionGuardRemote'),
-      user: 'Ерлан (Пост охраны)',
-      plate: 'Курьер / Спецтранспорт',
-      status: 'SUCCESS',
-    },
-    {
-      id: 'LOG-448',
-      time: '11:42:19',
-      point: `${t('access.barrierEntry')} (Въезд)`,
-      action: t('access.actionMobileDenied'),
-      user: 'Неподтвержденный профиль (+7 705 ***-**-99)',
-      plate: '—',
-      status: 'DENIED',
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -449,50 +531,153 @@ export default function AccessPage() {
         </div>
       </div>
 
-      {/* Access Logs Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-            {t('access.auditTitle')}
-          </h2>
-          <span className="text-xs text-slate-500">{t('access.recent100Events')}</span>
-        </div>
+      {/* Access Logs Table & Export Section (Visible to SECURITY, HOA_ADMIN, SUPERADMIN) */}
+      {canViewLogs && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                {t('access.auditTitle')}
+              </h2>
+              <span className="text-xs text-slate-500">{t('access.recent100Events')}</span>
+            </div>
 
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
-            <tr>
-              <th className="py-3 px-4">{t('access.thTime')}</th>
-              <th className="py-3 px-4">{t('access.thPoint')}</th>
-              <th className="py-3 px-4">{t('access.thUser')}</th>
-              <th className="py-3 px-4">{t('access.thPlate')}</th>
-              <th className="py-3 px-4">{t('access.thEvent')}</th>
-              <th className="py-3 px-4 text-right">{t('access.thResult')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {sampleLogs.map((log) => (
-              <tr key={log.id} className="hover:bg-slate-50/80 transition">
-                <td className="py-3 px-4 font-mono text-slate-500">{log.time}</td>
-                <td className="py-3 px-4 font-semibold text-slate-900">{log.point}</td>
-                <td className="py-3 px-4">{log.user}</td>
-                <td className="py-3 px-4 font-mono font-bold text-slate-800">{log.plate}</td>
-                <td className="py-3 px-4 text-slate-600">{log.action}</td>
-                <td className="py-3 px-4 text-right">
-                  {log.status === 'SUCCESS' ? (
-                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                      {t('access.statusSuccess')}
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-semibold">
-                      {t('access.statusDenied')}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            {/* Date Filters & CSV Download Button */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>{t('access.dateFrom')}</span>
+                <input
+                  type="date"
+                  value={logFrom}
+                  onChange={(e) => setLogFrom(e.target.value)}
+                  className="bg-transparent text-slate-800 text-xs focus:outline-none"
+                />
+                <span>{t('access.dateTo')}</span>
+                <input
+                  type="date"
+                  value={logTo}
+                  onChange={(e) => setLogTo(e.target.value)}
+                  className="bg-transparent text-slate-800 text-xs focus:outline-none"
+                />
+              </div>
+
+              <button
+                onClick={handleExportCsv}
+                disabled={exportingCsv}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-60"
+              >
+                {exportingCsv ? (
+                  <>
+                    <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{t('access.exportingCsv')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('access.exportCsvBtn')}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {exportError && (
+            <div className="p-3 mx-4 my-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{exportError}</span>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-4">{t('access.thTime')}</th>
+                  <th className="py-3 px-4">{t('access.thPoint')}</th>
+                  <th className="py-3 px-4">{t('access.thUser')}</th>
+                  <th className="py-3 px-4">{t('access.thUnit')}</th>
+                  <th className="py-3 px-4">{t('access.thEvent')}</th>
+                  <th className="py-3 px-4">{t('access.thNote')}</th>
+                  <th className="py-3 px-4 text-right">{t('access.thResult')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {loadingLogs ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <RotateCw className="w-4 h-4 animate-spin text-emerald-600" />
+                        <span>{t('access.logsLoading')}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      {t('access.logsEmpty')}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLogs.map((log) => {
+                    const userFullName = [log.user?.firstName, log.user?.lastName]
+                      .filter(Boolean)
+                      .join(' ');
+                    const userLabel = userFullName || (log.userId ? log.userId : t('access.guestLabel'));
+                    const unitLabel = log.unit
+                      ? `${log.unit.building?.blockName ? `${log.unit.building.blockName}, ` : ''}${t('common.unitShort')} ${log.unit.unitNumber}`
+                      : '—';
+                    const isSuccess = log.status === 'SUCCESS';
+
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4 font-mono text-slate-500 whitespace-nowrap">
+                          {new Date(log.createdAt).toLocaleString('ru-RU', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">
+                          {log.accessPoint?.name || '—'}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="font-medium text-slate-900">{userLabel}</div>
+                          {log.user?.phone && (
+                            <div className="text-[11px] text-slate-400 font-mono">
+                              {log.user.phone}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">{unitLabel}</td>
+                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                          {getActionLabel(log.action)}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 max-w-xs truncate" title={log.note || ''}>
+                          {log.note || '—'}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {isSuccess ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
+                              {t('access.statusSuccess')}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-semibold">
+                              {t('access.statusDenied')}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Registration Modal */}
       {isModalOpen && (

@@ -345,7 +345,21 @@
     "pointTypeBarrier": "Шлагбаум",
     "pointTypeGate": "Қақпа",
     "pointTypeIntercom": "Домофон",
-    "pointTypeCamera": "Камера"
+    "pointTypeCamera": "Камера",
+    "exportCsvBtn": "CSV жүктеп алу",
+    "exportingCsv": "Экспортталуда...",
+    "dateFrom": "Басталуы",
+    "dateTo": "дейін",
+    "logsEmpty": "Таңдалған кезеңде оқиғалар табылмады",
+    "logsLoading": "Журнал жүктелуде...",
+    "guestLabel": "Қонақ",
+    "thUnit": "Үй-жай",
+    "thNote": "Ескертпе",
+    "actionOpenBarrier": "Шлагбаумды / қақпаны ашу",
+    "actionOpenIntercom": "Домофонды ашу",
+    "actionViewCamera": "Бейнекамераны қарау",
+    "actionGuestCodeEntry": "Қонақ кодын енгізу",
+    "exportError": "Есепті жүктеп алу кезіндегі қате: {{error}}"
   },
   "announcements": {
     "title": "ТК хабарландырулары мен жаңалықтары",
