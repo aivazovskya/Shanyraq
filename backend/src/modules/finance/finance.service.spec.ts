@@ -908,5 +908,125 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       expect(res.buffer.slice(0, 5).toString()).toBe('%PDF-');
       expect(res.filename).toBe('statement_ACC-BLOKA-101-ABCD12_all.pdf');
     });
+
+    // -----------------------------------------------------------
+    // CSV Export Tests (Task 0046)
+    // -----------------------------------------------------------
+    it('позволяет верифицированному собственнику успешно сформировать выписку в CSV с UTF-8 BOM и корректным именем файла', async () => {
+      const res = await service.exportAccountStatementCsv(
+        'acc-statement-1',
+        { id: 'user-owner-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+        { month: 9, year: 2026 },
+      );
+
+      expect(res.buffer).toBeInstanceOf(Buffer);
+      // UTF-8 BOM check: 0xEF, 0xBB, 0xBF
+      expect(res.buffer.slice(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+      const content = res.buffer.toString('utf-8');
+      expect(content.startsWith('\uFEFF')).toBe(true);
+      expect(res.filename).toBe('statement_ACC-BLOKA-101-ABCD12_2026-09.csv');
+
+      // Check header block
+      expect(content).toContain('Выписка по лицевому счету');
+      expect(content).toContain('ЖК «Шаңырақ Премиум»');
+      expect(content).toContain('ACC-BLOKA-101-ABCD12');
+      expect(content).toContain('кв. 101, Блок Блок А');
+      expect(content).toContain('Касымов Азамат');
+      expect(content).toContain('09.2026');
+
+      // Check charges section
+      expect(content).toContain('Начисления');
+      expect(content).toContain('09.2026,Эксплуатационные расходы,12000');
+
+      // Check payments section
+      expect(content).toContain('Платежи');
+      expect(content).toContain('05.09.2026,8000,Вручную (касса),Иван Иванов');
+
+      // Check current balance
+      expect(content).toContain('Текущий баланс,-15000 ₸');
+    });
+
+    it('блокирует скачивание CSV выписки жителю, не являющемуся подтвержденным собственником (FINANCE.ACCOUNT_ACCESS_CONFIRMED_ONLY)', async () => {
+      await expect(
+        service.exportAccountStatementCsv(
+          'acc-statement-1',
+          { id: 'user-stranger', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+          { month: 9, year: 2026 },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('блокирует скачивание CSV сотруднику УК чужого ЖК', async () => {
+      await expect(
+        service.exportAccountStatementCsv('acc-statement-1', {
+          id: 'staff-alien',
+          role: UserRole.HOA_ADMIN,
+          tenantId: 'tenant-alien',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('фильтрует начисления и платежи по month и year аналогично PDF выписке', async () => {
+      // With period filter: only September 2026
+      const filteredRes = await service.exportAccountStatementCsv(
+        'acc-statement-1',
+        { id: 'user-owner-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+        { month: 9, year: 2026 },
+      );
+      const filteredContent = filteredRes.buffer.toString('utf-8');
+      expect(filteredRes.filename).toBe('statement_ACC-BLOKA-101-ABCD12_2026-09.csv');
+      expect(filteredContent).toContain('09.2026,Эксплуатационные расходы,12000');
+      expect(filteredContent).not.toContain('08.2026,Эксплуатационные расходы,11000');
+
+      // Without period filter: all periods included, filename ends with _all.csv
+      const allRes = await service.exportAccountStatementCsv(
+        'acc-statement-1',
+        { id: 'user-owner-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+      );
+      const allContent = allRes.buffer.toString('utf-8');
+      expect(allRes.filename).toBe('statement_ACC-BLOKA-101-ABCD12_all.csv');
+      expect(allContent).toContain('09.2026,Эксплуатационные расходы,12000');
+      expect(allContent).toContain('08.2026,Эксплуатационные расходы,11000');
+    });
+
+    it('корректно экранирует запятые и кавычки в статьях начислений и примечаниях платежей', async () => {
+      prismaMock.personalAccount.findUnique.mockResolvedValueOnce({
+        ...mockAccount,
+        charges: [
+          {
+            id: 'charge-comma',
+            periodMonth: 9,
+            periodYear: 2026,
+            amount: 5000,
+            tariffItem: {
+              name: 'Услуги консьержа, домофон и "охрана"',
+            },
+          },
+        ],
+        payments: [
+          {
+            id: 'payment-comma',
+            amount: 5000,
+            method: PaymentMethod.MANUAL,
+            note: 'Оплата наличными, касса №2, чек "А-1"',
+            paidAt: new Date('2026-09-06T10:00:00Z'),
+            recordedBy: {
+              firstName: 'Иван',
+              lastName: 'Иванов',
+            },
+          },
+        ],
+      });
+
+      const res = await service.exportAccountStatementCsv(
+        'acc-statement-1',
+        { id: 'user-owner-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' },
+      );
+
+      const content = res.buffer.toString('utf-8');
+      // Escaped quotes and commas per RFC 4180
+      expect(content).toContain('"Услуги консьержа, домофон и ""охрана"""');
+      expect(content).toContain('"Вручную (касса) / Оплата наличными, касса №2, чек ""А-1"""');
+    });
   });
 });

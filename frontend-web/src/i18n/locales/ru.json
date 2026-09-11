@@ -506,6 +506,8 @@
     "noCharges": "Начислений пока нет",
     "paymentsHistory": "История оплат",
     "noPayments": "Оплат пока нет",
+    "downloadPdf": "Скачать PDF",
+    "downloadCsv": "Скачать CSV",
     "thTariff": "Статья начисления",
     "thPeriod": "Период",
     "thAmount": "Сумма",

@@ -21,8 +21,10 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Plus,
+  FileText,
+  Download,
 } from 'lucide-react';
-import { apiRequest, getStoredSession } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
 interface TariffItem {
   id: string;
@@ -114,6 +116,7 @@ export default function FinancePage() {
   // Modals state
   const [selectedAccount, setSelectedAccount] = useState<AccountDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [downloadingStatement, setDownloadingStatement] = useState<'pdf' | 'csv' | null>(null);
 
   // Generate charges modal
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -170,6 +173,29 @@ export default function FinancePage() {
       });
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const handleDownloadStatement = async (format: 'pdf' | 'csv') => {
+    if (!selectedAccount) return;
+    try {
+      setDownloadingStatement(format);
+      const ext = format === 'pdf' ? 'pdf' : 'csv';
+      const endpoint =
+        format === 'pdf'
+          ? `/finance/accounts/${selectedAccount.id}/statement`
+          : `/finance/accounts/${selectedAccount.id}/statement/export`;
+      await apiDownload(
+        endpoint,
+        `statement_${selectedAccount.accountNumber}_all.${ext}`,
+      );
+    } catch (err: any) {
+      setActionMessage({
+        type: 'error',
+        text: err?.message || t('common.error'),
+      });
+    } finally {
+      setDownloadingStatement(null);
     }
   };
 
@@ -772,7 +798,35 @@ export default function FinancePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end">
+            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadStatement('pdf')}
+                  disabled={!!downloadingStatement}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {downloadingStatement === 'pdf' ? (
+                    <Loader2 className="w-3.5 h-3.5 text-rose-600 animate-spin" />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5 text-rose-600" />
+                  )}
+                  <span>{t('finance.downloadPdf')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadStatement('csv')}
+                  disabled={!!downloadingStatement}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {downloadingStatement === 'csv' ? (
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                  )}
+                  <span>{t('finance.downloadCsv')}</span>
+                </button>
+              </div>
               <button
                 onClick={() => setSelectedAccount(null)}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"

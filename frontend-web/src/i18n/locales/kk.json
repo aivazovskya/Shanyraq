@@ -506,6 +506,8 @@
     "noCharges": "Әзірге есептеулер жоқ",
     "paymentsHistory": "Төлемдер тарихы",
     "noPayments": "Әзірге төлемдер жоқ",
+    "downloadPdf": "PDF жүктеу",
+    "downloadCsv": "CSV жүктеу",
     "thTariff": "Есептеу бабы",
     "thPeriod": "Кезең",
     "thAmount": "Сомасы",

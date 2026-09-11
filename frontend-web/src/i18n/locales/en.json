@@ -506,6 +506,8 @@
     "noCharges": "No charges yet",
     "paymentsHistory": "Payments History",
     "noPayments": "No payments yet",
+    "downloadPdf": "Download PDF",
+    "downloadCsv": "Download CSV",
     "thTariff": "Tariff Item",
     "thPeriod": "Period",
     "thAmount": "Amount",

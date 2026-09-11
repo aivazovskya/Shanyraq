@@ -29,6 +29,7 @@ import {
   drawFooter,
   TableColumn,
 } from '../../common/pdf/pdf-document.helper';
+import { buildCsv } from '../../common/csv/csv.helper';
 
 import { AuditLogService } from '../audit-log/audit-log.service';
 
@@ -622,6 +623,107 @@ export class FinanceService {
       ? `_${query.year}${query.month ? '-' + String(query.month).padStart(2, '0') : ''}`
       : '_all';
     const filename = `statement_${account.accountNumber}${periodPart}.pdf`;
+
+    return { buffer, filename };
+  }
+
+  async exportAccountStatementCsv(
+    accountId: string,
+    user: { id: string; tenantId?: string | null; role: UserRole },
+    query?: { month?: number; year?: number },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    // 1. Re-use getAccountById to enforce strict authorization
+    const account = await this.getAccountById(accountId, user);
+
+    // 2. Fetch tenant & verified owners for rich document header
+    const [tenant, verifiedOwnerships] = await Promise.all([
+      this.prisma.tenant.findUnique({
+        where: { id: account.unit.building.tenantId },
+      }),
+      this.prisma.unitOwnership.findMany({
+        where: { unitId: account.unitId, isVerified: true },
+        include: { user: true },
+      }),
+    ]);
+
+    // 3. Filter charges & payments by month and/or year if provided
+    let charges = account.charges || [];
+    let payments = account.payments || [];
+
+    if (query?.year) {
+      const targetYear = Number(query.year);
+      charges = charges.filter((c: any) => c.periodYear === targetYear);
+      payments = payments.filter((p: any) => new Date(p.paidAt).getFullYear() === targetYear);
+    }
+
+    if (query?.month) {
+      const targetMonth = Number(query.month);
+      charges = charges.filter((c: any) => c.periodMonth === targetMonth);
+      payments = payments.filter((p: any) => new Date(p.paidAt).getMonth() + 1 === targetMonth);
+    }
+
+    const ownersNames =
+      verifiedOwnerships
+        .map((o) => `${o.user.lastName} ${o.user.firstName}`)
+        .join(', ') || 'Не указан';
+
+    let periodLabel = 'За все время';
+    if (query?.year && query?.month) {
+      periodLabel = `${String(query.month).padStart(2, '0')}.${query.year}`;
+    } else if (query?.year) {
+      periodLabel = `${query.year} год`;
+    }
+
+    const formatDate = (date: Date | string) => {
+      const d = new Date(date);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}.${month}.${year}`;
+    };
+
+    // 4. Build CSV rows
+    const rows: unknown[][] = [
+      ['Выписка по лицевому счету'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Лицевой счет', account.accountNumber],
+      ['Помещение', `кв. ${account.unit.unitNumber}, Блок ${account.unit.building.blockName}`],
+      ['Собственник(и)', ownersNames],
+      ['Период', periodLabel],
+      [],
+      ['Начисления'],
+      ['Период', 'Тариф', 'Сумма (₸)'],
+    ];
+
+    for (const c of charges) {
+      const period = `${String(c.periodMonth).padStart(2, '0')}.${c.periodYear}`;
+      const name = c.tariffItem?.name || 'Коммунальные услуги';
+      rows.push([period, name, c.amount]);
+    }
+
+    rows.push([]);
+    rows.push(['Платежи']);
+    rows.push(['Дата', 'Сумма (₸)', 'Способ / Примечание', 'Принял']);
+
+    for (const p of payments) {
+      const date = formatDate(p.paidAt);
+      const method = p.method === PaymentMethod.MANUAL ? 'Вручную (касса)' : p.method;
+      const methodNote = p.note ? `${method} / ${p.note}` : method;
+      const staff = p.recordedBy
+        ? `${p.recordedBy.firstName} ${p.recordedBy.lastName}`
+        : 'Сотрудник УК';
+      rows.push([date, p.amount, methodNote, staff]);
+    }
+
+    rows.push([]);
+    rows.push(['Текущий баланс', `${account.balance} ₸`]);
+
+    const buffer = buildCsv(rows);
+
+    const periodPart = query?.year
+      ? `_${query.year}${query.month ? '-' + String(query.month).padStart(2, '0') : ''}`
+      : '_all';
+    const filename = `statement_${account.accountNumber}${periodPart}.csv`;
 
     return { buffer, filename };
   }

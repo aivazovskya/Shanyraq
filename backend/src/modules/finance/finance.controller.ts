@@ -171,6 +171,38 @@ export class FinanceController {
     res!.end(buffer);
   }
 
+  @Get('accounts/:accountId/statement/export')
+  @Roles(
+    UserRole.HOA_ADMIN,
+    UserRole.SUPERADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.RESIDENT_OWNER,
+  )
+  @ApiOperation({ summary: 'Экспорт выписки по лицевому счету в формате CSV' })
+  async exportStatementCsv(
+    @Param('accountId') accountId: string,
+    @CurrentUser() user: any,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+    @Res() res?: Response,
+  ) {
+    const query = {
+      month: month ? parseInt(month, 10) : undefined,
+      year: year ? parseInt(year, 10) : undefined,
+    };
+    const { buffer, filename } =
+      await this.financeService.exportAccountStatementCsv(
+        accountId,
+        user,
+        query,
+      );
+
+    res!.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res!.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res!.setHeader('Content-Length', buffer.length);
+    res!.end(buffer);
+  }
+
   @Get('accounts/:accountId')
   @Roles(
     UserRole.HOA_ADMIN,
