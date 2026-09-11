@@ -759,6 +759,201 @@ export class AccessControlService {
     });
   }
 
+  computeGuestPassStatus(pass: {
+    isRevoked: boolean;
+    isUsed: boolean;
+    validTo: Date | string;
+  }): 'REVOKED' | 'USED' | 'EXPIRED' | 'ACTIVE' {
+    if (pass.isRevoked) {
+      return 'REVOKED';
+    }
+    if (pass.isUsed) {
+      return 'USED';
+    }
+    if (new Date(pass.validTo).getTime() < Date.now()) {
+      return 'EXPIRED';
+    }
+    return 'ACTIVE';
+  }
+
+  async getGuestPassesForUnit(
+    unitId: string,
+    user: { id: string; role: UserRole; tenantId?: string | null },
+  ) {
+    if (user.role !== UserRole.SUPERADMIN) {
+      const ownership = await this.prisma.unitOwnership.findFirst({
+        where: {
+          userId: user.id,
+          unitId,
+          isVerified: true,
+        },
+      });
+
+      if (!ownership) {
+        throw new ForbiddenException({
+          code: 'ACCESS_CONTROL.GUEST_PASS_OWN_UNIT_ONLY',
+          message: 'IDOR защита: вы можете просматривать пропуска только для своей подтвержденной квартиры',
+        });
+      }
+    }
+
+    const passes = await this.prisma.guestPass.findMany({
+      where: { unitId },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        revokedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            building: {
+              select: {
+                id: true,
+                blockName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return passes.map((pass) => ({
+      ...pass,
+      status: this.computeGuestPassStatus(pass),
+    }));
+  }
+
+  async getGuestPassesForTenant(
+    tenantId: string,
+    user: { id: string; role: UserRole; tenantId?: string | null },
+  ) {
+    assertUserBelongsToTenant(user, tenantId, 'истории гостевых пропусков');
+
+    const passes = await this.prisma.guestPass.findMany({
+      where: {
+        unit: {
+          building: {
+            tenantId,
+          },
+        },
+      },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        revokedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            building: {
+              select: {
+                id: true,
+                blockName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return passes.map((pass) => ({
+      ...pass,
+      status: this.computeGuestPassStatus(pass),
+    }));
+  }
+
+  async revokeGuestPass(
+    passId: string,
+    user: { id: string; role: UserRole; tenantId?: string | null },
+  ) {
+    const pass = await this.prisma.guestPass.findUnique({
+      where: { id: passId },
+      include: {
+        unit: {
+          include: {
+            building: true,
+          },
+        },
+      },
+    });
+
+    if (!pass) {
+      throw new NotFoundException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_NOT_FOUND',
+        message: 'Гостевой пропуск не найден',
+      });
+    }
+
+    if (pass.isRevoked) {
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_ALREADY_REVOKED',
+        message: 'Гостевой пропуск уже отозван',
+      });
+    }
+
+    const isStaff = ([
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ] as UserRole[]).includes(user.role);
+
+    const isCreator = user.id === pass.creatorId;
+    const isSuperAdmin = user.role === UserRole.SUPERADMIN;
+    const isAuthorizedStaff =
+      isStaff && user.tenantId === pass.unit?.building?.tenantId;
+
+    if (!isCreator && !isSuperAdmin && !isAuthorizedStaff) {
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_REVOKE_FORBIDDEN',
+        message: 'Вы не имеете права отзывать данный гостевой пропуск',
+      });
+    }
+
+    const updated = await this.prisma.guestPass.update({
+      where: { id: passId },
+      data: {
+        isRevoked: true,
+        revokedAt: new Date(),
+        revokedById: user.id,
+      },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        revokedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            building: {
+              select: {
+                id: true,
+                blockName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      ...updated,
+      status: this.computeGuestPassStatus(updated),
+    };
+  }
+
   async getAccessLogs(tenantId: string) {
     return this.prisma.accessLog.findMany({
       where: {

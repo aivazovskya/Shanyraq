@@ -156,6 +156,17 @@
     "generateQrBtn": "Generate QR Pass",
     "enterGuestNameWarning": "Please enter guest name",
     "passRestrictedMsg": "Guest passes are available only for verified apartments",
+    "statusActive": "Active",
+    "statusRevoked": "Revoked",
+    "statusUsed": "Used",
+    "statusExpired": "Expired",
+    "historySectionTitle": "Pass History",
+    "noHistory": "No guest passes found",
+    "revokePassBtn": "Revoke",
+    "revokeConfirmTitle": "Revoke pass?",
+    "revokeConfirmMsg": "The guest will not be able to enter using this pass. This action cannot be undone.",
+    "revokedSuccess": "Pass revoked successfully",
+    "validUntil": "Valid until {{time}}",
     "shareTemplateTitle": "🏢 Pass for {{complex}}\nGuest: {{guest}}\n{{plateLine}}Entry/Gate Code: {{code}}\nValid until: {{time}}",
     "liveCameraTitle": "Live Camera Stream",
     "connectingStream": "Connecting...",
@@ -841,7 +852,11 @@
       "entrance": "entrance",
       "floor": "floor",
       "unauthorizedTitle": "Access Restricted",
-      "unauthorizedMsg": "Guest pass issuance is only available to residential staff."
+      "unauthorizedMsg": "Guest pass issuance is only available to residential staff.",
+      "historyTitle": "Complex Pass History",
+      "noHistory": "No guest passes in this complex",
+      "issuedBy": "Issued by: {{name}}",
+      "revokedByLabel": "Revoked by: {{name}}"
     }
   },
   "notifications": {

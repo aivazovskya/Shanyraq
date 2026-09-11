@@ -56,6 +56,9 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       },
       guestPass: {
         create: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
       },
       tenant: {
         findUnique: jest.fn(),
@@ -1145,6 +1148,333 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       const result = await service.exportAccessLogsCsv('tenant-1', superadminUser);
       expect(result.buffer).toBeDefined();
       expect(result.filename).toContain('access-log-tenant-1');
+    });
+  });
+
+  describe('Гостевые пропуска: статус, история и отзыв (Task 0044)', () => {
+    describe('computeGuestPassStatus (Приоритет статусов)', () => {
+      it('должен возвращать REVOKED даже если пропуск истёк (приоритет REVOKED над EXPIRED)', () => {
+        const pastDate = new Date(Date.now() - 3600000);
+        const status = service.computeGuestPassStatus({
+          isRevoked: true,
+          isUsed: false,
+          validTo: pastDate,
+        });
+        expect(status).toBe('REVOKED');
+      });
+
+      it('должен возвращать REVOKED если пропуск был использован и затем отозван (приоритет REVOKED над USED)', () => {
+        const futureDate = new Date(Date.now() + 3600000);
+        const status = service.computeGuestPassStatus({
+          isRevoked: true,
+          isUsed: true,
+          validTo: futureDate,
+        });
+        expect(status).toBe('REVOKED');
+      });
+
+      it('должен возвращать USED если пропуск использован, даже если срок действия истёк', () => {
+        const pastDate = new Date(Date.now() - 3600000);
+        const status = service.computeGuestPassStatus({
+          isRevoked: false,
+          isUsed: true,
+          validTo: pastDate,
+        });
+        expect(status).toBe('USED');
+      });
+
+      it('должен возвращать EXPIRED для неиспользованного и неотозванного пропуска с истекшим сроком', () => {
+        const pastDate = new Date(Date.now() - 3600000);
+        const status = service.computeGuestPassStatus({
+          isRevoked: false,
+          isUsed: false,
+          validTo: pastDate,
+        });
+        expect(status).toBe('EXPIRED');
+      });
+
+      it('должен возвращать ACTIVE для действующего неиспользованного и неотозванного пропуска', () => {
+        const futureDate = new Date(Date.now() + 3600000);
+        const status = service.computeGuestPassStatus({
+          isRevoked: false,
+          isUsed: false,
+          validTo: futureDate,
+        });
+        expect(status).toBe('ACTIVE');
+      });
+    });
+
+    describe('getGuestPassesForUnit (История для жителей)', () => {
+      const residentUser = {
+        id: 'res-1',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+      };
+
+      it('должен возвращать пропуска квартиры с вычисленным статусом для верифицированного жильца', async () => {
+        prismaMock.unitOwnership.findFirst.mockResolvedValue({
+          id: 'own-1',
+          userId: 'res-1',
+          unitId: 'unit-1',
+          isVerified: true,
+        });
+
+        prismaMock.guestPass.findMany.mockResolvedValue([
+          {
+            id: 'pass-1',
+            unitId: 'unit-1',
+            creatorId: 'res-1',
+            guestName: 'Гость 1',
+            accessCode: '123456',
+            validFrom: new Date(),
+            validTo: new Date(Date.now() + 3600000),
+            isUsed: false,
+            isRevoked: false,
+            creator: { id: 'res-1', firstName: 'Азамат', lastName: 'Касымов', role: UserRole.RESIDENT_OWNER },
+            revokedBy: null,
+            unit: { id: 'unit-1', unitNumber: '101', building: { id: 'b-1', blockName: 'Блок А' } },
+          },
+        ]);
+
+        const passes = await service.getGuestPassesForUnit('unit-1', residentUser);
+        expect(passes).toHaveLength(1);
+        expect(passes[0].status).toBe('ACTIVE');
+        expect(passes[0].creator?.firstName).toBe('Азамат');
+      });
+
+      it('должен блокировать просмотр пропусков чужой/неверифицированной квартиры (IDOR защита)', async () => {
+        prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
+
+        await expect(
+          service.getGuestPassesForUnit('unit-alien', residentUser),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(prismaMock.guestPass.findMany).not.toHaveBeenCalled();
+      });
+
+      it('SUPERADMIN может просматривать пропуска любой квартиры без привязки ownership', async () => {
+        const superAdmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+        prismaMock.guestPass.findMany.mockResolvedValue([]);
+
+        const passes = await service.getGuestPassesForUnit('unit-any', superAdmin);
+        expect(passes).toEqual([]);
+        expect(prismaMock.unitOwnership.findFirst).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('getGuestPassesForTenant (История для персонала)', () => {
+      const staffUser = {
+        id: 'staff-1',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-1',
+      };
+      const alienStaff = {
+        id: 'staff-alien',
+        role: UserRole.HOA_ADMIN,
+        tenantId: 'tenant-alien',
+      };
+
+      it('сотрудник своего ЖК успешно получает пропуска с creator, unit и статусом', async () => {
+        prismaMock.guestPass.findMany.mockResolvedValue([
+          {
+            id: 'pass-10',
+            unitId: 'unit-1',
+            creatorId: 'res-1',
+            guestName: 'Курьер',
+            validFrom: new Date(),
+            validTo: new Date(Date.now() - 1000), // expired
+            isUsed: false,
+            isRevoked: false,
+            creator: { id: 'res-1', firstName: 'Иван', lastName: 'Иванов', role: UserRole.RESIDENT_OWNER },
+            revokedBy: null,
+            unit: { id: 'unit-1', unitNumber: '101', building: { id: 'b-1', blockName: 'Блок А' } },
+          },
+        ]);
+
+        const passes = await service.getGuestPassesForTenant('tenant-1', staffUser);
+        expect(passes).toHaveLength(1);
+        expect(passes[0].status).toBe('EXPIRED');
+        expect(passes[0].unit.unitNumber).toBe('101');
+      });
+
+      it('сотрудник чужого ЖК блокируется с ForbiddenException', async () => {
+        await expect(
+          service.getGuestPassesForTenant('tenant-1', alienStaff),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(prismaMock.guestPass.findMany).not.toHaveBeenCalled();
+      });
+
+      it('при null revoker (удаленный/деактивированный аккаунт) запрос не падает', async () => {
+        prismaMock.guestPass.findMany.mockResolvedValue([
+          {
+            id: 'pass-deleted-actor',
+            unitId: 'unit-1',
+            creatorId: 'res-1',
+            guestName: 'Гость',
+            validFrom: new Date(),
+            validTo: new Date(Date.now() + 3600000),
+            isUsed: false,
+            isRevoked: true,
+            revokedAt: new Date(),
+            revokedById: 'deleted-user-id',
+            creator: { id: 'res-1', firstName: 'Иван', lastName: 'Иванов', role: UserRole.RESIDENT_OWNER },
+            revokedBy: null, // User was removed / null relation
+            unit: { id: 'unit-1', unitNumber: '101', building: { id: 'b-1', blockName: 'Блок А' } },
+          },
+        ]);
+
+        const passes = await service.getGuestPassesForTenant('tenant-1', staffUser);
+        expect(passes).toHaveLength(1);
+        expect(passes[0].status).toBe('REVOKED');
+        expect(passes[0].revokedBy).toBeNull();
+      });
+    });
+
+    describe('revokeGuestPass (Отзыв пропусков)', () => {
+      const mockPass = {
+        id: 'pass-rev-1',
+        unitId: 'unit-1',
+        creatorId: 'creator-res-1',
+        guestName: 'Гость',
+        accessCode: '654321',
+        validFrom: new Date(),
+        validTo: new Date(Date.now() + 3600000),
+        isUsed: false,
+        isRevoked: false,
+        unit: {
+          id: 'unit-1',
+          building: {
+            id: 'b-1',
+            tenantId: 'tenant-1',
+          },
+        },
+      };
+
+      it('создатель пропуска (житель) может успешно отозвать свой собственный пропуск', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockPass);
+        prismaMock.guestPass.update.mockResolvedValue({
+          ...mockPass,
+          isRevoked: true,
+          revokedAt: new Date(),
+          revokedById: 'creator-res-1',
+        });
+
+        const res = await service.revokeGuestPass('pass-rev-1', {
+          id: 'creator-res-1',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        });
+
+        expect(res.status).toBe('REVOKED');
+        expect(prismaMock.guestPass.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'pass-rev-1' },
+            data: expect.objectContaining({
+              isRevoked: true,
+              revokedById: 'creator-res-1',
+            }),
+          }),
+        );
+      });
+
+      it('другой житель той же квартиры не может отозвать чужой пропуск', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockPass);
+
+        await expect(
+          service.revokeGuestPass('pass-rev-1', {
+            id: 'co-owner-res-2',
+            role: UserRole.RESIDENT_OWNER,
+            tenantId: 'tenant-1',
+          }),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('сотрудник ЖК (HOA_ADMIN, HOA_CHAIRMAN, DISPATCHER, SECURITY) может отозвать любой пропуск своего ЖК', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockPass);
+        prismaMock.guestPass.update.mockResolvedValue({
+          ...mockPass,
+          isRevoked: true,
+          revokedAt: new Date(),
+          revokedById: 'security-1',
+        });
+
+        const res = await service.revokeGuestPass('pass-rev-1', {
+          id: 'security-1',
+          role: UserRole.SECURITY,
+          tenantId: 'tenant-1',
+        });
+
+        expect(res.status).toBe('REVOKED');
+        expect(prismaMock.guestPass.update).toHaveBeenCalled();
+      });
+
+      it('сотрудник другого ЖК блокируется при попытке отзыва пропуска', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockPass);
+
+        await expect(
+          service.revokeGuestPass('pass-rev-1', {
+            id: 'security-alien',
+            role: UserRole.SECURITY,
+            tenantId: 'tenant-alien',
+          }),
+        ).rejects.toThrow(ForbiddenException);
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('SUPERADMIN может отозвать любой пропуск в системе', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockPass);
+        prismaMock.guestPass.update.mockResolvedValue({
+          ...mockPass,
+          isRevoked: true,
+          revokedAt: new Date(),
+          revokedById: 'super-admin-1',
+        });
+
+        const res = await service.revokeGuestPass('pass-rev-1', {
+          id: 'super-admin-1',
+          role: UserRole.SUPERADMIN,
+          tenantId: null,
+        });
+
+        expect(res.status).toBe('REVOKED');
+      });
+
+      it('повторный отзыв уже отозванного пропуска отклоняется с BadRequestException (идемпотентность)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue({
+          ...mockPass,
+          isRevoked: true,
+          revokedAt: new Date(),
+          revokedById: 'creator-res-1',
+        });
+
+        await expect(
+          service.revokeGuestPass('pass-rev-1', {
+            id: 'creator-res-1',
+            role: UserRole.RESIDENT_OWNER,
+            tenantId: 'tenant-1',
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('отзыв несуществующего пропуска отклоняется с NotFoundException', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.revokeGuestPass('non-existent', {
+            id: 'creator-res-1',
+            role: UserRole.RESIDENT_OWNER,
+            tenantId: 'tenant-1',
+          }),
+        ).rejects.toThrow(NotFoundException);
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
     });
   });
 });

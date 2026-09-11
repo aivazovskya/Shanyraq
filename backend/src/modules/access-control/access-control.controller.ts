@@ -86,6 +86,32 @@ export class AccessControlController {
     return this.accessControlService.createGuestPass(user, dto);
   }
 
+  @Get('units/:unitId/guest-passes')
+  @ApiOperation({ summary: 'Получить историю гостевых пропусков квартиры (для жителей)' })
+  async getGuestPassesForUnit(@Param('unitId') unitId: string, @CurrentUser() user: any) {
+    return this.accessControlService.getGuestPassesForUnit(unitId, user);
+  }
+
+  @Get('tenant/:tenantId/guest-passes')
+  @Roles(
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SECURITY,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Получить историю гостевых пропусков ЖК (для персонала)' })
+  async getGuestPassesForTenant(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
+    assertUserBelongsToTenant(user, tenantId, 'истории гостевых пропусков');
+    return this.accessControlService.getGuestPassesForTenant(tenantId, user);
+  }
+
+  @Patch('guest-passes/:id/revoke')
+  @ApiOperation({ summary: 'Отозвать гостевой пропуск' })
+  async revokeGuestPass(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.accessControlService.revokeGuestPass(id, user);
+  }
+
   @Get('tenant/:tenantId/logs')
   @Roles(UserRole.SECURITY, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
   @ApiOperation({ summary: 'Журнал событий проезда и открытий (только для сотрудников своего ЖК)' })

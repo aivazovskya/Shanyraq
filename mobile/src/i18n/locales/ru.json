@@ -156,6 +156,17 @@
     "generateQrBtn": "Сгенерировать QR-пропуск",
     "enterGuestNameWarning": "Введите имя гостя",
     "passRestrictedMsg": "Оформление гостевых пропусков доступно только для подтвержденных квартир",
+    "statusActive": "Активен",
+    "statusRevoked": "Отозван",
+    "statusUsed": "Использован",
+    "statusExpired": "Истёк",
+    "historySectionTitle": "История пропусков",
+    "noHistory": "Нет оформленных пропусков",
+    "revokePassBtn": "Отозвать",
+    "revokeConfirmTitle": "Отозвать пропуск?",
+    "revokeConfirmMsg": "Гость не сможет въехать по этому пропуску. Действие необратимо.",
+    "revokedSuccess": "Пропуск успешно отозван",
+    "validUntil": "Действует до {{time}}",
     "shareTemplateTitle": "🏢 Пропуск в {{complex}}\nГость: {{guest}}\n{{plateLine}}Код для въезда/КПП: {{code}}\nДействует до: {{time}}",
     "liveCameraTitle": "Прямой эфир камеры",
     "connectingStream": "Подключение...",
@@ -841,7 +852,11 @@
       "entrance": "подъезд",
       "floor": "этаж",
       "unauthorizedTitle": "Доступ ограничен",
-      "unauthorizedMsg": "Выписка гостевых пропусков доступна только сотрудникам ЖК."
+      "unauthorizedMsg": "Выписка гостевых пропусков доступна только сотрудникам ЖК.",
+      "historyTitle": "История пропусков ЖК",
+      "noHistory": "В жилом комплексе нет оформленных пропусков",
+      "issuedBy": "Оформил: {{name}}",
+      "revokedByLabel": "Отозвал: {{name}}"
     }
   },
   "notifications": {

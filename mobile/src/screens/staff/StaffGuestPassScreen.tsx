@@ -10,6 +10,7 @@ import {
   FlatList,
   Alert,
   Share,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +22,7 @@ import { getApiErrorMessage } from '../../api/client';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { Badge } from '../../components/common/Badge';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
 import {
@@ -63,7 +65,26 @@ export const StaffGuestPassScreen: React.FC = () => {
   const [unitModalVisible, setUnitModalVisible] = useState(false);
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
 
+  const [tenantPasses, setTenantPasses] = useState<GuestPass[]>([]);
+  const [loadingPasses, setLoadingPasses] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [revokingPassId, setRevokingPassId] = useState<string | null>(null);
+
   const isStaff = isStaffUser(user?.role);
+
+  const fetchTenantPasses = async () => {
+    if (!user?.tenantId) return;
+    try {
+      setLoadingPasses(true);
+      const data = await AccessApi.getTenantGuestPasses(user.tenantId);
+      setTenantPasses(data);
+    } catch (err) {
+      console.warn('Failed to load tenant guest passes:', err);
+    } finally {
+      setLoadingPasses(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const fetchStructure = async () => {
@@ -82,6 +103,7 @@ export const StaffGuestPassScreen: React.FC = () => {
     };
 
     fetchStructure();
+    fetchTenantPasses();
   }, [user?.tenantId]);
 
   // Flatten units from all buildings
@@ -142,11 +164,43 @@ export const StaffGuestPassScreen: React.FC = () => {
       });
 
       setCreatedPass(pass);
+      fetchTenantPasses();
     } catch (e: any) {
       Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchTenantPasses();
+  };
+
+  const handleRevokePass = (pass: GuestPass) => {
+    Alert.alert(
+      t('access.revokeConfirmTitle'),
+      t('access.revokeConfirmMsg'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('access.revokePassBtn'),
+          style: 'destructive',
+          onPress: async () => {
+            setRevokingPassId(pass.id);
+            try {
+              await AccessApi.revokeGuestPass(pass.id);
+              Alert.alert(t('common.success'), t('access.revokedSuccess'));
+              fetchTenantPasses();
+            } catch (err: any) {
+              Alert.alert(t('common.error'), getApiErrorMessage(err));
+            } finally {
+              setRevokingPassId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleSharePass = async (pass: GuestPass) => {
@@ -226,6 +280,9 @@ export const StaffGuestPassScreen: React.FC = () => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {createdPass ? (
           // ==================== SUCCESS / QR DISPLAY ====================
@@ -373,6 +430,103 @@ export const StaffGuestPassScreen: React.FC = () => {
                 style={{ marginTop: 16 }}
               />
             </Card>
+
+            {/* Step 3: Tenant Passes History */}
+            <View style={styles.historySection}>
+              <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
+                {t('staff.guestPass.historyTitle')}
+              </Text>
+              {tenantPasses.length === 0 ? (
+                <Card style={styles.emptyHistoryCard}>
+                  <Text style={styles.emptyHistoryText}>
+                    {t('staff.guestPass.noHistory')}
+                  </Text>
+                </Card>
+              ) : (
+                tenantPasses.map((pass) => {
+                  const statusVariant =
+                    pass.status === 'ACTIVE'
+                      ? 'success'
+                      : pass.status === 'REVOKED'
+                      ? 'danger'
+                      : pass.status === 'USED'
+                      ? 'info'
+                      : 'default';
+
+                  const statusLabel =
+                    pass.status === 'ACTIVE'
+                      ? t('access.statusActive')
+                      : pass.status === 'REVOKED'
+                      ? t('access.statusRevoked')
+                      : pass.status === 'USED'
+                      ? t('access.statusUsed')
+                      : t('access.statusExpired');
+
+                  const unitStr = pass.unit
+                    ? `${pass.unit.building?.blockName ? `${pass.unit.building.blockName}, ` : ''}${t('common.unitShort')} ${pass.unit.unitNumber}`
+                    : '';
+
+                  const creatorName = pass.creator
+                    ? `${pass.creator.firstName || ''} ${pass.creator.lastName || ''}`.trim() || pass.creator.role
+                    : '';
+
+                  return (
+                    <Card key={pass.id} style={styles.historyCard}>
+                      <View style={styles.historyCardTop}>
+                        <View style={{ flex: 1 }}>
+                          {unitStr ? (
+                            <View style={styles.historyUnitRow}>
+                              <Building size={14} color={Colors.primary} />
+                              <Text style={styles.historyUnitText}>{unitStr}</Text>
+                            </View>
+                          ) : null}
+                          <Text style={styles.historyGuestName}>{pass.guestName}</Text>
+                          {pass.guestPlateNumber ? (
+                            <View style={styles.historyPlateRow}>
+                              <Car size={13} color={Colors.textMuted} />
+                              <Text style={styles.historyPlateText}>{pass.guestPlateNumber}</Text>
+                            </View>
+                          ) : null}
+                          {creatorName ? (
+                            <Text style={styles.historyCreatorText}>
+                              {t('staff.guestPass.issuedBy', { name: creatorName })}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Badge label={statusLabel} variant={statusVariant} />
+                      </View>
+
+                      <View style={styles.historyCardBottom}>
+                        <View style={styles.historyValidRow}>
+                          <Clock size={13} color={Colors.textMuted} />
+                          <Text style={styles.historyValidText}>
+                            {t('access.validUntil', {
+                              time: new Date(pass.validTo).toLocaleString(i18n.language, {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }),
+                            })}
+                          </Text>
+                        </View>
+
+                        {pass.status === 'ACTIVE' && (
+                          <Button
+                            title={t('access.revokePassBtn')}
+                            onPress={() => handleRevokePass(pass)}
+                            loading={revokingPassId === pass.id}
+                            variant="outline"
+                            size="sm"
+                            style={styles.revokeButton}
+                          />
+                        )}
+                      </View>
+                    </Card>
+                  );
+                })
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -680,5 +834,84 @@ const styles = StyleSheet.create({
   emptyUnitsText: {
     fontSize: 14,
     color: Colors.textMuted,
+  },
+  historySection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  emptyHistoryCard: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyHistoryText: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+  historyCard: {
+    padding: 14,
+    marginBottom: 10,
+  },
+  historyCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  historyUnitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  historyUnitText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  historyGuestName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  historyPlateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
+  },
+  historyPlateText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '500',
+  },
+  historyCreatorText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 4,
+  },
+  historyCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    paddingTop: 10,
+    marginTop: 2,
+  },
+  historyValidRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  historyValidText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  revokeButton: {
+    marginLeft: 8,
+    borderColor: Colors.danger,
   },
 });

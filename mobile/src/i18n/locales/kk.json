@@ -156,6 +156,17 @@
     "generateQrBtn": "QR-рұқсаттама жасау",
     "enterGuestNameWarning": "Қонақтың есімін енгізіңіз",
     "passRestrictedMsg": "Қонақ рұқсаттамаларын рәсімдеу тек расталған пәтерлерге қолжетімді",
+    "statusActive": "Белсенді",
+    "statusRevoked": "Қайтарып алынды",
+    "statusUsed": "Пайдаланылды",
+    "statusExpired": "Мерзімі өтті",
+    "historySectionTitle": "Рұқсаттамалар тарихы",
+    "noHistory": "Ресімделген рұқсаттамалар жоқ",
+    "revokePassBtn": "Қайтарып алу",
+    "revokeConfirmTitle": "Рұқсаттаманы қайтарып алу керек пе?",
+    "revokeConfirmMsg": "Қонақ бұл рұқсаттамамен кіре алмайды. Бұл әрекетті кері қайтару мүмкін емес.",
+    "revokedSuccess": "Рұқсаттама сәтті қайтарып алынды",
+    "validUntil": "{{time}} дейін жарамды",
     "shareTemplateTitle": "🏢 {{complex}} кешеніне рұқсаттама\nҚонақ: {{guest}}\n{{plateLine}}Кіру/БӨП коды: {{code}}\nЖарамды мерзімі: {{time}} дейін",
     "liveCameraTitle": "Камераның тікелей эфирі",
     "connectingStream": "Қосылуда...",
@@ -841,7 +852,11 @@
       "entrance": "кіреберіс",
       "floor": "қабат",
       "unauthorizedTitle": "Қолжетімділік шектелген",
-      "unauthorizedMsg": "Қонақ рұқсаттамаларын рәсімдеу тек ТҮК қызметкерлеріне қолжетімді."
+      "unauthorizedMsg": "Қонақ рұқсаттамаларын рәсімдеу тек ТҮК қызметкерлеріне қолжетімді.",
+      "historyTitle": "ТК рұқсаттамалар тарихы",
+      "noHistory": "Тұрғын үй кешенінде ресімделген рұқсаттамалар жоқ",
+      "issuedBy": "Ресімдеген: {{name}}",
+      "revokedByLabel": "Қайтарып алған: {{name}}"
     }
   },
   "notifications": {

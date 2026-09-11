@@ -186,7 +186,8 @@ model User {
   requestComments  RequestComment[]
   votes            Vote[]
   accessLogs       AccessLog[]
-  createdPasses    GuestPass[]
+  createdPasses    GuestPass[]       @relation("CreatedGuestPasses")
+  revokedPasses    GuestPass[]       @relation("RevokedGuestPasses")
   announcements    Announcement[]
   deviceTokens      DeviceToken[]
   notifications     Notification[]
@@ -436,10 +437,14 @@ model GuestPass {
   validFrom        DateTime
   validTo          DateTime
   isUsed           Boolean           @default(false)
+  isRevoked        Boolean           @default(false)
+  revokedAt        DateTime?
+  revokedById      String?
   createdAt        DateTime          @default(now())
 
   unit             Unit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  creator          User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator          User              @relation("CreatedGuestPasses", fields: [creatorId], references: [id], onDelete: Cascade)
+  revokedBy        User?             @relation("RevokedGuestPasses", fields: [revokedById], references: [id], onDelete: SetNull)
 
   @@map("guest_passes")
 }

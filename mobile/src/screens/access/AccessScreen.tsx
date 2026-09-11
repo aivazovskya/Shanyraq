@@ -72,6 +72,11 @@ export const AccessScreen: React.FC = () => {
   const [creatingPass, setCreatingPass] = useState(false);
   const [createdPass, setCreatedPass] = useState<GuestPass | null>(null);
 
+  // Guest passes history
+  const [guestPasses, setGuestPasses] = useState<GuestPass[]>([]);
+  const [loadingPasses, setLoadingPasses] = useState(false);
+  const [revokingPassId, setRevokingPassId] = useState<string | null>(null);
+
   // Camera stream modal
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [selectedStream, setSelectedStream] = useState<StreamEndpoints | null>(null);
@@ -86,6 +91,22 @@ export const AccessScreen: React.FC = () => {
     }
   };
 
+  const fetchGuestPasses = async () => {
+    if (!primaryUnitId || !isVerified) {
+      setGuestPasses([]);
+      return;
+    }
+    try {
+      setLoadingPasses(true);
+      const data = await AccessApi.getUnitGuestPasses(primaryUnitId);
+      setGuestPasses(data);
+    } catch (err) {
+      console.warn('Failed to load guest passes:', err);
+    } finally {
+      setLoadingPasses(false);
+    }
+  };
+
   const fetchPoints = async () => {
     if (!tenantId) {
       setLoading(false);
@@ -96,6 +117,7 @@ export const AccessScreen: React.FC = () => {
       const [data] = await Promise.all([
         AccessApi.getAccessPoints(tenantId),
         fetchPinStatus(),
+        fetchGuestPasses(),
       ]);
       setPoints(data);
     } catch (err) {
@@ -108,17 +130,44 @@ export const AccessScreen: React.FC = () => {
 
   useEffect(() => {
     fetchPoints();
-  }, [tenantId]);
+  }, [tenantId, primaryUnitId, isVerified]);
 
   useEffect(() => {
     if (isFocused) {
       fetchPinStatus();
+      fetchGuestPasses();
     }
   }, [isFocused]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchPoints();
+  };
+
+  const handleRevokePass = (pass: GuestPass) => {
+    Alert.alert(
+      t('access.revokeConfirmTitle'),
+      t('access.revokeConfirmMsg'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('access.revokePassBtn'),
+          style: 'destructive',
+          onPress: async () => {
+            setRevokingPassId(pass.id);
+            try {
+              await AccessApi.revokeGuestPass(pass.id);
+              Alert.alert(t('common.success'), t('access.revokedSuccess'));
+              fetchGuestPasses();
+            } catch (err: any) {
+              Alert.alert(t('common.error'), getApiErrorMessage(err));
+            } finally {
+              setRevokingPassId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleTriggerOpenBarrier = (barrier: AccessPoint) => {
@@ -208,6 +257,7 @@ export const AccessScreen: React.FC = () => {
       setCreatedPass(pass);
       setGuestName('');
       setGuestPlate('');
+      fetchGuestPasses();
     } catch (e: any) {
       Alert.alert(t('common.error'), getApiErrorMessage(e));
     } finally {
@@ -383,6 +433,76 @@ export const AccessScreen: React.FC = () => {
             </View>
           </View>
         </Card>
+
+        {/* Guest Passes History */}
+        {guestPasses.length > 0 && (
+          <View style={styles.historyContainer}>
+            <Text style={styles.historyHeading}>{t('access.historySectionTitle')}</Text>
+            {guestPasses.map((pass) => {
+              const statusVariant =
+                pass.status === 'ACTIVE'
+                  ? 'success'
+                  : pass.status === 'REVOKED'
+                  ? 'danger'
+                  : pass.status === 'USED'
+                  ? 'info'
+                  : 'default';
+
+              const statusLabel =
+                pass.status === 'ACTIVE'
+                  ? t('access.statusActive')
+                  : pass.status === 'REVOKED'
+                  ? t('access.statusRevoked')
+                  : pass.status === 'USED'
+                  ? t('access.statusUsed')
+                  : t('access.statusExpired');
+
+              return (
+                <Card key={pass.id} style={styles.historyCard}>
+                  <View style={styles.historyCardTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyGuestName}>{pass.guestName}</Text>
+                      {pass.guestPlateNumber ? (
+                        <View style={styles.historyPlateRow}>
+                          <Car size={14} color={Colors.textMuted} />
+                          <Text style={styles.historyPlateText}>{pass.guestPlateNumber}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Badge label={statusLabel} variant={statusVariant} />
+                  </View>
+
+                  <View style={styles.historyCardBottom}>
+                    <View style={styles.historyValidRow}>
+                      <Clock size={13} color={Colors.textMuted} />
+                      <Text style={styles.historyValidText}>
+                        {t('access.validUntil', {
+                          time: new Date(pass.validTo).toLocaleString(i18n.language, {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }),
+                        })}
+                      </Text>
+                    </View>
+
+                    {pass.status === 'ACTIVE' && (
+                      <Button
+                        title={t('access.revokePassBtn')}
+                        onPress={() => handleRevokePass(pass)}
+                        loading={revokingPassId === pass.id}
+                        variant="outline"
+                        size="sm"
+                        style={styles.revokeButton}
+                      />
+                    )}
+                  </View>
+                </Card>
+              );
+            })}
+          </View>
+        )}
 
         {/* Section: Cameras */}
         <Text style={styles.sectionHeading}>{t('access.camerasSection')}</Text>
@@ -770,5 +890,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginTop: 10,
+  },
+  historyContainer: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  historyHeading: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  historyCard: {
+    padding: 12,
+    marginBottom: 8,
+  },
+  historyCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  historyGuestName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  historyPlateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  historyPlateText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '500',
+  },
+  historyCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    paddingTop: 8,
+  },
+  historyValidRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  historyValidText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  revokeButton: {
+    marginLeft: 8,
+    borderColor: Colors.danger,
   },
 });
