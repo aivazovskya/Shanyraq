@@ -741,6 +741,7 @@
     "statusActive": "Active",
     "statusClosed": "Closed",
     "statusRemoved": "Removed",
+    "statusArchived": "Archived",
     "authorUnknown": "Resident",
     "priceNegotiable": "Negotiable",
     "removedByStaff": "Listing removed by moderator",

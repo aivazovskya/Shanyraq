@@ -699,6 +699,7 @@ enum ListingStatus {
   ACTIVE
   CLOSED    // author marked resolved (sold / given away / no longer needed)
   REMOVED   // moderator took it down
+  ARCHIVED  // system auto-archived after N days of inactivity
 }
 
 model CommunityListing {

@@ -487,6 +487,7 @@
     "statusActive": "Активно",
     "statusClosed": "Закрыто",
     "statusRemoved": "Снято",
+    "statusArchived": "В архиве",
     "postAction": "Подать",
     "unverifiedResidentNotice": "Просмотр и публикация объявлений доступны только подтвержденным собственникам и арендаторам ЖК",
     "authorUnknown": "Житель",

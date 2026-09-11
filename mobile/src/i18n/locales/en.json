@@ -487,6 +487,7 @@
     "statusActive": "Active",
     "statusClosed": "Closed",
     "statusRemoved": "Removed",
+    "statusArchived": "Archived",
     "postAction": "Post",
     "unverifiedResidentNotice": "Viewing and posting listings is only available to verified owners and tenants of the residential complex",
     "authorUnknown": "Resident",

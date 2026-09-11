@@ -19,11 +19,12 @@ import {
   RefreshCw,
   X,
   Building2,
+  Archive,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
 
 export type ListingType = 'SELL' | 'RENT' | 'GIVE_AWAY' | 'OTHER';
-export type ListingStatus = 'ACTIVE' | 'CLOSED' | 'REMOVED';
+export type ListingStatus = 'ACTIVE' | 'CLOSED' | 'REMOVED' | 'ARCHIVED';
 
 export interface CommunityListingItem {
   id: string;
@@ -263,6 +264,13 @@ export default function CommunityBoardModerationPage() {
             {t('communityBoard.statusRemoved')}
           </span>
         );
+      case 'ARCHIVED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+            <Archive className="w-3 h-3 mr-1" />
+            {t('communityBoard.statusArchived')}
+          </span>
+        );
       default:
         return null;
     }
@@ -375,6 +383,7 @@ export default function CommunityBoardModerationPage() {
               <option value="ACTIVE">{t('communityBoard.statusActive')}</option>
               <option value="CLOSED">{t('communityBoard.statusClosed')}</option>
               <option value="REMOVED">{t('communityBoard.statusRemoved')}</option>
+              <option value="ARCHIVED">{t('communityBoard.statusArchived')}</option>
             </select>
           </div>
         </div>
@@ -422,6 +431,8 @@ export default function CommunityBoardModerationPage() {
                     ? 'border-red-200 bg-red-50/20'
                     : item.status === 'CLOSED'
                     ? 'border-gray-200 opacity-80'
+                    : item.status === 'ARCHIVED'
+                    ? 'border-slate-200 opacity-70'
                     : 'border-gray-200'
                 }`}
               >

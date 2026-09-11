@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 export type ListingType = 'SELL' | 'RENT' | 'GIVE_AWAY' | 'OTHER';
-export type ListingStatus = 'ACTIVE' | 'CLOSED' | 'REMOVED';
+export type ListingStatus = 'ACTIVE' | 'CLOSED' | 'REMOVED' | 'ARCHIVED';
 
 export interface CommunityListing {
   id: string;

@@ -741,6 +741,7 @@
     "statusActive": "Активно",
     "statusClosed": "Закрыто автором",
     "statusRemoved": "Снято модератором",
+    "statusArchived": "В архиве",
     "authorUnknown": "Житель",
     "priceNegotiable": "Договорная",
     "removedByStaff": "Объявление снято модератором",

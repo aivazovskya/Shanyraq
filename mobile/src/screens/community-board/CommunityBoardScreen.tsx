@@ -148,6 +148,8 @@ export const CommunityBoardScreen: React.FC = () => {
         return <Badge label={t('communityBoard.statusClosed')} variant="default" />;
       case 'REMOVED':
         return <Badge label={t('communityBoard.statusRemoved')} variant="danger" />;
+      case 'ARCHIVED':
+        return <Badge label={t('communityBoard.statusArchived')} variant="info" />;
     }
   };
 

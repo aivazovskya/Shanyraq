@@ -487,6 +487,7 @@
     "statusActive": "Белсенді",
     "statusClosed": "Жабылған",
     "statusRemoved": "Алынып тасталған",
+    "statusArchived": "Мұрағатта",
     "postAction": "Беру",
     "unverifiedResidentNotice": "Хабарландыруларды көру және жариялау тек ТК-нің расталған меншік иелері мен жалға алушыларына қолжетімді",
     "authorUnknown": "Тұрғын",

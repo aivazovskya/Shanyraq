@@ -741,6 +741,7 @@
     "statusActive": "Белсенді",
     "statusClosed": "Автор жапқан",
     "statusRemoved": "Модератор алып тастаған",
+    "statusArchived": "Мұрағатта",
     "authorUnknown": "Тұрғын",
     "priceNegotiable": "Келісімді",
     "removedByStaff": "Хабарландыруды модератор алып тастады",
