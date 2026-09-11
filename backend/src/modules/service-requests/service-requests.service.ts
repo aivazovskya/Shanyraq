@@ -237,6 +237,7 @@ export class ServiceRequestsService {
       title: `🛠️ Статус заявки №${request.id.slice(0, 8)} обновлен`,
       body: `Заявка "${request.title}": ${statusText}`,
       data: {
+        type: 'SERVICE_REQUEST',
         requestId: request.id,
         status: dto.status,
       },
@@ -304,6 +305,7 @@ export class ServiceRequestsService {
         title: `💬 Сообщение по заявке "${request.title}"`,
         body: dto.text.length > 100 ? `${dto.text.slice(0, 97)}...` : dto.text,
         data: {
+          type: 'SERVICE_REQUEST',
           requestId: request.id,
           commentId: comment.id,
         },

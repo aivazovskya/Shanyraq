@@ -45,4 +45,21 @@ export const NotificationsApi = {
     const res = await apiClient.patch('/notifications/read-all');
     return res.data;
   },
+
+  async getPreferences(): Promise<NotificationPreferences> {
+    const res = await apiClient.get('/notifications/preferences');
+    return res.data;
+  },
+
+  async updatePreferences(partial: Partial<NotificationPreferences>): Promise<NotificationPreferences> {
+    const res = await apiClient.patch('/notifications/preferences', partial);
+    return res.data;
+  },
 };
+
+export interface NotificationPreferences {
+  CHAT: boolean;
+  SERVICE_REQUEST: boolean;
+  ANNOUNCEMENT: boolean;
+  FINANCE: boolean;
+}

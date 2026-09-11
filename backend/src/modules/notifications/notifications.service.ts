@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
-import { RegisterDeviceDto } from './dto/notifications.dto';
+import { RegisterDeviceDto, UpdateNotificationPreferencesDto } from './dto/notifications.dto';
 
 export interface PushPayload {
   title: string;
@@ -9,11 +9,121 @@ export interface PushPayload {
   data?: Record<string, any>;
 }
 
+export type NotificationCategory = 'CHAT' | 'SERVICE_REQUEST' | 'ANNOUNCEMENT' | 'FINANCE';
+
+export const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
+  'CHAT',
+  'SERVICE_REQUEST',
+  'ANNOUNCEMENT',
+  'FINANCE',
+];
+
+export const CATEGORY_MAP: Record<string, NotificationCategory> = {
+  CHAT_MESSAGE: 'CHAT',
+  SERVICE_REQUEST: 'SERVICE_REQUEST',
+  ANNOUNCEMENT: 'ANNOUNCEMENT',
+  DEBT_REMINDER: 'FINANCE',
+};
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: Record<NotificationCategory, boolean> = {
+  CHAT: true,
+  SERVICE_REQUEST: true,
+  ANNOUNCEMENT: true,
+  FINANCE: true,
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(private prisma: PrismaService) {}
+
+  resolveCategory(type?: string): NotificationCategory | null {
+    if (!type || type === 'SOS_ALERT') {
+      return null;
+    }
+    return CATEGORY_MAP[type] || null;
+  }
+
+  async getPreferences(userId: string): Promise<Record<NotificationCategory, boolean>> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationPreferences: true },
+    });
+
+    const prefs = (user?.notificationPreferences as Record<string, boolean> | null) || {};
+    return {
+      CHAT: prefs.CHAT !== false,
+      SERVICE_REQUEST: prefs.SERVICE_REQUEST !== false,
+      ANNOUNCEMENT: prefs.ANNOUNCEMENT !== false,
+      FINANCE: prefs.FINANCE !== false,
+    };
+  }
+
+  async updatePreferences(
+    userId: string,
+    dto: UpdateNotificationPreferencesDto,
+  ): Promise<Record<NotificationCategory, boolean>> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationPreferences: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
+    }
+
+    const current = (user.notificationPreferences as Record<string, boolean> | null) || {};
+    const updated: Record<string, boolean> = { ...current };
+
+    for (const cat of NOTIFICATION_CATEGORIES) {
+      if (dto[cat] !== undefined) {
+        updated[cat] = Boolean(dto[cat]);
+      }
+    }
+
+    // Defensive protection: ensure SOS is never stored
+    delete (updated as any)['SOS'];
+    delete (updated as any)['SOS_ALERT'];
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        notificationPreferences: updated,
+      },
+    });
+
+    return {
+      CHAT: updated.CHAT !== false,
+      SERVICE_REQUEST: updated.SERVICE_REQUEST !== false,
+      ANNOUNCEMENT: updated.ANNOUNCEMENT !== false,
+      FINANCE: updated.FINANCE !== false,
+    };
+  }
+
+  private async getUsersPreferences(userIds: string[]): Promise<Map<string, Record<NotificationCategory, boolean>>> {
+    const map = new Map<string, Record<NotificationCategory, boolean>>();
+    if (!userIds || userIds.length === 0) return map;
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, notificationPreferences: true },
+    });
+
+    for (const u of users) {
+      const p = (u.notificationPreferences as Record<string, boolean> | null) || {};
+      map.set(u.id, {
+        CHAT: p.CHAT !== false,
+        SERVICE_REQUEST: p.SERVICE_REQUEST !== false,
+        ANNOUNCEMENT: p.ANNOUNCEMENT !== false,
+        FINANCE: p.FINANCE !== false,
+      });
+    }
+    return map;
+  }
 
   async registerDevice(userId: string, dto: RegisterDeviceDto) {
     const record = await this.prisma.deviceToken.upsert({
@@ -52,6 +162,15 @@ export class NotificationsService {
   }
 
   async sendToUser(userId: string, payload: PushPayload) {
+    const category = this.resolveCategory(payload.data?.type);
+    if (category) {
+      const prefs = await this.getPreferences(userId);
+      if (!prefs[category]) {
+        this.logger.debug(`[PUSH] Категория ${category} отключена пользователем ${userId}, пропуск отправки`);
+        return { sent: 0 };
+      }
+    }
+
     await this.persistNotifications([userId], payload);
 
     const devices = await this.prisma.deviceToken.findMany({
@@ -81,10 +200,27 @@ export class NotificationsService {
       return { sent: 0 };
     }
 
-    const uniqueUserIds = Array.from(new Set(devices.map((d) => d.userId).filter(Boolean)));
+    let uniqueUserIds = Array.from(new Set(devices.map((d) => d.userId).filter(Boolean)));
+    let eligibleDevices = devices;
+
+    const category = this.resolveCategory(payload.data?.type);
+    if (category && uniqueUserIds.length > 0) {
+      const prefsMap = await this.getUsersPreferences(uniqueUserIds);
+      uniqueUserIds = uniqueUserIds.filter((uid) => {
+        const prefs = prefsMap.get(uid);
+        return prefs ? prefs[category] !== false : true;
+      });
+      const allowedSet = new Set(uniqueUserIds);
+      eligibleDevices = devices.filter((d) => allowedSet.has(d.userId));
+    }
+
+    if (uniqueUserIds.length === 0 || eligibleDevices.length === 0) {
+      return { sent: 0 };
+    }
+
     await this.persistNotifications(uniqueUserIds, payload);
 
-    const tokens = devices.map((d) => d.token);
+    const tokens = eligibleDevices.map((d) => d.token);
     return this.dispatchPushNotifications(tokens, payload);
   }
 
@@ -105,10 +241,27 @@ export class NotificationsService {
       return { sent: 0 };
     }
 
-    const uniqueUserIds = Array.from(new Set(devices.map((d) => d.userId).filter(Boolean)));
+    let uniqueUserIds = Array.from(new Set(devices.map((d) => d.userId).filter(Boolean)));
+    let eligibleDevices = devices;
+
+    const category = this.resolveCategory(payload.data?.type);
+    if (category && uniqueUserIds.length > 0) {
+      const prefsMap = await this.getUsersPreferences(uniqueUserIds);
+      uniqueUserIds = uniqueUserIds.filter((uid) => {
+        const prefs = prefsMap.get(uid);
+        return prefs ? prefs[category] !== false : true;
+      });
+      const allowedSet = new Set(uniqueUserIds);
+      eligibleDevices = devices.filter((d) => allowedSet.has(d.userId));
+    }
+
+    if (uniqueUserIds.length === 0 || eligibleDevices.length === 0) {
+      return { sent: 0 };
+    }
+
     await this.persistNotifications(uniqueUserIds, payload);
 
-    const tokens = devices.map((d) => d.token);
+    const tokens = eligibleDevices.map((d) => d.token);
     return this.dispatchPushNotifications(tokens, payload);
   }
 

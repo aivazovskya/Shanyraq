@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsIn, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterDeviceDto {
@@ -47,3 +47,26 @@ export class GetNotificationsQueryDto {
   @IsOptional()
   skip?: number;
 }
+
+export class UpdateNotificationPreferencesDto {
+  @ApiProperty({ required: false, description: 'Уведомления чата (сообщения от жителей/диспетчеров)' })
+  @IsOptional()
+  @IsBoolean()
+  CHAT?: boolean;
+
+  @ApiProperty({ required: false, description: 'Уведомления по заявкам (статусы, комментарии)' })
+  @IsOptional()
+  @IsBoolean()
+  SERVICE_REQUEST?: boolean;
+
+  @ApiProperty({ required: false, description: 'Объявления от управляющей компании' })
+  @IsOptional()
+  @IsBoolean()
+  ANNOUNCEMENT?: boolean;
+
+  @ApiProperty({ required: false, description: 'Финансовые напоминания и счета' })
+  @IsOptional()
+  @IsBoolean()
+  FINANCE?: boolean;
+}
+

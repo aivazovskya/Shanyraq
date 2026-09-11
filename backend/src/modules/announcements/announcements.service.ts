@@ -54,6 +54,7 @@ export class AnnouncementsService {
       title: announcement.isUrgent ? `🚨 Экстренное сообщение: ${announcement.title}` : `📢 ${announcement.title}`,
       body: announcement.content.length > 120 ? `${announcement.content.slice(0, 117)}...` : announcement.content,
       data: {
+        type: 'ANNOUNCEMENT',
         announcementId: announcement.id,
         tenantId,
         isUrgent: announcement.isUrgent,

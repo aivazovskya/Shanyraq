@@ -1,7 +1,12 @@
 import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
-import { RegisterDeviceDto, UnregisterDeviceDto, GetNotificationsQueryDto } from './dto/notifications.dto';
+import {
+  RegisterDeviceDto,
+  UnregisterDeviceDto,
+  GetNotificationsQueryDto,
+  UpdateNotificationPreferencesDto,
+} from './dto/notifications.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -11,6 +16,22 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @ApiBearerAuth()
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Получить настройки категорий уведомлений текущего пользователя' })
+  async getPreferences(@CurrentUser('id') userId: string) {
+    return this.notificationsService.getPreferences(userId);
+  }
+
+  @Patch('preferences')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Обновить настройки категорий уведомлений текущего пользователя' })
+  async updatePreferences(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UpdateNotificationPreferencesDto,
+  ) {
+    return this.notificationsService.updatePreferences(userId, dto);
+  }
 
   @Post('register-device')
   @HttpCode(HttpStatus.OK)

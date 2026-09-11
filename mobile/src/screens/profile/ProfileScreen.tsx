@@ -7,11 +7,13 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  Switch,
 } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { AuthApi } from '../../api/auth';
+import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -28,6 +30,9 @@ import {
   KeyRound,
   ChevronRight,
   Globe,
+  MessageSquare,
+  Wrench,
+  CreditCard,
 } from 'lucide-react-native';
 
 const LANGUAGES: { code: SupportedLocale; label: string }[] = [
@@ -42,14 +47,39 @@ export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const { t, i18n } = useTranslation();
   const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    CHAT: true,
+    SERVICE_REQUEST: true,
+    ANNOUNCEMENT: true,
+    FINANCE: true,
+  });
 
   useEffect(() => {
     if (isFocused) {
       AuthApi.getPinStatus()
         .then((res) => setIsPinSet(res.isPinSet))
         .catch((err) => console.warn('Failed to fetch PIN status:', err));
+
+      NotificationsApi.getPreferences()
+        .then((prefs) => {
+          if (prefs) setPreferences(prefs);
+        })
+        .catch((err) => console.warn('Failed to fetch notification preferences:', err));
     }
   }, [isFocused]);
+
+  const handleTogglePreference = async (key: keyof NotificationPreferences, value: boolean) => {
+    setPreferences((prev) => ({ ...prev, [key]: value }));
+    try {
+      const updated = await NotificationsApi.updatePreferences({ [key]: value });
+      if (updated) {
+        setPreferences(updated);
+      }
+    } catch {
+      setPreferences((prev) => ({ ...prev, [key]: !value }));
+      Alert.alert(t('common.error'), t('common.networkError'));
+    }
+  };
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -187,13 +217,70 @@ export const ProfileScreen: React.FC = () => {
         {/* Security & System Info */}
         <Text style={styles.sectionHeading}>{t('profile.securitySection')}</Text>
         <Card style={styles.settingsCard}>
+          {/* 1. Chat notifications */}
+          <View style={styles.settingItem}>
+            <MessageSquare color={Colors.primary} size={20} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingTitle}>{t('profile.prefChatTitle')}</Text>
+              <Text style={styles.settingSub}>{t('profile.prefChatSub')}</Text>
+            </View>
+            <Switch
+              value={preferences.CHAT}
+              onValueChange={(val) => handleTogglePreference('CHAT', val)}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={styles.separator} />
+
+          {/* 2. Service request notifications */}
+          <View style={styles.settingItem}>
+            <Wrench color={Colors.primary} size={20} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingTitle}>{t('profile.prefRequestTitle')}</Text>
+              <Text style={styles.settingSub}>{t('profile.prefRequestSub')}</Text>
+            </View>
+            <Switch
+              value={preferences.SERVICE_REQUEST}
+              onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={styles.separator} />
+
+          {/* 3. Announcement notifications */}
           <View style={styles.settingItem}>
             <Bell color={Colors.primary} size={20} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.pushTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.pushSub')}</Text>
+              <Text style={styles.settingTitle}>{t('profile.prefAnnouncementTitle')}</Text>
+              <Text style={styles.settingSub}>{t('profile.prefAnnouncementSub')}</Text>
             </View>
-            <Badge label={t('common.active')} variant="success" />
+            <Switch
+              value={preferences.ANNOUNCEMENT}
+              onValueChange={(val) => handleTogglePreference('ANNOUNCEMENT', val)}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={styles.separator} />
+
+          {/* 4. Finance notifications */}
+          <View style={styles.settingItem}>
+            <CreditCard color={Colors.primary} size={20} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingTitle}>{t('profile.prefFinanceTitle')}</Text>
+              <Text style={styles.settingSub}>{t('profile.prefFinanceSub')}</Text>
+            </View>
+            <Switch
+              value={preferences.FINANCE}
+              onValueChange={(val) => handleTogglePreference('FINANCE', val)}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor="#FFFFFF"
+            />
           </View>
 
           <View style={styles.separator} />

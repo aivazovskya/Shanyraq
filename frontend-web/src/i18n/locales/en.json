@@ -1057,6 +1057,22 @@
     "justNow": "Just now",
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
-    "daysAgo": "{{count}}d ago"
+    "daysAgo": "{{count}}d ago",
+    "settingsTitle": "Notification settings",
+    "backToNotifications": "Back to notifications",
+    "preferences": {
+      "title": "Notification categories",
+      "subtitle": "Select which notifications you want to receive",
+      "chat": "Chat messages",
+      "chatDesc": "Messages from residents and dispatch staff",
+      "serviceRequest": "Service requests",
+      "serviceRequestDesc": "Status updates and comments on service requests",
+      "announcement": "Announcements",
+      "announcementDesc": "News and announcements from management",
+      "finance": "Bills & Finance",
+      "financeDesc": "Debt reminders and new invoices",
+      "saved": "Settings saved",
+      "error": "Failed to update settings"
+    }
   }
 }
