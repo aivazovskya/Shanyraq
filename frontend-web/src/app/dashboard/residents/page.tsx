@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import {
   Users,
@@ -61,6 +62,17 @@ interface ResidentItem {
   isVerified: boolean;
   createdAt: string;
   ownerships: OwnershipItem[];
+}
+
+function SearchParamsReader({ onQuery }: { onQuery: (q: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      onQuery(q);
+    }
+  }, [searchParams, onQuery]);
+  return null;
 }
 
 export default function ResidentsPage() {
@@ -234,6 +246,9 @@ export default function ResidentsPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
+      <Suspense fallback={null}>
+        <SearchParamsReader onQuery={setSearchQuery} />
+      </Suspense>
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

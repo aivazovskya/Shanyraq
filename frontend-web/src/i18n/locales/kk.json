@@ -1107,5 +1107,16 @@
     "selectTenantPlaceholder": "ТК таңдаңыз...",
     "selectTenantPromptTitle": "Тұрғын үй кешенін таңдаңыз",
     "selectTenantPromptSub": "Сіз суперадминистратор рөлімен кірдіңіз. Аудит журналын көру үшін жоғарыдағы тізімнен ТК таңдаңыз."
+  },
+  "globalSearch": {
+    "placeholder": "Тұрғындарды, өтініштерді, шоттарды іздеу...",
+    "residents": "Тұрғындар",
+    "requests": "Өтініштер",
+    "accounts": "Дербес шоттар",
+    "noResults": "Ештеңе табылмады",
+    "minChars": "Кемінде 2 таңба енгізіңіз",
+    "searching": "Іздеу...",
+    "unitPrefix": "пәт.",
+    "balance": "Баланс:"
   }
 }

@@ -1107,5 +1107,16 @@
     "selectTenantPlaceholder": "Выберите ЖК...",
     "selectTenantPromptTitle": "Выберите жилой комплекс",
     "selectTenantPromptSub": "Вы вошли под ролью суперадминистратора. Выберите ЖК из выпадающего списка сверху для просмотра журнала аудита."
+  },
+  "globalSearch": {
+    "placeholder": "Поиск жильцов, заявок, счетов...",
+    "residents": "Жильцы",
+    "requests": "Заявки",
+    "accounts": "Лицевые счета",
+    "noResults": "Ничего не найдено",
+    "minChars": "Введите минимум 2 символа",
+    "searching": "Поиск...",
+    "unitPrefix": "кв.",
+    "balance": "Баланс:"
   }
 }

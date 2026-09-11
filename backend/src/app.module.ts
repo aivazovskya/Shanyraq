@@ -21,6 +21,7 @@ import { CommunityBoardModule } from './modules/community-board/community-board.
 import { ChatModule } from './modules/chat/chat.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { SearchModule } from './modules/search/search.module';
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -54,6 +55,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     ChatModule,
     AnalyticsModule,
     AuditLogModule,
+    SearchModule,
     EventEmitterModule.forRoot(),
     RealtimeModule,
   ],

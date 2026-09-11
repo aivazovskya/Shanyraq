@@ -1107,5 +1107,16 @@
     "selectTenantPlaceholder": "Select Complex...",
     "selectTenantPromptTitle": "Select residential complex",
     "selectTenantPromptSub": "You are logged in as superadministrator. Please select a complex from the dropdown above to view the audit log."
+  },
+  "globalSearch": {
+    "placeholder": "Search residents, requests, accounts...",
+    "residents": "Residents",
+    "requests": "Requests",
+    "accounts": "Personal Accounts",
+    "noResults": "No results found",
+    "minChars": "Type at least 2 characters",
+    "searching": "Searching...",
+    "unitPrefix": "apt.",
+    "balance": "Balance:"
   }
 }

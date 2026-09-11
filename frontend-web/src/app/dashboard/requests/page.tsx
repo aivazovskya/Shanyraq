@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import {
   Wrench,
@@ -67,6 +68,17 @@ interface ServiceRequestItem {
     comments: number;
     attachments: number;
   };
+}
+
+function SearchParamsReader({ onQuery }: { onQuery: (q: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      onQuery(q);
+    }
+  }, [searchParams, onQuery]);
+  return null;
 }
 
 export default function RequestsPage() {
@@ -220,6 +232,9 @@ export default function RequestsPage() {
 
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}>
+        <SearchParamsReader onQuery={setSearchQuery} />
+      </Suspense>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('requests.title')}</h1>

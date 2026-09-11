@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import {
   CreditCard,
@@ -82,6 +83,17 @@ interface AccountItem {
 interface AccountDetail extends AccountItem {
   charges: ChargeItem[];
   payments: PaymentItem[];
+}
+
+function SearchParamsReader({ onQuery }: { onQuery: (q: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) {
+      onQuery(q);
+    }
+  }, [searchParams, onQuery]);
+  return null;
 }
 
 export default function FinancePage() {
@@ -271,6 +283,9 @@ export default function FinancePage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
+      <Suspense fallback={null}>
+        <SearchParamsReader onQuery={setSearchQuery} />
+      </Suspense>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

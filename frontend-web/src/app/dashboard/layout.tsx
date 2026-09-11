@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 import { NotificationBell } from '@/components/NotificationBell';
+import { GlobalSearch } from '@/components/GlobalSearch';
 
 const LANGUAGE_LABELS: Record<SupportedLocale, string> = {
   kk: 'Қазақша',
@@ -191,7 +192,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
+            {/* Global Quick-Search */}
+            <GlobalSearch />
+
+            <span className="hidden sm:inline-flex text-xs font-semibold px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
               {t('dashboard.standardBadge')}
             </span>
 
