@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UserRole, RequestStatus } from '@prisma/client';
+import { UserRole, RequestStatus, BookingStatus } from '@prisma/client';
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
@@ -89,9 +89,13 @@ describe('AnalyticsService', () => {
         count: jest.fn(),
         groupBy: jest.fn(),
       },
+      bookableResource: {
+        findMany: jest.fn(),
+      },
       booking: {
         count: jest.fn(),
         groupBy: jest.fn(),
+        findMany: jest.fn(),
       },
       communityListing: {
         count: jest.fn(),
@@ -851,4 +855,277 @@ describe('AnalyticsService', () => {
       expect(result.filename).toBe(`resident-activity-${mockTenantId}-2026-08-01_2026-08-31.csv`);
     });
   });
+
+  describe('getBookingUtilizationAnalytics (Task 0053: Bookable resource utilization analytics)', () => {
+    const mockResources = [
+      {
+        id: 'res-bbq',
+        name: 'Зона барбекю №1',
+        type: 'BBQ',
+        operatingHoursStart: '10:00',
+        operatingHoursEnd: '18:00', // 8h/day
+      },
+      {
+        id: 'res-parking',
+        name: 'Гостевой паркинг',
+        type: 'PARKING',
+        operatingHoursStart: null,
+        operatingHoursEnd: null, // 24h/day
+      },
+      {
+        id: 'res-coworking',
+        name: 'Коворкинг',
+        type: 'COWORKING',
+        operatingHoursStart: '08:00',
+        operatingHoursEnd: '20:00', // 12h/day
+      },
+    ];
+
+    it('только подтвержденные (CONFIRMED) бронирования учитываются в утилизации, отмененные (CANCELLED) исключены', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([mockResources[0]]);
+
+      // Ресурс имеет 3 CONFIRMED бронирования (по 2ч) и 1 CANCELLED (2ч)
+      // В БД Prisma фильтрует статус CONFIRMED, имитируем возврат только CONFIRMED
+      const confirmedBookings = [
+        {
+          resourceId: 'res-bbq',
+          startTime: new Date('2026-09-01T10:00:00Z'),
+          endTime: new Date('2026-09-01T12:00:00Z'),
+        },
+        {
+          resourceId: 'res-bbq',
+          startTime: new Date('2026-09-02T12:00:00Z'),
+          endTime: new Date('2026-09-02T14:00:00Z'),
+        },
+        {
+          resourceId: 'res-bbq',
+          startTime: new Date('2026-09-03T14:00:00Z'),
+          endTime: new Date('2026-09-03T16:00:00Z'),
+        },
+      ];
+      prismaMock.booking.findMany.mockResolvedValue(confirmedBookings);
+
+      const result = await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser, {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-10T23:59:59Z',
+      });
+
+      // Проверяем, что в prisma.booking.findMany передается status: CONFIRMED
+      expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: BookingStatus.CONFIRMED,
+          }),
+        }),
+      );
+
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0].bookingsCount).toBe(3); // 3, а не 4
+      expect(result.resources[0].totalBookedHours).toBe(6);
+    });
+
+    it('бронирование, чье startTime находится вне диапазона from/to, исключается из расчета (фильтр по startTime, а не createdAt)', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([mockResources[0]]);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      const fromStr = '2026-09-05T00:00:00Z';
+      const toStr = '2026-09-15T00:00:00Z';
+
+      await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser, {
+        from: fromStr,
+        to: toStr,
+      });
+
+      expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            startTime: {
+              gte: new Date(fromStr),
+              lte: new Date(toStr),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('математика процента утилизации: окно 8ч/день на 10 дней (80ч) и 40ч броней дает ровно 50%', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([mockResources[0]]); // 10:00 - 18:00 = 8h/day
+
+      // 10 дней: с 2026-09-01 по 2026-09-11 (10 суток)
+      const from = new Date('2026-09-01T00:00:00Z');
+      const to = new Date(from.getTime() + 10 * 24 * 60 * 60 * 1000); // ровно 10 дней
+
+      // 40 часов суммарно забронировано (две брони по 20 часов)
+      const b1Start = new Date('2026-09-01T10:00:00Z');
+      const b1End = new Date(b1Start.getTime() + 20 * 60 * 60 * 1000);
+      const b2Start = new Date('2026-09-02T10:00:00Z');
+      const b2End = new Date(b2Start.getTime() + 20 * 60 * 60 * 1000);
+
+      prismaMock.booking.findMany.mockResolvedValue([
+        {
+          resourceId: 'res-bbq',
+          startTime: b1Start,
+          endTime: b1End,
+        },
+        {
+          resourceId: 'res-bbq',
+          startTime: b2Start,
+          endTime: b2End,
+        },
+      ]);
+
+      const result = await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+      const bbq = result.resources[0];
+      expect(bbq.availableHours).toBe(80); // 8h * 10 days = 80h
+      expect(bbq.totalBookedHours).toBe(40);
+      expect(bbq.utilizationPercent).toBe(50);
+    });
+
+    it('ресурс без operatingHoursStart/End считает себя доступным 24ч/день', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([mockResources[1]]); // res-parking: null / null
+
+      const from = new Date('2026-09-01T00:00:00Z');
+      const to = new Date(from.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 дней
+
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      const result = await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+      const parking = result.resources[0];
+      expect(parking.availableHours).toBe(120); // 24h * 5 days = 120h
+      expect(parking.bookingsCount).toBe(0);
+      expect(parking.totalBookedHours).toBe(0);
+      expect(parking.utilizationPercent).toBe(0);
+    });
+
+    it('ресурс с нулевым количеством бронирований за период отображается с явными нулями (zero-fill, не исключается)', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([mockResources[2]]); // res-coworking
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      const result = await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0].resourceId).toBe('res-coworking');
+      expect(result.resources[0].bookingsCount).toBe(0);
+      expect(result.resources[0].totalBookedHours).toBe(0);
+      expect(result.resources[0].utilizationPercent).toBe(0);
+    });
+
+    it('неактивный ресурс (isActive: false) никогда не попадает в выборку', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([]);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(prismaMock.bookableResource.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: mockTenantId,
+            isActive: true,
+          }),
+        }),
+      );
+      expect(prismaMock.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            resource: expect.objectContaining({
+              tenantId: mockTenantId,
+              isActive: true,
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('результаты сортируются по убыванию utilizationPercent, а при равенстве — по totalBookedHours', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([
+        mockResources[0], // BBQ: 8h/day * 10d = 80h avail
+        mockResources[1], // Parking: 24h/day * 10d = 240h avail
+        mockResources[2], // Coworking: 12h/day * 10d = 120h avail
+      ]);
+
+      const from = new Date('2026-09-01T00:00:00Z');
+      const to = new Date(from.getTime() + 10 * 24 * 60 * 60 * 1000);
+
+      // BBQ: 60h booked -> 60/80 = 75%
+      // Parking: 120h booked -> 120/240 = 50%
+      // Coworking: 90h booked -> 90/120 = 75%
+      // BBQ and Coworking tie at 75%, tiebreak by totalBookedHours: Coworking (90h) > BBQ (60h)
+      prismaMock.booking.findMany.mockResolvedValue([
+        {
+          resourceId: 'res-bbq',
+          startTime: new Date('2026-09-01T00:00:00Z'),
+          endTime: new Date('2026-09-03T12:00:00Z'), // 60h
+        },
+        {
+          resourceId: 'res-coworking',
+          startTime: new Date('2026-09-01T00:00:00Z'),
+          endTime: new Date('2026-09-04T18:00:00Z'), // 90h
+        },
+        {
+          resourceId: 'res-parking',
+          startTime: new Date('2026-09-01T00:00:00Z'),
+          endTime: new Date('2026-09-06T00:00:00Z'), // 120h
+        },
+      ]);
+
+      const result = await service.getBookingUtilizationAnalytics(mockTenantId, hoaAdminUser, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+      expect(result.resources).toHaveLength(3);
+      // 1-й: Coworking (75%, 90h)
+      expect(result.resources[0].resourceId).toBe('res-coworking');
+      expect(result.resources[0].utilizationPercent).toBe(75);
+      expect(result.resources[0].totalBookedHours).toBe(90);
+
+      // 2-й: BBQ (75%, 60h)
+      expect(result.resources[1].resourceId).toBe('res-bbq');
+      expect(result.resources[1].utilizationPercent).toBe(75);
+      expect(result.resources[1].totalBookedHours).toBe(60);
+
+      // 3-й: Parking (50%, 120h)
+      expect(result.resources[2].resourceId).toBe('res-parking');
+      expect(result.resources[2].utilizationPercent).toBe(50);
+      expect(result.resources[2].totalBookedHours).toBe(120);
+    });
+
+    it('доступ отклоняется для диспетчера, жильца и сотрудников других ЖК (assertStaffAccess)', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([]);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      // Запрещено для DISPATCHER
+      await expect(
+        service.getBookingUtilizationAnalytics(mockTenantId, dispatcherUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Запрещено для жителя
+      await expect(
+        service.getBookingUtilizationAnalytics(mockTenantId, residentUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Запрещено для чужого ЖК
+      await expect(
+        service.getBookingUtilizationAnalytics(mockTenantId, foreignHoaAdmin),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Разрешено для председателя ОСИ и суперадмина
+      await expect(
+        service.getBookingUtilizationAnalytics(mockTenantId, hoaChairmanUser),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.getBookingUtilizationAnalytics(mockTenantId, superadminUser),
+      ).resolves.toBeDefined();
+    });
+  });
 });
+

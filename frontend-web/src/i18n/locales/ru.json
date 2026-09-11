@@ -791,7 +791,8 @@
     "tabs": {
       "finance": "Финансы и сборы",
       "requests": "Заявки и сервис",
-      "activity": "Активность жильцов"
+      "activity": "Активность жильцов",
+      "bookings": "Бронирования и зоны"
     },
     "filters": {
       "month": "Месяц",
@@ -852,6 +853,24 @@
       "actionsCount": "Действий",
       "exportCsv": "Скачать CSV",
       "exporting": "Экспорт..."
+    },
+    "bookings": {
+      "loadError": "Ошибка загрузки аналитики бронирований",
+      "title": "Утилизация пространств и ресурсов",
+      "subtitle": "Загрузка общих зон, количество бронирований и доступные часы за период",
+      "thResource": "Пространство / Зона",
+      "thType": "Тип",
+      "thBookings": "Бронирований",
+      "thBookedHours": "Занято часов",
+      "thAvailableHours": "Доступно часов",
+      "thUtilization": "Утилизация",
+      "empty": "Нет активных ресурсов для бронирования",
+      "totalResources": "Всего пространств",
+      "totalBookings": "Всего бронирований",
+      "avgUtilization": "Средняя утилизация",
+      "mostPopular": "Наиболее загруженное",
+      "periodSummary": "за {{period}}",
+      "hoursUnit": "ч."
     },
     "statuses": {
       "PENDING": "Новая",

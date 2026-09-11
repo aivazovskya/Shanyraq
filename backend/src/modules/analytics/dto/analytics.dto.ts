@@ -104,3 +104,20 @@ export interface PlatformOverviewResponse {
   totalOutstandingDebt: number;
   tenants: PlatformTenantSummary[];
 }
+
+export interface ResourceUtilizationItem {
+  resourceId: string;
+  resourceName: string;
+  resourceType: string;
+  bookingsCount: number;
+  totalBookedHours: number;
+  availableHours: number;
+  utilizationPercent: number;
+}
+
+export interface BookingUtilizationResponse {
+  from: string;
+  to: string;
+  resources: ResourceUtilizationItem[];
+}
+

@@ -129,4 +129,19 @@ export class AnalyticsController {
     res.setHeader('Content-Length', buffer.length);
     res.end(buffer);
   }
+
+  @Get('tenants/:tenantId/bookings')
+  @ApiOperation({
+    summary: 'Аналитика утилизации бронируемых пространств и ресурсов ЖК',
+  })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async getBookingUtilizationAnalytics(
+    @Param('tenantId') tenantId: string,
+    @Query() query: DateRangeAnalyticsQueryDto,
+    @Request() req: any,
+  ) {
+    return this.analyticsService.getBookingUtilizationAnalytics(tenantId, req.user, query);
+  }
 }
+

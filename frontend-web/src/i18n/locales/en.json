@@ -791,7 +791,8 @@
     "tabs": {
       "finance": "Finance & Collections",
       "requests": "Tickets & Service",
-      "activity": "Resident Activity"
+      "activity": "Resident Activity",
+      "bookings": "Bookings & Spaces"
     },
     "filters": {
       "month": "Month",
@@ -852,6 +853,24 @@
       "actionsCount": "Actions",
       "exportCsv": "Download CSV",
       "exporting": "Exporting..."
+    },
+    "bookings": {
+      "loadError": "Failed to load booking analytics",
+      "title": "Resource & Space Utilization",
+      "subtitle": "Shared space saturation, booking counts, and available hours over the period",
+      "thResource": "Space / Resource",
+      "thType": "Type",
+      "thBookings": "Bookings",
+      "thBookedHours": "Booked Hours",
+      "thAvailableHours": "Available Hours",
+      "thUtilization": "Utilization",
+      "empty": "No active bookable resources found",
+      "totalResources": "Total Spaces",
+      "totalBookings": "Total Bookings",
+      "avgUtilization": "Average Utilization",
+      "mostPopular": "Most Saturated",
+      "periodSummary": "for {{period}}",
+      "hoursUnit": "h"
     },
     "statuses": {
       "PENDING": "Pending",

@@ -108,6 +108,22 @@ interface ActivityAnalyticsData {
   meterReadingsSubmitted: number;
 }
 
+interface ResourceUtilizationItem {
+  resourceId: string;
+  resourceName: string;
+  resourceType: string;
+  bookingsCount: number;
+  totalBookedHours: number;
+  availableHours: number;
+  utilizationPercent: number;
+}
+
+interface BookingUtilizationData {
+  from: string;
+  to: string;
+  resources: ResourceUtilizationItem[];
+}
+
 type PeriodPreset = '7d' | '30d' | '90d';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -140,7 +156,7 @@ export default function AnalyticsDashboardPage() {
   const [loadingTenants, setLoadingTenants] = useState(false);
 
   // View state
-  const [activeTab, setActiveTab] = useState<'finance' | 'requests' | 'activity'>('finance');
+  const [activeTab, setActiveTab] = useState<'finance' | 'requests' | 'activity' | 'bookings'>('finance');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -159,6 +175,10 @@ export default function AnalyticsDashboardPage() {
   const [activityPreset, setActivityPreset] = useState<PeriodPreset>('30d');
   const [activityData, setActivityData] = useState<ActivityAnalyticsData | null>(null);
   const [exportingActivityCsv, setExportingActivityCsv] = useState(false);
+
+  // Bookings filters & data
+  const [bookingsPreset, setBookingsPreset] = useState<PeriodPreset>('30d');
+  const [bookingsData, setBookingsData] = useState<BookingUtilizationData | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -252,6 +272,27 @@ export default function AnalyticsDashboardPage() {
     [t],
   );
 
+  // 4. Fetch Bookings Utilization
+  const fetchBookings = useCallback(
+    async (tId: string, preset: PeriodPreset) => {
+      if (!tId) return;
+      try {
+        setLoading(true);
+        setErrorMsg(null);
+        const { from, to } = getPresetDates(preset);
+        const data = await apiRequest<BookingUtilizationData>(
+          `/analytics/tenants/${tId}/bookings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        );
+        setBookingsData(data);
+      } catch (err: any) {
+        setErrorMsg(err.message || t('analytics.bookings.loadError'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
+
   const handleExportActivityCsv = async () => {
     if (!tenantId || exportingActivityCsv) return;
     try {
@@ -308,6 +349,8 @@ export default function AnalyticsDashboardPage() {
       fetchRequests(tenantId, requestsPreset);
     } else if (activeTab === 'activity') {
       fetchActivity(tenantId, activityPreset);
+    } else if (activeTab === 'bookings') {
+      fetchBookings(tenantId, bookingsPreset);
     }
   }, [
     tenantId,
@@ -316,9 +359,11 @@ export default function AnalyticsDashboardPage() {
     financeYear,
     requestsPreset,
     activityPreset,
+    bookingsPreset,
     fetchFinance,
     fetchRequests,
     fetchActivity,
+    fetchBookings,
   ]);
 
   const handleRefresh = () => {
@@ -329,10 +374,27 @@ export default function AnalyticsDashboardPage() {
       fetchRequests(tenantId, requestsPreset);
     } else if (activeTab === 'activity') {
       fetchActivity(tenantId, activityPreset);
+    } else if (activeTab === 'bookings') {
+      fetchBookings(tenantId, bookingsPreset);
     }
   };
 
   const isSuperadmin = currentUser?.role === 'SUPERADMIN';
+
+  const getResourceTypeLabel = (rType: string) => {
+    switch (rType) {
+      case 'BBQ_AREA':
+        return t('bookings.typeBbQ');
+      case 'COWORKING':
+        return t('bookings.typeCoworking');
+      case 'GUEST_PARKING':
+        return t('bookings.typeParking');
+      case 'KIDS_ROOM':
+        return t('bookings.typeKids');
+      default:
+        return t('bookings.typeOther');
+    }
+  };
 
   // Years for picker (last 3 years)
   const years = [currentDate.getFullYear(), currentDate.getFullYear() - 1, currentDate.getFullYear() - 2];
@@ -420,6 +482,18 @@ export default function AnalyticsDashboardPage() {
         >
           <Users className="w-4 h-4" />
           <span>{t('analytics.tabs.activity')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('bookings')}
+          className={`flex items-center gap-2 py-3 px-4 font-semibold text-sm border-b-2 transition-all ${
+            activeTab === 'bookings'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <CalendarDays className="w-4 h-4" />
+          <span>{t('analytics.tabs.bookings')}</span>
         </button>
       </div>
 
@@ -1044,6 +1118,199 @@ export default function AnalyticsDashboardPage() {
                     {t('analytics.activity.meterReadingsSubmitted')}
                   </div>
                 </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: BOOKINGS & RESOURCE UTILIZATION */}
+      {activeTab === 'bookings' && tenantId && (
+        <div className="space-y-6">
+          {/* Controls bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <span>{t('analytics.filters.periodLabel')}</span>
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setBookingsPreset(p)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                      bookingsPreset === p
+                        ? 'bg-white text-sky-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t(`analytics.filters.period${p}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {bookingsData && (
+              <div className="text-xs text-slate-400 font-medium">
+                {t('analytics.bookings.periodSummary', {
+                  period: t(`analytics.filters.period${bookingsPreset}`),
+                })}
+              </div>
+            )}
+          </div>
+
+          {bookingsData && (
+            <>
+              {/* Summary KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      {t('analytics.bookings.totalResources')}
+                    </span>
+                    <div className="p-2 rounded-xl bg-sky-50 text-sky-600">
+                      <Building className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-2xl font-bold text-slate-900">
+                    {bookingsData.resources.length}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      {t('analytics.bookings.totalBookings')}
+                    </span>
+                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                      <CalendarDays className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-2xl font-bold text-slate-900">
+                    {bookingsData.resources.reduce((acc, r) => acc + r.bookingsCount, 0)}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      {t('analytics.bookings.avgUtilization')}
+                    </span>
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                      <Percent className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-2xl font-bold text-slate-900">
+                    {bookingsData.resources.length > 0
+                      ? Math.round(
+                          (bookingsData.resources.reduce((acc, r) => acc + r.utilizationPercent, 0) /
+                            bookingsData.resources.length) *
+                            10,
+                        ) / 10
+                      : 0}
+                    %
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      {t('analytics.bookings.mostPopular')}
+                    </span>
+                    <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                      <Star className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm font-bold text-slate-900 truncate">
+                    {bookingsData.resources.length > 0 && bookingsData.resources[0].utilizationPercent > 0
+                      ? `${bookingsData.resources[0].resourceName} (${bookingsData.resources[0].utilizationPercent}%)`
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Utilization Table */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900">{t('analytics.bookings.title')}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('analytics.bookings.subtitle')}</p>
+                  </div>
+                </div>
+
+                {bookingsData.resources.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 text-sm">
+                    {t('analytics.bookings.empty')}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          <th className="py-3.5 px-4">{t('analytics.bookings.thResource')}</th>
+                          <th className="py-3.5 px-4">{t('analytics.bookings.thType')}</th>
+                          <th className="py-3.5 px-4 text-center">{t('analytics.bookings.thBookings')}</th>
+                          <th className="py-3.5 px-4 text-right">{t('analytics.bookings.thBookedHours')}</th>
+                          <th className="py-3.5 px-4 text-right">{t('analytics.bookings.thAvailableHours')}</th>
+                          <th className="py-3.5 px-4 w-48">{t('analytics.bookings.thUtilization')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {bookingsData.resources.map((res) => {
+                          const typeLabel = getResourceTypeLabel(res.resourceType);
+                          const utilColor =
+                            res.utilizationPercent >= 80
+                              ? 'bg-red-500'
+                              : res.utilizationPercent >= 50
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500';
+                          const utilBadgeColor =
+                            res.utilizationPercent >= 80
+                              ? 'text-red-700 bg-red-50 border-red-200'
+                              : res.utilizationPercent >= 50
+                              ? 'text-amber-700 bg-amber-50 border-amber-200'
+                              : 'text-emerald-700 bg-emerald-50 border-emerald-200';
+
+                          return (
+                            <tr key={res.resourceId} className="hover:bg-slate-50/60 transition">
+                              <td className="py-3.5 px-4 font-semibold text-slate-900">
+                                {res.resourceName}
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-600">
+                                <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                  {typeLabel}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center font-semibold text-slate-800">
+                                {res.bookingsCount}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-medium text-slate-700">
+                                {res.totalBookedHours} {t('analytics.bookings.hoursUnit')}
+                              </td>
+                              <td className="py-3.5 px-4 text-right text-slate-500">
+                                {res.availableHours} {t('analytics.bookings.hoursUnit')}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-500 ${utilColor}`}
+                                      style={{ width: `${Math.min(100, res.utilizationPercent)}%` }}
+                                    />
+                                  </div>
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-xs font-bold border ${utilBadgeColor}`}
+                                  >
+                                    {res.utilizationPercent}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </>
           )}

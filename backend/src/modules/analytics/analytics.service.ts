@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UserRole, RequestStatus } from '@prisma/client';
+import { UserRole, RequestStatus, BookingStatus } from '@prisma/client';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import {
   FinanceAnalyticsQueryDto,
@@ -18,6 +18,8 @@ import {
   RequestCategoryCount,
   PlatformOverviewResponse,
   PlatformTenantSummary,
+  ResourceUtilizationItem,
+  BookingUtilizationResponse,
 } from './dto/analytics.dto';
 import { buildCsv } from '../../common/csv/csv.helper';
 
@@ -935,4 +937,121 @@ export class AnalyticsService {
 
     return { buffer, filename };
   }
+
+  /**
+   * Аналитика утилизации бронируемых пространств и ресурсов ЖК за период.
+   */
+  async getBookingUtilizationAnalytics(
+    tenantId: string,
+    user: RequestUser,
+    query?: DateRangeAnalyticsQueryDto,
+  ): Promise<BookingUtilizationResponse> {
+    await this.assertStaffAccess(user, tenantId);
+
+    const now = new Date();
+    const to = query?.to ? new Date(query.to) : now;
+    const from = query?.from
+      ? new Date(query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // 1. Активные ресурсы данного ЖК
+    const resources = await this.prisma.bookableResource.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        operatingHoursStart: true,
+        operatingHoursEnd: true,
+      },
+    });
+
+    // 2. Подтвержденные бронирования в диапазоне startTime
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        status: BookingStatus.CONFIRMED,
+        startTime: { gte: from, lte: to },
+        resource: {
+          tenantId,
+          isActive: true,
+        },
+      },
+      select: {
+        resourceId: true,
+        startTime: true,
+        endTime: true,
+      },
+    });
+
+    // 3. Агрегация бронирований в памяти (часы и количество)
+    const bookingsByResource = new Map<string, { count: number; totalHours: number }>();
+    for (const b of bookings) {
+      const durationMs = Math.max(
+        0,
+        new Date(b.endTime).getTime() - new Date(b.startTime).getTime(),
+      );
+      const durationHours = durationMs / (1000 * 60 * 60);
+
+      const current = bookingsByResource.get(b.resourceId) || { count: 0, totalHours: 0 };
+      current.count += 1;
+      current.totalHours += durationHours;
+      bookingsByResource.set(b.resourceId, current);
+    }
+
+    // 4. Дней в периоде
+    const daysInRange = Math.max(
+      1,
+      Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)),
+    );
+
+    // 5. Расчет утилизации для каждого активного ресурса (с zero-fill)
+    const resourceItems: ResourceUtilizationItem[] = resources.map((r) => {
+      let dailyWindowHours = 24;
+      if (r.operatingHoursStart && r.operatingHoursEnd) {
+        const [startH, startM] = r.operatingHoursStart.split(':').map(Number);
+        const [endH, endM] = r.operatingHoursEnd.split(':').map(Number);
+        if (!isNaN(startH) && !isNaN(startM) && !isNaN(endH) && !isNaN(endM)) {
+          const diff = endH + endM / 60 - (startH + startM / 60);
+          if (diff > 0) {
+            dailyWindowHours = diff;
+          }
+        }
+      }
+
+      const availableHours = Math.round(dailyWindowHours * daysInRange * 10) / 10;
+      const agg = bookingsByResource.get(r.id) || { count: 0, totalHours: 0 };
+      const totalBookedHours = Math.round(agg.totalHours * 10) / 10;
+
+      const rawPercent = availableHours > 0 ? (totalBookedHours / availableHours) * 100 : 0;
+      const utilizationPercent = Math.round(rawPercent * 10) / 10;
+
+      return {
+        resourceId: r.id,
+        resourceName: r.name,
+        resourceType: r.type,
+        bookingsCount: agg.count,
+        totalBookedHours,
+        availableHours,
+        utilizationPercent,
+      };
+    });
+
+    // 6. Сортировка: utilizationPercent desc, totalBookedHours desc
+    resourceItems.sort((a, b) => {
+      if (b.utilizationPercent !== a.utilizationPercent) {
+        return b.utilizationPercent - a.utilizationPercent;
+      }
+      return b.totalBookedHours - a.totalBookedHours;
+    });
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      resources: resourceItems,
+    };
+  }
 }
+
