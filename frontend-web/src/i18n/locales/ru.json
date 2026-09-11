@@ -471,7 +471,10 @@
     "loadError": "Ошибка загрузки реестра жильцов",
     "loadDetailError": "Ошибка загрузки детальной карточки жильца",
     "noEmail": "Без email",
-    "floorEntrance": "{{floor}} этаж, {{entrance}} подъезд"
+    "floorEntrance": "{{floor}} этаж, {{entrance}} подъезд",
+    "exportCsv": "Скачать CSV",
+    "exporting": "Формирование...",
+    "exportError": "Ошибка экспорта CSV"
   },
   "finance": {
     "title": "Финансы и лицевые счета",

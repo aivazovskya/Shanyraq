@@ -471,7 +471,10 @@
     "loadError": "Тұрғындар тізілімін жүктеу қатесі",
     "loadDetailError": "Тұрғынның толық карточкасын жүктеу қатесі",
     "noEmail": "Email жоқ",
-    "floorEntrance": "{{floor}}-қабат, {{entrance}}-кіреберіс"
+    "floorEntrance": "{{floor}}-қабат, {{entrance}}-кіреберіс",
+    "exportCsv": "CSV жүктеу",
+    "exporting": "Қалыптастыру...",
+    "exportError": "CSV экспорттау қатесі"
   },
   "finance": {
     "title": "Қаржы және дербес шоттар",

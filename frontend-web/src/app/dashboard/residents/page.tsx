@@ -22,8 +22,9 @@ import {
   X,
   Info,
   Calendar,
+  Download,
 } from 'lucide-react';
-import { apiRequest, getStoredSession } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
 interface UnitInfo {
   id: string;
@@ -91,6 +92,29 @@ export default function ResidentsPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
   const [processingOwnershipId, setProcessingOwnershipId] = useState<string | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    try {
+      setExportingCsv(true);
+      const session = getStoredSession();
+      if (!session || !session.user || !session.user.tenantId) {
+        throw new Error(t('common.userNotAuthorizedOrLinked'));
+      }
+      const tenantId = session.user.tenantId;
+      const qs = searchQuery.trim() ? `?search=${encodeURIComponent(searchQuery.trim())}` : '';
+      const dateStr = new Date().toISOString().split('T')[0];
+      await apiDownload(
+        `/properties/tenants/${tenantId}/residents/export${qs}`,
+        `residents-registry-${tenantId}-${dateStr}.csv`,
+      );
+    } catch (err: any) {
+      setError(err?.message || t('residents.exportError'));
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const loadResidents = useCallback(async () => {
     try {
@@ -266,6 +290,19 @@ export default function ResidentsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCsv}
+            disabled={exportingCsv || loading || residents.length === 0}
+            className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
+          >
+            {exportingCsv ? (
+              <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
+            ) : (
+              <Download className="w-4 h-4 text-slate-500" />
+            )}
+            <span>{exportingCsv ? t('residents.exporting') : t('residents.exportCsv')}</span>
+          </button>
+
           <button
             onClick={loadResidents}
             disabled={loading}

@@ -12,6 +12,7 @@ import * as bcrypt from 'bcryptjs';
 import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { buildCsv } from '../../common/csv/csv.helper';
 
 @Injectable()
 export class PropertiesService {
@@ -567,6 +568,79 @@ export class PropertiesService {
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+  }
+
+  async exportConfirmedResidentsCsv(
+    tenantId: string,
+    search?: string,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const residents = await this.getConfirmedResidents(tenantId, search);
+
+    const headers = [
+      'ФИО',
+      'Телефон',
+      'Email',
+      'ИИН',
+      'Тип владения',
+      'Блок',
+      'Квартира/Помещение',
+      'Площадь (кв.м)',
+      'Доля (%)',
+      'Дата верификации',
+      'Статус аккаунта',
+    ];
+
+    const rows: unknown[][] = [headers];
+
+    for (const resident of residents) {
+      const fullName = `${resident.lastName || ''} ${resident.firstName || ''}`.trim() || '—';
+      const phone = resident.phone || '—';
+      const email = resident.email || '—';
+      const iin = resident.iin || '—';
+      const accountStatus = resident.isActive ? 'Активен' : 'Деактивирован';
+
+      for (const ownership of resident.ownerships) {
+        const ownershipType =
+          ownership.ownershipType === 'OWNER'
+            ? 'Собственник'
+            : ownership.ownershipType === 'TENANT'
+              ? 'Арендатор'
+              : ownership.ownershipType;
+        const block = ownership.unit?.building?.blockName || '—';
+        const unitNumber = ownership.unit?.unitNumber || '—';
+        const area =
+          ownership.unit?.area !== undefined && ownership.unit?.area !== null
+            ? ownership.unit.area
+            : '—';
+        const sharePercent =
+          ownership.sharePercent !== undefined && ownership.sharePercent !== null
+            ? ownership.sharePercent
+            : 100;
+        const verifiedAt = ownership.verifiedAt
+          ? new Date(ownership.verifiedAt).toISOString().split('T')[0]
+          : '—';
+
+        rows.push([
+          fullName,
+          phone,
+          email,
+          iin,
+          ownershipType,
+          block,
+          unitNumber,
+          area,
+          sharePercent,
+          verifiedAt,
+          accountStatus,
+        ]);
+      }
+    }
+
+    const buffer = buildCsv(rows);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `residents-registry-${tenantId}-${dateStr}.csv`;
+
+    return { buffer, filename };
   }
 
   async getResidentDetail(tenantId: string, userId: string) {

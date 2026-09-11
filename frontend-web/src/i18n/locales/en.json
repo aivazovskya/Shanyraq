@@ -471,7 +471,10 @@
     "loadError": "Failed to load residents registry",
     "loadDetailError": "Failed to load resident details",
     "noEmail": "No email",
-    "floorEntrance": "floor {{floor}}, entrance {{entrance}}"
+    "floorEntrance": "floor {{floor}}, entrance {{entrance}}",
+    "exportCsv": "Export CSV",
+    "exporting": "Generating...",
+    "exportError": "Error exporting CSV"
   },
   "finance": {
     "title": "Finance & Personal Accounts",

@@ -1039,4 +1039,157 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       });
     });
   });
+
+  describe('exportConfirmedResidentsCsv (Экспорт реестра жильцов в CSV)', () => {
+    it('должен формировать отдельные строки CSV для каждого подтвержденного владения (один жилец с 2 квартирами -> 2 строки)', async () => {
+      const mockResident = {
+        id: 'user-1',
+        lastName: 'Иванов',
+        firstName: 'Иван',
+        phone: '+77011112233',
+        email: 'ivan@example.com',
+        iin: '900101300123',
+        isActive: true,
+        ownerships: [
+          {
+            id: 'own-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 100.0,
+            isVerified: true,
+            verifiedAt: new Date('2026-05-10T10:00:00.000Z'),
+            unit: {
+              unitNumber: '101',
+              area: 65.5,
+              building: { blockName: 'Блок А' },
+            },
+          },
+          {
+            id: 'own-2',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 50.0,
+            isVerified: true,
+            verifiedAt: new Date('2026-06-15T12:00:00.000Z'),
+            unit: {
+              unitNumber: '102',
+              area: 45.0,
+              building: { blockName: 'Блок Б' },
+            },
+          },
+        ],
+      };
+
+      prismaMock.user.findMany.mockResolvedValue([mockResident]);
+
+      const { buffer, filename } = await service.exportConfirmedResidentsCsv('tenant-1');
+
+      expect(filename).toMatch(/^residents-registry-tenant-1-\d{4}-\d{2}-\d{2}\.csv$/);
+
+      const content = buffer.toString('utf-8');
+      const lines = content.replace(/^\uFEFF/, '').split('\r\n');
+
+      // Заголовок + 2 строки владения
+      expect(lines).toHaveLength(3);
+      expect(lines[0]).toBe(
+        'ФИО,Телефон,Email,ИИН,Тип владения,Блок,Квартира/Помещение,Площадь (кв.м),Доля (%),Дата верификации,Статус аккаунта',
+      );
+      expect(lines[1]).toBe(
+        'Иванов Иван,+77011112233,ivan@example.com,900101300123,Собственник,Блок А,101,65.5,100,2026-05-10,Активен',
+      );
+      expect(lines[2]).toBe(
+        'Иванов Иван,+77011112233,ivan@example.com,900101300123,Собственник,Блок Б,102,45,50,2026-06-15,Активен',
+      );
+    });
+
+    it('должен передавать поисковый фильтр search в getConfirmedResidents идентично', async () => {
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      await service.exportConfirmedResidentsCsv('tenant-1', 'Алихан');
+
+      expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            ownerships: {
+              some: {
+                isVerified: true,
+                unit: { building: { tenantId: 'tenant-1' } },
+              },
+            },
+            AND: [
+              {
+                OR: [
+                  { firstName: { contains: 'Алихан', mode: 'insensitive' } },
+                  { lastName: { contains: 'Алихан', mode: 'insensitive' } },
+                  { phone: { contains: 'Алихан', mode: 'insensitive' } },
+                  {
+                    ownerships: {
+                      some: {
+                        isVerified: true,
+                        unit: {
+                          unitNumber: { contains: 'Алихан', mode: 'insensitive' },
+                          building: { tenantId: 'tenant-1' },
+                        },
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('должен начинаться с UTF-8 BOM и корректно экранировать запятые в ФИО', async () => {
+      const mockResidentWithComma = {
+        id: 'user-2',
+        lastName: 'Иванов, мл.',
+        firstName: 'Пётр',
+        phone: '+77019998877',
+        email: 'petr@example.com',
+        iin: '950202400567',
+        isActive: false,
+        ownerships: [
+          {
+            id: 'own-3',
+            ownershipType: OwnershipType.TENANT,
+            sharePercent: 100.0,
+            isVerified: true,
+            verifiedAt: new Date('2026-07-01T08:00:00.000Z'),
+            unit: {
+              unitNumber: '25',
+              area: 50.0,
+              building: { blockName: 'Корпус 1' },
+            },
+          },
+        ],
+      };
+
+      prismaMock.user.findMany.mockResolvedValue([mockResidentWithComma]);
+
+      const { buffer } = await service.exportConfirmedResidentsCsv('tenant-1');
+
+      // Проверка первых 3 байт на UTF-8 BOM (0xEF, 0xBB, 0xBF)
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
+
+      const content = buffer.toString('utf-8');
+      expect(content.startsWith('\uFEFF')).toBe(true);
+
+      // Проверяем экранирование ФИО с запятой
+      expect(content).toContain('"Иванов, мл. Пётр"');
+      expect(content).toContain('Арендатор');
+      expect(content).toContain('Деактивирован');
+    });
+
+    it('не включает неподтвержденные владения (scope только verified)', async () => {
+      prismaMock.user.findMany.mockResolvedValue([]);
+
+      const { buffer } = await service.exportConfirmedResidentsCsv('tenant-1');
+      const content = buffer.toString('utf-8').replace(/^\uFEFF/, '');
+      const lines = content.split('\r\n');
+
+      expect(lines).toHaveLength(1);
+    });
+  });
 });

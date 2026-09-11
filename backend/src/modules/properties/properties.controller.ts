@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
 import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto } from './dto/properties.dto';
@@ -108,6 +109,27 @@ export class PropertiesController {
   ) {
     assertUserBelongsToTenant(user, tenantId, 'реестра жильцов');
     return this.propertiesService.getConfirmedResidents(tenantId, search);
+  }
+
+  @Get('tenants/:tenantId/residents/export')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Экспорт реестра подтвержденных жильцов в CSV' })
+  @ApiQuery({ name: 'search', required: false, description: 'Поиск по ФИО, телефону или номеру квартиры' })
+  async exportConfirmedResidents(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+    @Query('search') search?: string,
+  ) {
+    assertUserBelongsToTenant(user, tenantId, 'реестра жильцов');
+    const { buffer, filename } = await this.propertiesService.exportConfirmedResidentsCsv(
+      tenantId,
+      search,
+    );
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
   }
 
   @Get('tenants/:tenantId/residents/:userId')
