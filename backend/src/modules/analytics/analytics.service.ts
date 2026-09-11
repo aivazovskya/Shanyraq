@@ -715,4 +715,224 @@ export class AnalyticsService {
       tenants: tenantSummaries,
     };
   }
+
+  // -------------------------------------------------------------
+  // 5. Экспорт активности жителей в формате CSV
+  // -------------------------------------------------------------
+  async exportResidentActivityCsv(
+    tenantId: string,
+    user: RequestUser,
+    query?: DateRangeAnalyticsQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    await this.assertStaffAccess(user, tenantId);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const now = new Date();
+    const to = query?.to ? new Date(query.to) : now;
+    if (query?.to && query.to.length === 10) {
+      to.setUTCHours(23, 59, 59, 999);
+    }
+    const from = query?.from
+      ? new Date(query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+    if (query?.from && query.from.length === 10) {
+      from.setUTCHours(0, 0, 0, 0);
+    }
+
+    const fromDateStr = from.toISOString().split('T')[0];
+    const toDateStr = to.toISOString().split('T')[0];
+
+    // Population of residents (resident owners & tenants)
+    const residents = await this.prisma.user.findMany({
+      where: {
+        tenantId,
+        role: { in: [UserRole.RESIDENT_OWNER, UserRole.RESIDENT_TENANT] },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    });
+
+    // 6 groupBy queries executed concurrently
+    const [
+      votesGroup,
+      requestsGroup,
+      bookingsGroup,
+      listingsGroup,
+      messagesGroup,
+      meterReadingsGroup,
+    ] = await Promise.all([
+      this.prisma.vote.groupBy({
+        by: ['userId'],
+        where: {
+          agendaItem: { meeting: { tenantId } },
+          createdAt: { gte: from, lte: to },
+        },
+        _count: true,
+      }),
+      this.prisma.serviceRequest.groupBy({
+        by: ['creatorId'],
+        where: {
+          tenantId,
+          createdAt: { gte: from, lte: to },
+        },
+        _count: true,
+      }),
+      this.prisma.booking.groupBy({
+        by: ['bookedById'],
+        where: {
+          resource: { tenantId },
+          createdAt: { gte: from, lte: to },
+        },
+        _count: true,
+      }),
+      this.prisma.communityListing.groupBy({
+        by: ['authorId'],
+        where: {
+          tenantId,
+          createdAt: { gte: from, lte: to },
+        },
+        _count: true,
+      }),
+      this.prisma.chatMessage.groupBy({
+        by: ['senderId'],
+        where: {
+          conversation: { tenantId },
+          createdAt: { gte: from, lte: to },
+        },
+        _count: true,
+      }),
+      this.prisma.meterReading.groupBy({
+        by: ['submittedById'],
+        where: {
+          meter: { unit: { building: { tenantId } } },
+          createdAt: { gte: from, lte: to },
+        },
+        _count: true,
+      }),
+    ]);
+
+    const extractCount = (val: any): number => {
+      if (typeof val === 'number') return val;
+      if (val && typeof val === 'object') {
+        if (typeof val._all === 'number') return val._all;
+        if (typeof val.id === 'number') return val.id;
+        const first = Object.values(val)[0];
+        if (typeof first === 'number') return first;
+      }
+      return 0;
+    };
+
+    const votesMap = new Map<string, number>();
+    for (const g of votesGroup) {
+      if (g.userId) votesMap.set(g.userId, extractCount(g._count));
+    }
+
+    const requestsMap = new Map<string, number>();
+    for (const g of requestsGroup) {
+      if (g.creatorId) requestsMap.set(g.creatorId, extractCount(g._count));
+    }
+
+    const bookingsMap = new Map<string, number>();
+    for (const g of bookingsGroup) {
+      if (g.bookedById) bookingsMap.set(g.bookedById, extractCount(g._count));
+    }
+
+    const listingsMap = new Map<string, number>();
+    for (const g of listingsGroup) {
+      if (g.authorId) listingsMap.set(g.authorId, extractCount(g._count));
+    }
+
+    const messagesMap = new Map<string, number>();
+    for (const g of messagesGroup) {
+      if (g.senderId) messagesMap.set(g.senderId, extractCount(g._count));
+    }
+
+    const meterReadingsMap = new Map<string, number>();
+    for (const g of meterReadingsGroup) {
+      if (g.submittedById) meterReadingsMap.set(g.submittedById, extractCount(g._count));
+    }
+
+    const residentRows = residents.map((r) => {
+      const fullName = `${r.lastName || ''} ${r.firstName || ''}`.trim() || '—';
+      const phone = r.phone || '—';
+      const votesCount = votesMap.get(r.id) || 0;
+      const requestsCount = requestsMap.get(r.id) || 0;
+      const bookingsCount = bookingsMap.get(r.id) || 0;
+      const listingsCount = listingsMap.get(r.id) || 0;
+      const messagesCount = messagesMap.get(r.id) || 0;
+      const readingsCount = meterReadingsMap.get(r.id) || 0;
+      const totalActivity =
+        votesCount +
+        requestsCount +
+        bookingsCount +
+        listingsCount +
+        messagesCount +
+        readingsCount;
+
+      return {
+        fullName,
+        phone,
+        votesCount,
+        requestsCount,
+        bookingsCount,
+        listingsCount,
+        messagesCount,
+        readingsCount,
+        totalActivity,
+      };
+    });
+
+    residentRows.sort((a, b) => {
+      if (b.totalActivity !== a.totalActivity) {
+        return b.totalActivity - a.totalActivity;
+      }
+      return a.fullName.localeCompare(b.fullName, 'ru');
+    });
+
+    const rows: unknown[][] = [
+      ['Отчет по активности жителей'],
+      ['Жилой комплекс', tenant?.name ?? tenantId],
+      ['Период', `${fromDateStr} — ${toDateStr}`],
+      [],
+      [
+        'ФИО',
+        'Телефон',
+        'Голосов подано',
+        'Заявок создано',
+        'Бронирований',
+        'Объявлений',
+        'Сообщений в чате',
+        'Показаний счётчиков',
+        'Итого',
+      ],
+    ];
+
+    for (const r of residentRows) {
+      rows.push([
+        r.fullName,
+        r.phone,
+        r.votesCount,
+        r.requestsCount,
+        r.bookingsCount,
+        r.listingsCount,
+        r.messagesCount,
+        r.readingsCount,
+        r.totalActivity,
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `resident-activity-${tenantId}-${fromDateStr}_${toDateStr}.csv`;
+
+    return { buffer, filename };
+  }
 }

@@ -83,21 +83,27 @@ describe('AnalyticsService', () => {
       user: {
         count: jest.fn(),
         groupBy: jest.fn(),
+        findMany: jest.fn(),
       },
       vote: {
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
       booking: {
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
       communityListing: {
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
       chatMessage: {
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
       meterReading: {
         count: jest.fn(),
+        groupBy: jest.fn(),
       },
     };
 
@@ -688,6 +694,161 @@ describe('AnalyticsService', () => {
 
       // Ровно 1 вызов findMany для должников
       expect(prismaMock.personalAccount.findMany).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('exportResidentActivityCsv', () => {
+    const mockResidents = [
+      { id: 'res-1', firstName: 'Алихан', lastName: 'Нурланов', phone: '+77011112233' },
+      { id: 'res-2', firstName: 'Динара', lastName: 'Каримова', phone: '+77022223344' },
+      { id: 'res-3', firstName: 'Серик', lastName: 'Ахметов', phone: '+77033334455' },
+    ];
+
+    beforeEach(() => {
+      prismaMock.user.findMany.mockResolvedValue(mockResidents);
+      prismaMock.vote.groupBy.mockResolvedValue([]);
+      prismaMock.serviceRequest.groupBy.mockResolvedValue([]);
+      prismaMock.booking.groupBy.mockResolvedValue([]);
+      prismaMock.communityListing.groupBy.mockResolvedValue([]);
+      prismaMock.chatMessage.groupBy.mockResolvedValue([]);
+      prismaMock.meterReading.groupBy.mockResolvedValue([]);
+    });
+
+    it('корректно сопоставляет активность жильца по нескольким таблицам без смешивания', async () => {
+      // res-1: 2 votes, 1 request
+      prismaMock.vote.groupBy.mockResolvedValue([
+        { userId: 'res-1', _count: 2 },
+      ]);
+      prismaMock.serviceRequest.groupBy.mockResolvedValue([
+        { creatorId: 'res-1', _count: 1 },
+      ]);
+      // res-2: 1 booking, 2 listings, 3 messages, 4 readings
+      prismaMock.booking.groupBy.mockResolvedValue([
+        { bookedById: 'res-2', _count: 1 },
+      ]);
+      prismaMock.communityListing.groupBy.mockResolvedValue([
+        { authorId: 'res-2', _count: 2 },
+      ]);
+      prismaMock.chatMessage.groupBy.mockResolvedValue([
+        { senderId: 'res-2', _count: 3 },
+      ]);
+      prismaMock.meterReading.groupBy.mockResolvedValue([
+        { submittedById: 'res-2', _count: 4 },
+      ]);
+
+      const result = await service.exportResidentActivityCsv(mockTenantId, hoaAdminUser, {
+        from: '2026-08-01',
+        to: '2026-08-31',
+      });
+
+      expect(result.buffer).toBeInstanceOf(Buffer);
+      const csvString = result.buffer.toString('utf-8');
+
+      // Проверяем строки для res-2 (Каримова Динара, total 10)
+      // Столбцы: ФИО, Телефон, Голосов, Заявок, Бронирований, Объявлений, Сообщений, Показаний, Итого
+      expect(csvString).toContain('Каримова Динара,+77022223344,0,0,1,2,3,4,10');
+
+      // Проверяем строки для res-1 (Нурланов Алихан, total 3)
+      expect(csvString).toContain('Нурланов Алихан,+77011112233,2,1,0,0,0,0,3');
+    });
+
+    it('житель с нулевой активностью отображается с явными 0 по всем 6 счетчикам и не пропускается', async () => {
+      // res-1 имеет 1 заявку, res-2 и res-3 не имеют ничего
+      prismaMock.serviceRequest.groupBy.mockResolvedValue([
+        { creatorId: 'res-1', _count: 1 },
+      ]);
+
+      const result = await service.exportResidentActivityCsv(mockTenantId, hoaAdminUser);
+      const csvString = result.buffer.toString('utf-8');
+
+      // res-3 (Ахметов Серик) имеет все нули
+      expect(csvString).toContain('Ахметов Серик,+77033334455,0,0,0,0,0,0,0');
+      // res-2 (Каримова Динара) имеет все нули
+      expect(csvString).toContain('Каримова Динара,+77022223344,0,0,0,0,0,0,0');
+    });
+
+    it('каждый из 6 запросов groupBy и запрос списка жителей вызывается ровно один раз независимо от числа жителей (N+1 protection)', async () => {
+      // Генерируем 15 жителей
+      const fifteenResidents = Array.from({ length: 15 }, (_, i) => ({
+        id: `resident-${i + 1}`,
+        firstName: `Имя${i + 1}`,
+        lastName: `Фамилия${i + 1}`,
+        phone: `+770100000${String(i).padStart(2, '0')}`,
+      }));
+      prismaMock.user.findMany.mockResolvedValue(fifteenResidents);
+
+      await service.exportResidentActivityCsv(mockTenantId, hoaAdminUser);
+
+      // Ровно 1 вызов списка жителей
+      expect(prismaMock.user.findMany).toHaveBeenCalledTimes(1);
+
+      // Ровно 1 вызов на каждую из 6 категорий активности
+      expect(prismaMock.vote.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.serviceRequest.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.booking.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.communityListing.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.chatMessage.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.meterReading.groupBy).toHaveBeenCalledTimes(1);
+    });
+
+    it('сортирует жителей по убыванию суммарной активности (totalActivity desc)', async () => {
+      // res-1: total 5
+      prismaMock.vote.groupBy.mockResolvedValue([{ userId: 'res-1', _count: 5 }]);
+      // res-2: total 15
+      prismaMock.chatMessage.groupBy.mockResolvedValue([{ senderId: 'res-2', _count: 15 }]);
+      // res-3: total 0
+
+      const result = await service.exportResidentActivityCsv(mockTenantId, hoaAdminUser);
+      const csvString = result.buffer.toString('utf-8');
+
+      const indexRes2 = csvString.indexOf('Каримова Динара'); // 15
+      const indexRes1 = csvString.indexOf('Нурланов Алихан'); // 5
+      const indexRes3 = csvString.indexOf('Ахметов Серик');   // 0
+
+      expect(indexRes2).toBeGreaterThan(-1);
+      expect(indexRes1).toBeGreaterThan(-1);
+      expect(indexRes3).toBeGreaterThan(-1);
+
+      // Порядок: res-2 (15) -> res-1 (5) -> res-3 (0)
+      expect(indexRes2).toBeLessThan(indexRes1);
+      expect(indexRes1).toBeLessThan(indexRes3);
+    });
+
+    it('отклоняет доступ для DISPATCHER, персонала чужого ЖК и обычных жильцов (403 Forbidden)', async () => {
+      await expect(
+        service.exportResidentActivityCsv(mockTenantId, dispatcherUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.exportResidentActivityCsv(mockTenantId, foreignHoaAdmin),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.exportResidentActivityCsv(mockTenantId, residentUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Разрешено для председателя ОСИ и суперадмина
+      await expect(
+        service.exportResidentActivityCsv(mockTenantId, hoaChairmanUser),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.exportResidentActivityCsv(mockTenantId, superadminUser),
+      ).resolves.toBeDefined();
+    });
+
+    it('буфер CSV начинается с корректного UTF-8 BOM и имя файла содержит диапазон дат', async () => {
+      const result = await service.exportResidentActivityCsv(mockTenantId, hoaAdminUser, {
+        from: '2026-08-01',
+        to: '2026-08-31',
+      });
+
+      // Проверяем UTF-8 BOM: 0xEF, 0xBB, 0xBF
+      expect(result.buffer[0]).toBe(0xef);
+      expect(result.buffer[1]).toBe(0xbb);
+      expect(result.buffer[2]).toBe(0xbf);
+
+      expect(result.filename).toBe(`resident-activity-${mockTenantId}-2026-08-01_2026-08-31.csv`);
     });
   });
 });

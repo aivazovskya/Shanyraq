@@ -849,7 +849,9 @@
       "registeredSub": "қосымшада тіркелген",
       "verifiedSub": "расталған меншік иелері/жалға алушылар",
       "adoptionRateSub": "барлық тіркелгендерден тексерілгендер үлесі",
-      "actionsCount": "Әрекеттер"
+      "actionsCount": "Әрекеттер",
+      "exportCsv": "CSV жүктеу",
+      "exporting": "Экспортталуда..."
     },
     "statuses": {
       "PENDING": "Жаңа",

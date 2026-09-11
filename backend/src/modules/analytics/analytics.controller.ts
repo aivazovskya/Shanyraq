@@ -107,4 +107,26 @@ export class AnalyticsController {
   ) {
     return this.analyticsService.getActivityAnalytics(tenantId, req.user, query);
   }
+
+  @Get('tenants/:tenantId/activity/export')
+  @ApiOperation({
+    summary:
+      'Экспорт активности жителей ЖК в формате CSV (с разбивкой по каждому жителю)',
+  })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async exportResidentActivityCsv(
+    @Param('tenantId') tenantId: string,
+    @Query() query: DateRangeAnalyticsQueryDto,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } =
+      await this.analyticsService.exportResidentActivityCsv(tenantId, req.user, query);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  }
 }

@@ -158,6 +158,7 @@ export default function AnalyticsDashboardPage() {
   // Activity filters & data
   const [activityPreset, setActivityPreset] = useState<PeriodPreset>('30d');
   const [activityData, setActivityData] = useState<ActivityAnalyticsData | null>(null);
+  const [exportingActivityCsv, setExportingActivityCsv] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -250,6 +251,25 @@ export default function AnalyticsDashboardPage() {
     },
     [t],
   );
+
+  const handleExportActivityCsv = async () => {
+    if (!tenantId || exportingActivityCsv) return;
+    try {
+      setExportingActivityCsv(true);
+      const { from, to } = getPresetDates(activityPreset);
+      const fromDateStr = from.split('T')[0];
+      const toDateStr = to.split('T')[0];
+      await apiDownload(
+        `/analytics/tenants/${tenantId}/activity/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        `resident-activity-${tenantId}-${fromDateStr}_${toDateStr}.csv`,
+      );
+    } catch (err: any) {
+      console.error('Failed to export resident activity CSV:', err);
+      setErrorMsg(err.message || 'Ошибка экспорта CSV');
+    } finally {
+      setExportingActivityCsv(false);
+    }
+  };
 
   // Session initialization
   useEffect(() => {
@@ -820,23 +840,44 @@ export default function AnalyticsDashboardPage() {
       {/* TAB 3: RESIDENT ACTIVITY */}
       {activeTab === 'activity' && tenantId && (
         <div className="space-y-6">
-          {/* Preset Buttons */}
-          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          {/* Preset Buttons & Export */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-sm font-medium text-slate-700">{t('analytics.filters.periodLabel')}</span>
-            <div className="inline-flex rounded-xl bg-slate-100 p-1">
-              {(['7d', '30d', '90d'] as PeriodPreset[]).map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => setActivityPreset(preset)}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
-                    activityPreset === preset
-                      ? 'bg-white text-sky-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {t(`analytics.filters.period${preset}`)}
-                </button>
-              ))}
+            <div className="flex items-center gap-3">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1">
+                {(['7d', '30d', '90d'] as PeriodPreset[]).map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setActivityPreset(preset)}
+                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+                      activityPreset === preset
+                        ? 'bg-white text-sky-700 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t(`analytics.filters.period${preset}`)}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportActivityCsv}
+                disabled={exportingActivityCsv || !activityData}
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-medium rounded-xl border border-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={t('analytics.activity.exportCsv')}
+              >
+                {exportingActivityCsv ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                ) : (
+                  <Download className="w-4 h-4 text-emerald-600" />
+                )}
+                <span>
+                  {exportingActivityCsv
+                    ? t('analytics.activity.exporting')
+                    : t('analytics.activity.exportCsv')}
+                </span>
+              </button>
             </div>
           </div>
 

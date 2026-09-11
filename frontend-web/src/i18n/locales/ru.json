@@ -849,7 +849,9 @@
       "registeredSub": "зарегистрировано в приложении",
       "verifiedSub": "подтверждённые собственники/арендаторы",
       "adoptionRateSub": "доля верификации от всех зарегистрированных",
-      "actionsCount": "Действий"
+      "actionsCount": "Действий",
+      "exportCsv": "Скачать CSV",
+      "exporting": "Экспорт..."
     },
     "statuses": {
       "PENDING": "Новая",
