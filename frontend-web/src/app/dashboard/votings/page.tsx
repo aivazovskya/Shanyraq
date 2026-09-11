@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import {
   Vote,
@@ -15,8 +16,20 @@ import {
   X,
   Loader2,
   RefreshCw,
+  Search,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, getApiErrorMessage } from '@/lib/api';
+
+function SearchParamsReader({ onQuery }: { onQuery: (q: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const q = searchParams.get('q') || searchParams.get('search');
+    if (q) {
+      onQuery(q);
+    }
+  }, [searchParams, onQuery]);
+  return null;
+}
 
 interface AgendaItemResult {
   areaFor: number;
@@ -72,6 +85,7 @@ export default function VotingsPage() {
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'COMPLETED'>('ACTIVE');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -126,11 +140,23 @@ export default function VotingsPage() {
   }, [loadMeetings]);
 
   const filteredMeetings = meetings.filter((m) => {
-    if (activeTab === 'ACTIVE') return m.status === 'ACTIVE';
-    return m.status === 'COMPLETED';
+    if (activeTab === 'ACTIVE' && m.status !== 'ACTIVE') return false;
+    if (activeTab === 'COMPLETED' && m.status !== 'COMPLETED') return false;
+
+    if (!searchQuery.trim()) return true;
+
+    const q = searchQuery.toLowerCase().trim();
+    const titleMatch = m.title?.toLowerCase().includes(q);
+    const descMatch = m.description?.toLowerCase().includes(q);
+    const protocolMatch = m.protocol?.protocolNumber?.toLowerCase().includes(q);
+
+    return Boolean(titleMatch || descMatch || protocolMatch);
   });
 
-  const selectedMeeting = meetings.find((m) => m.id === selectedMeetingId) || filteredMeetings[0] || null;
+  const selectedMeeting =
+    filteredMeetings.find((m) => m.id === selectedMeetingId) ||
+    filteredMeetings[0] ||
+    null;
 
   const handleCloseMeeting = async () => {
     if (!selectedMeeting) return;
@@ -246,6 +272,9 @@ export default function VotingsPage() {
 
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}>
+        <SearchParamsReader onQuery={setSearchQuery} />
+      </Suspense>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('votings.title')}</h1>
@@ -307,7 +336,7 @@ export default function VotingsPage() {
 
       {/* Tab and Meeting Selector */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <button
             onClick={() => setActiveTab('ACTIVE')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
@@ -332,24 +361,47 @@ export default function VotingsPage() {
           </button>
         </div>
 
-        {filteredMeetings.length > 0 && (
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
-              {t('votings.selectMeetingLabel')}
-            </span>
-            <select
-              value={selectedMeetingId || ''}
-              onChange={(e) => setSelectedMeetingId(e.target.value)}
-              className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 font-medium focus:outline-none focus:border-sky-500 max-w-xs"
-            >
-              {filteredMeetings.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.title}
-                </option>
-              ))}
-            </select>
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          {/* Search box */}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('votings.searchPlaceholder')}
+              className="w-full pl-9 pr-8 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-sky-500 transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-        )}
+
+          {filteredMeetings.length > 0 && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                {t('votings.selectMeetingLabel')}
+              </span>
+              <select
+                value={selectedMeetingId || ''}
+                onChange={(e) => setSelectedMeetingId(e.target.value)}
+                className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 font-medium focus:outline-none focus:border-sky-500 max-w-xs w-full sm:w-auto"
+              >
+                {filteredMeetings.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && meetings.length === 0 ? (
@@ -361,7 +413,11 @@ export default function VotingsPage() {
         <div className="p-16 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <Vote className="w-10 h-10 mx-auto text-slate-300 mb-3" />
           <p className="text-base font-semibold text-slate-800">
-            {activeTab === 'ACTIVE' ? t('votings.noActiveMeeting') : t('votings.noMeetings')}
+            {searchQuery
+              ? t('votings.noSearchResults')
+              : activeTab === 'ACTIVE'
+              ? t('votings.noActiveMeeting')
+              : t('votings.noMeetings')}
           </p>
         </div>
       ) : (

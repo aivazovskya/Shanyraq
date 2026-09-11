@@ -245,7 +245,9 @@
     "creatingMeeting": "Creating meeting...",
     "questionOrderDynamic": "Question #{{order}}",
     "questionDescPlaceholder": "Explanation / context (optional)",
-    "daysLeftDynamic": "{{count}} days"
+    "daysLeftDynamic": "{{count}} days",
+    "searchPlaceholder": "Search by title, description, or protocol number...",
+    "noSearchResults": "No meetings found matching your search"
   },
   "requests": {
     "title": "Service Desk (Resident Requests)",

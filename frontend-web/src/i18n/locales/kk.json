@@ -245,7 +245,9 @@
     "creatingMeeting": "Жиналыс құрылуда...",
     "questionOrderDynamic": "№{{order}} мәселе",
     "questionDescPlaceholder": "Мәселеге түсініктеме (міндетті емес)",
-    "daysLeftDynamic": "{{count}} күн"
+    "daysLeftDynamic": "{{count}} күн",
+    "searchPlaceholder": "Тақырыбы, сипаттамасы немесе хаттама нөмірі бойынша іздеу...",
+    "noSearchResults": "Сұранысыңыз бойынша жиналыстар табылмады"
   },
   "requests": {
     "title": "Service Desk (Тұрғындар өтінімдері)",

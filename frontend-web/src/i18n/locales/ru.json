@@ -245,7 +245,9 @@
     "creatingMeeting": "Создание собрания...",
     "questionOrderDynamic": "Вопрос №{{order}}",
     "questionDescPlaceholder": "Пояснение к вопросу (опционально)",
-    "daysLeftDynamic": "{{count}} дней"
+    "daysLeftDynamic": "{{count}} дней",
+    "searchPlaceholder": "Поиск по теме, описанию или номеру протокола...",
+    "noSearchResults": "По вашему запросу собраний не найдено"
   },
   "requests": {
     "title": "Service Desk (Заявки жителей)",
