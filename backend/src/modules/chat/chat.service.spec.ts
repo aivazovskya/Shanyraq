@@ -515,4 +515,107 @@ describe('ChatService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('exportConversationCsv (Task 0059: Dispatcher chat transcript CSV export)', () => {
+    const baseConv = {
+      id: mockConversationId,
+      tenantId: mockTenantId,
+      residentId: verifiedResident.id,
+      tenant: { name: 'ЖК Шанырак Премиум' },
+      resident: {
+        id: verifiedResident.id,
+        firstName: verifiedResident.firstName,
+        lastName: verifiedResident.lastName,
+        phone: verifiedResident.phone,
+        ownerships: [
+          { unit: { unitNumber: '15', building: { blockName: 'Блок А' } } },
+        ],
+      },
+    };
+
+    it('экспортирует ВСЕ сообщения диалога, а не только последние 100 (в отличие от getConversationMessages)', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(baseConv);
+
+      const manyMessages = Array.from({ length: 137 }, (_, i) => ({
+        id: `msg-${i}`,
+        createdAt: new Date(2026, 8, 1, 10, i),
+        text: `Сообщение №${i}`,
+        photoUrl: null,
+        sender: { firstName: 'Айбек', lastName: 'Нурланов', role: UserRole.RESIDENT_OWNER },
+      }));
+      prismaMock.chatMessage.findMany.mockResolvedValueOnce(manyMessages);
+
+      const result = await service.exportConversationCsv(mockConversationId, dispatcherUser);
+
+      expect(prismaMock.chatMessage.findMany).toHaveBeenCalledWith(
+        expect.not.objectContaining({ take: expect.anything() }),
+      );
+
+      const csv = result.buffer.toString('utf-8');
+      expect(csv).toContain('Сообщение №0');
+      expect(csv).toContain('Сообщение №136'); // 137th message, beyond the 100-message cap
+    });
+
+    it('не обновляет lastReadByStaffAt — экспорт не должен иметь побочных эффектов на статус прочтения', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(baseConv);
+      prismaMock.chatMessage.findMany.mockResolvedValueOnce([]);
+
+      await service.exportConversationCsv(mockConversationId, dispatcherUser);
+
+      expect(prismaMock.conversation.update).not.toHaveBeenCalled();
+    });
+
+    it('сообщение только с фото отображается с пустым полем "Сообщение" и ссылкой в отдельной колонке', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(baseConv);
+      prismaMock.chatMessage.findMany.mockResolvedValueOnce([
+        {
+          id: 'msg-photo',
+          createdAt: new Date('2026-09-05T10:00:00Z'),
+          text: null,
+          photoUrl: 'https://storage.shanyraq.kz/uploads/leak.jpg',
+          sender: { firstName: 'Айбек', lastName: 'Нурланов', role: UserRole.RESIDENT_OWNER },
+        },
+      ]);
+
+      const result = await service.exportConversationCsv(mockConversationId, dispatcherUser);
+      const csv = result.buffer.toString('utf-8');
+      const lines = csv.split('\r\n');
+      const photoRow = lines.find((l) => l.includes('leak.jpg'));
+
+      expect(photoRow).toBeDefined();
+      const cols = photoRow!.split(',');
+      expect(cols[3]).toBe(''); // Сообщение column is empty
+      expect(cols[4]).toBe('https://storage.shanyraq.kz/uploads/leak.jpg');
+    });
+
+    it('отклоняет доступ жильцу и сотруднику чужого ЖК', async () => {
+      await expect(
+        service.exportConversationCsv(mockConversationId, verifiedResident),
+      ).rejects.toThrow(ForbiddenException);
+
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(baseConv);
+      await expect(
+        service.exportConversationCsv(mockConversationId, otherTenantDispatcher),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('сформированный CSV буфер начинается с байтов UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(baseConv);
+      prismaMock.chatMessage.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.exportConversationCsv(mockConversationId, dispatcherUser);
+
+      expect(result.buffer[0]).toBe(0xef);
+      expect(result.buffer[1]).toBe(0xbb);
+      expect(result.buffer[2]).toBe(0xbf);
+    });
+
+    it('выбрасывает NotFoundException, если диалог не найден', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.exportConversationCsv('non-existent', dispatcherUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 });

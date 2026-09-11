@@ -6,7 +6,9 @@ import {
   Body,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -76,5 +78,21 @@ export class ChatController {
     @Body() dto: CreateChatMessageDto,
   ) {
     return this.chatService.sendStaffMessage(id, req.user, dto);
+  }
+
+  @Get('conversations/:id/export')
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Экспорт полной переписки диалога в формате CSV' })
+  async exportConversationCsv(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.chatService.exportConversationCsv(id, req.user);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 }

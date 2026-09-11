@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { UserRole } from '@prisma/client';
 import { CreateChatMessageDto } from './dto/chat.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
+import { buildCsv } from '../../common/csv/csv.helper';
 
 @Injectable()
 export class ChatService {
@@ -550,5 +551,107 @@ export class ChatService {
     }
 
     return message;
+  }
+
+  /**
+   * Экспорт полной переписки диалога в CSV (для фиксации спорных ситуаций).
+   * Без лимита сообщений (в отличие от getConversationMessages) и без
+   * побочных эффектов — не обновляет lastReadByStaffAt.
+   */
+  async exportConversationCsv(
+    id: string,
+    user: any,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    this.assertStaffRole(user);
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+      include: {
+        tenant: {
+          select: { name: true },
+        },
+        resident: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            ownerships: {
+              where: { isVerified: true },
+              select: {
+                unit: {
+                  select: {
+                    unitNumber: true,
+                    building: { select: { blockName: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException({
+        code: 'CHAT.CONVERSATION_NOT_FOUND',
+        message: 'Диалог не найден',
+      });
+    }
+
+    await this.assertAccessToTenant(user, conversation.tenantId);
+
+    const messages = await this.prisma.chatMessage.findMany({
+      where: { conversationId: id },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        sender: {
+          select: {
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    const residentName = [conversation.resident?.firstName, conversation.resident?.lastName]
+      .filter(Boolean)
+      .join(' ');
+    const residentUnit = conversation.resident?.ownerships?.[0]?.unit;
+    const unitInfo = residentUnit
+      ? `${residentUnit.building?.blockName || ''} ${residentUnit.unitNumber || ''}`.trim()
+      : '';
+
+    const dateStr = new Date().toISOString().split('T')[0];
+
+    const rows: unknown[][] = [
+      ['Переписка с диспетчером'],
+      ['Жилой комплекс', conversation.tenant?.name || 'Не указан'],
+      ['Житель', residentName || 'Неизвестно'],
+      ['Телефон', conversation.resident?.phone || ''],
+      ['Квартира/Помещение', unitInfo],
+      [],
+      ['Дата и время', 'Отправитель (ФИО)', 'Роль', 'Сообщение', 'Фото (ссылка)'],
+    ];
+
+    for (const message of messages) {
+      const senderName = [message.sender?.firstName, message.sender?.lastName]
+        .filter(Boolean)
+        .join(' ');
+
+      rows.push([
+        message.createdAt.toISOString(),
+        senderName,
+        message.sender?.role || '',
+        message.text || '',
+        message.photoUrl || '',
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `chat-conversation-${id}-${dateStr}.csv`;
+
+    return { buffer, filename };
   }
 }
