@@ -38,6 +38,7 @@
     "communityBoard": "Community board",
     "chat": "Resident Chat",
     "analytics": "Analytics",
+    "auditLog": "Action Audit Log",
     "tenants": "Complexes & Tenants"
   },
   "roles": {
@@ -1074,5 +1075,37 @@
       "saved": "Settings saved",
       "error": "Failed to update settings"
     }
+  },
+  "auditLog": {
+    "title": "Staff Action Audit Log",
+    "subtitle": "Chronological audit trail of tariff changes, resident status, moderation, and ownership verification",
+    "filterAction": "Action type",
+    "allActions": "All actions",
+    "dateFrom": "From date",
+    "dateTo": "To date",
+    "exportCsv": "Export CSV",
+    "exporting": "Generating...",
+    "empty": "No audit log entries found for the selected period",
+    "loading": "Loading audit log...",
+    "deletedStaff": "Deleted employee",
+    "columns": {
+      "date": "Date & Time",
+      "actor": "Staff Member",
+      "action": "Action",
+      "target": "Target",
+      "details": "Details / Changes"
+    },
+    "actions": {
+      "TARIFF_CREATED": "Tariff created",
+      "TARIFF_UPDATED": "Tariff updated",
+      "RESIDENT_ACTIVATED": "Resident activated",
+      "RESIDENT_DEACTIVATED": "Resident deactivated",
+      "LISTING_MODERATED": "Listing moderated",
+      "OWNERSHIP_VERIFIED": "Ownership verified",
+      "OWNERSHIP_REJECTED": "Ownership rejected"
+    },
+    "selectTenantPlaceholder": "Select Complex...",
+    "selectTenantPromptTitle": "Select residential complex",
+    "selectTenantPromptSub": "You are logged in as superadministrator. Please select a complex from the dropdown above to view the audit log."
   }
 }

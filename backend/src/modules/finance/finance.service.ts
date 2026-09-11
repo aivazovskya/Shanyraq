@@ -30,9 +30,14 @@ import {
   TableColumn,
 } from '../../common/pdf/pdf-document.helper';
 
+import { AuditLogService } from '../audit-log/audit-log.service';
+
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   // -------------------------------------------------------------
   // 1. Управление тарифами ЖК
@@ -45,7 +50,11 @@ export class FinanceService {
     });
   }
 
-  async createTariff(tenantId: string, dto: CreateTariffDto) {
+  async createTariff(
+    tenantId: string,
+    user: { id?: string; tenantId?: string | null; role: UserRole },
+    dto: CreateTariffDto,
+  ) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) {
       throw new NotFoundException({
@@ -62,7 +71,7 @@ export class FinanceService {
       });
     }
 
-    return this.prisma.tariffItem.create({
+    const created = await this.prisma.tariffItem.create({
       data: {
         tenantId,
         name: dto.name,
@@ -71,11 +80,26 @@ export class FinanceService {
         rate: dto.rate,
       },
     });
+
+    await this.auditLogService.log({
+      tenantId,
+      actorId: user?.id,
+      action: 'TARIFF_CREATED',
+      targetType: 'TariffItem',
+      targetId: created.id,
+      metadata: {
+        name: created.name,
+        calculationMethod: created.calculationMethod,
+        rate: created.rate,
+      },
+    });
+
+    return created;
   }
 
   async updateTariff(
     tariffId: string,
-    user: { tenantId?: string | null; role: UserRole },
+    user: { id?: string; tenantId?: string | null; role: UserRole },
     dto: UpdateTariffDto,
   ) {
     const tariff = await this.prisma.tariffItem.findUnique({ where: { id: tariffId } });
@@ -98,7 +122,7 @@ export class FinanceService {
       });
     }
 
-    return this.prisma.tariffItem.update({
+    const updated = await this.prisma.tariffItem.update({
       where: { id: tariffId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -108,6 +132,35 @@ export class FinanceService {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
+
+    const changedAfter: Record<string, any> = {};
+    if (dto.name !== undefined && dto.name !== tariff.name) changedAfter.name = dto.name;
+    if (dto.calculationMethod !== undefined && dto.calculationMethod !== tariff.calculationMethod)
+      changedAfter.calculationMethod = dto.calculationMethod;
+    if (dto.meterType !== undefined && dto.meterType !== tariff.meterType)
+      changedAfter.meterType = dto.meterType;
+    if (dto.rate !== undefined && dto.rate !== tariff.rate) changedAfter.rate = dto.rate;
+    if (dto.isActive !== undefined && dto.isActive !== tariff.isActive)
+      changedAfter.isActive = dto.isActive;
+
+    await this.auditLogService.log({
+      tenantId: tariff.tenantId,
+      actorId: user?.id,
+      action: 'TARIFF_UPDATED',
+      targetType: 'TariffItem',
+      targetId: tariffId,
+      metadata: {
+        before: {
+          name: tariff.name,
+          calculationMethod: tariff.calculationMethod,
+          rate: tariff.rate,
+          isActive: tariff.isActive,
+        },
+        after: changedAfter,
+      },
+    });
+
+    return updated;
   }
 
   async deleteTariff(

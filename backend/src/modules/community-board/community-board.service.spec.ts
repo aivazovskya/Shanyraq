@@ -7,10 +7,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UserRole, ListingType, ListingStatus } from '@prisma/client';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('CommunityBoardService', () => {
   let service: CommunityBoardService;
   let prismaMock: any;
+  let auditLogServiceMock: any;
 
   const mockTenantId = 'tenant-1';
   const otherTenantId = 'tenant-2';
@@ -101,10 +103,15 @@ describe('CommunityBoardService', () => {
       },
     };
 
+    auditLogServiceMock = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommunityBoardService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: AuditLogService, useValue: auditLogServiceMock },
       ],
     }).compile();
 
@@ -436,6 +443,18 @@ describe('CommunityBoardService', () => {
           },
         }),
       );
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: mockTenantId,
+        actorId: dispatcherUser.id,
+        action: 'LISTING_MODERATED',
+        targetType: 'CommunityListing',
+        targetId: mockListingId,
+        metadata: {
+          previousStatus: ListingStatus.ACTIVE,
+          newStatus: ListingStatus.REMOVED,
+          reason: 'Спам / реклама',
+        },
+      });
     });
 
     it('allows HOA_ADMIN to moderate a listing in their tenant', async () => {
@@ -508,6 +527,8 @@ describe('CommunityBoardService', () => {
           reason: '   ',
         }),
       ).rejects.toThrow(BadRequestException);
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
   });
 

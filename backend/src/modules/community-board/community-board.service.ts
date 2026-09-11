@@ -13,10 +13,14 @@ import {
   GetListingsQueryDto,
 } from './dto/community-board.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class CommunityBoardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   private static readonly COMMUNITY_BOARD_ACCESS_ERRORS: TenantAccessErrorCodes = {
     authRequired: {
@@ -276,7 +280,7 @@ export class CommunityBoardService {
       });
     }
 
-    return this.prisma.communityListing.update({
+    const updated = await this.prisma.communityListing.update({
       where: { id },
       data: {
         status: ListingStatus.REMOVED,
@@ -302,6 +306,21 @@ export class CommunityBoardService {
         },
       },
     });
+
+    await this.auditLogService.log({
+      tenantId: listing.tenantId,
+      actorId: user.id,
+      action: 'LISTING_MODERATED',
+      targetType: 'CommunityListing',
+      targetId: id,
+      metadata: {
+        previousStatus: listing.status,
+        newStatus: ListingStatus.REMOVED,
+        reason: dto.reason.trim(),
+      },
+    });
+
+    return updated;
   }
 
   /**

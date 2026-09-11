@@ -4,10 +4,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UserRole, OwnershipType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('PropertiesService (Поиск ЖК, структура объектов и реестр жильцов)', () => {
   let service: PropertiesService;
   let prismaMock: any;
+  let auditLogServiceMock: any;
 
   beforeEach(async () => {
     prismaMock = {
@@ -46,10 +48,15 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       },
     };
 
+    auditLogServiceMock = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PropertiesService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: AuditLogService, useValue: auditLogServiceMock },
       ],
     }).compile();
 
@@ -288,9 +295,20 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
           data: { isActive: false },
           select: expect.any(Object),
         });
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId: 'tenant-1',
+          actorId: 'staff-1',
+          action: 'RESIDENT_DEACTIVATED',
+          targetType: 'User',
+          targetId: 'res-1',
+          metadata: {
+            residentName: 'Азамат Ибраев',
+            previousStatus: undefined,
+          },
+        });
       });
 
-      it('должен отклонять изменение статуса для учетных записей сотрудников (не жильцов)', async () => {
+      it('должен отклонять изменение статуса для учетных записей сотрудников (не жильцов) и НЕ писать аудит', async () => {
         prismaMock.user.findUnique.mockResolvedValue({
           id: 'staff-target',
           role: UserRole.HOA_ADMIN,
@@ -302,6 +320,8 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         await expect(
           service.updateResidentStatus('staff-target', staffUser, { isActive: false }),
         ).rejects.toThrow(BadRequestException);
+
+        expect(auditLogServiceMock.log).not.toHaveBeenCalled();
       });
 
       it('должен блокировать изменение статуса сотрудником чужого ЖК (ForbiddenException)', async () => {
@@ -320,9 +340,12 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         ).rejects.toThrow(ForbiddenException);
       });
 
-      it('должен разрешать SUPERADMIN изменять статус жильца любого ЖК', async () => {
+      it('должен разрешать SUPERADMIN изменять статус жильца любого ЖК и логировать RESIDENT_ACTIVATED', async () => {
         prismaMock.user.findUnique.mockResolvedValue({
           id: 'res-any',
+          firstName: 'Данияр',
+          lastName: 'Алиев',
+          isActive: false,
           role: UserRole.RESIDENT_OWNER,
           tenantId: 'tenant-any',
           ownerships: [],
@@ -335,6 +358,17 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         const superAdmin = { id: 'sa', role: UserRole.SUPERADMIN, tenantId: null };
         const res = await service.updateResidentStatus('res-any', superAdmin, { isActive: true });
         expect(res.isActive).toBe(true);
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId: 'tenant-any',
+          actorId: 'sa',
+          action: 'RESIDENT_ACTIVATED',
+          targetType: 'User',
+          targetId: 'res-any',
+          metadata: {
+            residentName: 'Данияр Алиев',
+            previousStatus: false,
+          },
+        });
       });
     });
 
@@ -916,9 +950,38 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
           where: { id: 'user-resident-1' },
           data: { isVerified: true },
         });
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId: 'tenant-1',
+          actorId: 'admin-1',
+          action: 'OWNERSHIP_VERIFIED',
+          targetType: 'UnitOwnership',
+          targetId: 'own-record-1',
+          metadata: {
+            residentId: 'user-resident-1',
+            unitId: 'unit-1',
+            sharePercent: 30.0,
+          },
+        });
       });
 
-      it('должен удалять запись при отклонении (dto.isVerified: false) и возвращать { isVerified: false, status: "REJECTED" }', async () => {
+      it('НЕ должен логировать OWNERSHIP_VERIFIED, если подтверждение отклонено (например превышение доли)', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([
+          { id: 'own-other', sharePercent: 70.0, isVerified: true },
+        ]);
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        await expect(
+          service.verifyOwnership('own-record-1', verifier, {
+            isVerified: true,
+            approvedSharePercent: 50.0,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+      });
+
+      it('должен удалять запись при отклонении (dto.isVerified: false) и логировать OWNERSHIP_REJECTED', async () => {
         prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
         prismaMock.unitOwnership.delete.mockResolvedValue({ id: 'own-record-1' });
 
@@ -937,6 +1000,18 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         });
         expect(prismaMock.unitOwnership.update).not.toHaveBeenCalled();
         expect(prismaMock.user.update).not.toHaveBeenCalled();
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId: 'tenant-1',
+          actorId: 'admin-1',
+          action: 'OWNERSHIP_REJECTED',
+          targetType: 'UnitOwnership',
+          targetId: 'own-record-1',
+          metadata: {
+            residentId: 'user-resident-1',
+            unitId: 'unit-1',
+            requestedShare: 50.0,
+          },
+        });
       });
 
       it('должен использовать исходный sharePercent записи, если approvedSharePercent опущен', async () => {

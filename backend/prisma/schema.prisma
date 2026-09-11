@@ -107,6 +107,7 @@ model Tenant {
   sosAlerts         SosAlert[]
   communityListings CommunityListing[]
   conversations     Conversation[]
+  auditLogs         AuditLog[]
 
   @@map("tenants")
 }
@@ -200,6 +201,7 @@ model User {
   listingsRemoved    CommunityListing[] @relation("ListingsRemoved")
   conversationsAsResident Conversation[] @relation("ConversationsAsResident")
   chatMessagesSent        ChatMessage[]  @relation("ChatMessagesSent")
+  auditLogs               AuditLog[]
 
   @@map("users")
 }
@@ -749,5 +751,22 @@ model ChatMessage {
   sender       User         @relation("ChatMessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  actorId    String?
+  action     String   // TARIFF_CREATED | TARIFF_UPDATED | RESIDENT_ACTIVATED | RESIDENT_DEACTIVATED | LISTING_MODERATED | OWNERSHIP_VERIFIED | OWNERSHIP_REJECTED
+  targetType String   // TariffItem | User | CommunityListing | UnitOwnership
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
 }
 

@@ -11,10 +11,14 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class PropertiesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   async getAllTenants() {
     return this.prisma.tenant.findMany({
@@ -403,6 +407,20 @@ export class PropertiesService {
       await this.prisma.unitOwnership.delete({
         where: { id: ownershipId },
       });
+
+      await this.auditLogService.log({
+        tenantId: record.unit.building.tenantId,
+        actorId: verifierUser.id,
+        action: 'OWNERSHIP_REJECTED',
+        targetType: 'UnitOwnership',
+        targetId: ownershipId,
+        metadata: {
+          residentId: record.userId,
+          unitId: record.unitId,
+          requestedShare: record.sharePercent,
+        },
+      });
+
       return { id: ownershipId, isVerified: false, status: 'REJECTED' };
     }
 
@@ -418,6 +436,19 @@ export class PropertiesService {
     await this.prisma.user.update({
       where: { id: record.userId },
       data: { isVerified: true },
+    });
+
+    await this.auditLogService.log({
+      tenantId: record.unit.building.tenantId,
+      actorId: verifierUser.id,
+      action: 'OWNERSHIP_VERIFIED',
+      targetType: 'UnitOwnership',
+      targetId: ownershipId,
+      metadata: {
+        residentId: record.userId,
+        unitId: record.unitId,
+        sharePercent: finalSharePercent,
+      },
     });
 
     return updated;
@@ -671,6 +702,27 @@ export class PropertiesService {
         isActive: true,
       },
     });
+
+    const tenantIdForLog =
+      targetUser.tenantId ||
+      targetUser.ownerships[0]?.unit?.building?.tenantId ||
+      staffUser.tenantId;
+
+    const residentName = `${updated.firstName || targetUser.firstName || ''} ${updated.lastName || targetUser.lastName || ''}`.trim() || 'Жилец';
+
+    if (tenantIdForLog) {
+      await this.auditLogService.log({
+        tenantId: tenantIdForLog,
+        actorId: staffUser?.id,
+        action: dto.isActive ? 'RESIDENT_ACTIVATED' : 'RESIDENT_DEACTIVATED',
+        targetType: 'User',
+        targetId: userId,
+        metadata: {
+          residentName,
+          previousStatus: targetUser.isActive,
+        },
+      });
+    }
 
     return {
       id: updated.id,

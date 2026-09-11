@@ -57,7 +57,7 @@ export class FinanceController {
     @Body() dto: CreateTariffDto,
   ) {
     assertUserBelongsToTenant(user, tenantId, 'тарифов');
-    return this.financeService.createTariff(tenantId, dto);
+    return this.financeService.createTariff(tenantId, user, dto);
   }
 
   @Patch('tariffs/:id')

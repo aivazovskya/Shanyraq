@@ -16,11 +16,18 @@ import {
 } from '@prisma/client';
 import { generateAccountNumber, getOrCreatePersonalAccount } from './personal-account.helper';
 
+import { AuditLogService } from '../audit-log/audit-log.service';
+
 describe('FinanceService (Лицевые счета, тарифы, начисления и оплаты)', () => {
   let service: FinanceService;
   let prismaMock: any;
+  let auditLogServiceMock: any;
 
   beforeEach(async () => {
+    auditLogServiceMock = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     prismaMock = {
       tenant: {
         findUnique: jest.fn(),
@@ -66,6 +73,7 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: AuditLogService, useValue: auditLogServiceMock },
       ],
     }).compile();
 
@@ -97,7 +105,7 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       });
     });
 
-    it('должен успешно создавать тариф в ЖК', async () => {
+    it('должен успешно создавать тариф в ЖК и логировать TARIFF_CREATED', async () => {
       prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1' });
       prismaMock.tariffItem.create.mockResolvedValue({
         id: 'tariff-new',
@@ -107,7 +115,8 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         rate: 450.0,
       });
 
-      const res = await service.createTariff('tenant-1', {
+      const staff = { id: 'admin-1', tenantId: 'tenant-1', role: UserRole.HOA_ADMIN };
+      const res = await service.createTariff('tenant-1', staff, {
         name: 'Домофон',
         calculationMethod: ChargeCalculationMethod.FLAT,
         rate: 450.0,
@@ -115,6 +124,34 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
 
       expect(res.name).toBe('Домофон');
       expect(res.rate).toBe(450.0);
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
+        actorId: 'admin-1',
+        action: 'TARIFF_CREATED',
+        targetType: 'TariffItem',
+        targetId: 'tariff-new',
+        metadata: {
+          name: 'Домофон',
+          calculationMethod: ChargeCalculationMethod.FLAT,
+          rate: 450.0,
+        },
+      });
+    });
+
+    it('НЕ должен логировать TARIFF_CREATED, если создание тарифа отклонено валидацией', async () => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1' });
+
+      const staff = { id: 'admin-1', tenantId: 'tenant-1', role: UserRole.HOA_ADMIN };
+      await expect(
+        service.createTariff('tenant-1', staff, {
+          name: 'Вода',
+          calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+          rate: 150.0,
+          // meterType отсутствует
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
 
     it('должен блокировать редактирование тарифа сотрудником чужого ЖК (BOLA)', async () => {
@@ -150,6 +187,44 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
 
       expect(res.rate).toBe(800);
       expect(prismaMock.tariffItem.update).toHaveBeenCalled();
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-A',
+        actorId: 'u-super',
+        action: 'TARIFF_UPDATED',
+        targetType: 'TariffItem',
+        targetId: 'tariff-1',
+        metadata: {
+          before: {
+            name: 'Лифт',
+            calculationMethod: undefined,
+            rate: 750,
+            isActive: undefined,
+          },
+          after: {
+            rate: 800,
+          },
+        },
+      });
+    });
+
+    it('НЕ должен логировать TARIFF_UPDATED, если обновление тарифа отклонено валидацией (например METER_TYPE_REQUIRED)', async () => {
+      prismaMock.tariffItem.findUnique.mockResolvedValue({
+        id: 'tariff-1',
+        tenantId: 'tenant-1',
+        name: 'Вода',
+        calculationMethod: ChargeCalculationMethod.FLAT,
+        meterType: null,
+      });
+
+      const staff = { id: 'admin-1', tenantId: 'tenant-1', role: UserRole.HOA_ADMIN };
+      await expect(
+        service.updateTariff('tariff-1', staff, {
+          calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
+          // meterType отсутствует
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
 
     it('должен мягко удалять тариф (isActive: false)', async () => {
@@ -572,8 +647,9 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
     it('должен блокировать создание тарифа PER_CONSUMPTION без указания meterType', async () => {
       prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1' });
 
+      const staffUser = { id: 'admin-1', tenantId: 'tenant-1', role: UserRole.HOA_ADMIN };
       await expect(
-        service.createTariff('tenant-1', {
+        service.createTariff('tenant-1', staffUser, {
           name: 'Холодная вода',
           calculationMethod: ChargeCalculationMethod.PER_CONSUMPTION,
           rate: 85,
