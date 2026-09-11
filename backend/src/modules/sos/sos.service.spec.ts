@@ -115,6 +115,9 @@ describe('SosService', () => {
       user: {
         findUnique: jest.fn(),
       },
+      tenant: {
+        findUnique: jest.fn().mockResolvedValue({ id: mockTenantId, name: 'ЖК Шанырак' }),
+      },
     };
 
     notificationsServiceMock = {
@@ -501,6 +504,156 @@ describe('SosService', () => {
         { date: '2026-09-02', count: 0 },
         { date: '2026-09-03', count: 1 },
       ]);
+    });
+  });
+
+  describe('exportAlertsCsv (Task 0056: SOS alert log CSV export)', () => {
+    const alertInRange = {
+      id: 'alert-in-range',
+      tenantId: mockTenantId,
+      status: SosAlertStatus.RESOLVED,
+      createdAt: new Date('2026-09-05T10:00:00Z'),
+      resolvedAt: new Date('2026-09-05T10:12:00Z'), // 12 minutes
+      resolutionNote: 'Ложное срабатывание, охрана подтвердила порядок',
+      latitude: 51.1284,
+      longitude: 71.4305,
+      unit: {
+        unitNumber: '15',
+        building: { blockName: 'Блок Б' },
+      },
+      triggeredBy: {
+        id: 'user-resident-1',
+        firstName: 'Айбек',
+        lastName: 'Нурланов',
+        phone: '+77015550101',
+      },
+      resolvedBy: {
+        id: 'security-1',
+        firstName: 'Руслан',
+        lastName: 'Охранов',
+      },
+    };
+
+    const alertActiveNoResolution = {
+      id: 'alert-active',
+      tenantId: mockTenantId,
+      status: SosAlertStatus.ACTIVE,
+      createdAt: new Date('2026-09-06T08:00:00Z'),
+      resolvedAt: null,
+      resolutionNote: null,
+      latitude: null,
+      longitude: null,
+      unit: null,
+      triggeredBy: {
+        id: 'user-tenant-1',
+        firstName: 'Динара',
+        lastName: 'Серикова',
+        phone: '+77017778899',
+      },
+      resolvedBy: null,
+    };
+
+    it('фильтрует вызовы строго по диапазону from/to, вызов вне периода передается в Prisma-запросе как исключенный', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([alertInRange]);
+
+      await service.exportAlertsCsv(mockTenantId, securityUser, {
+        from: '2026-09-01',
+        to: '2026-09-10',
+      });
+
+      expect(prismaMock.sosAlert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: mockTenantId,
+            createdAt: {
+              gte: new Date('2026-09-01T00:00:00.000Z'),
+              lte: new Date('2026-09-10T23:59:59.999Z'),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('RESOLVED вызов показывает вычисленное время реагирования в минутах, ACTIVE — пустое значение', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([
+        alertInRange,
+        alertActiveNoResolution,
+      ]);
+
+      const { buffer } = await service.exportAlertsCsv(mockTenantId, securityUser, {
+        from: '2026-09-01',
+        to: '2026-09-10',
+      });
+
+      const csv = buffer.toString('utf-8');
+      const lines = csv.split('\r\n');
+
+      const resolvedRow = lines.find((l) => l.includes('Нурланов'));
+      expect(resolvedRow).toBeDefined();
+      const resolvedCols = resolvedRow!.split(',');
+      expect(resolvedCols[8]).toBe('12'); // 9th column: Время реагирования (мин)
+      expect(resolvedRow).toContain('Разрешен');
+
+      const activeRow = lines.find((l) => l.includes('Серикова'));
+      expect(activeRow).toBeDefined();
+      // Active alert row's response-time field must be blank, not "0" or negative
+      const activeCols = activeRow!.split(',');
+      expect(activeCols[8]).toBe('');
+      expect(activeRow).toContain('Активен');
+    });
+
+    it('отклоняет доступ жильцу и персоналу чужого ЖК; разрешает SECURITY и SUPERADMIN (тот же ролевой набор, что у getTenantAlerts)', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.exportAlertsCsv(mockTenantId, residentUnverifiedUser),
+      ).rejects.toMatchObject({
+        response: { code: 'SOS.LOG_ACCESS_FORBIDDEN' },
+      });
+
+      await expect(
+        service.exportAlertsCsv(mockTenantId, staffOtherTenantUser),
+      ).rejects.toMatchObject({
+        response: { code: 'SOS.CROSS_TENANT_VIEW_FORBIDDEN' },
+      });
+
+      await expect(
+        service.exportAlertsCsv(mockTenantId, securityUser),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.exportAlertsCsv(mockTenantId, superAdminUser),
+      ).resolves.toBeDefined();
+    });
+
+    it('сформированный CSV буфер начинается с байтов UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+
+      const { buffer } = await service.exportAlertsCsv(mockTenantId, hoaAdminUser, {
+        from: '2026-09-01',
+        to: '2026-09-10',
+      });
+
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
+    });
+
+    it('по умолчанию (без from/to) использует период последних 30 дней', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+
+      const beforeCall = Date.now();
+      await service.exportAlertsCsv(mockTenantId, hoaChairmanUser);
+      const afterCall = Date.now();
+
+      const callArgs = prismaMock.sosAlert.findMany.mock.calls[0][0];
+      const gte = callArgs.where.createdAt.gte.getTime();
+      const lte = callArgs.where.createdAt.lte.getTime();
+      const diffDays = (lte - gte) / (1000 * 60 * 60 * 24);
+
+      expect(diffDays).toBeCloseTo(30, 0);
+      expect(lte).toBeGreaterThanOrEqual(beforeCall);
+      expect(lte).toBeLessThanOrEqual(afterCall);
     });
   });
 });

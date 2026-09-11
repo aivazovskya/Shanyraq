@@ -8,7 +8,9 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -79,6 +81,29 @@ export class SosController {
     @Request() req: any,
   ) {
     return this.sosService.getSosStatistics(tenantId, req.user, query);
+  }
+
+  @Get('tenants/:tenantId/alerts/export')
+  @Roles(
+    UserRole.SECURITY,
+    UserRole.DISPATCHER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Экспорт журнала вызовов SOS в формате CSV' })
+  async exportAlertsCsv(
+    @Param('tenantId') tenantId: string,
+    @Query() query: GetSosStatisticsQueryDto,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.sosService.exportAlertsCsv(tenantId, req.user, query);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 
   @Patch(':id/resolve')

@@ -17,6 +17,7 @@ import {
   GetSosStatisticsQueryDto,
 } from './dto/sos.dto';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { buildCsv } from '../../common/csv/csv.helper';
 
 @Injectable()
 export class SosService {
@@ -311,6 +312,133 @@ export class SosService {
       averageResponseTimeMinutes,
       dailyTrend,
     };
+  }
+
+  /**
+   * Экспорт журнала вызовов SOS в CSV (построчно, один вызов — одна строка).
+   * Доступно: SECURITY, DISPATCHER, HOA_ADMIN, HOA_CHAIRMAN (read-only), SUPERADMIN.
+   */
+  async exportAlertsCsv(
+    tenantId: string,
+    user: any,
+    query?: GetSosStatisticsQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    this.assertStaffOrChairmanRole(user, tenantId);
+
+    const now = new Date();
+    const toDate = query?.to ? new Date(query.to) : now;
+    if (query?.to && query.to.length === 10) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    const fromDate = query?.from
+      ? new Date(query.from)
+      : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    if (query?.from && query.from.length === 10) {
+      fromDate.setUTCHours(0, 0, 0, 0);
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const alerts = await this.prisma.sosAlert.findMany({
+      where: {
+        tenantId,
+        createdAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      include: {
+        unit: {
+          include: { building: true },
+        },
+        triggeredBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+        resolvedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const statusLabels: Record<string, string> = {
+      ACTIVE: 'Активен',
+      RESOLVED: 'Разрешен',
+      FALSE_ALARM: 'Ложная тревога',
+    };
+
+    const fromDateStr = fromDate.toISOString().split('T')[0];
+    const toDateStr = toDate.toISOString().split('T')[0];
+
+    const rows: unknown[][] = [
+      ['Журнал экстренных вызовов SOS'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', `${fromDateStr} — ${toDateStr}`],
+      [],
+      [
+        'Дата и время',
+        'Статус',
+        'ФИО жильца',
+        'Телефон',
+        'Квартира/Помещение',
+        'Блок/Подъезд',
+        'Широта',
+        'Долгота',
+        'Время реагирования (мин)',
+        'Кем разрешено',
+        'Примечание разрешения',
+      ],
+    ];
+
+    for (const alert of alerts) {
+      const triggeredByName = [alert.triggeredBy?.firstName, alert.triggeredBy?.lastName]
+        .filter(Boolean)
+        .join(' ');
+      const resolvedByName = alert.resolvedBy
+        ? [alert.resolvedBy.firstName, alert.resolvedBy.lastName].filter(Boolean).join(' ')
+        : '';
+      const unitNumber = alert.unit?.unitNumber || '';
+      const blockName = alert.unit?.building?.blockName || '';
+
+      let responseMinutes: number | string = '';
+      if (alert.resolvedAt) {
+        const diffMs =
+          new Date(alert.resolvedAt).getTime() - new Date(alert.createdAt).getTime();
+        responseMinutes = Math.round((Math.max(0, diffMs) / (1000 * 60)) * 10) / 10;
+      }
+
+      rows.push([
+        alert.createdAt.toISOString(),
+        statusLabels[alert.status] || alert.status,
+        triggeredByName,
+        alert.triggeredBy?.phone || '',
+        unitNumber,
+        blockName,
+        alert.latitude ?? '',
+        alert.longitude ?? '',
+        responseMinutes,
+        resolvedByName,
+        alert.resolutionNote || '',
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `sos-alerts-${tenantId}-${fromDateStr}_${toDateStr}.csv`;
+
+    return { buffer, filename };
   }
 
   /**
