@@ -8,7 +8,9 @@ import {
   Query,
   UseGuards,
   Request,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -90,6 +92,35 @@ export class MetersController {
   // -------------------------------------------------------------
   // Очередь проверки показаний (Диспетчер / УК / Председатель)
   // -------------------------------------------------------------
+
+  @Get('tenants/:tenantId/readings/export')
+  @Roles(
+    UserRole.DISPATCHER,
+    UserRole.HOA_ADMIN,
+    UserRole.SUPERADMIN,
+    UserRole.HOA_CHAIRMAN,
+  )
+  @ApiQuery({ name: 'month', required: false, type: Number })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiOperation({ summary: 'Экспорт истории показаний счётчиков в формате CSV' })
+  async exportReadingsCsv(
+    @Param('tenantId') tenantId: string,
+    @Query('month') month: string | undefined,
+    @Query('year') year: string | undefined,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.metersService.exportReadingsCsv(
+      tenantId,
+      req.user,
+      { month, year },
+    );
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  }
 
   @Get('tenants/:tenantId/readings')
   @Roles(

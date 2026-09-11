@@ -36,6 +36,9 @@ describe('MetersService (Приборы учёта, подача и верифи
         create: jest.fn(),
         update: jest.fn(),
       },
+      tenant: {
+        findUnique: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -630,6 +633,284 @@ describe('MetersService (Приборы учёта, подача и верифи
           expect(err.getResponse().code).toBe('METERS.FOREIGN_READINGS_FORBIDDEN');
         }
       });
+    });
+  });
+
+  // -------------------------------------------------------------
+  // 4. Экспорт истории показаний в CSV (Task 0055)
+  // -------------------------------------------------------------
+  describe('exportReadingsCsv (Task 0055: Meter reading history CSV export)', () => {
+    const mockTenantStaff = {
+      id: 'staff-1',
+      role: UserRole.HOA_ADMIN,
+      tenantId: 'tenant-1',
+    };
+
+    const mockDispatcher = {
+      id: 'disp-1',
+      role: UserRole.DISPATCHER,
+      tenantId: 'tenant-1',
+    };
+
+    const mockChairman = {
+      id: 'chair-1',
+      role: UserRole.HOA_CHAIRMAN,
+      tenantId: 'tenant-1',
+    };
+
+    const mockSuperadmin = {
+      id: 'super-1',
+      role: UserRole.SUPERADMIN,
+      tenantId: null,
+    };
+
+    const mockResident = {
+      id: 'res-1',
+      role: UserRole.RESIDENT_OWNER,
+      tenantId: 'tenant-1',
+    };
+
+    const mockSecurity = {
+      id: 'sec-1',
+      role: UserRole.SECURITY,
+      tenantId: 'tenant-1',
+    };
+
+    const mockForeignStaff = {
+      id: 'foreign-admin',
+      role: UserRole.HOA_ADMIN,
+      tenantId: 'tenant-alien',
+    };
+
+    beforeEach(() => {
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: 'tenant-1',
+        name: 'ЖК Шанырақ Премиум',
+      });
+    });
+
+    it('должен включать только показания запрошенного расчетного периода (month/year) и исключать другие месяцы', async () => {
+      const mockReadings = [
+        {
+          id: 'reading-sep-2026',
+          meterId: 'meter-1',
+          value: 154.2,
+          periodMonth: 9,
+          periodYear: 2026,
+          status: ReadingStatus.VERIFIED,
+          createdAt: new Date('2026-09-12T10:30:00.000Z'),
+          reviewNote: 'Принято',
+          meter: {
+            type: MeterType.COLD_WATER,
+            serialNumber: 'CW-998877',
+            unit: {
+              unitNumber: '101',
+              building: {
+                blockName: 'Блок A',
+                tenantId: 'tenant-1',
+              },
+            },
+          },
+          submittedBy: {
+            id: 'user-1',
+            firstName: 'Арман',
+            lastName: 'Касымов',
+            phone: '+77015550101',
+          },
+          reviewedBy: {
+            id: 'staff-1',
+            firstName: 'Данияр',
+            lastName: 'Сериков',
+          },
+        },
+      ];
+
+      prismaMock.meterReading.findMany.mockResolvedValue(mockReadings);
+
+      const result = await service.exportReadingsCsv('tenant-1', mockTenantStaff, {
+        month: 9,
+        year: 2026,
+      });
+
+      // Проверяем аргументы запроса к базе данных: строгая фильтрация по периоду
+      expect(prismaMock.meterReading.findMany).toHaveBeenCalledWith({
+        where: {
+          meter: {
+            unit: {
+              building: { tenantId: 'tenant-1' },
+            },
+          },
+          periodMonth: 9,
+          periodYear: 2026,
+        },
+        include: {
+          meter: {
+            include: {
+              unit: {
+                include: { building: true },
+              },
+            },
+          },
+          submittedBy: {
+            select: { id: true, firstName: true, lastName: true, phone: true },
+          },
+          reviewedBy: {
+            select: { id: true, firstName: true, lastName: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      expect(result.filename).toBe('meter-readings-tenant-1-09.2026.csv');
+      const csv = result.buffer.toString('utf-8');
+      expect(csv).toContain('ЖК Шанырақ Премиум');
+      expect(csv).toContain('09.2026');
+      expect(csv).toContain('101');
+      expect(csv).toContain('Блок A');
+      expect(csv).toContain('Холодная вода');
+      expect(csv).toContain('CW-998877');
+      expect(csv).toContain('154.2');
+      expect(csv).toContain('Подтверждено');
+      expect(csv).toContain('Касымов Арман');
+      expect(csv).toContain('+77015550101');
+      expect(csv).toContain('Сериков Данияр');
+      expect(csv).toContain('Принято');
+    });
+
+    it('должен включать показания всех статусов (PENDING, VERIFIED, REJECTED) без фильтрации по статусу', async () => {
+      const mockReadings = [
+        {
+          id: 'reading-pending',
+          value: 100.1,
+          status: ReadingStatus.PENDING,
+          createdAt: new Date('2026-09-05T08:00:00.000Z'),
+          reviewNote: null,
+          meter: {
+            type: MeterType.COLD_WATER,
+            serialNumber: 'CW-111',
+            unit: { unitNumber: '10', building: { blockName: 'Блок 1' } },
+          },
+          submittedBy: { firstName: 'Али', lastName: 'Алиев', phone: '+77011112233' },
+          reviewedBy: null,
+        },
+        {
+          id: 'reading-verified',
+          value: 200.2,
+          status: ReadingStatus.VERIFIED,
+          createdAt: new Date('2026-09-06T09:00:00.000Z'),
+          reviewNote: 'Ок',
+          meter: {
+            type: MeterType.HOT_WATER,
+            serialNumber: 'HW-222',
+            unit: { unitNumber: '20', building: { blockName: 'Блок 2' } },
+          },
+          submittedBy: { firstName: 'Бакыт', lastName: 'Бакиров', phone: '+77012223344' },
+          reviewedBy: { firstName: 'Даулет', lastName: 'Даулетов' },
+        },
+        {
+          id: 'reading-rejected',
+          value: 300.3,
+          status: ReadingStatus.REJECTED,
+          createdAt: new Date('2026-09-07T10:00:00.000Z'),
+          reviewNote: 'Размытое фото',
+          meter: {
+            type: MeterType.ELECTRICITY,
+            serialNumber: 'EL-333',
+            unit: { unitNumber: '30', building: { blockName: 'Блок 3' } },
+          },
+          submittedBy: { firstName: 'Ерлан', lastName: 'Ерланов', phone: '+77013334455' },
+          reviewedBy: { firstName: 'Даулет', lastName: 'Даулетов' },
+        },
+      ];
+
+      prismaMock.meterReading.findMany.mockResolvedValue(mockReadings);
+
+      const result = await service.exportReadingsCsv('tenant-1', mockDispatcher, {
+        month: 9,
+        year: 2026,
+      });
+
+      const csv = result.buffer.toString('utf-8');
+      expect(csv).toContain('100.1');
+      expect(csv).toContain('На проверке');
+      expect(csv).toContain('Алиев Али');
+
+      expect(csv).toContain('200.2');
+      expect(csv).toContain('Подтверждено');
+      expect(csv).toContain('Бакиров Бакыт');
+
+      expect(csv).toContain('300.3');
+      expect(csv).toContain('Отклонено');
+      expect(csv).toContain('Размытое фото');
+      expect(csv).toContain('Ерланов Ерлан');
+    });
+
+    it('должен блокировать доступ жителям, службе охраны и сотрудникам чужого ЖК', async () => {
+      // 1. Житель своего ЖК (RESIDENT_OWNER)
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockResident),
+      ).rejects.toThrow(ForbiddenException);
+
+      // 2. Охранник (SECURITY)
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockSecurity),
+      ).rejects.toThrow(ForbiddenException);
+
+      // 3. Сотрудник чужого ЖК (BOLA / IDOR protection)
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockForeignStaff),
+      ).rejects.toThrow(ForbiddenException);
+
+      // 4. Разрешенные роли: DISPATCHER, HOA_ADMIN, HOA_CHAIRMAN, SUPERADMIN
+      prismaMock.meterReading.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockTenantStaff),
+      ).resolves.toBeDefined();
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockDispatcher),
+      ).resolves.toBeDefined();
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockChairman),
+      ).resolves.toBeDefined();
+      await expect(
+        service.exportReadingsCsv('tenant-1', mockSuperadmin),
+      ).resolves.toBeDefined();
+    });
+
+    it('сформированный CSV буфер должен начинаться с байтов UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      prismaMock.meterReading.findMany.mockResolvedValue([]);
+
+      const { buffer } = await service.exportReadingsCsv('tenant-1', mockTenantStaff, {
+        month: 9,
+        year: 2026,
+      });
+
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
+    });
+
+    it('при отсутствии параметров month и year должен использовать текущий расчетный период по умолчанию', async () => {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      prismaMock.meterReading.findMany.mockResolvedValue([]);
+
+      const result = await service.exportReadingsCsv('tenant-1', mockTenantStaff);
+
+      expect(prismaMock.meterReading.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            periodMonth: currentMonth,
+            periodYear: currentYear,
+          }),
+        }),
+      );
+
+      const expectedFilename = `meter-readings-tenant-1-${String(currentMonth).padStart(2, '0')}.${currentYear}.csv`;
+      expect(result.filename).toBe(expectedFilename);
     });
   });
 });

@@ -11,6 +11,7 @@ import {
   MeterType,
 } from '@prisma/client';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { buildCsv } from '../../common/csv/csv.helper';
 import {
   CreateMeterDto,
   UpdateMeterDto,
@@ -308,12 +309,28 @@ export class MetersService {
   // 3. Проверка показаний сотрудниками (DISPATCHER, HOA_ADMIN, SUPERADMIN)
   // -------------------------------------------------------------
 
+  private assertQueueAccess(user: UserContext, tenantId: string) {
+    const allowedRoles: UserRole[] = [
+      UserRole.DISPATCHER,
+      UserRole.HOA_ADMIN,
+      UserRole.SUPERADMIN,
+      UserRole.HOA_CHAIRMAN,
+    ];
+    if (!allowedRoles.includes(user.role)) {
+      throw new ForbiddenException({
+        code: 'METERS.STAFF_ACCESS_FORBIDDEN',
+        message: 'Доступ к очереди и выгрузке показаний разрешен только персоналу ЖК',
+      });
+    }
+    assertUserBelongsToTenant(user, tenantId, 'показаний');
+  }
+
   async getTenantReadingsQueue(
     tenantId: string,
     status: ReadingStatus | undefined,
     user: UserContext,
   ) {
-    assertUserBelongsToTenant(user, tenantId);
+    this.assertQueueAccess(user, tenantId);
 
     return this.prisma.meterReading.findMany({
       where: {
@@ -378,5 +395,143 @@ export class MetersService {
         reviewedById: user.id,
       },
     });
+  }
+
+  // -------------------------------------------------------------
+  // 4. Экспорт истории показаний в CSV
+  // -------------------------------------------------------------
+
+  async exportReadingsCsv(
+    tenantId: string,
+    user: UserContext,
+    query?: { month?: string | number; year?: string | number },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    this.assertQueueAccess(user, tenantId);
+
+    const now = new Date();
+    const parsedMonth = query?.month ? parseInt(String(query.month), 10) : NaN;
+    const parsedYear = query?.year ? parseInt(String(query.year), 10) : NaN;
+
+    const periodMonth =
+      !isNaN(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12
+        ? parsedMonth
+        : now.getMonth() + 1;
+    const periodYear =
+      !isNaN(parsedYear) && parsedYear > 1900
+        ? parsedYear
+        : now.getFullYear();
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const readings = await this.prisma.meterReading.findMany({
+      where: {
+        meter: {
+          unit: {
+            building: { tenantId },
+          },
+        },
+        periodMonth,
+        periodYear,
+      },
+      include: {
+        meter: {
+          include: {
+            unit: {
+              include: { building: true },
+            },
+          },
+        },
+        submittedBy: {
+          select: { id: true, firstName: true, lastName: true, phone: true },
+        },
+        reviewedBy: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const meterTypeLabels: Record<MeterType, string> = {
+      [MeterType.COLD_WATER]: 'Холодная вода',
+      [MeterType.HOT_WATER]: 'Горячая вода',
+      [MeterType.ELECTRICITY]: 'Электроэнергия',
+      [MeterType.OTHER]: 'Прочее',
+    };
+
+    const readingStatusLabels: Record<ReadingStatus, string> = {
+      [ReadingStatus.PENDING]: 'На проверке',
+      [ReadingStatus.VERIFIED]: 'Подтверждено',
+      [ReadingStatus.REJECTED]: 'Отклонено',
+    };
+
+    const periodLabel = `${String(periodMonth).padStart(2, '0')}.${periodYear}`;
+    const rows: unknown[][] = [
+      ['История показаний счётчиков'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', periodLabel],
+      [],
+      [
+        'Дата подачи',
+        'Дата и время',
+        'Квартира/Помещение',
+        'Блок/Подъезд',
+        'Тип счётчика',
+        'Серийный номер',
+        'Показание',
+        'Статус',
+        'Отправитель (ФИО)',
+        'Телефон',
+        'Проверил (ФИО)',
+        'Примечание проверки',
+      ],
+    ];
+
+    for (const reading of readings) {
+      const dateStr = reading.createdAt
+        ? new Date(reading.createdAt).toISOString().split('T')[0]
+        : '';
+      const dateTimeStr = reading.createdAt
+        ? new Date(reading.createdAt).toISOString()
+        : '';
+      const unitNumber = reading.meter?.unit?.unitNumber ?? '';
+      const blockName = reading.meter?.unit?.building?.blockName ?? '';
+      const meterType = reading.meter?.type
+        ? meterTypeLabels[reading.meter.type] || reading.meter.type
+        : '';
+      const serialNumber = reading.meter?.serialNumber ?? '';
+      const value = reading.value;
+      const status = readingStatusLabels[reading.status] || reading.status;
+      const submitterFullName = reading.submittedBy
+        ? `${reading.submittedBy.lastName || ''} ${reading.submittedBy.firstName || ''}`.trim() || '—'
+        : '—';
+      const phone = reading.submittedBy?.phone || '—';
+      const reviewerFullName = reading.reviewedBy
+        ? `${reading.reviewedBy.lastName || ''} ${reading.reviewedBy.firstName || ''}`.trim() || '—'
+        : '—';
+      const reviewNote = reading.reviewNote || '';
+
+      rows.push([
+        dateStr,
+        dateTimeStr,
+        unitNumber,
+        blockName,
+        meterType,
+        serialNumber,
+        value,
+        status,
+        submitterFullName,
+        phone,
+        reviewerFullName,
+        reviewNote,
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `meter-readings-${tenantId}-${String(periodMonth).padStart(2, '0')}.${periodYear}.csv`;
+
+    return { buffer, filename };
   }
 }
