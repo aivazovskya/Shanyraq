@@ -401,4 +401,235 @@ describe('MetersService (Приборы учёта, подача и верифи
       );
     });
   });
+
+  // -------------------------------------------------------------
+  // 4. Доступ к приборам учёта и показаниям (Task 0040: staff-vs-resident access control)
+  // -------------------------------------------------------------
+  describe('Meter Access Control (Task 0040: getUnitMeters & getMeterReadings)', () => {
+    describe('getUnitMeters', () => {
+      const mockUnitWithMeters = {
+        id: 'unit-1',
+        building: { tenantId: 'tenant-1' },
+        ownerships: [
+          { userId: 'resident-verified', isVerified: true },
+          { userId: 'resident-unverified', isVerified: false },
+        ],
+      };
+
+      it('должен выбрасывать NotFoundException (METERS.UNIT_NOT_FOUND), если квартира не найдена', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(null);
+
+        const user = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        try {
+          await service.getUnitMeters('non-existent-unit', user);
+          fail('Should have thrown NotFoundException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(NotFoundException);
+          expect(err.getResponse().code).toBe('METERS.UNIT_NOT_FOUND');
+        }
+      });
+
+      it('должен разрешать доступ сотруднику своего ЖК (HOA_ADMIN, DISPATCHER, HOA_CHAIRMAN, SUPERADMIN)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnitWithMeters);
+        prismaMock.meter.findMany.mockResolvedValue([
+          { id: 'meter-1', unitId: 'unit-1', isActive: true, readings: [] },
+        ]);
+
+        const admin = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        const resAdmin = await service.getUnitMeters('unit-1', admin);
+        expect(resAdmin).toHaveLength(1);
+        expect(resAdmin[0].id).toBe('meter-1');
+
+        const superadmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+        const resSuper = await service.getUnitMeters('unit-1', superadmin);
+        expect(resSuper).toHaveLength(1);
+      });
+
+      it('должен блокировать доступ сотруднику чужого ЖК (assertUserBelongsToTenant)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnitWithMeters);
+
+        const foreignDispatcher = { id: 'disp-alien', role: UserRole.DISPATCHER, tenantId: 'tenant-alien' };
+        await expect(
+          service.getUnitMeters('unit-1', foreignDispatcher),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('должен разрешать доступ подтвержденному жильцу квартиры', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnitWithMeters);
+        prismaMock.meter.findMany.mockResolvedValue([
+          { id: 'meter-1', unitId: 'unit-1', isActive: true, readings: [] },
+        ]);
+
+        const verifiedResident = {
+          id: 'resident-verified',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+        const res = await service.getUnitMeters('unit-1', verifiedResident);
+        expect(res).toHaveLength(1);
+        expect(prismaMock.meter.findMany).toHaveBeenCalledWith({
+          where: { unitId: 'unit-1', isActive: true },
+          include: {
+            readings: {
+              orderBy: [
+                { periodYear: 'desc' },
+                { periodMonth: 'desc' },
+                { createdAt: 'desc' },
+              ],
+              take: 1,
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+      });
+
+      it('должен блокировать доступ жителю без подтвержденного права владения на данную квартиру (METERS.FOREIGN_UNIT_FORBIDDEN)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnitWithMeters);
+
+        // Случай 1: Неподтвержденное право владения
+        const unverifiedResident = {
+          id: 'resident-unverified',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+        try {
+          await service.getUnitMeters('unit-1', unverifiedResident);
+          fail('Should have thrown ForbiddenException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse().code).toBe('METERS.FOREIGN_UNIT_FORBIDDEN');
+        }
+
+        // Случай 2: Житель другой квартиры вообще (нет в unit.ownerships)
+        const foreignResident = {
+          id: 'resident-other-unit',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+        try {
+          await service.getUnitMeters('unit-1', foreignResident);
+          fail('Should have thrown ForbiddenException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse().code).toBe('METERS.FOREIGN_UNIT_FORBIDDEN');
+        }
+      });
+    });
+
+    describe('getMeterReadings', () => {
+      const mockMeterWithUnit = {
+        id: 'meter-1',
+        unitId: 'unit-1',
+        unit: {
+          id: 'unit-1',
+          building: { tenantId: 'tenant-1' },
+          ownerships: [
+            { userId: 'resident-verified', isVerified: true },
+            { userId: 'resident-unverified', isVerified: false },
+          ],
+        },
+      };
+
+      it('должен выбрасывать NotFoundException (METERS.METER_NOT_FOUND), если счётчик не найден', async () => {
+        prismaMock.meter.findUnique.mockResolvedValue(null);
+
+        const user = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        try {
+          await service.getMeterReadings('non-existent-meter', user);
+          fail('Should have thrown NotFoundException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(NotFoundException);
+          expect(err.getResponse().code).toBe('METERS.METER_NOT_FOUND');
+        }
+      });
+
+      it('должен разрешать доступ к показаниям сотруднику своего ЖК (HOA_ADMIN, DISPATCHER, SUPERADMIN)', async () => {
+        prismaMock.meter.findUnique.mockResolvedValue(mockMeterWithUnit);
+        prismaMock.meterReading.findMany.mockResolvedValue([
+          { id: 'reading-1', meterId: 'meter-1', value: 100 },
+        ]);
+
+        const admin = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        const resAdmin = await service.getMeterReadings('meter-1', admin);
+        expect(resAdmin).toHaveLength(1);
+        expect(resAdmin[0].id).toBe('reading-1');
+
+        const superadmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+        const resSuper = await service.getMeterReadings('meter-1', superadmin);
+        expect(resSuper).toHaveLength(1);
+      });
+
+      it('должен блокировать доступ к показаниям сотруднику чужого ЖК', async () => {
+        prismaMock.meter.findUnique.mockResolvedValue(mockMeterWithUnit);
+
+        const foreignStaff = { id: 'staff-alien', role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-alien' };
+        await expect(
+          service.getMeterReadings('meter-1', foreignStaff),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('должен разрешать доступ к показаниям подтвержденному жильцу квартиры', async () => {
+        prismaMock.meter.findUnique.mockResolvedValue(mockMeterWithUnit);
+        prismaMock.meterReading.findMany.mockResolvedValue([
+          { id: 'reading-1', meterId: 'meter-1', value: 100 },
+        ]);
+
+        const verifiedResident = {
+          id: 'resident-verified',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+        const res = await service.getMeterReadings('meter-1', verifiedResident);
+        expect(res).toHaveLength(1);
+        expect(prismaMock.meterReading.findMany).toHaveBeenCalledWith({
+          where: { meterId: 'meter-1' },
+          include: {
+            submittedBy: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+            reviewedBy: {
+              select: { id: true, firstName: true, lastName: true },
+            },
+          },
+          orderBy: [
+            { periodYear: 'desc' },
+            { periodMonth: 'desc' },
+            { createdAt: 'desc' },
+          ],
+        });
+      });
+
+      it('должен блокировать доступ к показаниям жителю без подтвержденного права владения на квартиру (METERS.FOREIGN_READINGS_FORBIDDEN)', async () => {
+        prismaMock.meter.findUnique.mockResolvedValue(mockMeterWithUnit);
+
+        // Случай 1: Неподтвержденное право владения
+        const unverifiedResident = {
+          id: 'resident-unverified',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+        try {
+          await service.getMeterReadings('meter-1', unverifiedResident);
+          fail('Should have thrown ForbiddenException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse().code).toBe('METERS.FOREIGN_READINGS_FORBIDDEN');
+        }
+
+        // Случай 2: Житель другой квартиры
+        const foreignResident = {
+          id: 'resident-other-unit',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+        try {
+          await service.getMeterReadings('meter-1', foreignResident);
+          fail('Should have thrown ForbiddenException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse().code).toBe('METERS.FOREIGN_READINGS_FORBIDDEN');
+        }
+      });
+    });
+  });
 });

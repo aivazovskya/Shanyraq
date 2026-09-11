@@ -611,4 +611,357 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       expect(savedData.tenantId).toBe('tenant-1');
     });
   });
+
+  describe('claimOwnership & verifyOwnership (Task 0040: ownership-share invariant)', () => {
+    describe('claimOwnership', () => {
+      const mockUnit = {
+        id: 'unit-1',
+        buildingId: 'b-1',
+        unitNumber: '101',
+        building: {
+          id: 'b-1',
+          tenantId: 'tenant-1',
+        },
+      };
+
+      it('должен выбрасывать NotFoundException (PROPERTIES.UNIT_NOT_FOUND), если квартира не найдена', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(null);
+
+        try {
+          await service.claimOwnership('user-1', {
+            unitId: 'non-existent-unit',
+            ownershipType: OwnershipType.OWNER,
+          });
+          fail('Should have thrown NotFoundException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(NotFoundException);
+          expect(err.getResponse().code).toBe('PROPERTIES.UNIT_NOT_FOUND');
+        }
+      });
+
+      it('должен выбрасывать BadRequestException (PROPERTIES.OWNERSHIP_REQUEST_EXISTS), если заявка уже существует', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+        prismaMock.unitOwnership.findUnique.mockResolvedValue({
+          id: 'own-existing',
+          userId: 'user-1',
+          unitId: 'unit-1',
+        });
+
+        try {
+          await service.claimOwnership('user-1', {
+            unitId: 'unit-1',
+            ownershipType: OwnershipType.OWNER,
+          });
+          fail('Should have thrown BadRequestException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse().code).toBe('PROPERTIES.OWNERSHIP_REQUEST_EXISTS');
+        }
+      });
+
+      it('должен отклонять sharePercent <= 0 (PROPERTIES.INVALID_SHARE_RANGE)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+
+        try {
+          await service.claimOwnership('user-1', {
+            unitId: 'unit-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 0,
+          });
+          fail('Should have thrown BadRequestException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse().code).toBe('PROPERTIES.INVALID_SHARE_RANGE');
+        }
+
+        await expect(
+          service.claimOwnership('user-1', {
+            unitId: 'unit-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: -5,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('должен отклонять sharePercent > 100 (PROPERTIES.INVALID_SHARE_RANGE)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+
+        try {
+          await service.claimOwnership('user-1', {
+            unitId: 'unit-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 100.01,
+          });
+          fail('Should have thrown BadRequestException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse().code).toBe('PROPERTIES.INVALID_SHARE_RANGE');
+        }
+      });
+
+      it('должен отклонять заявку, если сумма с уже подтвержденными долями превышает 100% (60% + 50% > 100%)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([
+          { id: 'own-v1', sharePercent: 60.0, isVerified: true },
+        ]);
+
+        try {
+          await service.claimOwnership('user-1', {
+            unitId: 'unit-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 50.0,
+          });
+          fail('Should have thrown BadRequestException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse().code).toBe('PROPERTIES.SHARE_EXCEEDS_TOTAL');
+          expect(err.getResponse().params).toEqual({ currentSum: 60.0, requestedShare: 50.0 });
+        }
+      });
+
+      it('должен успешно создавать заявку при граничном значении ровно 100% (60% + 40% = 100%)', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([
+          { id: 'own-v1', sharePercent: 60.0, isVerified: true },
+        ]);
+        prismaMock.user.update.mockResolvedValue({ id: 'user-1', tenantId: 'tenant-1' });
+        prismaMock.unitOwnership.create.mockResolvedValue({
+          id: 'own-new',
+          userId: 'user-1',
+          unitId: 'unit-1',
+          ownershipType: OwnershipType.OWNER,
+          sharePercent: 40.0,
+          isVerified: false,
+        });
+
+        const res = await service.claimOwnership('user-1', {
+          unitId: 'unit-1',
+          ownershipType: OwnershipType.OWNER,
+          sharePercent: 40.0,
+        });
+
+        expect(res.id).toBe('own-new');
+        expect(res.isVerified).toBe(false);
+        expect(prismaMock.user.update).toHaveBeenCalledWith({
+          where: { id: 'user-1' },
+          data: { tenantId: 'tenant-1' },
+        });
+        expect(prismaMock.unitOwnership.create).toHaveBeenCalledWith({
+          data: {
+            userId: 'user-1',
+            unitId: 'unit-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 40.0,
+            verificationDoc: undefined,
+            isVerified: false,
+          },
+        });
+      });
+
+      it('должен по умолчанию устанавливать sharePercent = 100.0, если он опущен в DTO', async () => {
+        prismaMock.unit.findUnique.mockResolvedValue(mockUnit);
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([]);
+        prismaMock.user.update.mockResolvedValue({ id: 'user-1', tenantId: 'tenant-1' });
+        prismaMock.unitOwnership.create.mockResolvedValue({
+          id: 'own-new-default',
+          userId: 'user-1',
+          unitId: 'unit-1',
+          ownershipType: OwnershipType.OWNER,
+          sharePercent: 100.0,
+          isVerified: false,
+        });
+
+        const res = await service.claimOwnership('user-1', {
+          unitId: 'unit-1',
+          ownershipType: OwnershipType.OWNER,
+        });
+
+        expect(res.id).toBe('own-new-default');
+        expect(prismaMock.unitOwnership.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              sharePercent: 100.0,
+            }),
+          }),
+        );
+      });
+    });
+
+    describe('verifyOwnership', () => {
+      const mockRecord = {
+        id: 'own-record-1',
+        userId: 'user-resident-1',
+        unitId: 'unit-1',
+        sharePercent: 50.0,
+        isVerified: false,
+        unit: {
+          id: 'unit-1',
+          building: {
+            id: 'b-1',
+            tenantId: 'tenant-1',
+          },
+        },
+      };
+
+      it('должен выбрасывать NotFoundException (PROPERTIES.OWNERSHIP_NOT_FOUND), если запись не найдена', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        try {
+          await service.verifyOwnership('non-existent-own', verifier, { isVerified: true });
+          fail('Should have thrown NotFoundException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(NotFoundException);
+          expect(err.getResponse().code).toBe('PROPERTIES.OWNERSHIP_NOT_FOUND');
+        }
+      });
+
+      it('должен блокировать верификацию сотрудником чужого ЖК (PROPERTIES.CROSS_TENANT_VERIFY_FORBIDDEN)', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+
+        const foreignVerifier = { id: 'admin-foreign', role: UserRole.HOA_ADMIN, tenantId: 'tenant-2' };
+        try {
+          await service.verifyOwnership('own-record-1', foreignVerifier, { isVerified: true });
+          fail('Should have thrown ForbiddenException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(ForbiddenException);
+          expect(err.getResponse().code).toBe('PROPERTIES.CROSS_TENANT_VERIFY_FORBIDDEN');
+        }
+
+        const noTenantVerifier = { id: 'admin-no-tenant', role: UserRole.HOA_ADMIN, tenantId: null };
+        await expect(
+          service.verifyOwnership('own-record-1', noTenantVerifier, { isVerified: true }),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('должен разрешать верификацию SUPERADMIN без привязки к tenantId', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([]);
+        prismaMock.unitOwnership.update.mockResolvedValue({
+          ...mockRecord,
+          isVerified: true,
+          verifiedAt: new Date(),
+        });
+        prismaMock.user.update.mockResolvedValue({ id: 'user-resident-1', isVerified: true });
+
+        const superAdmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+        const res = await service.verifyOwnership('own-record-1', superAdmin, { isVerified: true });
+
+        expect(res.isVerified).toBe(true);
+        expect(prismaMock.unitOwnership.update).toHaveBeenCalled();
+      });
+
+      it('должен отклонять подтверждение, если сумма с другими подтвержденными превысит 100% (70% + 40% > 100%) и исключать саму запись из подсчета (id: { not: record.id })', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([
+          { id: 'own-other', sharePercent: 70.0, isVerified: true },
+        ]);
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        try {
+          await service.verifyOwnership('own-record-1', verifier, {
+            isVerified: true,
+            approvedSharePercent: 40.0,
+          });
+          fail('Should have thrown BadRequestException');
+        } catch (err: any) {
+          expect(err).toBeInstanceOf(BadRequestException);
+          expect(err.getResponse().code).toBe('PROPERTIES.CONFIRMED_SHARE_EXCEEDS_TOTAL');
+          expect(err.getResponse().params).toEqual({ otherSum: 70.0, finalSharePercent: 40.0 });
+        }
+
+        expect(prismaMock.unitOwnership.findMany).toHaveBeenCalledWith({
+          where: {
+            unitId: 'unit-1',
+            isVerified: true,
+            id: { not: 'own-record-1' },
+          },
+        });
+      });
+
+      it('должен успешно подтверждать при граничном значении ровно 100% (70% + 30% = 100%)', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.findMany.mockResolvedValue([
+          { id: 'own-other', sharePercent: 70.0, isVerified: true },
+        ]);
+        prismaMock.unitOwnership.update.mockResolvedValue({
+          ...mockRecord,
+          sharePercent: 30.0,
+          isVerified: true,
+        });
+        prismaMock.user.update.mockResolvedValue({ id: 'user-resident-1', isVerified: true });
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        const res = await service.verifyOwnership('own-record-1', verifier, {
+          isVerified: true,
+          approvedSharePercent: 30.0,
+        });
+
+        expect(res.isVerified).toBe(true);
+        expect((res as any).sharePercent).toBe(30.0);
+        expect(prismaMock.unitOwnership.update).toHaveBeenCalledWith({
+          where: { id: 'own-record-1' },
+          data: {
+            isVerified: true,
+            sharePercent: 30.0,
+            verifiedAt: expect.any(Date),
+          },
+        });
+        expect(prismaMock.user.update).toHaveBeenCalledWith({
+          where: { id: 'user-resident-1' },
+          data: { isVerified: true },
+        });
+      });
+
+      it('должен удалять запись при отклонении (dto.isVerified: false) и возвращать { isVerified: false, status: "REJECTED" }', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.delete.mockResolvedValue({ id: 'own-record-1' });
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        const res = await service.verifyOwnership('own-record-1', verifier, {
+          isVerified: false,
+        });
+
+        expect(res).toEqual({
+          id: 'own-record-1',
+          isVerified: false,
+          status: 'REJECTED',
+        });
+        expect(prismaMock.unitOwnership.delete).toHaveBeenCalledWith({
+          where: { id: 'own-record-1' },
+        });
+        expect(prismaMock.unitOwnership.update).not.toHaveBeenCalled();
+        expect(prismaMock.user.update).not.toHaveBeenCalled();
+      });
+
+      it('должен использовать исходный sharePercent записи, если approvedSharePercent опущен', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord); // sharePercent: 50.0
+        prismaMock.unitOwnership.findMany.mockResolvedValue([]);
+        prismaMock.unitOwnership.update.mockResolvedValue({
+          ...mockRecord,
+          isVerified: true,
+        });
+        prismaMock.user.update.mockResolvedValue({ id: 'user-resident-1', isVerified: true });
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        await service.verifyOwnership('own-record-1', verifier, {
+          isVerified: true,
+        });
+
+        expect(prismaMock.unitOwnership.update).toHaveBeenCalledWith({
+          where: { id: 'own-record-1' },
+          data: {
+            isVerified: true,
+            sharePercent: 50.0,
+            verifiedAt: expect.any(Date),
+          },
+        });
+      });
+    });
+  });
 });

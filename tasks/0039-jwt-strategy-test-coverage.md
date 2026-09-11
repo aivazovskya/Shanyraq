@@ -141,3 +141,26 @@ New `backend/src/modules/auth/jwt.strategy.spec.ts`:
   writing these tests turned up any actual behavioral surprise (per
   decision #4) — even if the answer is "no, it matched the code
   exactly," say so.
+
+---
+
+## Review addendum (2026-09-11) — accepted, no issues found
+
+**Verified good:** `jwt.strategy.spec.ts` covers every branch called out
+in the spec — token-type confusion for `refresh`/`password_change`/
+`undefined` payloads, each asserting `prisma.user.findUnique` was never
+called (proving the type check short-circuits before any DB round
+trip); blocked/missing-user rejection for both `null` and
+`isActive: false`; session revocation with a stale `tokenVersion`
+rejected and a matching one accepted; the `tokenVersion: undefined`
+backward-compatibility case explicitly tested on its own rather than
+assumed covered by the mismatch test; the success path asserts the
+exact `include` shape (`tenant`, `ownerships.unit.building`), not just
+that `findUnique` was called with something; and the constructor's
+fail-fast is tested for both `undefined` and empty-string secrets.
+`jwt.strategy.ts` itself is untouched — no behavior change, as required.
+
+**Verified independently:** re-ran `jwt.strategy.spec.ts` with coverage
+myself — **100% statements/branches/functions/lines** (20/20 lines,
+10/10 branches). Full suite: 380/380 tests pass across 23 suites.
+`tsc --noEmit` clean. Task accepted, no fixes required.
