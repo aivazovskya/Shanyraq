@@ -373,4 +373,134 @@ describe('SosService', () => {
       });
     });
   });
+
+  describe('getSosStatistics (Статистика и тренды SOS)', () => {
+    it('averageResponseTimeMinutes рассчитывается строго по закрытым вызовам и исключает ACTIVE', async () => {
+      const alertsFixture = [
+        {
+          id: 'alert-1',
+          status: SosAlertStatus.ACTIVE,
+          createdAt: new Date('2026-09-01T10:00:00Z'),
+          resolvedAt: null,
+        },
+        {
+          id: 'alert-2',
+          status: SosAlertStatus.RESOLVED,
+          createdAt: new Date('2026-09-01T10:00:00Z'),
+          resolvedAt: new Date('2026-09-01T10:10:00Z'), // 10 minutes
+        },
+        {
+          id: 'alert-3',
+          status: SosAlertStatus.FALSE_ALARM,
+          createdAt: new Date('2026-09-02T11:00:00Z'),
+          resolvedAt: new Date('2026-09-02T11:20:00Z'), // 20 minutes
+        },
+      ];
+
+      prismaMock.sosAlert.findMany.mockResolvedValue(alertsFixture);
+
+      const res = await service.getSosStatistics(mockTenantId, securityUser, {
+        from: '2026-09-01',
+        to: '2026-09-05',
+      });
+
+      expect(res.totalAlerts).toBe(3);
+      expect(res.byStatus).toEqual({
+        ACTIVE: 1,
+        RESOLVED: 1,
+        FALSE_ALARM: 1,
+      });
+      // (10 + 20) / 2 = 15 minutes, NOT (10 + 20 + 0) / 3 = 10
+      expect(res.averageResponseTimeMinutes).toBe(15);
+    });
+
+    it('по умолчанию (без from/to) запрашивает данные за последние 30 дней', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+
+      const beforeCall = Date.now();
+      await service.getSosStatistics(mockTenantId, dispatcherUser);
+      const afterCall = Date.now();
+
+      expect(prismaMock.sosAlert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: mockTenantId,
+            createdAt: expect.objectContaining({
+              gte: expect.any(Date),
+              lte: expect.any(Date),
+            }),
+          }),
+        }),
+      );
+
+      const callArgs = prismaMock.sosAlert.findMany.mock.calls[0][0];
+      const gte = callArgs.where.createdAt.gte.getTime();
+      const lte = callArgs.where.createdAt.lte.getTime();
+      const diffDays = (lte - gte) / (1000 * 60 * 60 * 24);
+
+      expect(diffDays).toBeCloseTo(30, 0);
+      expect(lte).toBeGreaterThanOrEqual(beforeCall);
+      expect(lte).toBeLessThanOrEqual(afterCall);
+    });
+
+    it('DISPATCHER и SECURITY имеют доступ, персонал чужого ЖК и жильцы отклоняются', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([]);
+
+      // SECURITY of same tenant
+      const resSecurity = await service.getSosStatistics(mockTenantId, securityUser);
+      expect(resSecurity).toBeDefined();
+
+      // DISPATCHER of same tenant
+      const resDispatcher = await service.getSosStatistics(mockTenantId, dispatcherUser);
+      expect(resDispatcher).toBeDefined();
+
+      // Staff of different tenant
+      await expect(
+        service.getSosStatistics(mockTenantId, staffOtherTenantUser),
+      ).rejects.toMatchObject({
+        response: { code: 'SOS.CROSS_TENANT_VIEW_FORBIDDEN' },
+      });
+
+      // Resident without staff role
+      await expect(
+        service.getSosStatistics(mockTenantId, residentUnverifiedUser),
+      ).rejects.toMatchObject({
+        response: { code: 'SOS.LOG_ACCESS_FORBIDDEN' },
+      });
+    });
+
+    it('dailyTrend формирует список точек по дням периода', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([
+        {
+          id: 'alert-1',
+          status: SosAlertStatus.RESOLVED,
+          createdAt: new Date('2026-09-01T12:00:00Z'),
+          resolvedAt: new Date('2026-09-01T12:05:00Z'),
+        },
+        {
+          id: 'alert-2',
+          status: SosAlertStatus.RESOLVED,
+          createdAt: new Date('2026-09-01T15:00:00Z'),
+          resolvedAt: new Date('2026-09-01T15:05:00Z'),
+        },
+        {
+          id: 'alert-3',
+          status: SosAlertStatus.ACTIVE,
+          createdAt: new Date('2026-09-03T10:00:00Z'),
+          resolvedAt: null,
+        },
+      ]);
+
+      const res = await service.getSosStatistics(mockTenantId, securityUser, {
+        from: '2026-09-01',
+        to: '2026-09-03',
+      });
+
+      expect(res.dailyTrend).toEqual([
+        { date: '2026-09-01', count: 2 },
+        { date: '2026-09-02', count: 0 },
+        { date: '2026-09-03', count: 1 },
+      ]);
+    });
+  });
 });

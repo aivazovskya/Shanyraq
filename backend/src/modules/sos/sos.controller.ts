@@ -24,6 +24,7 @@ import {
   TriggerSosDto,
   ResolveSosDto,
   GetTenantAlertsQueryDto,
+  GetSosStatisticsQueryDto,
 } from './dto/sos.dto';
 
 @ApiTags('SOS (Экстренный вызов охраны/диспетчера)')
@@ -61,6 +62,23 @@ export class SosController {
     @Request() req: any,
   ) {
     return this.sosService.getTenantAlerts(tenantId, req.user, query);
+  }
+
+  @Get('tenants/:tenantId/statistics')
+  @Roles(
+    UserRole.SECURITY,
+    UserRole.DISPATCHER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Статистика и тренды экстренных вызовов SOS' })
+  async getSosStatistics(
+    @Param('tenantId') tenantId: string,
+    @Query() query: GetSosStatisticsQueryDto,
+    @Request() req: any,
+  ) {
+    return this.sosService.getSosStatistics(tenantId, req.user, query);
   }
 
   @Patch(':id/resolve')

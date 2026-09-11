@@ -14,6 +14,7 @@ import {
   TriggerSosDto,
   ResolveSosDto,
   GetTenantAlertsQueryDto,
+  GetSosStatisticsQueryDto,
 } from './dto/sos.dto';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
@@ -208,6 +209,108 @@ export class SosService {
         { createdAt: 'desc' },
       ],
     });
+  }
+
+  /**
+   * Статистика и тренды вызовов SOS (частота, разбивка по статусам, время реагирования).
+   * Доступно: SECURITY, DISPATCHER, HOA_ADMIN, HOA_CHAIRMAN (read-only), SUPERADMIN.
+   */
+  async getSosStatistics(
+    tenantId: string,
+    user: any,
+    query?: GetSosStatisticsQueryDto,
+  ) {
+    this.assertStaffOrChairmanRole(user, tenantId);
+
+    const now = new Date();
+    const toDate = query?.to ? new Date(query.to) : now;
+    if (query?.to && query.to.length === 10) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    const fromDate = query?.from
+      ? new Date(query.from)
+      : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    if (query?.from && query.from.length === 10) {
+      fromDate.setUTCHours(0, 0, 0, 0);
+    }
+
+    const alerts = await this.prisma.sosAlert.findMany({
+      where: {
+        tenantId,
+        createdAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        resolvedAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const byStatus = {
+      ACTIVE: 0,
+      RESOLVED: 0,
+      FALSE_ALARM: 0,
+    };
+
+    let totalResponseMinutes = 0;
+    let resolvedCount = 0;
+
+    for (const alert of alerts) {
+      if (byStatus[alert.status] !== undefined) {
+        byStatus[alert.status]++;
+      }
+
+      if (alert.resolvedAt) {
+        const diffMs =
+          new Date(alert.resolvedAt).getTime() - new Date(alert.createdAt).getTime();
+        totalResponseMinutes += Math.max(0, diffMs / (1000 * 60));
+        resolvedCount++;
+      }
+    }
+
+    const averageResponseTimeMinutes =
+      resolvedCount > 0
+        ? Math.round((totalResponseMinutes / resolvedCount) * 10) / 10
+        : 0;
+
+    // Daily trend: every calendar day in the range (UTC)
+    const dailyMap = new Map<string, number>();
+    const cursor = new Date(fromDate);
+    cursor.setUTCHours(0, 0, 0, 0);
+    const endCursor = new Date(toDate);
+    endCursor.setUTCHours(23, 59, 59, 999);
+
+    while (cursor <= endCursor) {
+      const dKey = cursor.toISOString().split('T')[0];
+      dailyMap.set(dKey, 0);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    for (const alert of alerts) {
+      const dKey = new Date(alert.createdAt).toISOString().split('T')[0];
+      if (dailyMap.has(dKey)) {
+        dailyMap.set(dKey, dailyMap.get(dKey)! + 1);
+      } else {
+        dailyMap.set(dKey, 1);
+      }
+    }
+
+    const dailyTrend = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    return {
+      totalAlerts: alerts.length,
+      byStatus,
+      averageResponseTimeMinutes,
+      dailyTrend,
+    };
   }
 
   /**

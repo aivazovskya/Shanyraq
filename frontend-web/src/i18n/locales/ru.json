@@ -709,7 +709,20 @@
     "allAlertsHandled": "Все тревоги обработаны дежурной службой",
     "residentFallback": "Житель",
     "statusHeader": "Статус",
-    "noteHeader": "Заметка"
+    "noteHeader": "Заметка",
+    "statsTitle": "Статистика и тренды",
+    "statsSubtitle": "Показатели частоты вызовов, распределения статусов и времени реагирования",
+    "totalAlerts": "Всего вызовов",
+    "activeNow": "Активно сейчас",
+    "avgResponseTime": "Среднее время реагирования",
+    "resolvedVsFalse": "Разрешено / Ложные",
+    "resolvedCount": "Разрешено",
+    "falseAlarmCount": "Ложных",
+    "dailyTrend": "Динамика вызовов по дням",
+    "periodFrom": "Период с",
+    "periodTo": "по",
+    "noTrendData": "Нет данных за выбранный период",
+    "alertsCount": "Количество вызовов"
   },
   "communityBoard": {
     "pageTitle": "Модерация доски объявлений",

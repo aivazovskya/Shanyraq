@@ -42,3 +42,16 @@ export class GetTenantAlertsQueryDto {
   @IsEnum(SosAlertStatus)
   status?: SosAlertStatus;
 }
+
+export class GetSosStatisticsQueryDto {
+  @ApiPropertyOptional({ description: 'Начало периода (ISO или YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Конец периода (ISO или YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  to?: string;
+}
+

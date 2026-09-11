@@ -709,7 +709,20 @@
     "allAlertsHandled": "Барлық дабылдар кезекші қызметпен өңделді",
     "residentFallback": "Тұрғын",
     "statusHeader": "Мәртебе",
-    "noteHeader": "Ескертпе"
+    "noteHeader": "Ескертпе",
+    "statsTitle": "Статистика және трендтер",
+    "statsSubtitle": "Шақырулар жиілігі, мәртебелердің бөлінуі және әрекет ету уақытының көрсеткіштері",
+    "totalAlerts": "Барлық шақырулар",
+    "activeNow": "Қазір белсенді",
+    "avgResponseTime": "Орташа әрекет ету уақыты",
+    "resolvedVsFalse": "Шешілді / Жалған",
+    "resolvedCount": "Шешілді",
+    "falseAlarmCount": "Жалған дабылдар",
+    "dailyTrend": "Күндер бойынша шақырулар динамикасы",
+    "periodFrom": "Кезең басы",
+    "periodTo": "дейін",
+    "noTrendData": "Таңдалған кезеңде деректер жоқ",
+    "alertsCount": "Шақырулар саны"
   },
   "communityBoard": {
     "pageTitle": "Хабарландырулар тақтасы модерациясы",

@@ -15,9 +15,31 @@ import {
   RefreshCw,
   Home,
   FileText,
+  Activity,
+  Calendar,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
 import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
 import { createRealtimeSocket } from '@/lib/socket';
+
+export interface SosStatistics {
+  totalAlerts: number;
+  byStatus: {
+    ACTIVE: number;
+    RESOLVED: number;
+    FALSE_ALARM: number;
+  };
+  averageResponseTimeMinutes: number;
+  dailyTrend: Array<{ date: string; count: number }>;
+}
 
 interface SosAlertItem {
   id: string;
@@ -60,6 +82,23 @@ export default function SosDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now());
 
+  // Statistics state
+  const [stats, setStats] = useState<SosStatistics | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [dateFrom, setDateFrom] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [dateTo, setDateTo] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Modal state
   const [selectedAlert, setSelectedAlert] = useState<SosAlertItem | null>(null);
   const [targetStatus, setTargetStatus] = useState<'RESOLVED' | 'FALSE_ALARM'>('RESOLVED');
@@ -91,6 +130,23 @@ export default function SosDashboardPage() {
     }
   }, [t]);
 
+  const loadStats = useCallback(async (tId: string, fromStr?: string, toStr?: string) => {
+    if (!tId) return;
+    setLoadingStats(true);
+    try {
+      const params = new URLSearchParams();
+      if (fromStr) params.set('from', fromStr);
+      if (toStr) params.set('to', toStr);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      const data = await apiRequest<SosStatistics>(`/sos/tenants/${tId}/statistics${queryStr}`);
+      setStats(data);
+    } catch (err: any) {
+      console.error('Failed to load SOS statistics:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
   useEffect(() => {
     const session = getStoredSession();
     if (session?.user) {
@@ -109,6 +165,12 @@ export default function SosDashboardPage() {
     }
   }, [loadAlerts, t]);
 
+  useEffect(() => {
+    if (tenantId) {
+      loadStats(tenantId, dateFrom, dateTo);
+    }
+  }, [tenantId, dateFrom, dateTo, loadStats]);
+
   // Real-time WebSocket: подключение к комнате SOS жилого комплекса
   useEffect(() => {
     if (!tenantId) return;
@@ -120,12 +182,14 @@ export default function SosDashboardPage() {
       socket.emit('sos:join', { tenantId });
       // Reconciliation fetch при первичном подключении
       loadAlerts(tenantId, true);
+      loadStats(tenantId, dateFrom, dateTo);
     });
 
     socket.on('reconnect', () => {
       socket.emit('sos:join', { tenantId });
       // Reconciliation fetch при реконнекте
       loadAlerts(tenantId, true);
+      loadStats(tenantId, dateFrom, dateTo);
     });
 
     socket.on('sos:alert:triggered', (newAlert: SosAlertItem) => {
@@ -138,18 +202,20 @@ export default function SosDashboardPage() {
         }
         return [newAlert, ...prev];
       });
+      loadStats(tenantId, dateFrom, dateTo);
     });
 
     socket.on('sos:alert:updated', (updatedAlert: SosAlertItem) => {
       setAlerts((prev) =>
         prev.map((a) => (a.id === updatedAlert.id ? updatedAlert : a)),
       );
+      loadStats(tenantId, dateFrom, dateTo);
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [tenantId, loadAlerts]);
+  }, [tenantId, loadAlerts, loadStats, dateFrom, dateTo]);
 
   const isChairman = currentUser?.role === 'HOA_CHAIRMAN';
 
@@ -171,7 +237,10 @@ export default function SosDashboardPage() {
         }),
       });
       setSelectedAlert(null);
-      await loadAlerts(tenantId, true);
+      await Promise.all([
+        loadAlerts(tenantId, true),
+        loadStats(tenantId, dateFrom, dateTo),
+      ]);
     } catch (err: any) {
       alert(err.message || t('sos.resolveError'));
     } finally {
@@ -224,7 +293,10 @@ export default function SosDashboardPage() {
           )}
 
           <button
-            onClick={() => loadAlerts(tenantId, false)}
+            onClick={() => {
+              loadAlerts(tenantId, false);
+              loadStats(tenantId, dateFrom, dateTo);
+            }}
             disabled={refreshing}
             className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
           >
@@ -239,6 +311,145 @@ export default function SosDashboardPage() {
           {errorMsg}
         </div>
       )}
+
+      {/* STATISTICS & TRENDS SECTION */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Activity className="h-5 w-5 text-red-600" />
+              {t('sos.statsTitle')}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">{t('sos.statsSubtitle')}</p>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span className="text-xs font-medium text-gray-500">{t('sos.periodFrom')}</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none"
+            />
+            <span className="text-xs font-medium text-gray-500">{t('sos.periodTo')}</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* 4 Compact KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Total Alerts */}
+          <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/70 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500">{t('sos.totalAlerts')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {loadingStats ? '...' : (stats?.totalAlerts ?? 0)}
+              </p>
+            </div>
+            <div className="p-2.5 bg-red-100/80 rounded-lg text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          </div>
+
+          {/* Card 2: Active Now */}
+          <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/70 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500">{t('sos.activeNow')}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-2xl font-bold text-gray-900">{activeAlerts.length}</p>
+                {activeAlerts.length > 0 && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white animate-pulse">
+                    LIVE
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="p-2.5 bg-amber-100/80 rounded-lg text-amber-600">
+              <Clock className="h-5 w-5" />
+            </div>
+          </div>
+
+          {/* Card 3: Average Response Time */}
+          <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/70 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500">{t('sos.avgResponseTime')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {loadingStats ? '...' : `${stats?.averageResponseTimeMinutes ?? 0} ${t('sos.timeMin')}`}
+              </p>
+            </div>
+            <div className="p-2.5 bg-blue-100/80 rounded-lg text-blue-600">
+              <Clock className="h-5 w-5" />
+            </div>
+          </div>
+
+          {/* Card 4: Resolved vs False Alarm */}
+          <div className="p-4 rounded-xl border border-gray-100 bg-gray-50/70 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-gray-500">{t('sos.resolvedVsFalse')}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {loadingStats ? '...' : `${stats?.byStatus.RESOLVED ?? 0} / ${stats?.byStatus.FALSE_ALARM ?? 0}`}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {t('sos.resolvedCount')}: {stats?.byStatus.RESOLVED ?? 0} · {t('sos.falseAlarmCount')}: {stats?.byStatus.FALSE_ALARM ?? 0}
+              </p>
+            </div>
+            <div className="p-2.5 bg-green-100/80 rounded-lg text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Trend Chart */}
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">
+            {t('sos.dailyTrend')}
+          </h3>
+          <div className="h-56 w-full pt-2">
+            {isMounted && (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={stats?.dailyTrend || []}
+                  margin={{ top: 10, right: 10, left: -25, bottom: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickFormatter={(val: string) => {
+                      try {
+                        const parts = val.split('-');
+                        return `${parts[2]}.${parts[1]}`;
+                      } catch {
+                        return val;
+                      }
+                    }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                  />
+                  <Tooltip
+                    formatter={(value: any) => [value, t('sos.alertsCount')]}
+                    labelFormatter={(label: any) => label}
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <Bar dataKey="count" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* ACTIVE ALERTS SECTION */}
       <div>

@@ -709,7 +709,20 @@
     "allAlertsHandled": "All emergency alerts have been handled by staff",
     "residentFallback": "Resident",
     "statusHeader": "Status",
-    "noteHeader": "Note"
+    "noteHeader": "Note",
+    "statsTitle": "Statistics & Trends",
+    "statsSubtitle": "Call frequency, status distribution, and response time metrics",
+    "totalAlerts": "Total Calls",
+    "activeNow": "Active Now",
+    "avgResponseTime": "Avg Response Time",
+    "resolvedVsFalse": "Resolved / False",
+    "resolvedCount": "Resolved",
+    "falseAlarmCount": "False Alarms",
+    "dailyTrend": "Daily Call Dynamics",
+    "periodFrom": "Period from",
+    "periodTo": "to",
+    "noTrendData": "No data for the selected period",
+    "alertsCount": "Alerts count"
   },
   "communityBoard": {
     "pageTitle": "Community Board Moderation",
