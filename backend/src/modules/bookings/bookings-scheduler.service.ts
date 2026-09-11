@@ -3,13 +3,21 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RedisService } from '../../redis/redis.service';
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus, BookableResourceType, UserRole } from '@prisma/client';
 
 export interface BookingRemindersSummary {
   bookingsChecked: number;
   remindersSent: number;
   skippedAlreadyReminded: number;
 }
+
+export interface GuestParkingCapacitySummary {
+  tenantsChecked: number;
+  tenantsFull: number;
+  alertsSent: number;
+}
+
+const GUEST_PARKING_FULL_FLAG_TTL_SECONDS = 24 * 60 * 60; // safety-net TTL only
 
 @Injectable()
 export class BookingsSchedulerService {
@@ -124,5 +132,125 @@ export class BookingsSchedulerService {
       remindersSent,
       skippedAlreadyReminded,
     };
+  }
+
+  /**
+   * Cron check running every 30 minutes: alerts SECURITY/DISPATCHER when
+   * every active GUEST_PARKING resource of a tenant currently has a
+   * CONFIRMED booking covering this instant (i.e. guest parking is full).
+   * State-transition debounce via Redis — alerts once when it BECOMES
+   * full, stays silent while it remains full, and can alert again after
+   * recovering and becoming full a second time.
+   */
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async handleGuestParkingCapacityCheck(): Promise<GuestParkingCapacitySummary> {
+    this.logger.log('[CRON] Starting guest parking capacity check...');
+
+    let tenantsChecked = 0;
+    let tenantsFull = 0;
+    let alertsSent = 0;
+
+    const now = new Date();
+
+    let resources: { id: string; tenantId: string }[] = [];
+    try {
+      resources = await this.prisma.bookableResource.findMany({
+        where: {
+          type: BookableResourceType.GUEST_PARKING,
+          isActive: true,
+        },
+        select: { id: true, tenantId: true },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[CRON] Failed to fetch guest parking resources: ${err.message}`,
+        err.stack,
+      );
+      return { tenantsChecked, tenantsFull, alertsSent };
+    }
+
+    if (resources.length === 0) {
+      return { tenantsChecked, tenantsFull, alertsSent };
+    }
+
+    const resourceIds = resources.map((r) => r.id);
+
+    let occupiedBookings: { resourceId: string }[] = [];
+    try {
+      occupiedBookings = await this.prisma.booking.findMany({
+        where: {
+          resourceId: { in: resourceIds },
+          status: BookingStatus.CONFIRMED,
+          startTime: { lte: now },
+          endTime: { gt: now },
+        },
+        select: { resourceId: true },
+      });
+    } catch (err: any) {
+      this.logger.error(
+        `[CRON] Failed to fetch active guest parking bookings: ${err.message}`,
+        err.stack,
+      );
+      return { tenantsChecked, tenantsFull, alertsSent };
+    }
+
+    const occupiedResourceIds = new Set(occupiedBookings.map((b) => b.resourceId));
+
+    const resourcesByTenant = new Map<string, string[]>();
+    for (const resource of resources) {
+      const list = resourcesByTenant.get(resource.tenantId) || [];
+      list.push(resource.id);
+      resourcesByTenant.set(resource.tenantId, list);
+    }
+
+    for (const [tenantId, tenantResourceIds] of resourcesByTenant.entries()) {
+      tenantsChecked++;
+
+      try {
+        const isFull = tenantResourceIds.every((id) => occupiedResourceIds.has(id));
+        const redisKey = `bookings:guest-parking-full:${tenantId}`;
+
+        if (isFull) {
+          tenantsFull++;
+
+          const alreadyFlagged = await this.redisService.get(redisKey);
+          if (alreadyFlagged) {
+            continue;
+          }
+
+          await this.notificationsService.sendToTenantRoles(
+            tenantId,
+            [UserRole.SECURITY, UserRole.DISPATCHER],
+            {
+              title: '🅿️ Гостевой паркинг заполнен',
+              body: `Все ${tenantResourceIds.length} мест для гостевого паркинга сейчас заняты по бронированию.`,
+              data: {
+                type: 'GUEST_PARKING_FULL',
+                tenantId,
+              },
+            },
+          );
+
+          await this.redisService.set(redisKey, '1', GUEST_PARKING_FULL_FLAG_TTL_SECONDS);
+          alertsSent++;
+        } else {
+          const alreadyFlagged = await this.redisService.get(redisKey);
+          if (alreadyFlagged) {
+            await this.redisService.del(redisKey);
+          }
+        }
+      } catch (tenantErr: any) {
+        this.logger.error(
+          `[CRON] Error processing guest parking capacity check for tenant ${tenantId}: ${tenantErr.message}`,
+          tenantErr.stack,
+        );
+      }
+    }
+
+    this.logger.log(
+      `[CRON] Guest parking capacity check completed: ${tenantsChecked} tenants checked, ${tenantsFull} full, ${alertsSent} alerts sent.`,
+    );
+
+    return { tenantsChecked, tenantsFull, alertsSent };
   }
 }
