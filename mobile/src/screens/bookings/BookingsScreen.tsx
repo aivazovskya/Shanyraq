@@ -35,6 +35,7 @@ import {
   BookableResource,
   Booking,
   AvailabilitySlot,
+  WaitlistEntry,
 } from '../../api/bookings';
 import { getApiErrorMessage } from '../../api/client';
 
@@ -47,9 +48,10 @@ export const BookingsScreen: React.FC = () => {
   const verifiedOwnerships = (user?.ownerships || []).filter((o) => o.isVerified);
   const isVerified = verifiedOwnerships.length > 0;
 
-  const [activeTab, setActiveTab] = useState<'SPACES' | 'MY'>('SPACES');
+  const [activeTab, setActiveTab] = useState<'SPACES' | 'MY' | 'WAITLIST'>('SPACES');
   const [resources, setResources] = useState<BookableResource[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
+  const [myWaitlist, setMyWaitlist] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -70,12 +72,14 @@ export const BookingsScreen: React.FC = () => {
     }
     setLoading(true);
     try {
-      const [resData, myData] = await Promise.all([
+      const [resData, myData, waitlistData] = await Promise.all([
         BookingsApi.getResources(tenantId),
         BookingsApi.getMyBookings(),
+        BookingsApi.getMyWaitlist(),
       ]);
       setResources(resData);
       setMyBookings(myData);
+      setMyWaitlist(waitlistData);
     } catch (err) {
       console.warn('Failed to load bookings data:', err);
     } finally {
@@ -179,10 +183,63 @@ export const BookingsScreen: React.FC = () => {
       setActiveTab('MY');
       fetchData();
     } catch (err: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(err));
+      if (err?.response?.data?.code === 'BOOKINGS.SLOT_CONFLICT') {
+        Alert.alert(
+          t('bookings.slotFullTitle'),
+          t('bookings.waitlistJoinPrompt'),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('bookings.waitlistJoinBtn'),
+              onPress: async () => {
+                try {
+                  setSubmitting(true);
+                  await BookingsApi.joinWaitlist(selectedResource.id, {
+                    startTime: startDate.toISOString(),
+                    endTime: endDate.toISOString(),
+                  });
+                  setSelectedResource(null);
+                  Alert.alert(t('common.success'), t('bookings.waitlistJoinSuccess'));
+                  setActiveTab('WAITLIST');
+                  fetchData();
+                } catch (joinErr: any) {
+                  Alert.alert(t('common.error'), getApiErrorMessage(joinErr));
+                } finally {
+                  setSubmitting(false);
+                }
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert(t('common.error'), getApiErrorMessage(err));
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleLeaveWaitlist = (id: string) => {
+    Alert.alert(
+      t('bookings.waitlistLeaveBtn'),
+      t('bookings.waitlistLeaveConfirm'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.confirm'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await BookingsApi.leaveWaitlist(id);
+              Alert.alert(t('common.success'), t('bookings.waitlistLeaveSuccess'));
+              fetchData();
+            } catch (err: any) {
+              Alert.alert(t('common.error'), getApiErrorMessage(err));
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleCancelBooking = (bookingId: string) => {
@@ -281,6 +338,20 @@ export const BookingsScreen: React.FC = () => {
             {t('bookings.tabMy')} ({myBookings.length})
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'WAITLIST' && styles.activeTab]}
+          onPress={() => setActiveTab('WAITLIST')}
+        >
+          <View style={styles.tabContentRow}>
+            <Layers
+              size={15}
+              color={activeTab === 'WAITLIST' ? Colors.primary : Colors.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === 'WAITLIST' && styles.activeTabText]}>
+              {t('bookings.tabWaitlist')} ({myWaitlist.length})
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -340,7 +411,7 @@ export const BookingsScreen: React.FC = () => {
               </Card>
             ))
           )
-        ) : (
+        ) : activeTab === 'MY' ? (
           myBookings.length === 0 ? (
             <Card style={styles.emptyCard}>
               <Text style={styles.emptyText}>{t('bookings.emptyMy')}</Text>
@@ -385,6 +456,43 @@ export const BookingsScreen: React.FC = () => {
                 </Card>
               );
             })
+          )
+        ) : (
+          myWaitlist.length === 0 ? (
+            <Card style={styles.emptyCard}>
+              <Text style={styles.emptyText}>{t('bookings.emptyWaitlist')}</Text>
+            </Card>
+          ) : (
+            myWaitlist.map((entry) => (
+              <Card key={entry.id} style={styles.bookingCard}>
+                <View style={styles.cardHeader}>
+                  <View>
+                    <Text style={styles.resourceName}>{entry.resource?.name || '—'}</Text>
+                    <Text style={styles.bookingDate}>{formatDateLabel(entry.startTime)}</Text>
+                  </View>
+                  <Badge
+                    label={t('bookings.tabWaitlist')}
+                    variant="warning"
+                  />
+                </View>
+
+                <View style={styles.metaItem}>
+                  <Clock size={14} color={Colors.textMuted} />
+                  <Text style={styles.metaText}>
+                    {formatSlotTime(entry.startTime)} — {formatSlotTime(entry.endTime)}
+                  </Text>
+                </View>
+
+                <View style={styles.cancelBtnWrapper}>
+                  <Button
+                    title={t('bookings.waitlistLeaveBtn')}
+                    variant="outline"
+                    size="sm"
+                    onPress={() => handleLeaveWaitlist(entry.id)}
+                  />
+                </View>
+              </Card>
+            ))
           )
         )}
       </ScrollView>
@@ -540,6 +648,11 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomColor: Colors.primary,
+  },
+  tabContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   tabText: {
     fontSize: 14,

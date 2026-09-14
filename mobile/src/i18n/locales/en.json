@@ -451,7 +451,17 @@
     "typeOther": "Space",
     "statusConfirmed": "Active",
     "statusCancelled": "Cancelled",
-    "unverifiedNotice": "Booking common spaces is available only after your apartment ownership is verified by the management company."
+    "unverifiedNotice": "Booking common spaces is available only after your apartment ownership is verified by the management company.",
+    "tabWaitlist": "Waitlist",
+    "emptyWaitlist": "You have no waitlist entries yet",
+    "slotFullTitle": "Slot already booked",
+    "waitlistJoinPrompt": "This slot is already booked by another resident. Would you like to join the waitlist? You will be notified if the slot becomes available.",
+    "waitlistJoinBtn": "Join Waitlist",
+    "waitlistJoinSuccess": "You have joined the waitlist! We will notify you if the slot becomes available.",
+    "waitlistLeaveBtn": "Leave Waitlist",
+    "waitlistLeaveConfirm": "Are you sure you want to leave the waitlist for this slot?",
+    "waitlistLeaveSuccess": "You have left the waitlist",
+    "waitlistSlotLabel": "Waitlisted for slot"
   },
   "sos": {
     "buttonTitle": "EMERGENCY CALL (SOS)",
@@ -631,7 +641,11 @@
       "STAFF_CROSS_TENANT_FORBIDDEN": "Staff only has access to resources of their own residential complex",
       "RESIDENT_ACCESS_FORBIDDEN": "You do not have verified access to shared resources of this residential complex",
       "MANAGE_FORBIDDEN": "Insufficient permissions to manage bookings of this complex",
-      "OUTSIDE_OPERATING_HOURS": "Booking is only available during operating hours (from {{opStart}} to {{opEnd}})"
+      "OUTSIDE_OPERATING_HOURS": "Booking is only allowed within operating hours (from {{opStart}} to {{opEnd}})",
+      "SLOT_NOT_FULL": "You can only join the waitlist for a fully booked slot",
+      "ALREADY_ON_WAITLIST": "This unit is already on the waitlist for this slot",
+      "WAITLIST_ENTRY_NOT_FOUND": "Waitlist entry not found",
+      "WAITLIST_LEAVE_FORBIDDEN": "You can only remove your own waitlist entry"
     },
     "ACCESS_CONTROL": {
       "HIKVISION_CREDENTIALS_MISSING": "Hikvision intercom credentials are not configured",

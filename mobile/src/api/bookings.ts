@@ -45,6 +45,17 @@ export interface CreateBookingData {
   note?: string;
 }
 
+export interface WaitlistEntry {
+  id: string;
+  resourceId: string;
+  unitId: string;
+  userId: string;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+  resource?: { id: string; name: string; type: string };
+}
+
 export const BookingsApi = {
   async getResources(tenantId: string): Promise<BookableResource[]> {
     const res = await apiClient.get<BookableResource[]>(`/bookings/tenants/${tenantId}/resources`);
@@ -70,6 +81,29 @@ export const BookingsApi = {
 
   async cancelBooking(id: string): Promise<Booking> {
     const res = await apiClient.patch<Booking>(`/bookings/${id}/cancel`);
+    return res.data;
+  },
+
+  async joinWaitlist(
+    resourceId: string,
+    data: { startTime: string; endTime: string },
+  ): Promise<WaitlistEntry> {
+    const res = await apiClient.post<WaitlistEntry>(
+      `/bookings/resources/${resourceId}/waitlist`,
+      data,
+    );
+    return res.data;
+  },
+
+  async getMyWaitlist(): Promise<WaitlistEntry[]> {
+    const res = await apiClient.get<WaitlistEntry[]>('/bookings/my-waitlist');
+    return res.data;
+  },
+
+  async leaveWaitlist(id: string): Promise<{ success: boolean }> {
+    const res = await apiClient.delete<{ success: boolean }>(
+      `/bookings/waitlist/${id}`,
+    );
     return res.data;
   },
 };
