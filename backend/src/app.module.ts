@@ -22,6 +22,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { SearchModule } from './modules/search/search.module';
+import { ShiftHandoverModule } from './modules/shift-handover/shift-handover.module';
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -56,6 +57,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     AnalyticsModule,
     AuditLogModule,
     SearchModule,
+    ShiftHandoverModule,
     EventEmitterModule.forRoot(),
     RealtimeModule,
   ],

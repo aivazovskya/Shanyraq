@@ -108,6 +108,7 @@ model Tenant {
   communityListings CommunityListing[]
   conversations     Conversation[]
   auditLogs         AuditLog[]
+  shiftHandoverNotes ShiftHandoverNote[]
 
   @@map("tenants")
 }
@@ -208,6 +209,7 @@ model User {
   conversationsResolved   Conversation[] @relation("ConversationsResolved")
   chatMessagesSent        ChatMessage[]  @relation("ChatMessagesSent")
   auditLogs               AuditLog[]
+  shiftHandoverNotesAuthored ShiftHandoverNote[]
 
   @@map("users")
 }
@@ -810,5 +812,19 @@ model AuditLog {
 
   @@index([tenantId, createdAt])
   @@map("audit_logs")
+}
+
+model ShiftHandoverNote {
+  id        String   @id @default(uuid())
+  tenantId  String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("shift_handover_notes")
 }
 
