@@ -39,6 +39,7 @@
     "chat": "Resident Chat",
     "analytics": "Analytics",
     "auditLog": "Action Audit Log",
+    "shiftHandover": "Shift Handover",
     "tenants": "Complexes & Tenants"
   },
   "roles": {
@@ -1207,5 +1208,24 @@
     "searching": "Searching...",
     "unitPrefix": "apt.",
     "balance": "Balance:"
+  },
+  "shiftHandover": {
+    "pageTitle": "Shift Handover Log",
+    "pageSubtitle": "Operational logbook for security and dispatch shift handover notes",
+    "composeTitle": "New shift handover note",
+    "composePlaceholder": "Enter handover note for the next shift...",
+    "postBtn": "Post Note",
+    "postingBtn": "Posting...",
+    "recentNotesTitle": "Handover Log (last 50)",
+    "emptyFeedTitle": "No handover notes yet",
+    "emptyFeedSub": "Notes from the on-duty security and dispatch shifts will appear here",
+    "loadError": "Failed to load shift handover notes",
+    "error403": "Error 403 (Forbidden): You do not have permission to post shift handover notes.",
+    "error400": "Error 400 (Invalid data): {{message}}",
+    "refreshBtn": "Refresh",
+    "fillRequiredError": "Note text cannot be empty",
+    "selectTenantPlaceholder": "Select Complex...",
+    "selectTenantPromptTitle": "Select residential complex",
+    "selectTenantPromptSub": "You are logged in as superadministrator. Please select a complex from the dropdown above to view the shift handover log."
   }
 }
