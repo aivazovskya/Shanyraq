@@ -22,3 +22,10 @@ export class CreateAnnouncementDto {
   @IsBoolean()
   isUrgent?: boolean;
 }
+
+export class RemoveAnnouncementDto {
+  @ApiProperty({ example: 'Опубликовано по ошибке, дата указана неверно' })
+  @IsNotEmpty()
+  @IsString()
+  reason: string;
+}

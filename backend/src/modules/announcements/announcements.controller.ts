@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Param, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AnnouncementsService } from './announcements.service';
-import { CreateAnnouncementDto } from './dto/announcements.dto';
+import { CreateAnnouncementDto, RemoveAnnouncementDto } from './dto/announcements.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -21,7 +21,7 @@ export class AnnouncementsController {
   async getAnnouncements(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
     // Безопасность: BOLA/IDOR защита — житель или сотрудник может читать новости только своего ЖК
     assertUserBelongsToTenant(user, tenantId, 'новостей ЖК');
-    return this.announcementsService.getAnnouncements(tenantId);
+    return this.announcementsService.getAnnouncements(tenantId, user);
   }
 
   @Post()
@@ -39,5 +39,16 @@ export class AnnouncementsController {
     }
 
     return this.announcementsService.createAnnouncement(user.id, targetTenantId, dto);
+  }
+
+  @Patch(':id/remove')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Удаление/деактивация опубликованной новости' })
+  async removeAnnouncement(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: RemoveAnnouncementDto,
+  ) {
+    return this.announcementsService.removeAnnouncement(id, user, dto);
   }
 }

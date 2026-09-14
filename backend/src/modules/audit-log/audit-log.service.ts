@@ -124,6 +124,8 @@ export class AuditLogService {
           return 'Деактивация жильца';
         case 'LISTING_MODERATED':
           return 'Модерация объявления';
+        case 'ANNOUNCEMENT_REMOVED':
+          return 'Удаление объявления/новости';
         case 'OWNERSHIP_VERIFIED':
           return 'Подтверждение собственности';
         case 'OWNERSHIP_REJECTED':

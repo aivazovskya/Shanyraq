@@ -189,7 +189,6 @@ model User {
   accessLogs       AccessLog[]
   createdPasses    GuestPass[]       @relation("CreatedGuestPasses")
   revokedPasses    GuestPass[]       @relation("RevokedGuestPasses")
-  announcements    Announcement[]
   deviceTokens      DeviceToken[]
   notifications     Notification[]
   recordedPayments  Payment[]
@@ -201,6 +200,8 @@ model User {
   sosAlertsResolved  SosAlert[]      @relation("SosResolved")
   listingsAuthored   CommunityListing[] @relation("ListingsAuthored")
   listingsRemoved    CommunityListing[] @relation("ListingsRemoved")
+  announcementsAuthored Announcement[]  @relation("AnnouncementsAuthored")
+  announcementsRemoved  Announcement[]  @relation("AnnouncementsRemoved")
   conversationsAsResident Conversation[] @relation("ConversationsAsResident")
   chatMessagesSent        ChatMessage[]  @relation("ChatMessagesSent")
   auditLogs               AuditLog[]
@@ -454,18 +455,27 @@ model GuestPass {
 // Announcements & News (Лента новостей и оповещений)
 // -------------------------------------------------------------
 
+enum AnnouncementStatus {
+  ACTIVE
+  REMOVED
+}
+
 model Announcement {
-  id               String            @id @default(uuid())
+  id               String             @id @default(uuid())
   tenantId         String
   authorId         String
   title            String
   content          String
-  isUrgent         Boolean           @default(false) // Срочное (аварии, отключения)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  isUrgent         Boolean            @default(false) // Срочное (аварии, отключения)
+  status           AnnouncementStatus @default(ACTIVE)
+  removedById      String?
+  removedReason    String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  author           User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  author           User               @relation("AnnouncementsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  removedBy        User?              @relation("AnnouncementsRemoved", fields: [removedById], references: [id], onDelete: SetNull)
 
   @@map("announcements")
 }
