@@ -387,7 +387,18 @@
     "regularSuccess": "Announcement successfully published in mobile app feed.",
     "loadFeedError": "Failed to load announcement feed",
     "error403": "Error 403 (Forbidden): You do not have permission to publish announcements for this complex. Property management or HOA chairman permissions required.",
-    "error400": "Error 400 (Invalid data): {{message}}"
+    "error400": "Error 400 (Invalid data): {{message}}",
+    "removeAction": "Remove",
+    "alreadyRemoved": "Already removed",
+    "removeModalTitle": "Remove announcement",
+    "confirmRemoveNotice": "You are about to remove the announcement \"{{title}}\" from the feed.",
+    "removalReasonLabel": "Removal reason",
+    "removalReasonPlaceholder": "Specify the reason (typo, outdated information...)",
+    "reasonRequiredError": "Please specify a reason for removing the announcement",
+    "confirmRemoveBtn": "Remove announcement",
+    "removingBtn": "Removing...",
+    "removedByStaff": "Announcement removed",
+    "cancelBtn": "Cancel"
   },
   "verifications": {
     "title": "Ownership Verification",

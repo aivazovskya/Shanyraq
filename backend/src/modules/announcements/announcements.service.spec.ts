@@ -176,6 +176,21 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
       );
     });
 
+    it('передаёт removedBy (id/firstName/lastName) в include запроса для отображения на веб-странице', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([]);
+      const hoaAdmin = { id: 'a-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+
+      await service.getAnnouncements('tenant-1', hoaAdmin);
+
+      expect(prismaMock.announcement.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            removedBy: { select: { id: true, firstName: true, lastName: true } },
+          }),
+        }),
+      );
+    });
+
     it('SECURITY трактуется как обычный житель — видит только ACTIVE', async () => {
       prismaMock.announcement.findMany.mockResolvedValue([]);
       const securityUser = { id: 'sec-1', role: UserRole.SECURITY, tenantId: 'tenant-1' };

@@ -34,6 +34,9 @@ export class AnnouncementsService {
         author: {
           select: { firstName: true, lastName: true, role: true },
         },
+        removedBy: {
+          select: { id: true, firstName: true, lastName: true },
+        },
       },
       orderBy: [
         { isUrgent: 'desc' }, // Urgent alerts appear first
