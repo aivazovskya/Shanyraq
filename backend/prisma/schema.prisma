@@ -203,6 +203,7 @@ model User {
   announcementsAuthored Announcement[]  @relation("AnnouncementsAuthored")
   announcementsRemoved  Announcement[]  @relation("AnnouncementsRemoved")
   conversationsAsResident Conversation[] @relation("ConversationsAsResident")
+  conversationsResolved   Conversation[] @relation("ConversationsResolved")
   chatMessagesSent        ChatMessage[]  @relation("ChatMessagesSent")
   auditLogs               AuditLog[]
 
@@ -745,12 +746,16 @@ model Conversation {
   residentId           String
   lastReadByResidentAt DateTime?
   lastReadByStaffAt    DateTime?
+  isResolved           Boolean   @default(false)
+  resolvedAt           DateTime?
+  resolvedById         String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  resident User          @relation("ConversationsAsResident", fields: [residentId], references: [id], onDelete: Cascade)
-  messages ChatMessage[]
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  resident   User          @relation("ConversationsAsResident", fields: [residentId], references: [id], onDelete: Cascade)
+  resolvedBy User?         @relation("ConversationsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+  messages   ChatMessage[]
 
   @@unique([tenantId, residentId])
   @@map("conversations")

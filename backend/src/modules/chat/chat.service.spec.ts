@@ -308,6 +308,42 @@ describe('ChatService', () => {
         service.sendResidentMessage(unverifiedResident, { text: 'Привет' }),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('Task 0068: resets isResolved/resolvedAt/resolvedById when the resident sends a new message (auto-reopen)', async () => {
+      prismaMock.unitOwnership.findFirst
+        .mockResolvedValueOnce({ unitId: 'unit-1', unit: { building: { tenantId: mockTenantId } } })
+        .mockResolvedValueOnce({ id: 'own-1', isVerified: true });
+
+      const resolvedConv = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        residentId: verifiedResident.id,
+        isResolved: true,
+        resolvedAt: new Date(),
+        resolvedById: dispatcherUser.id,
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(resolvedConv);
+      prismaMock.chatMessage.create.mockResolvedValueOnce({
+        id: 'msg-reopen',
+        conversationId: mockConversationId,
+        senderId: verifiedResident.id,
+        text: 'Ещё раз здравствуйте',
+      });
+      prismaMock.conversation.update.mockResolvedValueOnce({ ...resolvedConv, isResolved: false });
+
+      await service.sendResidentMessage(verifiedResident, { text: 'Ещё раз здравствуйте' });
+
+      expect(prismaMock.conversation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockConversationId },
+          data: expect.objectContaining({
+            isResolved: false,
+            resolvedAt: null,
+            resolvedById: null,
+          }),
+        }),
+      );
+    });
   });
 
   describe('Staff-facing: getTenantConversations', () => {
@@ -363,6 +399,42 @@ describe('ChatService', () => {
       await expect(
         service.getTenantConversations(mockTenantId, verifiedResident),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Task 0068: passes isResolved:true to the where clause when resolved=true', async () => {
+      prismaMock.conversation.findMany.mockResolvedValueOnce([]);
+
+      await service.getTenantConversations(mockTenantId, dispatcherUser, true);
+
+      expect(prismaMock.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId: mockTenantId, isResolved: true },
+        }),
+      );
+    });
+
+    it('Task 0068: passes isResolved:false to the where clause when resolved=false', async () => {
+      prismaMock.conversation.findMany.mockResolvedValueOnce([]);
+
+      await service.getTenantConversations(mockTenantId, dispatcherUser, false);
+
+      expect(prismaMock.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId: mockTenantId, isResolved: false },
+        }),
+      );
+    });
+
+    it('Task 0068: omits the isResolved filter entirely when resolved is not provided', async () => {
+      prismaMock.conversation.findMany.mockResolvedValueOnce([]);
+
+      await service.getTenantConversations(mockTenantId, dispatcherUser);
+
+      expect(prismaMock.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId: mockTenantId },
+        }),
+      );
     });
   });
 
@@ -514,6 +586,32 @@ describe('ChatService', () => {
         }),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('Task 0068: a staff reply does not change isResolved either direction', async () => {
+      const conv = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        residentId: verifiedResident.id,
+        isResolved: true,
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(conv);
+      prismaMock.chatMessage.create.mockResolvedValueOnce({
+        id: 'msg-staff-neutral',
+        conversationId: mockConversationId,
+        senderId: dispatcherUser.id,
+        text: 'Принято в работу',
+      });
+      prismaMock.conversation.update.mockResolvedValueOnce({ ...conv, updatedAt: new Date() });
+
+      await service.sendStaffMessage(mockConversationId, dispatcherUser, {
+        text: 'Принято в работу',
+      });
+
+      const updateCallData = prismaMock.conversation.update.mock.calls[0][0].data;
+      expect(updateCallData).not.toHaveProperty('isResolved');
+      expect(updateCallData).not.toHaveProperty('resolvedAt');
+      expect(updateCallData).not.toHaveProperty('resolvedById');
+    });
   });
 
   describe('exportConversationCsv (Task 0059: Dispatcher chat transcript CSV export)', () => {
@@ -615,6 +713,66 @@ describe('ChatService', () => {
 
       await expect(
         service.exportConversationCsv('non-existent', dispatcherUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('resolveConversation (Task 0068)', () => {
+    const openConv = {
+      id: mockConversationId,
+      tenantId: mockTenantId,
+      residentId: verifiedResident.id,
+      isResolved: false,
+    };
+
+    it.each([UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN])(
+      'позволяет роли %s отметить диалог как решённый',
+      async (role) => {
+        const user = { id: 'actor-1', role, tenantId: role === UserRole.SUPERADMIN ? null : mockTenantId };
+        prismaMock.conversation.findUnique.mockResolvedValueOnce(openConv);
+        prismaMock.conversation.update.mockResolvedValueOnce({
+          ...openConv,
+          isResolved: true,
+          resolvedAt: new Date(),
+          resolvedById: user.id,
+        });
+
+        const result = await service.resolveConversation(mockConversationId, user);
+
+        expect(result.isResolved).toBe(true);
+        expect(prismaMock.conversation.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: mockConversationId },
+            data: expect.objectContaining({
+              isResolved: true,
+              resolvedById: user.id,
+            }),
+          }),
+        );
+      },
+    );
+
+    it('отклоняет жителя (ForbiddenException)', async () => {
+      await expect(
+        service.resolveConversation(mockConversationId, verifiedResident),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.conversation.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('отклоняет сотрудника чужого ЖК (ForbiddenException)', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(openConv);
+
+      await expect(
+        service.resolveConversation(mockConversationId, otherTenantDispatcher),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.conversation.update).not.toHaveBeenCalled();
+    });
+
+    it('выбрасывает NotFoundException для несуществующего диалога', async () => {
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.resolveConversation('missing-id', dispatcherUser),
       ).rejects.toThrow(NotFoundException);
     });
   });

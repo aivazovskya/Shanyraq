@@ -2,8 +2,10 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
+  Query,
   UseGuards,
   Request,
   Res,
@@ -55,8 +57,11 @@ export class ChatController {
   async getTenantConversations(
     @Param('tenantId') tenantId: string,
     @Request() req: any,
+    @Query('resolved') resolved?: string,
   ) {
-    return this.chatService.getTenantConversations(tenantId, req.user);
+    const resolvedFilter =
+      resolved === 'true' ? true : resolved === 'false' ? false : undefined;
+    return this.chatService.getTenantConversations(tenantId, req.user, resolvedFilter);
   }
 
   @Get('conversations/:id/messages')
@@ -78,6 +83,13 @@ export class ChatController {
     @Body() dto: CreateChatMessageDto,
   ) {
     return this.chatService.sendStaffMessage(id, req.user, dto);
+  }
+
+  @Patch('conversations/:id/resolve')
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Отметить диалог как решённый' })
+  async resolveConversation(@Param('id') id: string, @Request() req: any) {
+    return this.chatService.resolveConversation(id, req.user);
   }
 
   @Get('conversations/:id/export')

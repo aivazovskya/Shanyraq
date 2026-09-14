@@ -293,6 +293,11 @@ export class ChatService {
       data: {
         lastReadByResidentAt: new Date(),
         updatedAt: new Date(),
+        // Новое сообщение от жителя автоматически "переоткрывает" диалог,
+        // если ранее он был отмечен диспетчером как решённый.
+        isResolved: false,
+        resolvedAt: null,
+        resolvedById: null,
       },
     });
 
@@ -332,12 +337,17 @@ export class ChatService {
   /**
    * Список диалогов жилого комплекса для диспетчерской.
    */
-  async getTenantConversations(tenantId: string, user: any) {
+  async getTenantConversations(tenantId: string, user: any, resolved?: boolean) {
     this.assertStaffRole(user);
     await this.assertAccessToTenant(user, tenantId);
 
+    const whereClause: any = { tenantId };
+    if (resolved !== undefined) {
+      whereClause.isResolved = resolved;
+    }
+
     const conversations = await this.prisma.conversation.findMany({
-      where: { tenantId },
+      where: whereClause,
       include: {
         resident: {
           select: {
@@ -392,6 +402,9 @@ export class ChatService {
           resident: conv.resident,
           lastReadByResidentAt: conv.lastReadByResidentAt,
           lastReadByStaffAt: conv.lastReadByStaffAt,
+          isResolved: conv.isResolved,
+          resolvedAt: conv.resolvedAt,
+          resolvedById: conv.resolvedById,
           createdAt: conv.createdAt,
           updatedAt: conv.updatedAt,
           lastMessage: conv.messages[0] || null,
@@ -551,6 +564,51 @@ export class ChatService {
     }
 
     return message;
+  }
+
+  /**
+   * Отметить диалог как решённый (диспетчер разобрал обращение).
+   * Автоматически "переоткрывается" при следующем сообщении от жителя (см. sendResidentMessage).
+   */
+  async resolveConversation(id: string, user: any) {
+    this.assertStaffRole(user);
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException({
+        code: 'CHAT.CONVERSATION_NOT_FOUND',
+        message: 'Диалог не найден',
+      });
+    }
+
+    await this.assertAccessToTenant(user, conversation.tenantId);
+
+    const resolvedAt = new Date();
+    const updated = await this.prisma.conversation.update({
+      where: { id },
+      data: {
+        isResolved: true,
+        resolvedAt,
+        resolvedById: user.id,
+      },
+    });
+
+    try {
+      this.eventEmitter?.emit('chat.conversation.resolved', {
+        conversationId: id,
+        tenantId: conversation.tenantId,
+        isResolved: true,
+        resolvedAt,
+        resolvedById: user.id,
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to emit chat.conversation.resolved event: ${e}`);
+    }
+
+    return updated;
   }
 
   /**

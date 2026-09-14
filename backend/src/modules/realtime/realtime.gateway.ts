@@ -277,6 +277,26 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       });
   }
 
+  @OnEvent('chat.conversation.resolved')
+  handleChatConversationResolved(payload: {
+    conversationId: string;
+    tenantId: string;
+    isResolved: boolean;
+    resolvedAt: Date;
+    resolvedById: string;
+  }) {
+    if (!this.server) return;
+
+    this.server
+      .to(`chat:tenant:${payload.tenantId}:inbox`)
+      .emit('chat:inbox:conversation-status', {
+        conversationId: payload.conversationId,
+        isResolved: payload.isResolved,
+        resolvedAt: payload.resolvedAt,
+        resolvedById: payload.resolvedById,
+      });
+  }
+
   @OnEvent('sos.alert.triggered')
   handleSosAlertTriggered(payload: { alert: any; tenantId: string }) {
     if (!this.server) return;

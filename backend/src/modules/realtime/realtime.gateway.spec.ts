@@ -370,5 +370,26 @@ describe('RealtimeGateway (WebSocket)', () => {
       expect(serverMock.to).toHaveBeenCalledWith('sos:tenant:tenant-1');
       expect(serverMock.emit).toHaveBeenCalledWith('sos:alert:updated', payload.alert);
     });
+
+    it('Task 0068: должен транслировать chat.conversation.resolved в inbox ЖК', () => {
+      const resolvedAt = new Date();
+      const payload = {
+        conversationId: 'conv-10',
+        tenantId: 'tenant-1',
+        isResolved: true,
+        resolvedAt,
+        resolvedById: 'staff-a',
+      };
+
+      gateway.handleChatConversationResolved(payload);
+
+      expect(serverMock.to).toHaveBeenCalledWith('chat:tenant:tenant-1:inbox');
+      expect(serverMock.emit).toHaveBeenCalledWith('chat:inbox:conversation-status', {
+        conversationId: 'conv-10',
+        isResolved: true,
+        resolvedAt,
+        resolvedById: 'staff-a',
+      });
+    });
   });
 });
