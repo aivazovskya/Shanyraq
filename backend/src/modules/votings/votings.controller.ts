@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Req, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { VotingsService } from './votings.service';
 import { CreateMeetingDto, CastVoteDto } from './dto/votings.dto';
@@ -57,5 +58,21 @@ export class VotingsController {
   @ApiOperation({ summary: 'Завершить голосование и сгенерировать официальный протокол собрания' })
   async closeMeeting(@Param('meetingId') meetingId: string, @CurrentUser() user: any) {
     return this.votingsService.closeMeetingAndGenerateProtocol(meetingId, user);
+  }
+
+  @Get(':meetingId/votes/export')
+  @Roles(UserRole.HOA_CHAIRMAN, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Экспорт построчных результатов голосования (по каждому жильцу) в формате CSV' })
+  async exportMeetingVotesCsv(
+    @Param('meetingId') meetingId: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.votingsService.exportMeetingVotesCsv(meetingId, user);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 }

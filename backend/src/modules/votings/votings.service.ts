@@ -22,6 +22,13 @@ import {
   TableColumn,
 } from '../../common/pdf/pdf-document.helper';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { buildCsv } from '../../common/csv/csv.helper';
+
+const VOTE_FULL_ROSTER_ROLES: UserRole[] = [
+  UserRole.SUPERADMIN,
+  UserRole.HOA_ADMIN,
+  UserRole.HOA_CHAIRMAN,
+];
 
 @Injectable()
 export class VotingsService {
@@ -523,6 +530,108 @@ export class VotingsService {
     });
   }
 
+  /**
+   * Экспорт построчного (по каждому голосу) результата собрания в CSV.
+   * Доступно только ролям из VOTE_FULL_ROSTER_ROLES — тем же, кому JSON API
+   * уже показывает персональные данные голосовавших (enrichMeetingWithResults).
+   */
+  async exportMeetingVotesCsv(
+    meetingId: string,
+    user: { role: UserRole; tenantId?: string | null },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    if (!VOTE_FULL_ROSTER_ROLES.includes(user.role)) {
+      throw new ForbiddenException({
+        code: 'VOTINGS.EXPORT_FORBIDDEN',
+        message: 'Недостаточно прав для экспорта результатов голосования',
+      });
+    }
+
+    const meeting = await this.prisma.meeting.findUnique({
+      where: { id: meetingId },
+      include: { tenant: true },
+    });
+
+    if (!meeting) {
+      throw new NotFoundException({
+        code: 'VOTINGS.MEETING_NOT_FOUND',
+        message: 'Собрание ОСС не найдено',
+      });
+    }
+
+    assertUserBelongsToTenant(user, meeting.tenantId, {
+      code: 'VOTINGS.CROSS_TENANT_FORBIDDEN',
+      message: 'Доступ к собранию другого жилого комплекса запрещен',
+    });
+
+    const agendaItems = await this.prisma.agendaItem.findMany({
+      where: { meetingId },
+      include: {
+        votes: {
+          include: {
+            user: { select: { firstName: true, lastName: true } },
+            unit: { include: { building: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { orderIndex: 'asc' },
+    });
+
+    const choiceLabels: Record<VoteChoice, string> = {
+      [VoteChoice.FOR]: 'За',
+      [VoteChoice.AGAINST]: 'Против',
+      [VoteChoice.ABSTAIN]: 'Воздержался',
+    };
+
+    const formatDate = (d: Date) =>
+      d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const rows: unknown[][] = [
+      ['Результаты голосования ОСС (построчно)'],
+      ['Жилой комплекс', meeting.tenant?.name || 'Не указан'],
+      ['Тема собрания', meeting.title],
+      ['Период', `${formatDate(meeting.startDate)} — ${formatDate(meeting.endDate)}`],
+      [],
+      [
+        '№ вопроса',
+        'Вопрос повестки дня',
+        'Житель (ФИО)',
+        'Квартира/Помещение',
+        'Блок/Подъезд',
+        'Выбор',
+        'Вес голоса (м²)',
+        'Дата голосования',
+        'Подпись (HMAC)',
+      ],
+    ];
+
+    for (const item of agendaItems) {
+      for (const vote of item.votes) {
+        const voterFullName = vote.user
+          ? `${vote.user.lastName || ''} ${vote.user.firstName || ''}`.trim() || '—'
+          : '—';
+
+        rows.push([
+          item.orderIndex,
+          item.question,
+          voterFullName,
+          vote.unit?.unitNumber || '',
+          vote.unit?.building?.blockName || '',
+          choiceLabels[vote.choice],
+          vote.areaWeight,
+          vote.createdAt.toISOString(),
+          vote.voteHash,
+        ]);
+      }
+    }
+
+    const buffer = buildCsv(rows);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `voting-results-${meetingId}-${dateStr}.csv`;
+
+    return { buffer, filename };
+  }
+
   private enrichMeetingWithResults(
     meeting: any,
     requestingUser?: { id: string; role: UserRole; tenantId?: string | null },
@@ -531,8 +640,7 @@ export class VotingsService {
 
     // Determine if requester can view full personal voter identities
     const canViewFullRoster =
-      requestingUser &&
-      ([UserRole.SUPERADMIN, UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN] as UserRole[]).includes(requestingUser.role);
+      requestingUser && VOTE_FULL_ROSTER_ROLES.includes(requestingUser.role);
 
     const enrichedAgenda = meeting.agendaItems?.map((item: any) => {
       let areaFor = 0;

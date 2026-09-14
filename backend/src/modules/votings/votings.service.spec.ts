@@ -5,7 +5,7 @@ import { AuthService } from '../auth/auth.service';
 import { ConfigService } from '@nestjs/config';
 import { UploadsService } from '../uploads/uploads.service';
 import { MeetingStatus, OwnershipType, VoteChoice, DecisionType, UserRole } from '@prisma/client';
-import { ForbiddenException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import * as crypto from 'crypto';
 
 describe('VotingsService (Аудит безопасности и алгоритм ОСС)', () => {
@@ -33,6 +33,7 @@ describe('VotingsService (Аудит безопасности и алгорит�
       },
       agendaItem: {
         findUnique: jest.fn(),
+        findMany: jest.fn(),
       },
       unitOwnership: {
         findFirst: jest.fn(),
@@ -452,6 +453,158 @@ describe('VotingsService (Аудит безопасности и алгорит�
 
       expect(res.protocol.pdfUrl).toBe('http://localhost:9000/shanyraq-documents/test_protocol.pdf');
       expect(res.meeting.status).toBe(MeetingStatus.ACTIVE); // original enriched status before close
+    });
+  });
+
+  describe('exportMeetingVotesCsv (Task 0067)', () => {
+    const meetingRecord = {
+      id: 'meeting-1',
+      tenantId: 'tenant-1',
+      title: 'Годовое собрание',
+      startDate: new Date('2026-01-10'),
+      endDate: new Date('2026-01-20'),
+      tenant: { name: 'ЖК Тест' },
+    };
+
+    const agendaItemsWithVotes = [
+      {
+        id: 'item-1',
+        orderIndex: 1,
+        question: 'Выбор тарифа на 2026 год',
+        votes: [
+          {
+            id: 'vote-1',
+            choice: VoteChoice.FOR,
+            areaWeight: 45.5,
+            voteHash: 'hash-1',
+            createdAt: new Date('2026-01-12T10:00:00Z'),
+            user: { firstName: 'Айбек', lastName: 'Нурланов' },
+            unit: { unitNumber: '12', building: { blockName: 'Блок А' } },
+          },
+        ],
+      },
+      {
+        id: 'item-2',
+        orderIndex: 2,
+        question: 'Утверждение сметы на ремонт кровли',
+        votes: [
+          {
+            id: 'vote-2',
+            choice: VoteChoice.AGAINST,
+            areaWeight: 60.0,
+            voteHash: 'hash-2',
+            createdAt: new Date('2026-01-13T11:00:00Z'),
+            user: { firstName: 'Динара', lastName: 'Серикова' },
+            unit: { unitNumber: '7', building: { blockName: 'Блок Б' } },
+          },
+          {
+            id: 'vote-3',
+            choice: VoteChoice.ABSTAIN,
+            areaWeight: 30.0,
+            voteHash: 'hash-3',
+            createdAt: new Date('2026-01-14T09:00:00Z'),
+            user: { firstName: 'Берик', lastName: 'Ержанов' },
+            unit: { unitNumber: '3', building: { blockName: 'Блок А' } },
+          },
+        ],
+      },
+    ];
+
+    beforeEach(() => {
+      prismaMock.meeting.findUnique.mockResolvedValue(meetingRecord);
+      prismaMock.agendaItem.findMany.mockResolvedValue(agendaItemsWithVotes);
+    });
+
+    it('отклоняет DISPATCHER (ForbiddenException) — не входит в VOTE_FULL_ROSTER_ROLES', async () => {
+      const dispatcher = { role: UserRole.DISPATCHER, tenantId: 'tenant-1' };
+
+      await expect(service.exportMeetingVotesCsv('meeting-1', dispatcher)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(prismaMock.meeting.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('отклоняет жителя (ForbiddenException)', async () => {
+      const resident = { role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' };
+
+      await expect(service.exportMeetingVotesCsv('meeting-1', resident)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it.each([UserRole.HOA_CHAIRMAN, UserRole.HOA_ADMIN, UserRole.SUPERADMIN])(
+      'разрешает роли %s экспортировать результаты голосования',
+      async (role) => {
+        const user = { role, tenantId: role === UserRole.SUPERADMIN ? null : 'tenant-1' };
+
+        await expect(service.exportMeetingVotesCsv('meeting-1', user)).resolves.toBeDefined();
+      },
+    );
+
+    it('отклоняет сотрудника чужого ЖК (ForbiddenException)', async () => {
+      const otherTenantChairman = { role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-2' };
+
+      await expect(
+        service.exportMeetingVotesCsv('meeting-1', otherTenantChairman),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('разрешает SUPERADMIN экспортировать результаты любого ЖК (кросс-тенант)', async () => {
+      const superAdmin = { role: UserRole.SUPERADMIN, tenantId: null };
+
+      await expect(
+        service.exportMeetingVotesCsv('meeting-1', superAdmin),
+      ).resolves.toBeDefined();
+    });
+
+    it('выбрасывает NotFoundException для несуществующего собрания', async () => {
+      prismaMock.meeting.findUnique.mockResolvedValue(null);
+      const chairman = { role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-1' };
+
+      await expect(service.exportMeetingVotesCsv('missing-id', chairman)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('генерирует одну строку CSV на каждый голос, корректно привязанную к своему вопросу', async () => {
+      const chairman = { role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-1' };
+      const { buffer } = await service.exportMeetingVotesCsv('meeting-1', chairman);
+      const csvText = buffer.toString('utf-8');
+      const dataLines = csvText.split('\r\n').filter((l) => l.startsWith('1,') || l.startsWith('2,'));
+
+      expect(dataLines.length).toBe(3); // 1 голос по вопросу 1 + 2 голоса по вопросу 2
+      expect(csvText).toContain('Выбор тарифа на 2026 год');
+      expect(csvText).toContain('Утверждение сметы на ремонт кровли');
+    });
+
+    it('переводит все три значения VoteChoice на русский язык', async () => {
+      const chairman = { role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-1' };
+      const { buffer } = await service.exportMeetingVotesCsv('meeting-1', chairman);
+      const csvText = buffer.toString('utf-8');
+
+      expect(csvText).toContain('За');
+      expect(csvText).toContain('Против');
+      expect(csvText).toContain('Воздержался');
+    });
+
+    it('включает voteHash (подпись HMAC) в CSV дословно', async () => {
+      const chairman = { role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-1' };
+      const { buffer } = await service.exportMeetingVotesCsv('meeting-1', chairman);
+      const csvText = buffer.toString('utf-8');
+
+      expect(csvText).toContain('hash-1');
+      expect(csvText).toContain('hash-2');
+      expect(csvText).toContain('hash-3');
+    });
+
+    it('сформированный CSV буфер начинается с байтов UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      const chairman = { role: UserRole.HOA_CHAIRMAN, tenantId: 'tenant-1' };
+      const { buffer } = await service.exportMeetingVotesCsv('meeting-1', chairman);
+
+      expect(buffer).toBeInstanceOf(Buffer);
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
     });
   });
 });
