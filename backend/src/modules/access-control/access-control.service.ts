@@ -1058,4 +1058,112 @@ export class AccessControlService {
 
     return { buffer, filename };
   }
+
+  async exportGuestPassesCsv(
+    tenantId: string,
+    user: { id: string; role: UserRole; tenantId?: string | null },
+    query?: { from?: string; to?: string },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    assertUserBelongsToTenant(user, tenantId, 'истории гостевых пропусков');
+
+    const now = new Date();
+    const to = query?.to ? new Date(query.to) : now;
+    const from = query?.from
+      ? new Date(query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const passes = await this.prisma.guestPass.findMany({
+      where: {
+        unit: {
+          building: { tenantId },
+        },
+        createdAt: { gte: from, lte: to },
+      },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        revokedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            building: {
+              select: {
+                id: true,
+                blockName: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const statusLabels: Record<'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED', string> = {
+      ACTIVE: 'Активен',
+      USED: 'Использован',
+      EXPIRED: 'Истёк',
+      REVOKED: 'Отозван',
+    };
+
+    const fromDateStr = from.toISOString().split('T')[0];
+    const toDateStr = to.toISOString().split('T')[0];
+
+    const rows: unknown[][] = [
+      ['История гостевых пропусков'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', `${fromDateStr} — ${toDateStr}`],
+      [],
+      [
+        'Дата создания',
+        'Гость (ФИО)',
+        'Номер авто',
+        'Квартира/Помещение',
+        'Блок/Подъезд',
+        'Кем создан (ФИО)',
+        'Действителен с',
+        'Действителен по',
+        'Статус',
+        'Кем отозван (ФИО)',
+        'Дата отзыва',
+      ],
+    ];
+
+    for (const pass of passes) {
+      const status = this.computeGuestPassStatus(pass);
+      const creatorFullName = pass.creator
+        ? `${pass.creator.lastName || ''} ${pass.creator.firstName || ''}`.trim() || '—'
+        : '—';
+      const revokedByFullName = pass.revokedBy
+        ? `${pass.revokedBy.lastName || ''} ${pass.revokedBy.firstName || ''}`.trim() || '—'
+        : '—';
+
+      rows.push([
+        pass.createdAt.toISOString(),
+        pass.guestName || '—',
+        pass.guestPlateNumber || '—',
+        pass.unit?.unitNumber || '',
+        pass.unit?.building?.blockName || '',
+        creatorFullName,
+        new Date(pass.validFrom).toISOString(),
+        new Date(pass.validTo).toISOString(),
+        statusLabels[status],
+        pass.isRevoked ? revokedByFullName : '—',
+        pass.revokedAt ? new Date(pass.revokedAt).toISOString() : '—',
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `guest-passes-${tenantId}-${fromDateStr}_${toDateStr}.csv`;
+
+    return { buffer, filename };
+  }
 }

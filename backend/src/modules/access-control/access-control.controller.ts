@@ -92,6 +92,33 @@ export class AccessControlController {
     return this.accessControlService.getGuestPassesForUnit(unitId, user);
   }
 
+  @Get('tenant/:tenantId/guest-passes/export')
+  @Roles(
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SECURITY,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Экспорт истории гостевых пропусков ЖК в формате CSV' })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async exportGuestPassesCsv(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } =
+      await this.accessControlService.exportGuestPassesCsv(tenantId, user, { from, to });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  }
+
   @Get('tenant/:tenantId/guest-passes')
   @Roles(
     UserRole.HOA_ADMIN,

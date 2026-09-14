@@ -1477,4 +1477,138 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       });
     });
   });
+
+  // -----------------------------------------------------------------------
+  // exportGuestPassesCsv (Task 0062: Guest pass history CSV export)
+  // -----------------------------------------------------------------------
+  describe('exportGuestPassesCsv (Task 0062: CSV export гостевых пропусков)', () => {
+    const mockHoaAdmin = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+    const mockSecurity = { id: 'sec-1', role: UserRole.SECURITY, tenantId: 'tenant-1' };
+    const mockSuperadmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+    const mockAlienStaff = { id: 'admin-alien', role: UserRole.HOA_ADMIN, tenantId: 'tenant-alien' };
+
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const makePass = (overrides: Partial<any> = {}) => ({
+      id: 'pass-1',
+      createdAt: new Date('2026-09-10T12:00:00Z'),
+      guestName: 'Иван Гостев',
+      guestPlateNumber: '123ABC01',
+      validFrom: new Date('2026-09-10T14:00:00Z'),
+      validTo: futureDate,
+      isRevoked: false,
+      isUsed: false,
+      revokedAt: null,
+      creator: { id: 'res-1', firstName: 'Арман', lastName: 'Жаксыбек', role: UserRole.RESIDENT_OWNER },
+      revokedBy: null,
+      unit: { id: 'unit-1', unitNumber: '101', building: { id: 'bld-1', blockName: 'Блок А' } },
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ id: 'tenant-1', name: 'ЖК Шанырақ Премиум' });
+      prismaMock.guestPass.findMany.mockResolvedValue([makePass()]);
+    });
+
+    it('пропуск за пределами диапазона дат исключается, пропуск внутри — включается', async () => {
+      // Query: only passes created from 2026-09-05 to 2026-09-12
+      const from = '2026-09-05T00:00:00Z';
+      const to = '2026-09-12T00:00:00Z';
+
+      await service.exportGuestPassesCsv('tenant-1', mockHoaAdmin, { from, to });
+
+      expect(prismaMock.guestPass.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            unit: { building: { tenantId: 'tenant-1' } },
+            createdAt: {
+              gte: new Date(from),
+              lte: new Date(to),
+            },
+          },
+        }),
+      );
+
+      // A pass created on 2026-09-10 IS within range — it should be returned
+      const { buffer } = await service.exportGuestPassesCsv('tenant-1', mockHoaAdmin, { from, to });
+      const csv = buffer.toString('utf-8');
+      expect(csv).toContain('Иван Гостев');
+    });
+
+    it('каждый из четырёх вычисленных статусов отображается русской меткой в CSV', async () => {
+      const revokedPass = makePass({ isRevoked: true, revokedAt: new Date(), revokedBy: { id: 's1', firstName: 'Данияр', lastName: 'Сейт', role: UserRole.HOA_ADMIN } });
+      const usedPass = makePass({ id: 'pass-used', isUsed: true });
+      const expiredPass = makePass({ id: 'pass-exp', validTo: pastDate });
+      const activePass = makePass({ id: 'pass-active' }); // validTo is futureDate
+
+      prismaMock.guestPass.findMany.mockResolvedValue([revokedPass, usedPass, expiredPass, activePass]);
+
+      const { buffer } = await service.exportGuestPassesCsv('tenant-1', mockHoaAdmin, {});
+      const csv = buffer.toString('utf-8');
+
+      expect(csv).toContain('Отозван');
+      expect(csv).toContain('Использован');
+      expect(csv).toContain('Истёк');
+      expect(csv).toContain('Активен');
+    });
+
+    it('сотрудник того же ЖК (HOA_ADMIN) проходит проверку tenant и получает CSV', async () => {
+      const { buffer, filename } = await service.exportGuestPassesCsv('tenant-1', mockHoaAdmin, {});
+
+      expect(buffer).toBeDefined();
+      expect(filename).toContain('guest-passes-tenant-1');
+      const csv = buffer.toString('utf-8');
+      expect(csv).toContain('ЖК Шанырақ Премиум');
+    });
+
+    it('сотрудник чужого ЖК получает ForbiddenException (межарендаторная защита)', async () => {
+      await expect(
+        service.exportGuestPassesCsv('tenant-1', mockAlienStaff, {}),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prismaMock.guestPass.findMany).not.toHaveBeenCalled();
+    });
+
+    it('сформированный CSV буфер начинается с байтов UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      const { buffer } = await service.exportGuestPassesCsv('tenant-1', mockSecurity, {});
+
+      expect(buffer).toBeInstanceOf(Buffer);
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
+    });
+
+    it('при отсутствии from/to диапазон по умолчанию равен последним 30 дням', async () => {
+      await service.exportGuestPassesCsv('tenant-1', mockHoaAdmin);
+
+      expect(prismaMock.guestPass.findMany).toHaveBeenCalledTimes(1);
+      const queryArgs = prismaMock.guestPass.findMany.mock.calls[0][0];
+
+      expect(queryArgs.where.createdAt.gte).toBeInstanceOf(Date);
+      expect(queryArgs.where.createdAt.lte).toBeInstanceOf(Date);
+
+      const diffDays = Math.round(
+        (queryArgs.where.createdAt.lte.getTime() - queryArgs.where.createdAt.gte.getTime()) /
+          (24 * 60 * 60 * 1000),
+      );
+      expect(diffDays).toBe(30);
+    });
+
+    it('SUPERADMIN может экспортировать пропуска любого ЖК', async () => {
+      const { buffer, filename } = await service.exportGuestPassesCsv('tenant-1', mockSuperadmin, {});
+
+      expect(buffer).toBeDefined();
+      expect(filename).toContain('guest-passes-tenant-1');
+    });
+
+    it('имя файла соответствует шаблону guest-passes-{tenantId}-{from}_{to}.csv', async () => {
+      const { filename } = await service.exportGuestPassesCsv('tenant-1', mockHoaAdmin, {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-14T00:00:00Z',
+      });
+
+      expect(filename).toBe('guest-passes-tenant-1-2026-09-01_2026-09-14.csv');
+    });
+  });
 });
