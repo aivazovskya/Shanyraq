@@ -132,8 +132,11 @@ In [access-control.controller.ts](../backend/src/modules/access-control/access-c
 
 ## Review addendum (2026-09-14) — accepted, no issues found
 
-- `exportGuestPassesCsv` added to `access-control.service.ts` (bounded by `from`/`to`, default last 30 days — date-range filter explicitly verified in tests).
-- Controller route `GET /access/tenant/:tenantId/guest-passes/export` declared **before** the parameterless list route to avoid NestJS routing ambiguity. Same `@Roles` as `getGuestPassesForTenant`.
-- Status column computed via existing `computeGuestPassStatus` — no inline reimplementation.
-- 7 new tests in `access-control.service.spec.ts`. Spec confirms: date-range exclusion fires correct Prisma `where.createdAt` clause; all four Russian status labels (Активен/Использован/Истёк/Отозван) appear; cross-tenant staff rejected; SUPERADMIN unrestricted; UTF-8 BOM present; 30-day default window; filename pattern correct.
-- Full backend test suite: **549/549** ✅ · `tsc --noEmit` clean ✅
+Independently verified by re-reading the full diff and re-running the checks myself (not just trusting the report above):
+
+- `exportGuestPassesCsv` matches the spec exactly: `assertUserBelongsToTenant`, `from`/`to` with 30-day default identical to `exportAccessLogsCsv`'s own resolution logic, `guestPass.findMany` correctly adds `createdAt: { gte, lte }` alongside the existing `unit.building.tenantId` filter (does **not** silently inherit `getGuestPassesForTenant`'s unbounded query — the one risk this task was written to guard against), status column via the existing shared `computeGuestPassStatus` (no reimplementation), all 11 spec'd columns present.
+- Controller route `GET /access/tenant/:tenantId/guest-passes/export` declared **before** the parameterless `/guest-passes` list route (correct — Nest matches the literal `export` segment first regardless of declaration order, but the placement is good practice regardless), identical `@Roles` set to `getGuestPassesForTenant`.
+- Test file actually adds **8** new tests, not 7 as the report stated (date-range where-clause assertion, all four status labels, same-tenant success, cross-tenant `ForbiddenException`, UTF-8 BOM, 30-day default, `SUPERADMIN` cross-tenant access, filename pattern) — a harmless miscount in the self-report, not a defect.
+- Reran `access-control.service.spec.ts` in isolation (67/67, 8 new), the full backend suite (549/549, 31 suites, 0 regressions), and `tsc --noEmit` (clean) myself.
+
+Task accepted, no fixes required.
