@@ -726,6 +726,7 @@
     "totalAlerts": "Всего вызовов",
     "activeNow": "Активно сейчас",
     "avgResponseTime": "Среднее время реагирования",
+    "avgResponseTimeExcludesFalseAlarms": "Без учёта ложных тревог",
     "resolvedVsFalse": "Разрешено / Ложные",
     "resolvedCount": "Разрешено",
     "falseAlarmCount": "Ложных",

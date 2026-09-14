@@ -413,8 +413,41 @@ describe('SosService', () => {
         RESOLVED: 1,
         FALSE_ALARM: 1,
       });
-      // (10 + 20) / 2 = 15 minutes, NOT (10 + 20 + 0) / 3 = 10
-      expect(res.averageResponseTimeMinutes).toBe(15);
+      // Task 0071: только RESOLVED (10 мин) учитывается в среднем;
+      // ACTIVE (не закрыт) и FALSE_ALARM (20 мин) исключены.
+      expect(res.averageResponseTimeMinutes).toBe(10);
+    });
+
+    it('Task 0071: FALSE_ALARM исключается из averageResponseTimeMinutes, но не из byStatus', async () => {
+      prismaMock.sosAlert.findMany.mockResolvedValue([
+        {
+          id: 'alert-resolved',
+          status: SosAlertStatus.RESOLVED,
+          createdAt: new Date('2026-09-01T10:00:00Z'),
+          resolvedAt: new Date('2026-09-01T10:10:00Z'), // 10 minutes
+        },
+        {
+          id: 'alert-false-1',
+          status: SosAlertStatus.FALSE_ALARM,
+          createdAt: new Date('2026-09-02T10:00:00Z'),
+          resolvedAt: new Date('2026-09-02T10:02:00Z'), // 2 minutes
+        },
+        {
+          id: 'alert-false-2',
+          status: SosAlertStatus.FALSE_ALARM,
+          createdAt: new Date('2026-09-03T10:00:00Z'),
+          resolvedAt: new Date('2026-09-03T11:00:00Z'), // 60 minutes
+        },
+      ]);
+
+      const res = await service.getSosStatistics(mockTenantId, securityUser, {
+        from: '2026-09-01',
+        to: '2026-09-05',
+      });
+
+      expect(res.byStatus.FALSE_ALARM).toBe(2);
+      // Если бы ложные тревоги учитывались: (10+2+60)/3 = 24. Ожидаем ровно 10.
+      expect(res.averageResponseTimeMinutes).toBe(10);
     });
 
     it('по умолчанию (без from/to) запрашивает данные за последние 30 дней', async () => {

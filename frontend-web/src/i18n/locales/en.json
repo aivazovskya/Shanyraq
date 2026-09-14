@@ -726,6 +726,7 @@
     "totalAlerts": "Total Calls",
     "activeNow": "Active Now",
     "avgResponseTime": "Avg Response Time",
+    "avgResponseTimeExcludesFalseAlarms": "Excludes false alarms",
     "resolvedVsFalse": "Resolved / False",
     "resolvedCount": "Resolved",
     "falseAlarmCount": "False Alarms",

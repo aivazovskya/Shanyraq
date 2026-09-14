@@ -381,6 +381,9 @@ export default function SosDashboardPage() {
               <p className="text-2xl font-bold text-gray-900 mt-1">
                 {loadingStats ? '...' : `${stats?.averageResponseTimeMinutes ?? 0} ${t('sos.timeMin')}`}
               </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {t('sos.avgResponseTimeExcludesFalseAlarms')}
+              </p>
             </div>
             <div className="p-2.5 bg-blue-100/80 rounded-lg text-blue-600">
               <Clock className="h-5 w-5" />

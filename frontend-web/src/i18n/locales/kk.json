@@ -726,6 +726,7 @@
     "totalAlerts": "Барлық шақырулар",
     "activeNow": "Қазір белсенді",
     "avgResponseTime": "Орташа әрекет ету уақыты",
+    "avgResponseTimeExcludesFalseAlarms": "Жалған дабылдарды есептемегенде",
     "resolvedVsFalse": "Шешілді / Жалған",
     "resolvedCount": "Шешілді",
     "falseAlarmCount": "Жалған дабылдар",

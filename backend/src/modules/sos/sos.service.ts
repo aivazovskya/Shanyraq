@@ -267,7 +267,9 @@ export class SosService {
         byStatus[alert.status]++;
       }
 
-      if (alert.resolvedAt) {
+      // Ложные тревоги не учитываются в среднем времени реагирования —
+      // эта метрика отражает скорость реакции на реальные инциденты.
+      if (alert.status === SosAlertStatus.RESOLVED && alert.resolvedAt) {
         const diffMs =
           new Date(alert.resolvedAt).getTime() - new Date(alert.createdAt).getTime();
         totalResponseMinutes += Math.max(0, diffMs / (1000 * 60));
