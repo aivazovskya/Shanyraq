@@ -176,6 +176,7 @@ model User {
   accessPinSetAt   DateTime?
   mustChangePassword Boolean         @default(false)
   notificationPreferences Json?
+  hidePhoneInListings  Boolean           @default(false)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

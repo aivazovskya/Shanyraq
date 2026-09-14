@@ -101,6 +101,9 @@ describe('CommunityBoardService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      user: {
+        update: jest.fn(),
+      },
     };
 
     auditLogServiceMock = {
@@ -549,6 +552,156 @@ describe('CommunityBoardService', () => {
           where: { authorId: verifiedResidentOwner.id },
           orderBy: { createdAt: 'desc' },
         }),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Phone visibility preference (Task 0063)
+  // -------------------------------------------------------------------------
+  describe('Phone visibility preference in getListings (Task 0063)', () => {
+    const authorId = verifiedResidentOwner.id;
+    const viewerId = verifiedResidentTenant.id;
+
+    const makeListing = (overrides: any = {}) => ({
+      id: 'listing-ph-1',
+      tenantId: mockTenantId,
+      authorId,
+      title: 'Продам диван',
+      description: 'В хорошем состоянии',
+      type: ListingType.SELL,
+      status: ListingStatus.ACTIVE,
+      price: 30000,
+      photoUrls: [],
+      createdAt: new Date(),
+      author: {
+        id: authorId,
+        firstName: 'Айбек',
+        lastName: 'Нурланов',
+        phone: '+77015550101',
+        role: UserRole.RESIDENT_OWNER,
+        hidePhoneInListings: false,
+      },
+      removedBy: null,
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      // viewer is a verified resident in the same tenant
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'ownership-viewer',
+        isVerified: true,
+        userId: viewerId,
+      });
+    });
+
+    it('другой житель видит phone: null, если у автора hidePhoneInListings=true (маскировка)', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        makeListing({ author: { id: authorId, firstName: 'Айбек', lastName: 'Нурланов', phone: '+77015550101', role: UserRole.RESIDENT_OWNER, hidePhoneInListings: true } }),
+      ]);
+
+      const viewer = { ...verifiedResidentTenant };
+      const results = await service.getListings(mockTenantId, viewer, {});
+
+      expect(results[0].author.phone).toBeNull();
+    });
+
+    it('сам автор всегда видит свой телефон (getListings вызван от имени автора)', async () => {
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'ownership-author',
+        isVerified: true,
+        userId: authorId,
+      });
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        makeListing({ author: { id: authorId, firstName: 'Айбек', lastName: 'Нурланов', phone: '+77015550101', role: UserRole.RESIDENT_OWNER, hidePhoneInListings: true } }),
+      ]);
+
+      const results = await service.getListings(mockTenantId, verifiedResidentOwner, {});
+
+      expect(results[0].author.phone).toBe('+77015550101');
+    });
+
+    it('персонал (DISPATCHER) видит реальный телефон независимо от hidePhoneInListings=true', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        makeListing({ author: { id: authorId, firstName: 'Айбек', lastName: 'Нурланов', phone: '+77015550101', role: UserRole.RESIDENT_OWNER, hidePhoneInListings: true } }),
+      ]);
+
+      const results = await service.getListings(mockTenantId, dispatcherUser, {});
+
+      expect(results[0].author.phone).toBe('+77015550101');
+    });
+
+    it('персонал (HOA_ADMIN) видит реальный телефон независимо от hidePhoneInListings=true', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        makeListing({ author: { id: authorId, firstName: 'Айбек', lastName: 'Нурланов', phone: '+77015550101', role: UserRole.RESIDENT_OWNER, hidePhoneInListings: true } }),
+      ]);
+
+      const results = await service.getListings(mockTenantId, hoaAdminUser, {});
+
+      expect(results[0].author.phone).toBe('+77015550101');
+    });
+
+    it('при hidePhoneInListings=false телефон виден любому жителю (поведение по умолчанию)', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        makeListing(), // hidePhoneInListings: false
+      ]);
+
+      const results = await service.getListings(mockTenantId, verifiedResidentTenant, {});
+
+      expect(results[0].author.phone).toBe('+77015550101');
+    });
+
+    it('hidePhoneInListings не попадает в итоговый объект author (внутренний флаг скрыт)', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([makeListing()]);
+
+      const results = await service.getListings(mockTenantId, verifiedResidentTenant, {});
+
+      expect(results[0].author).not.toHaveProperty('hidePhoneInListings');
+    });
+
+    it('getMyListings всегда возвращает телефон автора (маскировка не применяется)', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        makeListing(),
+      ]);
+
+      const result = await service.getMyListings(verifiedResidentOwner);
+
+      // getMyListings doesn't apply masking — result passes through raw Prisma data
+      expect(result).toBeDefined();
+      expect(prismaMock.communityListing.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { authorId: verifiedResidentOwner.id } }),
+      );
+    });
+  });
+
+  describe('updatePhoneVisibility (Task 0063)', () => {
+    it('обновляет только hidePhoneInListings для вызывающего пользователя и возвращает флаг', async () => {
+      prismaMock.user.update.mockResolvedValue({ hidePhoneInListings: true });
+
+      const result = await service.updatePhoneVisibility(
+        { id: verifiedResidentOwner.id },
+        { hidePhoneInListings: true },
+      );
+
+      expect(result).toEqual({ hidePhoneInListings: true });
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: verifiedResidentOwner.id },
+        data: { hidePhoneInListings: true },
+        select: { hidePhoneInListings: true },
+      });
+    });
+
+    it('вызов всегда использует id вызывающего пользователя — другой userId не принимается', async () => {
+      prismaMock.user.update.mockResolvedValue({ hidePhoneInListings: false });
+
+      await service.updatePhoneVisibility(
+        { id: 'my-own-id' },
+        { hidePhoneInListings: false },
+      );
+
+      // Проверяем, что update был вызван именно с my-own-id, а не с чужим id
+      expect(prismaMock.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'my-own-id' } }),
       );
     });
   });

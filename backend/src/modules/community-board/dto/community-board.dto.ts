@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsArray,
+  IsBoolean,
   Min,
   MinLength,
   MaxLength,
@@ -79,4 +80,9 @@ export class GetListingsQueryDto {
   @IsOptional()
   @IsEnum(ListingStatus)
   status?: ListingStatus;
+}
+
+export class UpdatePhoneVisibilityDto {
+  @IsBoolean()
+  hidePhoneInListings: boolean;
 }

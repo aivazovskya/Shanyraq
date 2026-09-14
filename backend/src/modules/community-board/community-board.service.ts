@@ -11,6 +11,7 @@ import {
   UpdateListingDto,
   ModerateListingDto,
   GetListingsQueryDto,
+  UpdatePhoneVisibilityDto,
 } from './dto/community-board.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -72,7 +73,7 @@ export class CommunityBoardService {
       whereClause.type = query.type;
     }
 
-    return this.prisma.communityListing.findMany({
+    const listings = await this.prisma.communityListing.findMany({
       where: whereClause,
       include: {
         author: {
@@ -82,6 +83,7 @@ export class CommunityBoardService {
             lastName: true,
             phone: true,
             role: true,
+            hidePhoneInListings: true,
           },
         },
         removedBy: {
@@ -93,6 +95,21 @@ export class CommunityBoardService {
         },
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return listings.map((listing) => {
+      const { hidePhoneInListings, ...authorPublic } = listing.author;
+      const shouldMask =
+        !isStaff &&
+        listing.authorId !== user.id &&
+        hidePhoneInListings;
+      return {
+        ...listing,
+        author: {
+          ...authorPublic,
+          phone: shouldMask ? null : authorPublic.phone,
+        },
+      };
     });
   }
 
@@ -356,5 +373,21 @@ export class CommunityBoardService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Обновление настройки видимости телефона на доске объявлений.
+   * Применяется только к аккаунту вызывающего пользователя — BOLA-поверхность отсутствует.
+   */
+  async updatePhoneVisibility(
+    user: { id: string },
+    dto: UpdatePhoneVisibilityDto,
+  ): Promise<{ hidePhoneInListings: boolean }> {
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hidePhoneInListings: dto.hidePhoneInListings },
+      select: { hidePhoneInListings: true },
+    });
+    return updated;
   }
 }

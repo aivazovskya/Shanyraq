@@ -20,6 +20,7 @@ import {
   UpdateListingDto,
   ModerateListingDto,
   GetListingsQueryDto,
+  UpdatePhoneVisibilityDto,
 } from './dto/community-board.dto';
 
 @ApiTags('Community Board (Доска объявлений жильцов)')
@@ -74,5 +75,14 @@ export class CommunityBoardController {
     @Request() req: any,
   ) {
     return this.communityBoardService.moderateListing(id, req.user, dto);
+  }
+
+  @Patch('my-phone-visibility')
+  @ApiOperation({ summary: 'Управление видимостью телефона в объявлениях (для текущего пользователя)' })
+  async updatePhoneVisibility(
+    @Body() dto: UpdatePhoneVisibilityDto,
+    @Request() req: any,
+  ) {
+    return this.communityBoardService.updatePhoneVisibility(req.user, dto);
   }
 }
