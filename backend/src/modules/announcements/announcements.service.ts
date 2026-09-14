@@ -4,6 +4,8 @@ import { AnnouncementStatus, UserRole } from '@prisma/client';
 import { CreateAnnouncementDto, RemoveAnnouncementDto } from './dto/announcements.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { buildCsv } from '../../common/csv/csv.helper';
+import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 
 const ANNOUNCEMENT_STAFF_ROLES: UserRole[] = [
   UserRole.HOA_ADMIN,
@@ -149,5 +151,99 @@ export class AnnouncementsService {
     });
 
     return updated;
+  }
+
+  /**
+   * Экспорт истории объявлений/новостей ЖК в формате CSV.
+   * В отличие от getAnnouncements, включает REMOVED-новости (для аудита правлением).
+   */
+  async exportAnnouncementsCsv(
+    tenantId: string,
+    user: { role: UserRole; tenantId?: string | null },
+    query?: { from?: string; to?: string },
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    if (!ANNOUNCEMENT_STAFF_ROLES.includes(user.role)) {
+      throw new ForbiddenException({
+        code: 'ANNOUNCEMENTS.EXPORT_FORBIDDEN',
+        message: 'Недостаточно прав для экспорта истории новостей',
+      });
+    }
+
+    assertUserBelongsToTenant(user, tenantId, 'истории объявлений');
+
+    const now = new Date();
+    const to = query?.to ? new Date(query.to) : now;
+    const from = query?.from
+      ? new Date(query.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const announcements = await this.prisma.announcement.findMany({
+      where: {
+        tenantId,
+        createdAt: { gte: from, lte: to },
+      },
+      include: {
+        author: {
+          select: { firstName: true, lastName: true, role: true },
+        },
+        removedBy: {
+          select: { firstName: true, lastName: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const fromDateStr = from.toISOString().split('T')[0];
+    const toDateStr = to.toISOString().split('T')[0];
+
+    const rows: unknown[][] = [
+      ['История объявлений и новостей'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', `${fromDateStr} — ${toDateStr}`],
+      [],
+      [
+        'Дата публикации',
+        'Заголовок',
+        'Текст сообщения',
+        'Срочное',
+        'Автор (ФИО)',
+        'Роль автора',
+        'Статус',
+        'Кем удалено (ФИО)',
+        'Причина удаления',
+        'Дата удаления',
+      ],
+    ];
+
+    for (const item of announcements) {
+      const authorFullName = `${item.author.lastName || ''} ${item.author.firstName || ''}`.trim() || '—';
+      const isRemoved = item.status === AnnouncementStatus.REMOVED;
+      const removedByFullName = item.removedBy
+        ? `${item.removedBy.lastName || ''} ${item.removedBy.firstName || ''}`.trim() || '—'
+        : '—';
+
+      rows.push([
+        item.createdAt.toISOString(),
+        item.title,
+        item.content,
+        item.isUrgent ? 'Да' : 'Нет',
+        authorFullName,
+        item.author.role,
+        isRemoved ? 'Удалено' : 'Активно',
+        isRemoved ? removedByFullName : '—',
+        isRemoved ? item.removedReason || '—' : '—',
+        isRemoved ? item.updatedAt.toISOString() : '—',
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `announcements-${tenantId}-${fromDateStr}_${toDateStr}.csv`;
+
+    return { buffer, filename };
   }
 }

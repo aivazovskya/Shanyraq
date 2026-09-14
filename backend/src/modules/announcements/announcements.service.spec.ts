@@ -315,4 +315,139 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
       ).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('exportAnnouncementsCsv (Task 0066)', () => {
+    const staff = { id: 'staff-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+
+    const makeAnnouncement = (overrides: any = {}) => ({
+      id: 'ann-1',
+      tenantId: 'tenant-1',
+      title: 'Отключение воды',
+      content: 'С 10:00 до 18:00',
+      isUrgent: true,
+      status: AnnouncementStatus.ACTIVE,
+      removedById: null,
+      removedReason: null,
+      createdAt: new Date('2026-09-01T10:00:00Z'),
+      updatedAt: new Date('2026-09-01T10:00:00Z'),
+      author: { firstName: 'Ерлан', lastName: 'Управляющий', role: UserRole.HOA_ADMIN },
+      removedBy: null,
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      prismaMock.tenant.findUnique.mockResolvedValue({ name: 'ЖК Тест' });
+    });
+
+    it('передаёт createdAt в диапазоне from/to в where-условие findMany', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([]);
+
+      await service.exportAnnouncementsCsv('tenant-1', staff, {
+        from: '2026-09-01',
+        to: '2026-09-10',
+      });
+
+      expect(prismaMock.announcement.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 'tenant-1',
+            createdAt: { gte: new Date('2026-09-01'), lte: new Date('2026-09-10') },
+          }),
+        }),
+      );
+    });
+
+    it('не добавляет фильтр по status — REMOVED-новости включены в экспорт', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([]);
+
+      await service.exportAnnouncementsCsv('tenant-1', staff, {});
+
+      const callArgs = prismaMock.announcement.findMany.mock.calls[0][0];
+      expect(callArgs.where).not.toHaveProperty('status');
+    });
+
+    it('REMOVED-строка использует updatedAt как "Дата удаления", ACTIVE-строка — "—"', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([
+        makeAnnouncement(),
+        makeAnnouncement({
+          id: 'ann-2',
+          status: AnnouncementStatus.REMOVED,
+          removedReason: 'Ошибка в тексте',
+          removedBy: { firstName: 'Гульнара', lastName: 'Диспетчерова' },
+          updatedAt: new Date('2026-09-05T12:00:00Z'),
+        }),
+      ]);
+
+      const { buffer } = await service.exportAnnouncementsCsv('tenant-1', staff, {});
+      const csvText = buffer.toString('utf-8');
+
+      expect(csvText).toContain('Активно');
+      expect(csvText).toContain('Удалено');
+      expect(csvText).toContain('Ошибка в тексте');
+      expect(csvText).toContain('2026-09-05T12:00:00.000Z');
+    });
+
+    it.each([UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN])(
+      'разрешает роли %s экспортировать историю',
+      async (role) => {
+        prismaMock.announcement.findMany.mockResolvedValue([]);
+        const user = { id: 'u-1', role, tenantId: role === UserRole.SUPERADMIN ? null : 'tenant-1' };
+
+        await expect(
+          service.exportAnnouncementsCsv('tenant-1', user, {}),
+        ).resolves.toBeDefined();
+      },
+    );
+
+    it('отклоняет SECURITY и жителей (ForbiddenException)', async () => {
+      const security = { id: 'sec-1', role: UserRole.SECURITY, tenantId: 'tenant-1' };
+      const resident = { id: 'res-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' };
+
+      await expect(service.exportAnnouncementsCsv('tenant-1', security, {})).rejects.toThrow(
+        ForbiddenException,
+      );
+      await expect(service.exportAnnouncementsCsv('tenant-1', resident, {})).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('отклоняет сотрудника чужого ЖК (ForbiddenException)', async () => {
+      const otherTenantStaff = { id: 'staff-2', role: UserRole.HOA_ADMIN, tenantId: 'tenant-2' };
+
+      await expect(
+        service.exportAnnouncementsCsv('tenant-1', otherTenantStaff, {}),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('разрешает SUPERADMIN экспортировать историю любого ЖК (кросс-тенант)', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([]);
+      const superAdmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+
+      await expect(
+        service.exportAnnouncementsCsv('tenant-1', superAdmin, {}),
+      ).resolves.toBeDefined();
+    });
+
+    it('сформированный CSV буфер начинается с байтов UTF-8 BOM (0xEF, 0xBB, 0xBF)', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([]);
+
+      const { buffer } = await service.exportAnnouncementsCsv('tenant-1', staff, {});
+
+      expect(buffer).toBeInstanceOf(Buffer);
+      expect(buffer[0]).toBe(0xef);
+      expect(buffer[1]).toBe(0xbb);
+      expect(buffer[2]).toBe(0xbf);
+    });
+
+    it('при отсутствии from/to использует период по умолчанию 30 дней', async () => {
+      prismaMock.announcement.findMany.mockResolvedValue([]);
+
+      await service.exportAnnouncementsCsv('tenant-1', staff, {});
+
+      const callArgs = prismaMock.announcement.findMany.mock.calls[0][0];
+      const { gte, lte } = callArgs.where.createdAt;
+      const diffDays = (lte.getTime() - gte.getTime()) / (1000 * 60 * 60 * 24);
+      expect(diffDays).toBeCloseTo(30, 0);
+    });
+  });
 });

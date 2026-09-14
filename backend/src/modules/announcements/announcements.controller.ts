@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query, Res, UseGuards, BadRequestException } from '@nestjs/common';
+import { Response } from 'express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AnnouncementsService } from './announcements.service';
 import { CreateAnnouncementDto, RemoveAnnouncementDto } from './dto/announcements.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -22,6 +23,31 @@ export class AnnouncementsController {
     // Безопасность: BOLA/IDOR защита — житель или сотрудник может читать новости только своего ЖК
     assertUserBelongsToTenant(user, tenantId, 'новостей ЖК');
     return this.announcementsService.getAnnouncements(tenantId, user);
+  }
+
+  @Get('tenant/:tenantId/export')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Экспорт истории объявлений и новостей ЖК в формате CSV' })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async exportAnnouncementsCsv(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Res() res: Response,
+  ) {
+    assertUserBelongsToTenant(user, tenantId, 'истории объявлений');
+    const { buffer, filename } = await this.announcementsService.exportAnnouncementsCsv(
+      tenantId,
+      user,
+      { from, to },
+    );
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 
   @Post()
