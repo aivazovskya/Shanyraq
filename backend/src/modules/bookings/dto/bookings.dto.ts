@@ -68,6 +68,16 @@ export class CreateBookingDto {
   note?: string;
 }
 
+export class JoinWaitlistDto {
+  @ApiProperty({ description: 'Время начала (ISO-8601 UTC)', example: '2026-09-10T14:00:00.000Z' })
+  @IsISO8601()
+  startTime: string;
+
+  @ApiProperty({ description: 'Время окончания (ISO-8601 UTC)', example: '2026-09-10T16:00:00.000Z' })
+  @IsISO8601()
+  endTime: string;
+}
+
 export class GetAvailabilityQueryDto {
   @ApiProperty({ description: 'Начало интервала выборки (ISO-8601)' })
   @IsISO8601()

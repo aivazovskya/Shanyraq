@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole, BookingStatus, OwnershipType } from '@prisma/client';
@@ -12,12 +13,19 @@ import {
   UpdateBookableResourceDto,
   CreateBookingDto,
   GetBookingsQueryDto,
+  JoinWaitlistDto,
 } from './dto/bookings.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(BookingsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   // =============================================================
   // Каталог ресурсов (BookableResource)
@@ -329,6 +337,140 @@ export class BookingsService {
     });
   }
 
+  /**
+   * Встать в лист ожидания на слот, который сейчас полностью занят.
+   * Доступно только для действительно занятого слота — если слот свободен,
+   * ожидание не нужно, житель должен забронировать его напрямую.
+   */
+  async joinWaitlist(resourceId: string, dto: JoinWaitlistDto, user: any) {
+    const resource = await this.prisma.bookableResource.findUnique({
+      where: { id: resourceId },
+    });
+    if (!resource) {
+      throw new NotFoundException({
+        code: 'BOOKINGS.RESOURCE_NOT_FOUND',
+        message: 'Пространство не найдено',
+      });
+    }
+    if (!resource.isActive) {
+      throw new BadRequestException({
+        code: 'BOOKINGS.RESOURCE_INACTIVE',
+        message: 'Данное пространство временно недоступно для бронирования',
+      });
+    }
+
+    const ownership = await this.prisma.unitOwnership.findFirst({
+      where: {
+        userId: user.id,
+        isVerified: true,
+        unit: {
+          building: {
+            tenantId: resource.tenantId,
+          },
+        },
+      },
+      include: { unit: true },
+    });
+
+    if (!ownership) {
+      throw new ForbiddenException({
+        code: 'BOOKINGS.OWNERSHIP_REQUIRED',
+        message: 'Для листа ожидания требуется подтвержденное право владения или проживания в данном ЖК',
+      });
+    }
+
+    const start = new Date(dto.startTime);
+    const end = new Date(dto.endTime);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException({
+        code: 'BOOKINGS.INVALID_TIME_FORMAT',
+        message: 'Некорректный формат времени',
+      });
+    }
+
+    if (start.getTime() <= Date.now()) {
+      throw new BadRequestException({
+        code: 'BOOKINGS.START_TIME_MUST_BE_FUTURE',
+        message: 'Время начала бронирования должно быть в будущем',
+      });
+    }
+
+    if (start.getTime() >= end.getTime()) {
+      throw new BadRequestException({
+        code: 'BOOKINGS.END_BEFORE_START',
+        message: 'Время окончания бронирования должно быть позже времени начала',
+      });
+    }
+
+    // Лист ожидания имеет смысл только для реально занятого слота
+    const conflict = await this.prisma.booking.findFirst({
+      where: {
+        resourceId,
+        status: BookingStatus.CONFIRMED,
+        startTime: { lt: end },
+        endTime: { gt: start },
+      },
+    });
+
+    if (!conflict) {
+      throw new BadRequestException({
+        code: 'BOOKINGS.SLOT_NOT_FULL',
+        message: 'Выбранный слот сейчас свободен — забронируйте его напрямую',
+      });
+    }
+
+    try {
+      return await this.prisma.bookingWaitlistEntry.create({
+        data: {
+          resourceId,
+          unitId: ownership.unitId,
+          userId: user.id,
+          startTime: start,
+          endTime: end,
+        },
+      });
+    } catch {
+      throw new BadRequestException({
+        code: 'BOOKINGS.ALREADY_ON_WAITLIST',
+        message: 'Это помещение уже стоит в листе ожидания на данный слот',
+      });
+    }
+  }
+
+  async getMyWaitlistEntries(user: any) {
+    return this.prisma.bookingWaitlistEntry.findMany({
+      where: { userId: user.id },
+      include: {
+        resource: { select: { id: true, name: true, type: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async leaveWaitlist(id: string, user: any) {
+    const entry = await this.prisma.bookingWaitlistEntry.findUnique({
+      where: { id },
+    });
+
+    if (!entry) {
+      throw new NotFoundException({
+        code: 'BOOKINGS.WAITLIST_ENTRY_NOT_FOUND',
+        message: 'Запись в листе ожидания не найдена',
+      });
+    }
+
+    if (entry.userId !== user.id) {
+      throw new ForbiddenException({
+        code: 'BOOKINGS.WAITLIST_LEAVE_FORBIDDEN',
+        message: 'Вы можете удалить только собственную запись в листе ожидания',
+      });
+    }
+
+    await this.prisma.bookingWaitlistEntry.delete({ where: { id } });
+    return { success: true };
+  }
+
   async getMyBookings(user: any) {
     return this.prisma.booking.findMany({
       where: {
@@ -440,7 +582,7 @@ export class BookingsService {
       });
     }
 
-    return this.prisma.booking.update({
+    const cancelled = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: BookingStatus.CANCELLED,
@@ -457,6 +599,62 @@ export class BookingsService {
         },
       },
     });
+
+    await this.notifyAndClearWaitlistForFreedSlot(cancelled);
+
+    return cancelled;
+  }
+
+  /**
+   * После освобождения слота уведомляет всех, кто стоит в листе ожидания
+   * ИМЕННО на этот слот (resourceId + startTime + endTime), и удаляет их
+   * записи — дальше это обычная гонка за бронирование, как и для всех.
+   */
+  private async notifyAndClearWaitlistForFreedSlot(booking: {
+    resourceId: string;
+    startTime: Date;
+    endTime: Date;
+  }) {
+    try {
+      const waitlistEntries = await this.prisma.bookingWaitlistEntry.findMany({
+        where: {
+          resourceId: booking.resourceId,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        },
+      });
+
+      if (waitlistEntries.length === 0) return;
+
+      const resource = await this.prisma.bookableResource.findUnique({
+        where: { id: booking.resourceId },
+        select: { name: true },
+      });
+      const resourceName = resource?.name || 'Пространство';
+
+      for (const entry of waitlistEntries) {
+        try {
+          await this.notificationsService.sendToUser(entry.userId, {
+            title: '🎉 Освободился забронированный слот',
+            body: `${resourceName} — слот, который вы ждали, теперь свободен. Успейте забронировать!`,
+            data: {
+              type: 'BOOKING_WAITLIST_SLOT_AVAILABLE',
+              resourceId: booking.resourceId,
+              startTime: booking.startTime.toISOString(),
+              endTime: booking.endTime.toISOString(),
+            },
+          });
+        } catch (e) {
+          this.logger.warn(`Failed to notify waitlist entry ${entry.id}: ${e}`);
+        }
+      }
+
+      await this.prisma.bookingWaitlistEntry.deleteMany({
+        where: { id: { in: waitlistEntries.map((e) => e.id) } },
+      });
+    } catch (e) {
+      this.logger.warn(`Failed to process waitlist for freed slot: ${e}`);
+    }
   }
 
   // =============================================================

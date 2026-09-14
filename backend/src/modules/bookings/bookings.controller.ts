@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -26,6 +27,7 @@ import {
   CreateBookingDto,
   GetAvailabilityQueryDto,
   GetBookingsQueryDto,
+  JoinWaitlistDto,
 } from './dto/bookings.dto';
 
 @ApiTags('Bookings (Бронирование общих пространств)')
@@ -104,6 +106,32 @@ export class BookingsController {
   @ApiOperation({ summary: 'Мои бронирования (для текущего авторизованного жителя)' })
   async getMyBookings(@Request() req: any) {
     return this.bookingsService.getMyBookings(req.user);
+  }
+
+  // =============================================================
+  // Лист ожидания (BookingWaitlistEntry)
+  // =============================================================
+
+  @Post('resources/:resourceId/waitlist')
+  @ApiOperation({ summary: 'Встать в лист ожидания на занятый слот' })
+  async joinWaitlist(
+    @Param('resourceId') resourceId: string,
+    @Body() dto: JoinWaitlistDto,
+    @Request() req: any,
+  ) {
+    return this.bookingsService.joinWaitlist(resourceId, dto, req.user);
+  }
+
+  @Get('my-waitlist')
+  @ApiOperation({ summary: 'Мои записи в листах ожидания' })
+  async getMyWaitlistEntries(@Request() req: any) {
+    return this.bookingsService.getMyWaitlistEntries(req.user);
+  }
+
+  @Delete('waitlist/:id')
+  @ApiOperation({ summary: 'Покинуть лист ожидания (только собственная запись)' })
+  async leaveWaitlist(@Param('id') id: string, @Request() req: any) {
+    return this.bookingsService.leaveWaitlist(id, req.user);
   }
 
   @Get('tenants/:tenantId/bookings')

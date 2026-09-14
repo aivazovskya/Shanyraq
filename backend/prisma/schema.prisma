@@ -150,6 +150,7 @@ model Unit {
   meters           Meter[]
   bookings         Booking[]
   sosAlerts        SosAlert[]
+  bookingWaitlistEntries BookingWaitlistEntry[]
 
   @@unique([buildingId, unitNumber])
   @@map("units")
@@ -196,6 +197,7 @@ model User {
   reviewedReadings  MeterReading[]   @relation("ReviewedReadings")
   bookingsMade      Booking[]        @relation("BookingsMade")
   bookingsCancelled Booking[]        @relation("BookingsCancelled")
+  bookingWaitlistEntries BookingWaitlistEntry[]
   sosAlertsTriggered SosAlert[]      @relation("SosTriggered")
   sosAlertsResolved  SosAlert[]      @relation("SosResolved")
   listingsAuthored   CommunityListing[] @relation("ListingsAuthored")
@@ -644,6 +646,7 @@ model BookableResource {
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   bookings Booking[]
+  waitlistEntries BookingWaitlistEntry[]
 
   @@map("bookable_resources")
 }
@@ -667,6 +670,23 @@ model Booking {
   cancelledBy User?            @relation("BookingsCancelled", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   @@map("bookings")
+}
+
+model BookingWaitlistEntry {
+  id         String   @id @default(uuid())
+  resourceId String
+  unitId     String
+  userId     String
+  startTime  DateTime
+  endTime    DateTime
+  createdAt  DateTime @default(now())
+
+  resource BookableResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  unit     Unit             @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, unitId, startTime, endTime])
+  @@map("booking_waitlist_entries")
 }
 
 enum SosAlertStatus {

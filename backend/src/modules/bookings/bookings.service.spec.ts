@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BookingsService } from './bookings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   NotFoundException,
   BadRequestException,
@@ -67,6 +68,8 @@ describe('BookingsService', () => {
     tenantId: null,
   };
 
+  let notificationsMock: any;
+
   beforeEach(async () => {
     prismaMock = {
       bookableResource: {
@@ -85,15 +88,27 @@ describe('BookingsService', () => {
       unitOwnership: {
         findFirst: jest.fn(),
       },
+      bookingWaitlistEntry: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        delete: jest.fn(),
+        deleteMany: jest.fn(),
+      },
       $transaction: jest.fn().mockImplementation(async (callback) => {
         return callback(prismaMock);
       }),
+    };
+
+    notificationsMock = {
+      sendToUser: jest.fn().mockResolvedValue({ sent: 1 }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BookingsService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: NotificationsService, useValue: notificationsMock },
       ],
     }).compile();
 
@@ -561,6 +576,176 @@ describe('BookingsService', () => {
 
       const res = await service.cancelBooking('b-cancel-1', superAdminUser);
       expect(res.status).toBe(BookingStatus.CANCELLED);
+    });
+
+    it('Task 0070: уведомляет и удаляет ровно те записи листа ожидания, что совпадают по слоту', async () => {
+      const cancelledBookingWithSlot = {
+        ...existingBooking,
+        resourceId: mockResourceId,
+        startTime: new Date('2026-09-20T10:00:00Z'),
+        endTime: new Date('2026-09-20T12:00:00Z'),
+      };
+      prismaMock.booking.findUnique.mockResolvedValue(cancelledBookingWithSlot);
+      prismaMock.booking.update.mockResolvedValue({
+        ...cancelledBookingWithSlot,
+        status: BookingStatus.CANCELLED,
+      });
+      prismaMock.bookingWaitlistEntry.findMany.mockResolvedValueOnce([
+        { id: 'w-1', userId: 'user-w1' },
+        { id: 'w-2', userId: 'user-w2' },
+      ]);
+      prismaMock.bookableResource.findUnique.mockResolvedValue(mockResource);
+
+      await service.cancelBooking('b-cancel-1', residentOwnerUser);
+
+      expect(notificationsMock.sendToUser).toHaveBeenCalledTimes(2);
+      expect(notificationsMock.sendToUser).toHaveBeenCalledWith(
+        'user-w1',
+        expect.objectContaining({ data: expect.objectContaining({ type: 'BOOKING_WAITLIST_SLOT_AVAILABLE' }) }),
+      );
+      expect(notificationsMock.sendToUser).toHaveBeenCalledWith(
+        'user-w2',
+        expect.objectContaining({ data: expect.objectContaining({ type: 'BOOKING_WAITLIST_SLOT_AVAILABLE' }) }),
+      );
+      expect(prismaMock.bookingWaitlistEntry.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['w-1', 'w-2'] } },
+      });
+    });
+
+    it('Task 0070: отмена без совпадающих записей листа ожидания не отправляет уведомлений и не падает', async () => {
+      prismaMock.booking.findUnique.mockResolvedValue(existingBooking);
+      prismaMock.booking.update.mockResolvedValue({
+        ...existingBooking,
+        status: BookingStatus.CANCELLED,
+      });
+      prismaMock.bookingWaitlistEntry.findMany.mockResolvedValueOnce([]);
+
+      await expect(
+        service.cancelBooking('b-cancel-1', residentOwnerUser),
+      ).resolves.toBeDefined();
+      expect(notificationsMock.sendToUser).not.toHaveBeenCalled();
+      expect(prismaMock.bookingWaitlistEntry.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Лист ожидания (joinWaitlist / getMyWaitlistEntries / leaveWaitlist) — Task 0070', () => {
+    const futureStart = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const futureEnd = new Date(futureStart.getTime() + 2 * 60 * 60 * 1000);
+
+    beforeEach(() => {
+      prismaMock.bookableResource.findUnique.mockResolvedValue(mockResource);
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-1',
+        userId: residentOwnerUser.id,
+        unitId: mockUnitId,
+        isVerified: true,
+        unit: { id: mockUnitId },
+      });
+    });
+
+    it('отклоняет присоединение к листу ожидания, если слот сейчас свободен (SLOT_NOT_FULL)', async () => {
+      prismaMock.booking.findFirst.mockResolvedValue(null); // нет конфликтующей брони
+
+      const promise = service.joinWaitlist(
+        mockResourceId,
+        { startTime: futureStart.toISOString(), endTime: futureEnd.toISOString() },
+        residentOwnerUser,
+      );
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'BOOKINGS.SLOT_NOT_FULL' },
+      });
+      expect(prismaMock.bookingWaitlistEntry.create).not.toHaveBeenCalled();
+    });
+
+    it('разрешает присоединение, когда слот действительно занят', async () => {
+      prismaMock.booking.findFirst.mockResolvedValue({ id: 'existing-conflict' });
+      prismaMock.bookingWaitlistEntry.create.mockResolvedValue({
+        id: 'wl-1',
+        resourceId: mockResourceId,
+        unitId: mockUnitId,
+        userId: residentOwnerUser.id,
+      });
+
+      const result = await service.joinWaitlist(
+        mockResourceId,
+        { startTime: futureStart.toISOString(), endTime: futureEnd.toISOString() },
+        residentOwnerUser,
+      );
+
+      expect(result.id).toBe('wl-1');
+    });
+
+    it('отклоняет неверифицированного жителя (ForbiddenException)', async () => {
+      prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
+      prismaMock.booking.findFirst.mockResolvedValue({ id: 'existing-conflict' });
+
+      await expect(
+        service.joinWaitlist(
+          mockResourceId,
+          { startTime: futureStart.toISOString(), endTime: futureEnd.toISOString() },
+          unverifiedUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('отклоняет повторное присоединение того же юнита на тот же слот (ALREADY_ON_WAITLIST)', async () => {
+      prismaMock.booking.findFirst.mockResolvedValue({ id: 'existing-conflict' });
+      prismaMock.bookingWaitlistEntry.create.mockRejectedValue(
+        Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+      );
+
+      const promise = service.joinWaitlist(
+        mockResourceId,
+        { startTime: futureStart.toISOString(), endTime: futureEnd.toISOString() },
+        residentOwnerUser,
+      );
+      await expect(promise).rejects.toThrow(BadRequestException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'BOOKINGS.ALREADY_ON_WAITLIST' },
+      });
+    });
+
+    it('getMyWaitlistEntries возвращает только записи вызывающего пользователя', async () => {
+      prismaMock.bookingWaitlistEntry.findMany.mockResolvedValueOnce([{ id: 'wl-1' }]);
+
+      const result = await service.getMyWaitlistEntries(residentOwnerUser);
+
+      expect(result).toEqual([{ id: 'wl-1' }]);
+      expect(prismaMock.bookingWaitlistEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: residentOwnerUser.id } }),
+      );
+    });
+
+    it('leaveWaitlist позволяет удалить только собственную запись', async () => {
+      prismaMock.bookingWaitlistEntry.findUnique.mockResolvedValue({
+        id: 'wl-1',
+        userId: residentOwnerUser.id,
+      });
+
+      const result = await service.leaveWaitlist('wl-1', residentOwnerUser);
+      expect(result.success).toBe(true);
+      expect(prismaMock.bookingWaitlistEntry.delete).toHaveBeenCalledWith({ where: { id: 'wl-1' } });
+    });
+
+    it('leaveWaitlist отклоняет удаление чужой записи (ForbiddenException)', async () => {
+      prismaMock.bookingWaitlistEntry.findUnique.mockResolvedValue({
+        id: 'wl-1',
+        userId: 'someone-else',
+      });
+
+      await expect(
+        service.leaveWaitlist('wl-1', residentOwnerUser),
+      ).rejects.toThrow(ForbiddenException);
+      expect(prismaMock.bookingWaitlistEntry.delete).not.toHaveBeenCalled();
+    });
+
+    it('leaveWaitlist выбрасывает NotFoundException для несуществующей записи', async () => {
+      prismaMock.bookingWaitlistEntry.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.leaveWaitlist('missing-id', residentOwnerUser),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
