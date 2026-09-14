@@ -158,5 +158,16 @@ export class AnalyticsController {
   ) {
     return this.analyticsService.getStaffResponseTimeAnalytics(tenantId, req.user, query);
   }
+
+  @Get('tenants/:tenantId/occupancy')
+  @ApiOperation({
+    summary: 'Занятость/вакантность юнитов (доля помещений с подтверждённым собственником)',
+  })
+  async getUnitOccupancyAnalytics(
+    @Param('tenantId') tenantId: string,
+    @Request() req: any,
+  ) {
+    return this.analyticsService.getUnitOccupancyAnalytics(tenantId, req.user);
+  }
 }
 

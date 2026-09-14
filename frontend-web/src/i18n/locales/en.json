@@ -805,7 +805,8 @@
       "requests": "Tickets & Service",
       "activity": "Resident Activity",
       "bookings": "Bookings & Spaces",
-      "staff": "Staff Speed"
+      "staff": "Staff Speed",
+      "occupancy": "Unit Occupancy"
     },
     "filters": {
       "month": "Month",
@@ -898,6 +899,25 @@
       "empty": "No staff activity data for this period",
       "hoursUnit": "h",
       "minutesUnit": "min"
+    },
+    "occupancy": {
+      "loadError": "Failed to load unit occupancy data",
+      "disclaimer": "\"Occupied\" means the unit has a registered and verified owner on file in the system — it does not mean someone actually lives there, and \"vacant\" does not necessarily mean the unit is truly empty.",
+      "totalUnits": "Total Units",
+      "occupiedUnits": "With Verified Owner",
+      "vacantUnits": "Without Verified Owner",
+      "occupancyPercentSuffix": "occupied",
+      "byBuildingTitle": "Occupancy by Building",
+      "thBuilding": "Building/Block",
+      "thTotal": "Total",
+      "thOccupied": "Occupied",
+      "thVacant": "Vacant",
+      "thPercent": "% Occupied",
+      "thUnit": "Unit",
+      "thFloor": "Floor",
+      "vacantListTitle": "Unclaimed Units List",
+      "vacantListSubtitle": "Units with no verified owner on file — candidates for targeted management company outreach",
+      "vacantListEmpty": "Every unit in this housing complex has a verified owner"
     },
     "statuses": {
       "PENDING": "Pending",

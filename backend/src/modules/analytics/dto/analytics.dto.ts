@@ -137,3 +137,29 @@ export interface StaffResponseTimeAnalyticsResponse {
   staff: StaffResponseTimeItem[];
 }
 
+export interface BuildingOccupancyItem {
+  buildingId: string;
+  blockName: string;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  occupancyPercent: number;
+}
+
+export interface VacantUnitItem {
+  unitId: string;
+  unitNumber: string;
+  floor: number;
+  blockName: string;
+}
+
+export interface UnitOccupancyResponse {
+  tenantId: string;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  occupancyPercent: number;
+  byBuilding: BuildingOccupancyItem[];
+  vacantUnitsList: VacantUnitItem[];
+}
+

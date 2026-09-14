@@ -141,6 +141,32 @@ interface StaffResponseTimeData {
   staff: StaffResponseTimeItem[];
 }
 
+interface BuildingOccupancyItem {
+  buildingId: string;
+  blockName: string;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  occupancyPercent: number;
+}
+
+interface VacantUnitItem {
+  unitId: string;
+  unitNumber: string;
+  floor: number;
+  blockName: string;
+}
+
+interface UnitOccupancyData {
+  tenantId: string;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  occupancyPercent: number;
+  byBuilding: BuildingOccupancyItem[];
+  vacantUnitsList: VacantUnitItem[];
+}
+
 type PeriodPreset = '7d' | '30d' | '90d';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -173,7 +199,7 @@ export default function AnalyticsDashboardPage() {
   const [loadingTenants, setLoadingTenants] = useState(false);
 
   // View state
-  const [activeTab, setActiveTab] = useState<'finance' | 'requests' | 'activity' | 'bookings' | 'staff'>('finance');
+  const [activeTab, setActiveTab] = useState<'finance' | 'requests' | 'activity' | 'bookings' | 'staff' | 'occupancy'>('finance');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -200,6 +226,9 @@ export default function AnalyticsDashboardPage() {
   // Staff performance filters & data
   const [staffPreset, setStaffPreset] = useState<PeriodPreset>('30d');
   const [staffData, setStaffData] = useState<StaffResponseTimeData | null>(null);
+
+  // Occupancy data (no period — point-in-time snapshot)
+  const [occupancyData, setOccupancyData] = useState<UnitOccupancyData | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -335,6 +364,25 @@ export default function AnalyticsDashboardPage() {
     [t],
   );
 
+  const fetchOccupancy = useCallback(
+    async (tId: string) => {
+      if (!tId) return;
+      try {
+        setLoading(true);
+        setErrorMsg(null);
+        const data = await apiRequest<UnitOccupancyData>(
+          `/analytics/tenants/${tId}/occupancy`,
+        );
+        setOccupancyData(data);
+      } catch (err: any) {
+        setErrorMsg(err.message || t('analytics.occupancy.loadError'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
+
   const handleExportActivityCsv = async () => {
     if (!tenantId || exportingActivityCsv) return;
     try {
@@ -395,6 +443,8 @@ export default function AnalyticsDashboardPage() {
       fetchBookings(tenantId, bookingsPreset);
     } else if (activeTab === 'staff') {
       fetchStaff(tenantId, staffPreset);
+    } else if (activeTab === 'occupancy') {
+      fetchOccupancy(tenantId);
     }
   }, [
     tenantId,
@@ -410,6 +460,7 @@ export default function AnalyticsDashboardPage() {
     fetchActivity,
     fetchBookings,
     fetchStaff,
+    fetchOccupancy,
   ]);
 
   const handleRefresh = () => {
@@ -424,6 +475,8 @@ export default function AnalyticsDashboardPage() {
       fetchBookings(tenantId, bookingsPreset);
     } else if (activeTab === 'staff') {
       fetchStaff(tenantId, staffPreset);
+    } else if (activeTab === 'occupancy') {
+      fetchOccupancy(tenantId);
     }
   };
 
@@ -570,6 +623,18 @@ export default function AnalyticsDashboardPage() {
         >
           <Timer className="w-4 h-4" />
           <span>{t('analytics.tabs.staff')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('occupancy')}
+          className={`flex items-center gap-2 py-3 px-4 font-semibold text-sm border-b-2 transition-all ${
+            activeTab === 'occupancy'
+              ? 'border-sky-600 text-sky-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Building className="w-4 h-4" />
+          <span>{t('analytics.tabs.occupancy')}</span>
         </button>
       </div>
 
@@ -1475,6 +1540,109 @@ export default function AnalyticsDashboardPage() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 6: UNIT OCCUPANCY */}
+      {activeTab === 'occupancy' && tenantId && (
+        <div className="space-y-6">
+          <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-sky-900 text-xs flex items-start gap-2.5">
+            <Building className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{t('analytics.occupancy.disclaimer')}</span>
+          </div>
+
+          {occupancyData && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {t('analytics.occupancy.totalUnits')}
+                  </p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{occupancyData.totalUnits}</p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {t('analytics.occupancy.occupiedUnits')}
+                  </p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">{occupancyData.occupiedUnits}</p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {t('analytics.occupancy.vacantUnits')}
+                  </p>
+                  <p className="text-2xl font-bold text-amber-600 mt-1">
+                    {occupancyData.vacantUnits}{' '}
+                    <span className="text-sm font-medium text-slate-400">
+                      ({occupancyData.occupancyPercent}% {t('analytics.occupancy.occupancyPercentSuffix')})
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-900">{t('analytics.occupancy.byBuildingTitle')}</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        <th className="py-3.5 px-4">{t('analytics.occupancy.thBuilding')}</th>
+                        <th className="py-3.5 px-4 text-center">{t('analytics.occupancy.thTotal')}</th>
+                        <th className="py-3.5 px-4 text-center">{t('analytics.occupancy.thOccupied')}</th>
+                        <th className="py-3.5 px-4 text-center">{t('analytics.occupancy.thVacant')}</th>
+                        <th className="py-3.5 px-4 text-right">{t('analytics.occupancy.thPercent')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {occupancyData.byBuilding.map((b) => (
+                        <tr key={b.buildingId} className="hover:bg-slate-50/60 transition">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900">{b.blockName}</td>
+                          <td className="py-3.5 px-4 text-center text-slate-600">{b.totalUnits}</td>
+                          <td className="py-3.5 px-4 text-center text-emerald-600 font-semibold">{b.occupiedUnits}</td>
+                          <td className="py-3.5 px-4 text-center text-amber-600 font-semibold">{b.vacantUnits}</td>
+                          <td className="py-3.5 px-4 text-right text-slate-600">{b.occupancyPercent}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-900">{t('analytics.occupancy.vacantListTitle')}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{t('analytics.occupancy.vacantListSubtitle')}</p>
+                </div>
+                {occupancyData.vacantUnitsList.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 text-sm">
+                    {t('analytics.occupancy.vacantListEmpty')}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          <th className="py-3.5 px-4">{t('analytics.occupancy.thBuilding')}</th>
+                          <th className="py-3.5 px-4">{t('analytics.occupancy.thUnit')}</th>
+                          <th className="py-3.5 px-4 text-center">{t('analytics.occupancy.thFloor')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {occupancyData.vacantUnitsList.map((u) => (
+                          <tr key={u.unitId} className="hover:bg-slate-50/60 transition">
+                            <td className="py-3.5 px-4 font-semibold text-slate-900">{u.blockName}</td>
+                            <td className="py-3.5 px-4 text-slate-600">{u.unitNumber}</td>
+                            <td className="py-3.5 px-4 text-center text-slate-600">{u.floor}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

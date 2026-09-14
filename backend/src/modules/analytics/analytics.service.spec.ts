@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from './analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { UserRole, RequestStatus, BookingStatus } from '@prisma/client';
+import { UserRole, RequestStatus, BookingStatus, OwnershipType } from '@prisma/client';
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
@@ -109,6 +109,9 @@ describe('AnalyticsService', () => {
       meterReading: {
         count: jest.fn(),
         groupBy: jest.fn(),
+      },
+      building: {
+        findMany: jest.fn(),
       },
     };
 
@@ -1279,6 +1282,127 @@ describe('AnalyticsService', () => {
 
       await expect(
         service.getStaffResponseTimeAnalytics(mockTenantId, superadminUser),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('getUnitOccupancyAnalytics (Task 0069)', () => {
+    const verifiedOwner = () => ({ id: 'own', isVerified: true, ownershipType: OwnershipType.OWNER });
+
+    it('считает занятость по правилу "есть подтверждённый OWNER" — 2 из 3 занято', async () => {
+      prismaMock.building.findMany.mockResolvedValue([
+        {
+          id: 'building-1',
+          blockName: 'Блок А',
+          units: [
+            { id: 'unit-1', unitNumber: '1', floor: 1, ownerships: [verifiedOwner()] },
+            { id: 'unit-2', unitNumber: '2', floor: 1, ownerships: [verifiedOwner()] },
+            { id: 'unit-3', unitNumber: '3', floor: 1, ownerships: [] },
+          ],
+        },
+      ]);
+
+      const result = await service.getUnitOccupancyAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(result.totalUnits).toBe(3);
+      expect(result.occupiedUnits).toBe(2);
+      expect(result.vacantUnits).toBe(1);
+      expect(result.occupancyPercent).toBe(66.67);
+      expect(result.byBuilding[0]).toMatchObject({
+        blockName: 'Блок А',
+        totalUnits: 3,
+        occupiedUnits: 2,
+        vacantUnits: 1,
+      });
+    });
+
+    it('передаёт в findMany фильтр только verified OWNER (неверифицированный или TENANT/FAMILY_MEMBER не считается занятым)', async () => {
+      prismaMock.building.findMany.mockResolvedValue([]);
+
+      await service.getUnitOccupancyAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(prismaMock.building.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            units: expect.objectContaining({
+              include: expect.objectContaining({
+                ownerships: {
+                  where: { isVerified: true, ownershipType: OwnershipType.OWNER },
+                },
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('unit без ownerships (после фильтра БД) считается вакантным и попадает в vacantUnitsList', async () => {
+      prismaMock.building.findMany.mockResolvedValue([
+        {
+          id: 'building-1',
+          blockName: 'Блок Б',
+          units: [
+            { id: 'unit-9', unitNumber: '9', floor: 3, ownerships: [] },
+          ],
+        },
+      ]);
+
+      const result = await service.getUnitOccupancyAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(result.vacantUnitsList).toEqual([
+        { unitId: 'unit-9', unitNumber: '9', floor: 3, blockName: 'Блок Б' },
+      ]);
+    });
+
+    it('суммирует итоги по нескольким корпусам', async () => {
+      prismaMock.building.findMany.mockResolvedValue([
+        {
+          id: 'b1',
+          blockName: 'Блок А',
+          units: [
+            { id: 'u1', unitNumber: '1', floor: 1, ownerships: [verifiedOwner()] },
+            { id: 'u2', unitNumber: '2', floor: 1, ownerships: [] },
+          ],
+        },
+        {
+          id: 'b2',
+          blockName: 'Блок Б',
+          units: [
+            { id: 'u3', unitNumber: '1', floor: 1, ownerships: [verifiedOwner()] },
+            { id: 'u4', unitNumber: '2', floor: 1, ownerships: [verifiedOwner()] },
+          ],
+        },
+      ]);
+
+      const result = await service.getUnitOccupancyAnalytics(mockTenantId, hoaAdminUser);
+
+      expect(result.totalUnits).toBe(4);
+      expect(result.occupiedUnits).toBe(3);
+      expect(result.vacantUnits).toBe(1);
+      expect(result.byBuilding).toHaveLength(2);
+    });
+
+    it('отклоняет DISPATCHER/жителя/чужой ЖК, разрешает HOA_CHAIRMAN и SUPERADMIN', async () => {
+      prismaMock.building.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.getUnitOccupancyAnalytics(mockTenantId, dispatcherUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getUnitOccupancyAnalytics(mockTenantId, residentUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getUnitOccupancyAnalytics(mockTenantId, foreignHoaAdmin),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.getUnitOccupancyAnalytics(mockTenantId, hoaChairmanUser),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.getUnitOccupancyAnalytics(mockTenantId, superadminUser),
       ).resolves.toBeDefined();
     });
   });

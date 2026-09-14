@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UserRole, RequestStatus, BookingStatus } from '@prisma/client';
+import { UserRole, RequestStatus, BookingStatus, OwnershipType } from '@prisma/client';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import {
   FinanceAnalyticsQueryDto,
@@ -22,6 +22,9 @@ import {
   BookingUtilizationResponse,
   StaffResponseTimeItem,
   StaffResponseTimeAnalyticsResponse,
+  BuildingOccupancyItem,
+  VacantUnitItem,
+  UnitOccupancyResponse,
 } from './dto/analytics.dto';
 import { buildCsv } from '../../common/csv/csv.helper';
 
@@ -1184,6 +1187,85 @@ export class AnalyticsService {
       from: from.toISOString(),
       to: to.toISOString(),
       staff: staffItems,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 7. Занятость/вакантность юнитов (Unit occupancy)
+  // -------------------------------------------------------------
+  async getUnitOccupancyAnalytics(
+    tenantId: string,
+    user: RequestUser,
+  ): Promise<UnitOccupancyResponse> {
+    await this.assertStaffAccess(user, tenantId);
+
+    const buildings = await this.prisma.building.findMany({
+      where: { tenantId },
+      include: {
+        units: {
+          include: {
+            ownerships: {
+              where: { isVerified: true, ownershipType: OwnershipType.OWNER },
+            },
+          },
+        },
+      },
+      orderBy: { blockName: 'asc' },
+    });
+
+    const byBuilding: BuildingOccupancyItem[] = [];
+    const vacantUnitsList: VacantUnitItem[] = [];
+    let totalUnits = 0;
+    let occupiedUnits = 0;
+
+    for (const building of buildings) {
+      let buildingOccupied = 0;
+
+      for (const unit of building.units) {
+        const isOccupied = unit.ownerships.length > 0;
+        if (isOccupied) {
+          buildingOccupied += 1;
+        } else {
+          vacantUnitsList.push({
+            unitId: unit.id,
+            unitNumber: unit.unitNumber,
+            floor: unit.floor,
+            blockName: building.blockName,
+          });
+        }
+      }
+
+      const buildingTotal = building.units.length;
+      byBuilding.push({
+        buildingId: building.id,
+        blockName: building.blockName,
+        totalUnits: buildingTotal,
+        occupiedUnits: buildingOccupied,
+        vacantUnits: buildingTotal - buildingOccupied,
+        occupancyPercent:
+          buildingTotal > 0
+            ? Math.round((buildingOccupied / buildingTotal) * 10000) / 100
+            : 0,
+      });
+
+      totalUnits += buildingTotal;
+      occupiedUnits += buildingOccupied;
+    }
+
+    vacantUnitsList.sort((a, b) => {
+      const blockCompare = a.blockName.localeCompare(b.blockName);
+      return blockCompare !== 0 ? blockCompare : a.unitNumber.localeCompare(b.unitNumber);
+    });
+
+    return {
+      tenantId,
+      totalUnits,
+      occupiedUnits,
+      vacantUnits: totalUnits - occupiedUnits,
+      occupancyPercent:
+        totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 10000) / 100 : 0,
+      byBuilding,
+      vacantUnitsList,
     };
   }
 }
