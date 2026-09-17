@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import {
   KeyRound,
@@ -22,6 +23,7 @@ import {
   AlertCircle,
   Download,
   Calendar,
+  Ticket,
 } from 'lucide-react';
 import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
@@ -83,6 +85,13 @@ export default function AccessPage() {
     user?.role === 'SECURITY' ||
     user?.role === 'HOA_ADMIN' ||
     user?.role === 'SUPERADMIN';
+  const canViewGuestPasses = [
+    'HOA_ADMIN',
+    'HOA_CHAIRMAN',
+    'DISPATCHER',
+    'SECURITY',
+    'SUPERADMIN',
+  ].includes(user?.role || '');
 
   const [points, setPoints] = useState<AccessPointItem[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
@@ -299,6 +308,16 @@ export default function AccessPage() {
             <RefreshCw className={`w-4 h-4 ${loadingPoints ? 'animate-spin text-slate-400' : ''}`} />
             {t('access.refreshBtn')}
           </button>
+
+          {canViewGuestPasses && (
+            <Link
+              href="/dashboard/access/guest-passes"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm"
+            >
+              <Ticket className="w-4 h-4 text-slate-500" />
+              {t('access.guestPassHistoryBtn')}
+            </Link>
+          )}
 
           {canManage && (
             <button
