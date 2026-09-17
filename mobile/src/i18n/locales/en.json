@@ -739,6 +739,17 @@
       "VIEW_FORBIDDEN": "You do not have permission to view shift handover notes",
       "CONTENT_REQUIRED": "Note text cannot be empty",
       "CONTENT_TOO_LONG": "Note text exceeds the maximum allowed length"
+    },
+    "VALIDATION": {
+      "REQUIRED": "The «{{field}}» field is required",
+      "INVALID_TYPE": "Invalid data type for field «{{field}}»",
+      "INVALID_FORMAT": "Invalid format for field «{{field}}»",
+      "INVALID_VALUE": "Invalid value for field «{{field}}»",
+      "TOO_SHORT": "The «{{field}}» value is too short",
+      "TOO_LONG": "The «{{field}}» value is too long",
+      "MIN_VALUE": "The «{{field}}» value is less than the minimum allowed",
+      "MAX_VALUE": "The «{{field}}» value exceeds the maximum allowed",
+      "INVALID_FIELD": "Invalid value for field «{{field}}»"
     }
   },
   "staff": {
@@ -914,18 +925,5 @@
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago",
     "allRead": "All notifications read"
-  },
-  "errors": {
-    "VALIDATION": {
-      "REQUIRED": "The «{{field}}» field is required",
-      "INVALID_TYPE": "Invalid data type for field «{{field}}»",
-      "INVALID_FORMAT": "Invalid format for field «{{field}}»",
-      "INVALID_VALUE": "Invalid value for field «{{field}}»",
-      "TOO_SHORT": "The «{{field}}» value is too short",
-      "TOO_LONG": "The «{{field}}» value is too long",
-      "MIN_VALUE": "The «{{field}}» value is less than the minimum allowed",
-      "MAX_VALUE": "The «{{field}}» value exceeds the maximum allowed",
-      "INVALID_FIELD": "Invalid value for field «{{field}}»"
-    }
   }
 }

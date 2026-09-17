@@ -1234,6 +1234,17 @@
       "STORAGE_ERROR": "Error saving file to storage",
       "FILE_MISSING": "File not provided in the \"file\" field",
       "INVALID_MIME_TYPE": "Invalid file type. Only JPEG, PNG, WebP, and PDF are allowed"
+    },
+    "VALIDATION": {
+      "REQUIRED": "The «{{field}}» field is required",
+      "INVALID_TYPE": "Invalid data type for field «{{field}}»",
+      "INVALID_FORMAT": "Invalid format for field «{{field}}»",
+      "INVALID_VALUE": "Invalid value for field «{{field}}»",
+      "TOO_SHORT": "The «{{field}}» value is too short",
+      "TOO_LONG": "The «{{field}}» value is too long",
+      "MIN_VALUE": "The «{{field}}» value is less than the minimum allowed",
+      "MAX_VALUE": "The «{{field}}» value exceeds the maximum allowed",
+      "INVALID_FIELD": "Invalid value for field «{{field}}»"
     }
   },
   "notifications": {
@@ -1330,18 +1341,5 @@
     "selectTenantPlaceholder": "Select Complex...",
     "selectTenantPromptTitle": "Select residential complex",
     "selectTenantPromptSub": "You are logged in as superadministrator. Please select a complex from the dropdown above to view the shift handover log."
-  },
-  "errors": {
-    "VALIDATION": {
-      "REQUIRED": "The «{{field}}» field is required",
-      "INVALID_TYPE": "Invalid data type for field «{{field}}»",
-      "INVALID_FORMAT": "Invalid format for field «{{field}}»",
-      "INVALID_VALUE": "Invalid value for field «{{field}}»",
-      "TOO_SHORT": "The «{{field}}» value is too short",
-      "TOO_LONG": "The «{{field}}» value is too long",
-      "MIN_VALUE": "The «{{field}}» value is less than the minimum allowed",
-      "MAX_VALUE": "The «{{field}}» value exceeds the maximum allowed",
-      "INVALID_FIELD": "Invalid value for field «{{field}}»"
-    }
   }
 }
