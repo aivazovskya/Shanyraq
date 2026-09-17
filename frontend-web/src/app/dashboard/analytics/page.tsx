@@ -222,6 +222,7 @@ export default function AnalyticsDashboardPage() {
   // Bookings filters & data
   const [bookingsPreset, setBookingsPreset] = useState<PeriodPreset>('30d');
   const [bookingsData, setBookingsData] = useState<BookingUtilizationData | null>(null);
+  const [exportingBookingsCsv, setExportingBookingsCsv] = useState(false);
 
   // Staff performance filters & data
   const [staffPreset, setStaffPreset] = useState<PeriodPreset>('30d');
@@ -399,6 +400,25 @@ export default function AnalyticsDashboardPage() {
       setErrorMsg(err.message || 'Ошибка экспорта CSV');
     } finally {
       setExportingActivityCsv(false);
+    }
+  };
+
+  const handleExportBookingsCsv = async () => {
+    if (!tenantId || exportingBookingsCsv) return;
+    try {
+      setExportingBookingsCsv(true);
+      const { from, to } = getPresetDates(bookingsPreset);
+      const fromDateStr = from.split('T')[0];
+      const toDateStr = to.split('T')[0];
+      await apiDownload(
+        `/analytics/tenants/${tenantId}/bookings/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        `booking-utilization-${tenantId}-${fromDateStr}-${toDateStr}.csv`,
+      );
+    } catch (err: any) {
+      console.error('Failed to export booking utilization CSV:', err);
+      setErrorMsg(err.message || 'Ошибка экспорта CSV');
+    } finally {
+      setExportingBookingsCsv(false);
     }
   };
 
@@ -1290,13 +1310,34 @@ export default function AnalyticsDashboardPage() {
               </div>
             </div>
 
-            {bookingsData && (
-              <div className="text-xs text-slate-400 font-medium">
-                {t('analytics.bookings.periodSummary', {
-                  period: t(`analytics.filters.period${bookingsPreset}`),
-                })}
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {bookingsData && (
+                <div className="text-xs text-slate-400 font-medium">
+                  {t('analytics.bookings.periodSummary', {
+                    period: t(`analytics.filters.period${bookingsPreset}`),
+                  })}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleExportBookingsCsv}
+                disabled={exportingBookingsCsv || !bookingsData}
+                className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-medium rounded-xl border border-emerald-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={t('analytics.bookings.exportCsv')}
+              >
+                {exportingBookingsCsv ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                ) : (
+                  <Download className="w-4 h-4 text-emerald-600" />
+                )}
+                <span>
+                  {exportingBookingsCsv
+                    ? t('analytics.bookings.exporting')
+                    : t('analytics.bookings.exportCsv')}
+                </span>
+              </button>
+            </div>
           </div>
 
           {bookingsData && (

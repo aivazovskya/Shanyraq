@@ -1060,6 +1060,69 @@ export class AnalyticsService {
   }
 
   /**
+   * Экспорт аналитики утилизации ресурсов в CSV.
+   */
+  async exportBookingUtilizationCsv(
+    tenantId: string,
+    user: RequestUser,
+    query?: DateRangeAnalyticsQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const { from, to, resources } = await this.getBookingUtilizationAnalytics(
+      tenantId,
+      user,
+      query,
+    );
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const fromDateStr = from.split('T')[0];
+    const toDateStr = to.split('T')[0];
+
+    const RESOURCE_TYPE_LABELS: Record<string, string> = {
+      BBQ_AREA: 'Барбекю-зона',
+      COWORKING: 'Коворкинг',
+      GUEST_PARKING: 'Гостевой паркинг',
+      KIDS_ROOM: 'Детская комната',
+      OTHER: 'Другое',
+    };
+
+    const rows: unknown[][] = [
+      ['Отчет по утилизации ресурсов'],
+      ['Жилой комплекс', tenant?.name ?? tenantId],
+      ['Период', `${fromDateStr} — ${toDateStr}`],
+      [],
+      [
+        'Ресурс',
+        'Тип',
+        'Кол-во бронирований',
+        'Забронировано часов',
+        'Доступно часов',
+        'Утилизация (%)',
+      ],
+    ];
+
+    for (const r of resources) {
+      const typeLabel = RESOURCE_TYPE_LABELS[r.resourceType] || 'Другое';
+      rows.push([
+        r.resourceName,
+        typeLabel,
+        r.bookingsCount,
+        r.totalBookedHours,
+        r.availableHours,
+        r.utilizationPercent,
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `booking-utilization-${tenantId}-${fromDateStr}-${toDateStr}.csv`;
+
+    return { buffer, filename };
+  }
+
+  /**
    * Аналитика скорости реагирования персонала: среднее время закрытия
    * заявок (ServiceRequest) и среднее время реагирования на SOS
    * (SosAlert) в разбивке по конкретному сотруднику.

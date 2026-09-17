@@ -898,7 +898,9 @@
       "avgUtilization": "Average Utilization",
       "mostPopular": "Most Saturated",
       "periodSummary": "for {{period}}",
-      "hoursUnit": "h"
+      "hoursUnit": "h",
+      "exportCsv": "Download CSV",
+      "exporting": "Exporting..."
     },
     "staff": {
       "loadError": "Failed to load staff performance analytics",

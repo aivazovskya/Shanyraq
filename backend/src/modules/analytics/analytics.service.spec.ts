@@ -1132,6 +1132,181 @@ describe('AnalyticsService', () => {
     });
   });
 
+  describe('exportBookingUtilizationCsv (Task 0077: CSV export of booking resource utilization analytics)', () => {
+    const mockResources = [
+      {
+        id: 'res-bbq',
+        name: 'Зона барбекю №1',
+        type: 'BBQ_AREA',
+        operatingHoursStart: '10:00',
+        operatingHoursEnd: '18:00', // 8h/day
+      },
+      {
+        id: 'res-coworking',
+        name: 'Коворкинг',
+        type: 'COWORKING',
+        operatingHoursStart: '08:00',
+        operatingHoursEnd: '20:00', // 12h/day
+      },
+      {
+        id: 'res-parking',
+        name: 'Гостевой паркинг',
+        type: 'GUEST_PARKING',
+        operatingHoursStart: null,
+        operatingHoursEnd: null, // 24h/day
+      },
+      {
+        id: 'res-kids',
+        name: 'Детская комната',
+        type: 'KIDS_ROOM',
+        operatingHoursStart: '09:00',
+        operatingHoursEnd: '21:00', // 12h/day
+      },
+      {
+        id: 'res-other',
+        name: 'Склад инвентаря',
+        type: 'OTHER',
+        operatingHoursStart: null,
+        operatingHoursEnd: null, // 24h/day
+      },
+    ];
+
+    it('отклоняет доступ для диспетчера, жителя и сотрудников чужих ЖК, разрешает председателю и суперадмину', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([]);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.exportBookingUtilizationCsv(mockTenantId, dispatcherUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.exportBookingUtilizationCsv(mockTenantId, residentUser),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.exportBookingUtilizationCsv(mockTenantId, foreignHoaAdmin),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.exportBookingUtilizationCsv(mockTenantId, hoaChairmanUser),
+      ).resolves.toBeDefined();
+
+      await expect(
+        service.exportBookingUtilizationCsv(mockTenantId, superadminUser),
+      ).resolves.toBeDefined();
+    });
+
+    it('экспортированные строки CSV в точности соответствуют расчету getBookingUtilizationAnalytics', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue(mockResources.slice(0, 3));
+      // 1 confirmed booking for BBQ (2h)
+      prismaMock.booking.findMany.mockResolvedValue([
+        {
+          resourceId: 'res-bbq',
+          startTime: new Date('2026-09-01T10:00:00Z'),
+          endTime: new Date('2026-09-01T12:00:00Z'),
+        },
+      ]);
+
+      const query = {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-10T23:59:59Z',
+      };
+
+      // Call JSON method
+      const jsonResult = await service.getBookingUtilizationAnalytics(
+        mockTenantId,
+        hoaAdminUser,
+        query,
+      );
+
+      // Call CSV method
+      const csvResult = await service.exportBookingUtilizationCsv(
+        mockTenantId,
+        hoaAdminUser,
+        query,
+      );
+
+      expect(csvResult.buffer).toBeInstanceOf(Buffer);
+      const rawCsv = csvResult.buffer.toString('utf-8');
+      expect(rawCsv.charCodeAt(0)).toBe(0xfeff);
+      const csvString = rawCsv.replace(/^\uFEFF/, '');
+      const lines = csvString.split('\r\n').filter((l) => l.length > 0);
+
+      // Verify header lines
+      expect(lines[0]).toBe('Отчет по утилизации ресурсов');
+      expect(lines[1]).toBe('Жилой комплекс,ЖК Шанырак');
+      expect(lines[2]).toBe('Период,2026-09-01 — 2026-09-10');
+      expect(lines[3]).toBe('Ресурс,Тип,Кол-во бронирований,Забронировано часов,Доступно часов,Утилизация (%)');
+
+      // Verify each resource from JSON is present in CSV with exact values
+      for (const res of jsonResult.resources) {
+        const foundLine = lines.find((l) => l.startsWith(res.resourceName));
+        expect(foundLine).toBeDefined();
+        const parts = foundLine!.split(',');
+        expect(parts[0]).toBe(res.resourceName);
+        expect(Number(parts[2])).toBe(res.bookingsCount);
+        expect(Number(parts[3])).toBe(res.totalBookedHours);
+        expect(Number(parts[4])).toBe(res.availableHours);
+        expect(Number(parts[5])).toBe(res.utilizationPercent);
+      }
+    });
+
+    it('все 5 значений BookableResourceType транслируются в корректные русские названия', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue(mockResources);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      const result = await service.exportBookingUtilizationCsv(mockTenantId, hoaAdminUser, {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-05T23:59:59Z',
+      });
+
+      const csvString = result.buffer.toString('utf-8');
+      expect(csvString).toContain('Барбекю-зона');
+      expect(csvString).toContain('Коворкинг');
+      expect(csvString).toContain('Гостевой паркинг');
+      expect(csvString).toContain('Детская комната');
+      expect(csvString).toContain('Другое');
+    });
+
+    it('буфер CSV начинается с UTF-8 BOM и формирует корректное имя файла', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([]);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      const result = await service.exportBookingUtilizationCsv(mockTenantId, hoaAdminUser, {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-15T23:59:59Z',
+      });
+
+      // UTF-8 BOM is 0xEF, 0xBB, 0xBF
+      expect(result.buffer[0]).toBe(0xef);
+      expect(result.buffer[1]).toBe(0xbb);
+      expect(result.buffer[2]).toBe(0xbf);
+
+      expect(result.filename).toBe(`booking-utilization-${mockTenantId}-2026-09-01-2026-09-15.csv`);
+    });
+
+    it('ресурс с 0 бронирований (idle) корректно попадает в CSV с нулевыми показателями', async () => {
+      prismaMock.bookableResource.findMany.mockResolvedValue([
+        {
+          id: 'res-coworking',
+          name: 'Коворкинг №2',
+          type: 'COWORKING',
+          operatingHoursStart: '08:00',
+          operatingHoursEnd: '20:00', // 12h/day * 5 days = 60h
+        },
+      ]);
+      prismaMock.booking.findMany.mockResolvedValue([]);
+
+      const result = await service.exportBookingUtilizationCsv(mockTenantId, hoaAdminUser, {
+        from: '2026-09-01T00:00:00Z',
+        to: '2026-09-05T23:59:59Z',
+      });
+
+      const csvString = result.buffer.toString('utf-8');
+      expect(csvString).toContain('Коворкинг №2,Коворкинг,0,0,60,0');
+    });
+  });
+
   describe('getStaffResponseTimeAnalytics (Task 0061: Per-staff response time analytics)', () => {
     it('сотрудник с 3 закрытыми заявками и 0 SOS-вызовами показывает корректное среднее время заявок и явные нули по SOS', async () => {
       prismaMock.serviceRequest.findMany.mockResolvedValue([

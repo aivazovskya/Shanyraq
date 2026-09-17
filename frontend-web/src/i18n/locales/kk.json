@@ -898,7 +898,9 @@
       "avgUtilization": "Орташа пайдаланылуы",
       "mostPopular": "Ең көп жүктелген",
       "periodSummary": "{{period}} ішінде",
-      "hoursUnit": "сағ."
+      "hoursUnit": "сағ.",
+      "exportCsv": "CSV жүктеу",
+      "exporting": "Экспортталуда..."
     },
     "staff": {
       "loadError": "Персонал аналитикасын жүктеу қатесі",

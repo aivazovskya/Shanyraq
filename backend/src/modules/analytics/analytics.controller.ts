@@ -144,6 +144,27 @@ export class AnalyticsController {
     return this.analyticsService.getBookingUtilizationAnalytics(tenantId, req.user, query);
   }
 
+  @Get('tenants/:tenantId/bookings/export')
+  @ApiOperation({
+    summary: 'Экспорт отчета по утилизации ресурсов в CSV',
+  })
+  @ApiQuery({ name: 'from', required: false, type: String })
+  @ApiQuery({ name: 'to', required: false, type: String })
+  async exportBookingUtilizationCsv(
+    @Param('tenantId') tenantId: string,
+    @Query() query: DateRangeAnalyticsQueryDto,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } =
+      await this.analyticsService.exportBookingUtilizationCsv(tenantId, req.user, query);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  }
+
   @Get('tenants/:tenantId/staff-performance')
   @ApiOperation({
     summary:

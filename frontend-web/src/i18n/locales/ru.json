@@ -898,7 +898,9 @@
       "avgUtilization": "Средняя утилизация",
       "mostPopular": "Наиболее загруженное",
       "periodSummary": "за {{period}}",
-      "hoursUnit": "ч."
+      "hoursUnit": "ч.",
+      "exportCsv": "Скачать CSV",
+      "exporting": "Экспорт..."
     },
     "staff": {
       "loadError": "Ошибка загрузки аналитики по персоналу",
