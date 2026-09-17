@@ -14,6 +14,9 @@ import {
   ShoppingBag,
   FileText,
   Building2,
+  KeyRound,
+  Ticket,
+  ShieldCheck,
 } from 'lucide-react';
 import { apiRequest, apiDownload, getStoredSession, AuthUser } from '@/lib/api';
 
@@ -204,6 +207,42 @@ export default function AuditLogPage() {
             {t(`auditLog.actions.${action}`)}
           </span>
         );
+      case 'OWNERSHIP_UNLINKED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <UserX className="w-3.5 h-3.5" />
+            {t(`auditLog.actions.${action}`)}
+          </span>
+        );
+      case 'ACCESS_POINT_CREATED':
+      case 'ACCESS_POINT_UPDATED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200">
+            <KeyRound className="w-3.5 h-3.5" />
+            {t(`auditLog.actions.${action}`)}
+          </span>
+        );
+      case 'GUEST_PASS_ISSUED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            <Ticket className="w-3.5 h-3.5" />
+            {t(`auditLog.actions.${action}`)}
+          </span>
+        );
+      case 'GUEST_PASS_REVOKED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+            <Ticket className="w-3.5 h-3.5" />
+            {t(`auditLog.actions.${action}`)}
+          </span>
+        );
+      case 'SOS_RESOLVED':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            {t(`auditLog.actions.${action}`)}
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700">
@@ -219,11 +258,23 @@ export default function AuditLogPage() {
     const parts: string[] = [];
 
     if (metadata.name) parts.push(`Название: "${metadata.name}"`);
+    if (metadata.type) parts.push(`Тип: ${metadata.type}`);
     if (metadata.rate !== undefined) parts.push(`Тариф: ${metadata.rate} ₸`);
     if (metadata.residentName) parts.push(`Жилец: ${metadata.residentName}`);
+    if (metadata.guestName) parts.push(`Гость: ${metadata.guestName}`);
+    if (metadata.unitNumber) parts.push(`Кв: ${metadata.unitNumber}`);
+    if (metadata.status) parts.push(`Статус: ${metadata.status}`);
+    if (metadata.resolutionNote) parts.push(`Заметка: "${metadata.resolutionNote}"`);
+    if (metadata.revokedReason) parts.push(`Причина отзыва: "${metadata.revokedReason}"`);
     if (metadata.reason) parts.push(`Причина: "${metadata.reason}"`);
     if (metadata.sharePercent !== undefined) parts.push(`Доля: ${metadata.sharePercent}%`);
     if (metadata.requestedShare !== undefined) parts.push(`Запрошено: ${metadata.requestedShare}%`);
+    if (metadata.changes && typeof metadata.changes === 'object') {
+      const changed = Object.entries(metadata.changes)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      if (changed) parts.push(`Изменено: ${changed}`);
+    }
     if (metadata.after && typeof metadata.after === 'object') {
       const changed = Object.entries(metadata.after)
         .map(([k, v]) => `${k}: ${v}`)
@@ -301,6 +352,12 @@ export default function AuditLogPage() {
             <option value="LISTING_MODERATED">{t('auditLog.actions.LISTING_MODERATED')}</option>
             <option value="OWNERSHIP_VERIFIED">{t('auditLog.actions.OWNERSHIP_VERIFIED')}</option>
             <option value="OWNERSHIP_REJECTED">{t('auditLog.actions.OWNERSHIP_REJECTED')}</option>
+            <option value="OWNERSHIP_UNLINKED">{t('auditLog.actions.OWNERSHIP_UNLINKED')}</option>
+            <option value="ACCESS_POINT_CREATED">{t('auditLog.actions.ACCESS_POINT_CREATED')}</option>
+            <option value="ACCESS_POINT_UPDATED">{t('auditLog.actions.ACCESS_POINT_UPDATED')}</option>
+            <option value="GUEST_PASS_ISSUED">{t('auditLog.actions.GUEST_PASS_ISSUED')}</option>
+            <option value="GUEST_PASS_REVOKED">{t('auditLog.actions.GUEST_PASS_REVOKED')}</option>
+            <option value="SOS_RESOLVED">{t('auditLog.actions.SOS_RESOLVED')}</option>
           </select>
         </div>
 

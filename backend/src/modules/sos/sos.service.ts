@@ -18,6 +18,7 @@ import {
 } from './dto/sos.dto';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { buildCsv } from '../../common/csv/csv.helper';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class SosService {
@@ -26,6 +27,7 @@ export class SosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly auditLogService: AuditLogService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
@@ -532,6 +534,18 @@ export class SosService {
     } catch (e) {
       this.logger.warn(`Failed to emit sos.alert.updated event: ${e}`);
     }
+
+    await this.auditLogService.log({
+      tenantId: alert.tenantId,
+      actorId: user.id,
+      action: 'SOS_RESOLVED',
+      targetType: 'SosAlert',
+      targetId: alertId,
+      metadata: {
+        status: dto.status,
+        resolutionNote: dto.note?.trim() || null,
+      },
+    });
 
     return updatedAlert;
   }

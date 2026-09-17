@@ -130,6 +130,18 @@ export class AuditLogService {
           return 'Подтверждение собственности';
         case 'OWNERSHIP_REJECTED':
           return 'Отклонение собственности';
+        case 'OWNERSHIP_UNLINKED':
+          return 'Отвязка собственности';
+        case 'ACCESS_POINT_CREATED':
+          return 'Создание точки доступа';
+        case 'ACCESS_POINT_UPDATED':
+          return 'Изменение точки доступа';
+        case 'GUEST_PASS_ISSUED':
+          return 'Выдача гостевого пропуска';
+        case 'GUEST_PASS_REVOKED':
+          return 'Отзыв гостевого пропуска';
+        case 'SOS_RESOLVED':
+          return 'Обработка SOS-вызова';
         default:
           return action;
       }

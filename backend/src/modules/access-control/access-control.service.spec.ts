@@ -6,12 +6,14 @@ import { RedisService } from '../../redis/redis.service';
 import * as bcrypt from 'bcryptjs';
 import { AccessPointType, UserRole } from '@prisma/client';
 import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('AccessControlService (Аудит безопасности СКУД, IDOR и go2rtc)', () => {
   let service: AccessControlService;
   let prismaMock: any;
   let configServiceMock: any;
   let redisMock: any;
+  let auditLogServiceMock: any;
   let redisStore: Map<string, string>;
 
   beforeEach(async () => {
@@ -72,12 +74,17 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       }),
     };
 
+    auditLogServiceMock = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AccessControlService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: ConfigService, useValue: configServiceMock },
         { provide: RedisService, useValue: redisMock },
+        { provide: AuditLogService, useValue: auditLogServiceMock },
       ],
     }).compile();
 
@@ -1609,6 +1616,204 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       });
 
       expect(filename).toBe('guest-passes-tenant-1-2026-09-01_2026-09-14.csv');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Audit logging (Task 0081: Audit trail expansion)
+  // -----------------------------------------------------------------------
+  describe('Audit logging (Task 0081: ACCESS_POINT and GUEST_PASS actions)', () => {
+    const adminUser = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+    const residentUser = { id: 'resident-1', role: UserRole.RESIDENT_OWNER, tenantId: 'tenant-1' };
+
+    it('createAccessPoint: логирует ACCESS_POINT_CREATED на успехе и не логирует при ошибке прав', async () => {
+      prismaMock.accessPoint.create.mockResolvedValue({
+        id: 'ap-new-1',
+        tenantId: 'tenant-1',
+        name: 'Шлагбаум Западный',
+        type: AccessPointType.BARRIER,
+      });
+
+      const res = await service.createAccessPoint(adminUser, 'tenant-1', {
+        name: 'Шлагбаум Западный',
+        type: AccessPointType.BARRIER,
+      });
+
+      expect(res.id).toBe('ap-new-1');
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
+        actorId: 'admin-1',
+        action: 'ACCESS_POINT_CREATED',
+        targetType: 'AccessPoint',
+        targetId: 'ap-new-1',
+        metadata: {
+          name: 'Шлагбаум Западный',
+          type: AccessPointType.BARRIER,
+        },
+      });
+
+      auditLogServiceMock.log.mockClear();
+
+      // Ошибка прав: житель пытается создать точку доступа
+      await expect(
+        service.createAccessPoint(residentUser, 'tenant-1', {
+          name: 'Шлагбаум',
+          type: AccessPointType.BARRIER,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+
+    it('updateAccessPoint: логирует ACCESS_POINT_UPDATED с before/after на успехе и не логирует если не найдено', async () => {
+      const existingAp = {
+        id: 'ap-1',
+        tenantId: 'tenant-1',
+        name: 'Старое имя',
+        type: AccessPointType.BARRIER,
+        isActive: true,
+      };
+
+      prismaMock.accessPoint.findUnique.mockResolvedValue(existingAp);
+      prismaMock.accessPoint.update.mockResolvedValue({
+        ...existingAp,
+        name: 'Новое имя',
+        isActive: false,
+      });
+
+      const res = await service.updateAccessPoint(adminUser, 'ap-1', {
+        name: 'Новое имя',
+        isActive: false,
+      });
+
+      expect(res.name).toBe('Новое имя');
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
+        actorId: 'admin-1',
+        action: 'ACCESS_POINT_UPDATED',
+        targetType: 'AccessPoint',
+        targetId: 'ap-1',
+        metadata: {
+          before: {
+            name: 'Старое имя',
+            type: AccessPointType.BARRIER,
+            isActive: true,
+          },
+          after: {
+            name: 'Новое имя',
+            isActive: false,
+          },
+        },
+      });
+
+      auditLogServiceMock.log.mockClear();
+
+      // Не найдено
+      prismaMock.accessPoint.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateAccessPoint(adminUser, 'non-existent', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+
+    it('createGuestPass: логирует GUEST_PASS_ISSUED на успехе и не логирует при ошибке прав', async () => {
+      prismaMock.unit.findUnique.mockResolvedValue({
+        id: 'unit-10',
+        building: { tenantId: 'tenant-1' },
+      });
+      prismaMock.guestPass.create.mockResolvedValue({
+        id: 'pass-issued-1',
+        unitId: 'unit-10',
+        creatorId: 'admin-1',
+        guestName: 'Алихан',
+      });
+
+      const res = await service.createGuestPass(adminUser, {
+        unitId: 'unit-10',
+        guestName: 'Алихан',
+        validFrom: new Date().toISOString(),
+        validTo: new Date(Date.now() + 3600000).toISOString(),
+      });
+
+      expect(res.id).toBe('pass-issued-1');
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
+        actorId: 'admin-1',
+        action: 'GUEST_PASS_ISSUED',
+        targetType: 'GuestPass',
+        targetId: 'pass-issued-1',
+        metadata: {
+          guestName: 'Алихан',
+          unitId: 'unit-10',
+        },
+      });
+
+      auditLogServiceMock.log.mockClear();
+
+      // Ошибка: юнит в другом ЖК для персонала
+      prismaMock.unit.findUnique.mockResolvedValue({
+        id: 'unit-10',
+        building: { tenantId: 'tenant-OTHER' },
+      });
+      await expect(
+        service.createGuestPass(adminUser, {
+          unitId: 'unit-10',
+          guestName: 'Алихан',
+          validFrom: new Date().toISOString(),
+          validTo: new Date(Date.now() + 3600000).toISOString(),
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+
+    it('revokeGuestPass: логирует GUEST_PASS_REVOKED на успехе и не логирует при повторном отзыве', async () => {
+      const mockPass = {
+        id: 'pass-rev-audit-1',
+        unitId: 'unit-1',
+        creatorId: 'admin-1',
+        guestName: 'Айдар',
+        isRevoked: false,
+        isUsed: false,
+        validTo: new Date(Date.now() + 3600000),
+        unit: {
+          building: { tenantId: 'tenant-1' },
+        },
+      };
+
+      prismaMock.guestPass.findUnique.mockResolvedValue(mockPass);
+      prismaMock.guestPass.update.mockResolvedValue({
+        ...mockPass,
+        isRevoked: true,
+      });
+
+      await service.revokeGuestPass('pass-rev-audit-1', adminUser);
+
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
+        actorId: 'admin-1',
+        action: 'GUEST_PASS_REVOKED',
+        targetType: 'GuestPass',
+        targetId: 'pass-rev-audit-1',
+        metadata: {
+          guestName: 'Айдар',
+          unitId: 'unit-1',
+        },
+      });
+
+      auditLogServiceMock.log.mockClear();
+
+      // Повторный отзыв
+      prismaMock.guestPass.findUnique.mockResolvedValue({
+        ...mockPass,
+        isRevoked: true,
+      });
+      await expect(service.revokeGuestPass('pass-rev-audit-1', adminUser)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
   });
 });

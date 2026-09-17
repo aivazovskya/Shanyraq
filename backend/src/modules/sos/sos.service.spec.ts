@@ -8,11 +8,13 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UserRole, SosAlertStatus } from '@prisma/client';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('SosService', () => {
   let service: SosService;
   let prismaMock: any;
   let notificationsServiceMock: any;
+  let auditLogServiceMock: any;
 
   const mockTenantId = 'tenant-1';
   const mockAlertId = 'alert-sos-100';
@@ -124,11 +126,16 @@ describe('SosService', () => {
       sendToTenantRoles: jest.fn().mockResolvedValue({ sent: 3 }),
     };
 
+    auditLogServiceMock = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SosService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: NotificationsService, useValue: notificationsServiceMock },
+        { provide: AuditLogService, useValue: auditLogServiceMock },
       ],
     }).compile();
 
@@ -307,6 +314,17 @@ describe('SosService', () => {
           }),
         }),
       );
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: mockTenantId,
+        actorId: securityUser.id,
+        action: 'SOS_RESOLVED',
+        targetType: 'SosAlert',
+        targetId: mockAlertId,
+        metadata: {
+          status: SosAlertStatus.RESOLVED,
+          resolutionNote: 'Помощь оказана',
+        },
+      });
     });
 
     it('диспетчер может закрыть вызов как FALSE_ALARM', async () => {
@@ -323,9 +341,21 @@ describe('SosService', () => {
       });
 
       expect(res.status).toBe(SosAlertStatus.FALSE_ALARM);
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: mockTenantId,
+        actorId: dispatcherUser.id,
+        action: 'SOS_RESOLVED',
+        targetType: 'SosAlert',
+        targetId: mockAlertId,
+        metadata: {
+          status: SosAlertStatus.FALSE_ALARM,
+          resolutionNote: 'Случайное нажатие ребенком',
+        },
+      });
     });
 
     it('председатель ОСИ (HOA_CHAIRMAN) НЕ может закрыть вызов (read-only)', async () => {
+      auditLogServiceMock.log.mockClear();
       const promise = service.resolve(mockAlertId, hoaChairmanUser, {
         status: SosAlertStatus.RESOLVED,
       });
@@ -333,9 +363,11 @@ describe('SosService', () => {
       await expect(promise).rejects.toMatchObject({
         response: { code: 'SOS.CHAIRMAN_VIEW_ONLY' },
       });
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
 
     it('персонал чужого ЖК не может закрыть вызов (BOLA)', async () => {
+      auditLogServiceMock.log.mockClear();
       prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
 
       const promise = service.resolve(mockAlertId, staffOtherTenantUser, {
@@ -345,9 +377,11 @@ describe('SosService', () => {
       await expect(promise).rejects.toMatchObject({
         response: { code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN' },
       });
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
 
     it('нельзя закрыть уже обработанный вызов повторно', async () => {
+      auditLogServiceMock.log.mockClear();
       prismaMock.sosAlert.findUnique.mockResolvedValue({
         ...mockAlert,
         status: SosAlertStatus.RESOLVED,
@@ -360,6 +394,7 @@ describe('SosService', () => {
       await expect(promise).rejects.toMatchObject({
         response: { code: 'SOS.ALREADY_PROCESSED' },
       });
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
   });
 

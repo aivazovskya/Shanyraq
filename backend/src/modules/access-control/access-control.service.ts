@@ -19,6 +19,7 @@ import {
 import { AccessPointType, UserRole } from '@prisma/client';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { buildCsv } from '../../common/csv/csv.helper';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 export interface IBarrierAdapter {
   triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }>;
@@ -274,6 +275,7 @@ export class AccessControlService {
     private prisma: PrismaService,
     private configService: ConfigService,
     private redisService: RedisService,
+    private readonly auditLogService: AuditLogService,
   ) {
     this.hikvisionAdapter = new HikvisionIsapiAdapter(this.configService);
   }
@@ -325,7 +327,7 @@ export class AccessControlService {
     }
     assertUserBelongsToTenant(user, tenantId, 'точек доступа');
 
-    return this.prisma.accessPoint.create({
+    const point = await this.prisma.accessPoint.create({
       data: {
         tenantId,
         name: dto.name.trim(),
@@ -336,6 +338,20 @@ export class AccessControlService {
         streamName: dto.streamName?.trim() || null,
       },
     });
+
+    await this.auditLogService.log({
+      tenantId,
+      actorId: user.id,
+      action: 'ACCESS_POINT_CREATED',
+      targetType: 'AccessPoint',
+      targetId: point.id,
+      metadata: {
+        name: dto.name,
+        type: dto.type,
+      },
+    });
+
+    return point;
   }
 
   async updateAccessPoint(
@@ -363,7 +379,7 @@ export class AccessControlService {
 
     assertUserBelongsToTenant(user, accessPoint.tenantId, 'точек доступа');
 
-    return this.prisma.accessPoint.update({
+    const updated = await this.prisma.accessPoint.update({
       where: { id: accessPointId },
       data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
@@ -375,6 +391,33 @@ export class AccessControlService {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
+
+    const changedFields: Record<string, any> = {};
+    if (dto.name !== undefined) changedFields.name = dto.name.trim();
+    if (dto.type !== undefined) changedFields.type = dto.type;
+    if (dto.controllerType !== undefined) changedFields.controllerType = dto.controllerType.trim();
+    if (dto.endpointUrl !== undefined) changedFields.endpointUrl = dto.endpointUrl?.trim() || null;
+    if (dto.rtspStreamUrl !== undefined) changedFields.rtspStreamUrl = dto.rtspStreamUrl?.trim() || null;
+    if (dto.streamName !== undefined) changedFields.streamName = dto.streamName?.trim() || null;
+    if (dto.isActive !== undefined) changedFields.isActive = dto.isActive;
+
+    await this.auditLogService.log({
+      tenantId: accessPoint.tenantId,
+      actorId: user.id,
+      action: 'ACCESS_POINT_UPDATED',
+      targetType: 'AccessPoint',
+      targetId: accessPointId,
+      metadata: {
+        before: {
+          name: accessPoint.name,
+          type: accessPoint.type,
+          isActive: accessPoint.isActive,
+        },
+        after: changedFields,
+      },
+    });
+
+    return updated;
   }
 
   async healthCheck(
@@ -705,8 +748,15 @@ export class AccessControlService {
       UserRole.SECURITY,
     ] as UserRole[]).includes(user.role);
 
+    let passTenantId: string | null = null;
+
     if (user.role === UserRole.SUPERADMIN) {
       // SUPERADMIN bypasses all ownership and tenant checks
+      const unit = await this.prisma.unit.findUnique({
+        where: { id: dto.unitId },
+        include: { building: true },
+      });
+      passTenantId = unit?.building?.tenantId || null;
     } else if (isStaff) {
       const unit = await this.prisma.unit.findUnique({
         where: { id: dto.unitId },
@@ -726,6 +776,7 @@ export class AccessControlService {
           message: 'Персонал имеет право оформлять гостевые пропуска только для квартир своего жилого комплекса',
         });
       }
+      passTenantId = unit.building?.tenantId || user.tenantId || null;
     } else {
       const ownership = await this.prisma.unitOwnership.findFirst({
         where: {
@@ -741,11 +792,12 @@ export class AccessControlService {
           message: 'IDOR защита: вы можете оформлять гостевой пропуск только для своей подтвержденной квартиры',
         });
       }
+      passTenantId = user.tenantId || null;
     }
 
     const accessCode = crypto.randomInt(100000, 1000000).toString();
 
-    return this.prisma.guestPass.create({
+    const pass = await this.prisma.guestPass.create({
       data: {
         unitId: dto.unitId,
         creatorId: user.id,
@@ -757,6 +809,22 @@ export class AccessControlService {
         validTo: new Date(dto.validTo),
       },
     });
+
+    if (passTenantId) {
+      await this.auditLogService.log({
+        tenantId: passTenantId,
+        actorId: user.id,
+        action: 'GUEST_PASS_ISSUED',
+        targetType: 'GuestPass',
+        targetId: pass.id,
+        metadata: {
+          guestName: dto.guestName,
+          unitId: dto.unitId,
+        },
+      });
+    }
+
+    return pass;
   }
 
   computeGuestPassStatus(pass: {
@@ -947,6 +1015,21 @@ export class AccessControlService {
         },
       },
     });
+
+    const tenantId = pass.unit?.building?.tenantId || user.tenantId;
+    if (tenantId) {
+      await this.auditLogService.log({
+        tenantId,
+        actorId: user.id,
+        action: 'GUEST_PASS_REVOKED',
+        targetType: 'GuestPass',
+        targetId: passId,
+        metadata: {
+          guestName: pass.guestName,
+          unitId: pass.unitId,
+        },
+      });
+    }
 
     return {
       ...updated,

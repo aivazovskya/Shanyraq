@@ -1256,7 +1256,13 @@
       "RESIDENT_DEACTIVATED": "Деактивация жильца",
       "LISTING_MODERATED": "Модерация объявления",
       "OWNERSHIP_VERIFIED": "Подтверждение собственности",
-      "OWNERSHIP_REJECTED": "Отклонение собственности"
+      "OWNERSHIP_REJECTED": "Отклонение собственности",
+      "OWNERSHIP_UNLINKED": "Отвязка собственности",
+      "ACCESS_POINT_CREATED": "Создание точки доступа",
+      "ACCESS_POINT_UPDATED": "Изменение точки доступа",
+      "GUEST_PASS_ISSUED": "Выдача гостевого пропуска",
+      "GUEST_PASS_REVOKED": "Отзыв гостевого пропуска",
+      "SOS_RESOLVED": "Разрешение SOS-вызова"
     },
     "selectTenantPlaceholder": "Выберите ЖК...",
     "selectTenantPromptTitle": "Выберите жилой комплекс",

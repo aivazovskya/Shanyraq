@@ -1256,7 +1256,13 @@
       "RESIDENT_DEACTIVATED": "Тұрғынды өшіру",
       "LISTING_MODERATED": "Хабарландыруды модерациялау",
       "OWNERSHIP_VERIFIED": "Меншікті растау",
-      "OWNERSHIP_REJECTED": "Меншіктен бас тарту"
+      "OWNERSHIP_REJECTED": "Меншіктен бас тарту",
+      "OWNERSHIP_UNLINKED": "Меншікті ажырату",
+      "ACCESS_POINT_CREATED": "Кіру нүктесін құру",
+      "ACCESS_POINT_UPDATED": "Кіру нүктесін өзгерту",
+      "GUEST_PASS_ISSUED": "Қонақ рұқсатнамасын беру",
+      "GUEST_PASS_REVOKED": "Қонақ рұқсатнамасын қайтарып алу",
+      "SOS_RESOLVED": "SOS шақыруын шешу"
     },
     "selectTenantPlaceholder": "ТК таңдаңыз...",
     "selectTenantPromptTitle": "Тұрғын үй кешенін таңдаңыз",

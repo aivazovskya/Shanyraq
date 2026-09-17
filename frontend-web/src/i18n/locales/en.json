@@ -1256,7 +1256,13 @@
       "RESIDENT_DEACTIVATED": "Resident deactivated",
       "LISTING_MODERATED": "Listing moderated",
       "OWNERSHIP_VERIFIED": "Ownership verified",
-      "OWNERSHIP_REJECTED": "Ownership rejected"
+      "OWNERSHIP_REJECTED": "Ownership rejected",
+      "OWNERSHIP_UNLINKED": "Ownership unlinked",
+      "ACCESS_POINT_CREATED": "Access point created",
+      "ACCESS_POINT_UPDATED": "Access point updated",
+      "GUEST_PASS_ISSUED": "Guest pass issued",
+      "GUEST_PASS_REVOKED": "Guest pass revoked",
+      "SOS_RESOLVED": "SOS resolved"
     },
     "selectTenantPlaceholder": "Select Complex...",
     "selectTenantPromptTitle": "Select residential complex",

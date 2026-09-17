@@ -1192,4 +1192,86 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       expect(lines).toHaveLength(1);
     });
   });
+
+  describe('unlinkOwnership (Audit trail: OWNERSHIP_UNLINKED)', () => {
+    const staffUser = {
+      id: 'staff-admin-1',
+      role: UserRole.HOA_ADMIN,
+      tenantId: 'tenant-1',
+    };
+
+    const mockOwnership = {
+      id: 'ownership-123',
+      userId: 'user-resident-1',
+      unitId: 'unit-456',
+      isVerified: true,
+      unit: {
+        unitNumber: '101',
+        building: {
+          tenantId: 'tenant-1',
+        },
+      },
+    };
+
+    it('должен отвязывать подтвержденное владение и логировать событие OWNERSHIP_UNLINKED', async () => {
+      prismaMock.unitOwnership.findUnique.mockResolvedValue(mockOwnership);
+      prismaMock.unitOwnership.delete.mockResolvedValue(mockOwnership);
+      prismaMock.unitOwnership.count.mockResolvedValue(1); // 1 remaining
+
+      const res = await service.unlinkOwnership('ownership-123', staffUser);
+
+      expect(res.success).toBe(true);
+      expect(prismaMock.unitOwnership.delete).toHaveBeenCalledWith({ where: { id: 'ownership-123' } });
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-1',
+        actorId: staffUser.id,
+        action: 'OWNERSHIP_UNLINKED',
+        targetType: 'UnitOwnership',
+        targetId: 'ownership-123',
+        metadata: {
+          residentId: 'user-resident-1',
+          unitId: 'unit-456',
+          unitNumber: '101',
+        },
+      });
+    });
+
+    it('не должен логировать аудит, если владение не найдено', async () => {
+      prismaMock.unitOwnership.findUnique.mockResolvedValue(null);
+
+      await expect(service.unlinkOwnership('non-existent', staffUser)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+
+    it('не должен логировать аудит, если владение неподтверждено (isVerified=false)', async () => {
+      prismaMock.unitOwnership.findUnique.mockResolvedValue({
+        ...mockOwnership,
+        isVerified: false,
+      });
+
+      await expect(service.unlinkOwnership('ownership-123', staffUser)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+
+    it('не должен логировать аудит при попытке отвязки в чужом ЖК', async () => {
+      prismaMock.unitOwnership.findUnique.mockResolvedValue({
+        ...mockOwnership,
+        unit: {
+          unitNumber: '101',
+          building: {
+            tenantId: 'tenant-OTHER',
+          },
+        },
+      });
+
+      await expect(service.unlinkOwnership('ownership-123', staffUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+  });
 });

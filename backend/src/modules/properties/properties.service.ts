@@ -861,6 +861,19 @@ export class PropertiesService {
       });
     }
 
+    await this.auditLogService.log({
+      tenantId: ownership.unit.building.tenantId,
+      actorId: staffUser.id,
+      action: 'OWNERSHIP_UNLINKED',
+      targetType: 'UnitOwnership',
+      targetId: ownershipId,
+      metadata: {
+        residentId: ownership.userId,
+        unitId: ownership.unitId,
+        unitNumber: ownership.unit.unitNumber,
+      },
+    });
+
     return {
       success: true,
       message: 'Квартира успешно отвязана от жильца',
