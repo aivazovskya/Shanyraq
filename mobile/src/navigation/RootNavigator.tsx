@@ -9,6 +9,7 @@ import { StaffMainTabs } from './StaffMainTabs';
 import { StaffChatThreadScreen } from '../screens/staff/StaffChatThreadScreen';
 import { StaffAccessLogScreen } from '../screens/staff/StaffAccessLogScreen';
 import { StaffGuestPassScreen } from '../screens/staff/StaffGuestPassScreen';
+import { StaffShiftHandoverScreen } from '../screens/staff/StaffShiftHandoverScreen';
 import { ClaimUnitScreen } from '../screens/onboarding/ClaimUnitScreen';
 import { VotingDetailsScreen } from '../screens/votings/VotingDetailsScreen';
 import { CreateRequestScreen } from '../screens/requests/CreateRequestScreen';
@@ -50,6 +51,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="RequestDetail" component={RequestDetailScreen} />
             <Stack.Screen name="StaffAccessLog" component={StaffAccessLogScreen} />
             <Stack.Screen name="StaffGuestPass" component={StaffGuestPassScreen} />
+            <Stack.Screen name="StaffShiftHandover" component={StaffShiftHandoverScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>
         ) : !hasOwnership ? (

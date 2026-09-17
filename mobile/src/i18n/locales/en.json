@@ -733,6 +733,12 @@
       "STORAGE_ERROR": "Error saving file to storage",
       "FILE_MISSING": "File not provided in the \"file\" field",
       "INVALID_MIME_TYPE": "Invalid file type. Only JPEG, PNG, WebP, and PDF are allowed"
+    },
+    "SHIFT_HANDOVER": {
+      "POST_FORBIDDEN": "You do not have permission to post shift handover notes",
+      "VIEW_FORBIDDEN": "You do not have permission to view shift handover notes",
+      "CONTENT_REQUIRED": "Note text cannot be empty",
+      "CONTENT_TOO_LONG": "Note text exceeds the maximum allowed length"
     }
   },
   "staff": {
@@ -872,6 +878,21 @@
       "noHistory": "No guest passes in this complex",
       "issuedBy": "Issued by: {{name}}",
       "revokedByLabel": "Revoked by: {{name}}"
+    },
+    "shiftHandover": {
+      "cardLabel": "Security & Dispatch",
+      "cardTitle": "Shift Handover",
+      "cardSubtitle": "Logbook of notes between security and dispatch shifts",
+      "screenTitle": "Shift Handover",
+      "emptyTitle": "No notes yet",
+      "emptySubtitle": "No shift handover notes have been posted yet",
+      "composePlaceholder": "Leave a note for the next shift...",
+      "submitButton": "Post Note",
+      "submitting": "Posting...",
+      "charCount": "{{count}}/2000",
+      "loadError": "Failed to load shift logbook",
+      "postError": "Failed to post handover note",
+      "retry": "Retry"
     }
   },
   "notifications": {

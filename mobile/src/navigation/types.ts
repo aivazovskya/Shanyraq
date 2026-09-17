@@ -29,6 +29,7 @@ export type RootStackParamList = {
   StaffChatThread: { conversationId: string; residentName?: string; unitInfo?: string };
   StaffAccessLog: undefined;
   StaffGuestPass: undefined;
+  StaffShiftHandover: undefined;
   VotingDetails: { meetingId: string };
   CreateRequest: undefined;
   RequestDetail: { requestId: string };

@@ -36,6 +36,7 @@ import {
   Shield,
   KeyRound,
   Bell,
+  BookOpen,
 } from 'lucide-react-native';
 
 export const StaffHomeScreen: React.FC = () => {
@@ -62,6 +63,7 @@ export const StaffHomeScreen: React.FC = () => {
   const canShowRequests = canAccessRequests(user?.role);
   const canShowLogs = canAccessLogs(user?.role);
   const canShowGuestPass = isStaffUser(user?.role);
+  const canShowShiftHandover = isStaffUser(user?.role);
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -291,6 +293,34 @@ export const StaffHomeScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
+        {/* Shift Handover Quick Action (all 4 staff roles) */}
+        {canShowShiftHandover && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('StaffShiftHandover')}
+            activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.shiftHandoverCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.shiftHandoverIconCircle]}>
+                  <BookOpen size={20} color="#7C3AED" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#7C3AED' }]}>
+                    {t('staff.shiftHandover.cardLabel')}
+                  </Text>
+                  <Text style={styles.shiftHandoverCardTitle}>
+                    {t('staff.shiftHandover.cardTitle')}
+                  </Text>
+                  <Text style={styles.shiftHandoverCardSubtitle}>
+                    {t('staff.shiftHandover.cardSubtitle')}
+                  </Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
         {/* Operational Modules Preview / Status */}
         <Card style={styles.card}>
           <View style={styles.cardHeader}>
@@ -483,6 +513,25 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   guestPassCardSubtitle: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  shiftHandoverCard: {
+    borderColor: Colors.border,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  shiftHandoverIconCircle: {
+    backgroundColor: '#F5F3FF',
+  },
+  shiftHandoverCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.text,
+    marginTop: 2,
+  },
+  shiftHandoverCardSubtitle: {
     fontSize: 13,
     color: Colors.textMuted,
     marginTop: 2,
