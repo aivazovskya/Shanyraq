@@ -784,6 +784,13 @@ export class AccessControlService {
           unitId: dto.unitId,
           isVerified: true,
         },
+        include: {
+          unit: {
+            include: {
+              building: true,
+            },
+          },
+        },
       });
 
       if (!ownership) {
@@ -792,7 +799,7 @@ export class AccessControlService {
           message: 'IDOR защита: вы можете оформлять гостевой пропуск только для своей подтвержденной квартиры',
         });
       }
-      passTenantId = user.tenantId || null;
+      passTenantId = ownership.unit?.building?.tenantId || null;
     }
 
     const accessCode = crypto.randomInt(100000, 1000000).toString();

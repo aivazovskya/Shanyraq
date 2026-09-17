@@ -992,6 +992,13 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
           unitId: 'unit-1',
           isVerified: true,
         },
+        include: {
+          unit: {
+            include: {
+              building: true,
+            },
+          },
+        },
       });
     });
 
@@ -1766,6 +1773,55 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       ).rejects.toThrow(ForbiddenException);
 
       expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+    });
+
+    it('createGuestPass: резидент успешно логирует GUEST_PASS_ISSUED с tenantId из ownership.unit.building.tenantId', async () => {
+      const residentUser = {
+        id: 'res-audit-1',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: null, // У резидента нет direct tenantId в таблице User
+      };
+
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-audit-1',
+        userId: 'res-audit-1',
+        unitId: 'unit-audit-10',
+        isVerified: true,
+        unit: {
+          id: 'unit-audit-10',
+          building: {
+            id: 'b-audit-1',
+            tenantId: 'tenant-from-building-100',
+          },
+        },
+      });
+
+      prismaMock.guestPass.create.mockResolvedValue({
+        id: 'pass-resident-audit-1',
+        unitId: 'unit-audit-10',
+        creatorId: 'res-audit-1',
+        guestName: 'Дамир',
+      });
+
+      const res = await service.createGuestPass(residentUser, {
+        unitId: 'unit-audit-10',
+        guestName: 'Дамир',
+        validFrom: new Date().toISOString(),
+        validTo: new Date(Date.now() + 3600000).toISOString(),
+      });
+
+      expect(res.id).toBe('pass-resident-audit-1');
+      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+        tenantId: 'tenant-from-building-100',
+        actorId: 'res-audit-1',
+        action: 'GUEST_PASS_ISSUED',
+        targetType: 'GuestPass',
+        targetId: 'pass-resident-audit-1',
+        metadata: {
+          guestName: 'Дамир',
+          unitId: 'unit-audit-10',
+        },
+      });
     });
 
     it('revokeGuestPass: логирует GUEST_PASS_REVOKED на успехе и не логирует при повторном отзыве', async () => {
