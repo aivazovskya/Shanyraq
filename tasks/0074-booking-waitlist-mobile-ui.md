@@ -177,6 +177,24 @@ flatten-and-diff key-count comparison used throughout this project.
 
 ---
 
+## Review addendum (2026-09-14) — accepted, one trivial note
+
+Independently verified by reading the full diff and re-running the checks myself:
+
+- `BookingsApi.joinWaitlist`/`getMyWaitlist`/`leaveWaitlist` match the Task 0070 backend contract exactly, including the `resource: { id, name, type }` shape returned by `getMyWaitlistEntries`'s `include` (checked against `bookings.service.ts:441-449` directly) — the mobile `WaitlistEntry` interface isn't guessing at the response shape.
+- `handleConfirmBooking`'s new branch checks `err?.response?.data?.code === 'BOOKINGS.SLOT_CONFLICT'` and reuses the *exact* `startDate`/`endDate` already computed earlier in the same function scope for the join call — confirmed by reading the closure, not re-derived from form state a second time. This was the one property most worth checking given this task's stated central risk, and it's correct.
+- Third `WAITLIST` tab reuses the already-imported-but-previously-unused `Layers` icon exactly as instructed, reuses `formatSlotTime`/`formatDateLabel` rather than reinventing date formatting, and mirrors `handleCancelBooking`'s existing confirm-then-act `Alert.alert` pattern for `handleLeaveWaitlist`. `Badge variant="warning"` is a real variant on the shared `Badge` component (verified in `components/common/Badge.tsx`), not a typo.
+- i18n: 4 new `errors.BOOKINGS.*` keys plus 10 new `bookings.*` keys added identically to all three dictionaries. Reran the flatten-and-diff check myself: 807/807/807 keys across ru/kk/en, zero missing/extra in either direction.
+- `npx tsc --noEmit` clean in `mobile/` (confirmed independently).
+
+**One trivial, non-blocking note:** the new `bookings.waitlistSlotLabel` i18n key exists in all three dictionaries but is never referenced anywhere in `BookingsScreen.tsx` — a harmless unused key (doesn't affect parity or behavior), not worth a fix-and-resubmit cycle on its own.
+
+No live device/simulator available in this environment to visually exercise the flow (same limitation as every UI task this session lacking a running app); verification here relies on the diff read, the contract cross-check against the backend, and a clean `tsc`.
+
+Task accepted, no fixes required.
+
+---
+
 ## Implementation Summary (Completed)
 
 - **API client (`mobile/src/api/bookings.ts`):**
