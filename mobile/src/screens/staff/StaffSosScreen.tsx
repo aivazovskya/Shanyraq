@@ -17,7 +17,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
-import { sosApi, SosAlert } from '../../api/sos';
+import { sosApi, SosAlert, SosStatistics } from '../../api/sos';
 import { createRealtimeSocket } from '../../lib/socket';
 import { Socket } from 'socket.io-client';
 import { Colors } from '../../constants/colors';
@@ -47,6 +47,7 @@ export const StaffSosScreen: React.FC = () => {
   const isChairman = user?.role === 'HOA_CHAIRMAN';
 
   const [alerts, setAlerts] = useState<SosAlert[]>([]);
+  const [stats, setStats] = useState<SosStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -86,6 +87,17 @@ export const StaffSosScreen: React.FC = () => {
     },
     [tenantId, t],
   );
+
+  const loadStats = useCallback(async () => {
+    if (!tenantId) return;
+    try {
+      const data = await sosApi.getStatistics(tenantId);
+      setStats(data);
+    } catch (err) {
+      console.warn('Failed to load SOS statistics:', err);
+      // Fails silently per decision #5
+    }
+  }, [tenantId]);
 
   // Real-time WebSocket connection while screen is focused
   useFocusEffect(
@@ -133,6 +145,7 @@ export const StaffSosScreen: React.FC = () => {
       };
 
       initSocket();
+      loadStats();
 
       return () => {
         active = false;
@@ -141,7 +154,7 @@ export const StaffSosScreen: React.FC = () => {
           socket.disconnect();
         }
       };
-    }, [tenantId, loadAlerts]),
+    }, [tenantId, loadAlerts, loadStats]),
   );
 
   const formatElapsed = (createdAtStr: string) => {
@@ -364,7 +377,10 @@ export const StaffSosScreen: React.FC = () => {
         </View>
 
         <TouchableOpacity
-          onPress={() => loadAlerts(false)}
+          onPress={() => {
+            loadAlerts(false);
+            loadStats();
+          }}
           disabled={refreshing}
           style={styles.refreshBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -401,11 +417,51 @@ export const StaffSosScreen: React.FC = () => {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => loadAlerts(true)}
+              onRefresh={() => {
+                loadAlerts(true);
+                loadStats();
+              }}
               colors={['#DC2626']}
             />
           }
         >
+          {/* Mini Stats Summary (Task 0080) */}
+          {stats && (
+            <View style={styles.statsContainer}>
+              {/* Card 1: 30-day Total Alerts */}
+              <View style={styles.statCard}>
+                <Text style={styles.statCardValue}>{stats.totalAlerts}</Text>
+                <Text style={styles.statCardLabel}>{t('staff.sos.stats.total30d')}</Text>
+                <Text style={styles.statCardSub} numberOfLines={1}>
+                  {stats.byStatus.RESOLVED} {t('staff.sos.status.RESOLVED').toLowerCase()} · {stats.byStatus.FALSE_ALARM} {t('staff.sos.status.FALSE_ALARM').toLowerCase()}
+                </Text>
+              </View>
+
+              {/* Card 2: Active Alerts Now (from live alerts list) */}
+              <View style={[styles.statCard, activeAlerts.length > 0 && styles.statCardActiveAlert]}>
+                <Text style={[styles.statCardValue, activeAlerts.length > 0 && styles.statCardValueAlert]}>
+                  {activeAlerts.length}
+                </Text>
+                <Text style={styles.statCardLabel}>{t('staff.sos.stats.activeNow')}</Text>
+                <Text style={styles.statCardSub} numberOfLines={1}>
+                  {activeAlerts.length > 0 ? t('staff.sos.stats.requiresAttention') : t('staff.sos.stats.allClear')}
+                </Text>
+              </View>
+
+              {/* Card 3: Avg Response Time */}
+              <View style={styles.statCard}>
+                <Text style={styles.statCardValue}>
+                  {stats.averageResponseTimeMinutes > 0 ? stats.averageResponseTimeMinutes : '0'}
+                  <Text style={styles.statCardUnit}> {t('staff.sos.timeMin')}</Text>
+                </Text>
+                <Text style={styles.statCardLabel}>{t('staff.sos.stats.avgResponseTime')}</Text>
+                <Text style={styles.statCardSub} numberOfLines={1}>
+                  {t('staff.sos.stats.resolvedOnly')}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Active Alerts Section */}
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
@@ -643,6 +699,53 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statCardActiveAlert: {
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  statCardValue: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  statCardValueAlert: {
+    color: Colors.danger,
+  },
+  statCardUnit: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: Colors.textMuted,
+  },
+  statCardLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  statCardSub: {
+    fontSize: 9,
+    color: Colors.textMuted,
+    marginTop: 2,
+    textAlign: 'center',
   },
   sectionHeader: {
     marginBottom: 12,

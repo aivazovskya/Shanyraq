@@ -793,7 +793,15 @@
       },
       "resolvedBy": "Resolved by",
       "goToSos": "Go to SOS Dashboard",
-      "activeSosCount": "Active alerts: {{count}}"
+      "activeSosCount": "Active alerts: {{count}}",
+      "stats": {
+        "total30d": "Total (30d)",
+        "activeNow": "Active now",
+        "avgResponseTime": "Avg response",
+        "requiresAttention": "Needs attention",
+        "allClear": "All handled",
+        "resolvedOnly": "Resolved only"
+      }
     },
     "chatTab": "Resident Chat",
     "chat": {

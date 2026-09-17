@@ -38,6 +38,17 @@ export interface TriggerSosData {
   longitude?: number;
 }
 
+export interface SosStatistics {
+  totalAlerts: number;
+  byStatus: {
+    ACTIVE: number;
+    RESOLVED: number;
+    FALSE_ALARM: number;
+  };
+  averageResponseTimeMinutes: number;
+  dailyTrend: Array<{ date: string; count: number }>;
+}
+
 export const sosApi = {
   triggerSos: async (data: TriggerSosData = {}): Promise<SosAlert> => {
     const res = await apiClient.post<SosAlert>('/sos', data);
@@ -54,6 +65,11 @@ export const sosApi = {
     return res.data;
   },
 
+  getStatistics: async (tenantId: string): Promise<SosStatistics> => {
+    const res = await apiClient.get<SosStatistics>(`/sos/tenants/${tenantId}/statistics`);
+    return res.data;
+  },
+
   resolveSosAlert: async (
     id: string,
     data: { status: 'RESOLVED' | 'FALSE_ALARM'; note?: string },
@@ -62,3 +78,4 @@ export const sosApi = {
     return res.data;
   },
 };
+

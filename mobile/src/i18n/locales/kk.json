@@ -793,7 +793,15 @@
       },
       "resolvedBy": "Өңдеген",
       "goToSos": "SOS-шақыруларға өту",
-      "activeSosCount": "Белсенді дабылдар: {{count}}"
+      "activeSosCount": "Белсенді дабылдар: {{count}}",
+      "stats": {
+        "total30d": "Барлығы (30 к.)",
+        "activeNow": "Қазір белсенді",
+        "avgResponseTime": "Әрекет уақыты",
+        "requiresAttention": "Әрекет қажет",
+        "allClear": "Барлығы шешілген",
+        "resolvedOnly": "Тек шешілгендер"
+      }
     },
     "chatTab": "ТҮК чаты",
     "chat": {

@@ -793,7 +793,15 @@
       },
       "resolvedBy": "Обработал",
       "goToSos": "Перейти к SOS-вызовам",
-      "activeSosCount": "Активных сигналов: {{count}}"
+      "activeSosCount": "Активных сигналов: {{count}}",
+      "stats": {
+        "total30d": "Всего (30 дн.)",
+        "activeNow": "Активно сейчас",
+        "avgResponseTime": "Время реакции",
+        "requiresAttention": "Требует реакции",
+        "allClear": "Все обработаны",
+        "resolvedOnly": "Только решённые"
+      }
     },
     "chatTab": "Чат ЖК",
     "chat": {
