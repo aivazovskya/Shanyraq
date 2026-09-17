@@ -248,7 +248,10 @@
     "questionDescPlaceholder": "Пояснение к вопросу (опционально)",
     "daysLeftDynamic": "{{count}} дней",
     "searchPlaceholder": "Поиск по теме, описанию или номеру протокола...",
-    "noSearchResults": "По вашему запросу собраний не найдено"
+    "noSearchResults": "По вашему запросу собраний не найдено",
+    "exportCsvBtn": "Скачать CSV",
+    "exportingCsv": "Экспорт...",
+    "exportError": "Ошибка экспорта CSV"
   },
   "requests": {
     "title": "Service Desk (Заявки жителей)",
@@ -399,7 +402,10 @@
     "confirmRemoveBtn": "Удалить новость",
     "removingBtn": "Удаление...",
     "removedByStaff": "Новость удалена",
-    "cancelBtn": "Отмена"
+    "cancelBtn": "Отмена",
+    "exportCsvBtn": "Скачать CSV",
+    "exportingCsv": "Экспорт...",
+    "exportError": "Ошибка экспорта CSV"
   },
   "verifications": {
     "title": "Верификация прав собственности",
@@ -625,7 +631,12 @@
     "loadError": "Ошибка загрузки показаний",
     "loadingHistory": "Загрузка истории...",
     "unitElectricity": "кВт⋅ч",
-    "unitWater": "м³"
+    "unitWater": "м³",
+    "exportCsvBtn": "Скачать CSV",
+    "exportingCsv": "Экспорт...",
+    "exportMonth": "Месяц",
+    "exportYear": "Год",
+    "exportError": "Ошибка экспорта CSV"
   },
   "bookings": {
     "title": "Управление бронированиями",
@@ -747,7 +758,10 @@
     "periodFrom": "Период с",
     "periodTo": "по",
     "noTrendData": "Нет данных за выбранный период",
-    "alertsCount": "Количество вызовов"
+    "alertsCount": "Количество вызовов",
+    "exportCsvBtn": "Скачать CSV",
+    "exportingCsv": "Экспорт...",
+    "exportError": "Ошибка экспорта CSV"
   },
   "communityBoard": {
     "pageTitle": "Модерация доски объявлений",
@@ -809,7 +823,10 @@
     "today": "Сегодня",
     "yesterday": "Вчера",
     "apartment": "кв.",
-    "photoLabel": "Фото"
+    "photoLabel": "Фото",
+    "exportCsvBtn": "Скачать CSV",
+    "exportingCsv": "Экспорт...",
+    "exportError": "Ошибка экспорта CSV"
   },
   "analytics": {
     "pageTitle": "Расширенная аналитика",

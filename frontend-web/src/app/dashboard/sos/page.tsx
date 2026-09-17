@@ -17,6 +17,7 @@ import {
   FileText,
   Activity,
   Calendar,
+  Download,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -27,7 +28,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
-import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession, AuthUser } from '@/lib/api';
 import { createRealtimeSocket } from '@/lib/socket';
 
 export interface SosStatistics {
@@ -217,7 +218,35 @@ export default function SosDashboardPage() {
     };
   }, [tenantId, loadAlerts, loadStats, dateFrom, dateTo]);
 
+  // CSV Export state
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const isChairman = currentUser?.role === 'HOA_CHAIRMAN';
+  const canExportCsv = ['SECURITY', 'DISPATCHER', 'HOA_ADMIN', 'HOA_CHAIRMAN', 'SUPERADMIN'].includes(
+    currentUser?.role || '',
+  );
+
+  const handleExportCsv = async () => {
+    if (!tenantId) return;
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      const queryParams = new URLSearchParams();
+      if (dateFrom) queryParams.set('from', dateFrom);
+      if (dateTo) queryParams.set('to', dateTo);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      await apiDownload(
+        `/sos/tenants/${tenantId}/alerts/export${queryString}`,
+        `sos-alerts-${tenantId}.csv`,
+      );
+    } catch (err: any) {
+      setExportError(err.message || t('sos.exportError'));
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const handleOpenResolveModal = (alert: SosAlertItem, status: 'RESOLVED' | 'FALSE_ALARM') => {
     setSelectedAlert(alert);
@@ -323,7 +352,7 @@ export default function SosDashboardPage() {
             <p className="text-xs text-gray-500 mt-0.5">{t('sos.statsSubtitle')}</p>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
             <span className="text-xs font-medium text-gray-500">{t('sos.periodFrom')}</span>
             <input
               type="date"
@@ -338,8 +367,39 @@ export default function SosDashboardPage() {
               onChange={(e) => setDateTo(e.target.value)}
               className="px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-red-500 focus:border-red-500 outline-none"
             />
+            {canExportCsv && (
+              <button
+                onClick={handleExportCsv}
+                disabled={exportingCsv}
+                className="ml-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-60 shadow-sm"
+              >
+                {exportingCsv ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{t('sos.exportingCsv')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('sos.exportCsvBtn')}</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
+
+        {exportError && (
+          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-2 shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{exportError}</span>
+            </div>
+            <button onClick={() => setExportError(null)} className="text-red-400 hover:text-red-600">
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* 4 Compact KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

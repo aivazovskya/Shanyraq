@@ -16,8 +16,10 @@ import {
   User as UserIcon,
   Home,
   CheckCheck,
+  Download,
+  AlertCircle,
 } from 'lucide-react';
-import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession, AuthUser } from '@/lib/api';
 import { createRealtimeSocket } from '@/lib/socket';
 import { Socket } from 'socket.io-client';
 
@@ -94,6 +96,29 @@ export default function DispatcherChatPage() {
 
   // Photo modal preview
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+
+  // CSV Export state
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const canExportCsv = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(currentUser?.role || '');
+
+  const handleExportCsv = async () => {
+    if (!selectedConversationId) return;
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      await apiDownload(
+        `/chat/conversations/${selectedConversationId}/export`,
+        `chat-transcript-${selectedConversationId}.csv`,
+      );
+    } catch (err: any) {
+      setExportError(err.message || t('chat.exportError'));
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -533,6 +558,21 @@ export default function DispatcherChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {canExportCsv && (
+                    <button
+                      onClick={handleExportCsv}
+                      disabled={exportingCsv || !selectedConversationId}
+                      title={t('chat.exportCsvBtn')}
+                      className="px-2.5 py-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center gap-1.5 text-xs font-semibold border border-slate-200 bg-white shadow-sm"
+                    >
+                      {exportingCsv ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">{t('chat.exportCsvBtn')}</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => selectedConversationId && loadMessages(selectedConversationId)}
                     title={t('common.refresh')}
@@ -542,6 +582,18 @@ export default function DispatcherChatPage() {
                   </button>
                 </div>
               </div>
+
+              {exportError && (
+                <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{exportError}</span>
+                  </div>
+                  <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Messages Scroll Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">

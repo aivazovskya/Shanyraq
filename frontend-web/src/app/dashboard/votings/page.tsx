@@ -18,7 +18,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
-import { apiRequest, getStoredSession, getApiErrorMessage } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession, getApiErrorMessage } from '@/lib/api';
 
 function SearchParamsReader({ onQuery }: { onQuery: (q: string) => void }) {
   const searchParams = useSearchParams();
@@ -92,6 +92,27 @@ export default function VotingsPage() {
 
   // Close meeting action
   const [closing, setClosing] = useState(false);
+
+  // CSV Export state
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    if (!selectedMeeting) return;
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      await apiDownload(
+        `/votings/${selectedMeeting.id}/votes/export`,
+        `voting-results-${selectedMeeting.id}.csv`,
+      );
+    } catch (err: any) {
+      setExportError(err.message || t('votings.exportError'));
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   // Create meeting modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -448,7 +469,22 @@ export default function VotingsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {canWrite && (
+                <button
+                  onClick={handleExportCsv}
+                  disabled={exportingCsv}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold rounded-xl transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
+                >
+                  {exportingCsv ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span>{exportingCsv ? t('votings.exportingCsv') : t('votings.exportCsvBtn')}</span>
+                </button>
+              )}
+
               {selectedMeeting.protocol?.pdfUrl && (
                 <a
                   href={selectedMeeting.protocol.pdfUrl}
@@ -476,6 +512,18 @@ export default function VotingsPage() {
               )}
             </div>
           </div>
+
+          {exportError && (
+            <div className="p-3 mx-6 mt-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{exportError}</span>
+              </div>
+              <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Quorum Stats Panel */}
           <div className="p-6 border-b border-slate-100 bg-white grid grid-cols-1 md:grid-cols-4 gap-4">

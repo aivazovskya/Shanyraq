@@ -248,7 +248,10 @@
     "questionDescPlaceholder": "Explanation / context (optional)",
     "daysLeftDynamic": "{{count}} days",
     "searchPlaceholder": "Search by title, description, or protocol number...",
-    "noSearchResults": "No meetings found matching your search"
+    "noSearchResults": "No meetings found matching your search",
+    "exportCsvBtn": "Download CSV",
+    "exportingCsv": "Exporting...",
+    "exportError": "Error exporting CSV"
   },
   "requests": {
     "title": "Service Desk (Resident Requests)",
@@ -399,7 +402,10 @@
     "confirmRemoveBtn": "Remove announcement",
     "removingBtn": "Removing...",
     "removedByStaff": "Announcement removed",
-    "cancelBtn": "Cancel"
+    "cancelBtn": "Cancel",
+    "exportCsvBtn": "Download CSV",
+    "exportingCsv": "Exporting...",
+    "exportError": "Error exporting CSV"
   },
   "verifications": {
     "title": "Ownership Verification",
@@ -625,7 +631,12 @@
     "loadError": "Error loading meter readings",
     "loadingHistory": "Loading history...",
     "unitElectricity": "kWh",
-    "unitWater": "m³"
+    "unitWater": "m³",
+    "exportCsvBtn": "Download CSV",
+    "exportingCsv": "Exporting...",
+    "exportMonth": "Month",
+    "exportYear": "Year",
+    "exportError": "Error exporting CSV"
   },
   "bookings": {
     "title": "Bookings Management",
@@ -747,7 +758,10 @@
     "periodFrom": "Period from",
     "periodTo": "to",
     "noTrendData": "No data for the selected period",
-    "alertsCount": "Alerts count"
+    "alertsCount": "Alerts count",
+    "exportCsvBtn": "Download CSV",
+    "exportingCsv": "Exporting...",
+    "exportError": "Error exporting CSV"
   },
   "communityBoard": {
     "pageTitle": "Community Board Moderation",
@@ -809,7 +823,10 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "apartment": "apt.",
-    "photoLabel": "Photo"
+    "photoLabel": "Photo",
+    "exportCsvBtn": "Download CSV",
+    "exportingCsv": "Exporting...",
+    "exportError": "Error exporting CSV"
   },
   "analytics": {
     "pageTitle": "Extended Analytics",

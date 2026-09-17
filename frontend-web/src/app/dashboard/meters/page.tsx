@@ -19,8 +19,9 @@ import {
   HelpCircle,
   Check,
   Building,
+  Download,
 } from 'lucide-react';
-import { apiRequest, getStoredSession } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
 interface MeterItem {
   id: string;
@@ -95,8 +96,36 @@ export default function MetersReviewPage() {
   // Processing ID for row action buttons
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  // CSV Export state
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportMonth, setExportMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [exportYear, setExportYear] = useState<number>(() => new Date().getFullYear());
+
   // Dispatcher, HOA Admin, Superadmin can write/review; Chairman is read-only
   const canReview = userRole === 'SUPERADMIN' || userRole === 'HOA_ADMIN' || userRole === 'DISPATCHER';
+  const canExportCsv = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN', 'HOA_CHAIRMAN'].includes(userRole);
+
+  const handleExportCsv = async () => {
+    if (!tenantId) return;
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      const queryParams = new URLSearchParams();
+      if (exportMonth) queryParams.set('month', String(exportMonth));
+      if (exportYear) queryParams.set('year', String(exportYear));
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      await apiDownload(
+        `/meters/tenants/${tenantId}/readings/export${queryString}`,
+        `meter-readings-${tenantId}-${exportYear}-${exportMonth}.csv`,
+      );
+    } catch (err: any) {
+      setExportError(err.message || t('meters.exportError'));
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const loadReadings = useCallback(async () => {
     try {
@@ -286,7 +315,55 @@ export default function MetersReviewPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {canExportCsv && (
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+              <label className="text-xs text-slate-500 font-medium">{t('meters.exportMonth')}:</label>
+              <select
+                value={exportMonth}
+                onChange={(e) => setExportMonth(Number(e.target.value))}
+                className="text-xs bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, '0')}
+                  </option>
+                ))}
+              </select>
+
+              <label className="text-xs text-slate-500 font-medium ml-1">{t('meters.exportYear')}:</label>
+              <select
+                value={exportYear}
+                onChange={(e) => setExportYear(Number(e.target.value))}
+                className="text-xs bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={handleExportCsv}
+                disabled={exportingCsv}
+                className="ml-1 px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-60"
+              >
+                {exportingCsv ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>{t('meters.exportingCsv')}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('meters.exportCsvBtn')}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={loadReadings}
             disabled={loading}
@@ -297,6 +374,18 @@ export default function MetersReviewPage() {
           </button>
         </div>
       </div>
+
+      {exportError && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{exportError}</span>
+          </div>
+          <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Action Notification */}
       {actionMessage && (

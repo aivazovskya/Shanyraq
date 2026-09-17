@@ -17,8 +17,9 @@ import {
   Trash2,
   XCircle,
   X,
+  Download,
 } from 'lucide-react';
-import { apiRequest, getStoredSession } from '@/lib/api';
+import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
 const ANNOUNCEMENT_REMOVE_ROLES = ['HOA_ADMIN', 'HOA_CHAIRMAN', 'DISPATCHER', 'SUPERADMIN'];
 
@@ -59,12 +60,33 @@ export default function AnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState('');
+  const [tenantId, setTenantId] = useState('');
   const [canRemove, setCanRemove] = useState(false);
+  const [canExport, setCanExport] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [removingAnnouncement, setRemovingAnnouncement] = useState<AnnouncementItem | null>(null);
   const [removeReason, setRemoveReason] = useState('');
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeModalError, setRemoveModalError] = useState<string | null>(null);
+
+  const handleExportCsv = async () => {
+    if (!tenantId) return;
+    setExportingCsv(true);
+    setExportError(null);
+    try {
+      await apiDownload(
+        `/announcements/tenant/${tenantId}/export`,
+        `announcements-${tenantId}.csv`,
+      );
+    } catch (err: any) {
+      setExportError(err.message || t('announcements.exportError'));
+      setTimeout(() => setExportError(null), 5000);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const loadAnnouncements = useCallback(async () => {
     try {
@@ -74,10 +96,14 @@ export default function AnnouncementsPage() {
       if (!session || !session.user || !session.user.tenantId) {
         throw new Error(t('common.userNotAuthorizedOrLinked'));
       }
+      setTenantId(session.user.tenantId);
       if (session.user.tenantName) {
         setTenantName(session.user.tenantName);
       }
       setCanRemove(ANNOUNCEMENT_REMOVE_ROLES.includes(session.user.role));
+      setCanExport(
+        ['HOA_ADMIN', 'HOA_CHAIRMAN', 'DISPATCHER', 'SUPERADMIN'].includes(session.user.role),
+      );
 
       const data = await apiRequest<AnnouncementItem[]>(
         `/announcements/tenant/${session.user.tenantId}`,
@@ -221,15 +247,49 @@ export default function AnnouncementsPage() {
           </p>
         </div>
 
-        <button
-          onClick={loadAnnouncements}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60 self-start"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>{t('announcements.refreshBtn')}</span>
-        </button>
+        <div className="flex items-center gap-3 self-start">
+          {canExport && (
+            <button
+              onClick={handleExportCsv}
+              disabled={exportingCsv}
+              className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
+            >
+              {exportingCsv ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                  <span>{t('announcements.exportingCsv')}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>{t('announcements.exportCsvBtn')}</span>
+                </>
+              )}
+            </button>
+          )}
+
+          <button
+            onClick={loadAnnouncements}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>{t('announcements.refreshBtn')}</span>
+          </button>
+        </div>
       </div>
+
+      {exportError && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{exportError}</span>
+          </div>
+          <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Левая колонка: Форма создания новости */}

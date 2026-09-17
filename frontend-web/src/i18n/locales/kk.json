@@ -248,7 +248,10 @@
     "questionDescPlaceholder": "Мәселеге түсініктеме (міндетті емес)",
     "daysLeftDynamic": "{{count}} күн",
     "searchPlaceholder": "Тақырыбы, сипаттамасы немесе хаттама нөмірі бойынша іздеу...",
-    "noSearchResults": "Сұранысыңыз бойынша жиналыстар табылмады"
+    "noSearchResults": "Сұранысыңыз бойынша жиналыстар табылмады",
+    "exportCsvBtn": "CSV жүктеп алу",
+    "exportingCsv": "Экспортталуда...",
+    "exportError": "CSV экспорттау қатесі"
   },
   "requests": {
     "title": "Service Desk (Тұрғындар өтінімдері)",
@@ -399,7 +402,10 @@
     "confirmRemoveBtn": "Жаңалықты жою",
     "removingBtn": "Жойылуда...",
     "removedByStaff": "Жаңалық жойылды",
-    "cancelBtn": "Бас тарту"
+    "cancelBtn": "Бас тарту",
+    "exportCsvBtn": "CSV жүктеп алу",
+    "exportingCsv": "Экспортталуда...",
+    "exportError": "CSV экспорттау қатесі"
   },
   "verifications": {
     "title": "Меншік құқығын растау",
@@ -625,7 +631,12 @@
     "loadError": "Көрсеткіштерді жүктеу қатесі",
     "loadingHistory": "Тарих жүктелуде...",
     "unitElectricity": "кВт⋅сағ",
-    "unitWater": "м³"
+    "unitWater": "м³",
+    "exportCsvBtn": "CSV жүктеп алу",
+    "exportingCsv": "Экспортталуда...",
+    "exportMonth": "Ай",
+    "exportYear": "Жыл",
+    "exportError": "CSV экспорттау қатесі"
   },
   "bookings": {
     "title": "Брондауларды басқару",
@@ -747,7 +758,10 @@
     "periodFrom": "Кезең басы",
     "periodTo": "дейін",
     "noTrendData": "Таңдалған кезеңде деректер жоқ",
-    "alertsCount": "Шақырулар саны"
+    "alertsCount": "Шақырулар саны",
+    "exportCsvBtn": "CSV жүктеп алу",
+    "exportingCsv": "Экспортталуда...",
+    "exportError": "CSV экспорттау қатесі"
   },
   "communityBoard": {
     "pageTitle": "Хабарландырулар тақтасы модерациясы",
@@ -809,7 +823,10 @@
     "today": "Бүгін",
     "yesterday": "Кеше",
     "apartment": "пәтер",
-    "photoLabel": "Фото"
+    "photoLabel": "Фото",
+    "exportCsvBtn": "CSV жүктеп алу",
+    "exportingCsv": "Экспортталуда...",
+    "exportError": "CSV экспорттау қатесі"
   },
   "analytics": {
     "pageTitle": "Кеңейтілген талдау",
