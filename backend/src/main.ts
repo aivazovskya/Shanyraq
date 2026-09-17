@@ -4,6 +4,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 
+import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -36,6 +38,7 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: false,
+      exceptionFactory: validationExceptionFactory,
     }),
   );
 
