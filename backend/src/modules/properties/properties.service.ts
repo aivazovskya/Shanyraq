@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto, UpdateStaffDto } from './dto/properties.dto';
 import { UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -234,6 +234,130 @@ export class PropertiesService {
       createdAt: user.createdAt,
       tempPassword,
     };
+  }
+
+  async getStaffMembers(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
+    }
+
+    const allowedRoles: UserRole[] = [
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ];
+
+    return this.prisma.user.findMany({
+      where: {
+        tenantId,
+        role: { in: allowedRoles },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        role: true,
+        isActive: true,
+        mustChangePassword: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateStaff(tenantId: string, userId: string, dto: UpdateStaffDto) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.USER_NOT_FOUND',
+        message: 'Пользователь не найден',
+      });
+    }
+
+    const allowedRoles: UserRole[] = [
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ];
+
+    if (!allowedRoles.includes(targetUser.role)) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.STAFF_MANAGEMENT_STAFF_ONLY',
+        message: 'Управление аккаунтом через данный раздел доступно только для сотрудников',
+      });
+    }
+
+    if (targetUser.tenantId !== tenantId) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.CROSS_TENANT_USER_FORBIDDEN',
+        message: 'Сотрудник не относится к указанному жилому комплексу',
+      });
+    }
+
+    if (dto.email !== undefined && dto.email !== null && dto.email.trim() !== '') {
+      const emailLower = dto.email.trim().toLowerCase();
+      const existingUserWithEmail = await this.prisma.user.findFirst({
+        where: {
+          email: emailLower,
+          id: { not: userId },
+        },
+      });
+
+      if (existingUserWithEmail) {
+        throw new BadRequestException({
+          code: 'PROPERTIES.USER_ALREADY_EXISTS',
+          message: 'Пользователь с таким email уже зарегистрирован в системе',
+        });
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.firstName !== undefined ? { firstName: dto.firstName.trim() } : {}),
+        ...(dto.lastName !== undefined ? { lastName: dto.lastName.trim() } : {}),
+        ...(dto.email !== undefined ? { email: dto.email && dto.email.trim() ? dto.email.trim().toLowerCase() : null } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        role: true,
+        isActive: true,
+        mustChangePassword: true,
+        createdAt: true,
+      },
+    });
+
+    return updated;
   }
 
   async addUnit(buildingId: string, user: any, dto: CreateUnitDto) {

@@ -123,3 +123,25 @@ export class CreateStaffDto {
   role: UserRole;
 }
 
+export class UpdateStaffDto {
+  @ApiProperty({ example: 'Иван', required: false })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiProperty({ example: 'Иванов', required: false })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiProperty({ example: 'staff@shanyraq.kz', required: false })
+  @IsOptional()
+  @IsEmail({}, { message: 'Некорректный формат email' })
+  email?: string;
+
+  @ApiProperty({ example: true, required: false, description: 'Статус активности учетной записи' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+

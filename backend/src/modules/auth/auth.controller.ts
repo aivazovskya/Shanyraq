@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto, ForgotStaffPasswordDto, ResetStaffPasswordDto } from './dto/auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -40,6 +40,22 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Пароль успешно установлен, возвращены токены сессии' })
   async setInitialPassword(@Body() dto: SetInitialPasswordDto) {
     return this.authService.setInitialPassword(dto);
+  }
+
+  @Post('staff/forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Запросить SMS-код для восстановления пароля сотрудника' })
+  @ApiResponse({ status: 200, description: 'SMS-код отправлен' })
+  async forgotStaffPassword(@Body() dto: ForgotStaffPasswordDto) {
+    return this.authService.forgotStaffPassword(dto.phone);
+  }
+
+  @Post('staff/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Сбросить пароль сотрудника по SMS-коду (без выдачи токенов)' })
+  @ApiResponse({ status: 200, description: 'Пароль успешно сброшен' })
+  async resetStaffPassword(@Body() dto: ResetStaffPasswordDto) {
+    return this.authService.resetStaffPassword(dto.phone, dto.code, dto.newPassword);
   }
 
   @Post('refresh')

@@ -82,3 +82,31 @@ export class SetInitialPasswordDto {
   newPassword: string;
 }
 
+export class ForgotStaffPasswordDto {
+  @ApiProperty({ example: '+77015550101', description: 'Номер телефона сотрудника в международном формате (+7XXXXXXXXXX)' })
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString()
+  @Matches(/^\+7\d{10}$/, { message: 'Номер телефона должен быть в формате +7XXXXXXXXXX' })
+  phone: string;
+}
+
+export class ResetStaffPasswordDto {
+  @ApiProperty({ example: '+77015550101', description: 'Номер телефона сотрудника в международном формате (+7XXXXXXXXXX)' })
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString()
+  @Matches(/^\+7\d{10}$/, { message: 'Номер телефона должен быть в формате +7XXXXXXXXXX' })
+  phone: string;
+
+  @ApiProperty({ example: '123456', description: '6-значный одноразовый SMS код' })
+  @IsNotEmpty({ message: 'SMS-код обязателен' })
+  @IsString()
+  @Length(6, 6, { message: 'SMS-код должен состоять ровно из 6 цифр' })
+  code: string;
+
+  @ApiProperty({ example: 'NewPassword2026!', description: 'Новый пароль (минимум 8 символов)' })
+  @IsNotEmpty({ message: 'Пароль обязателен' })
+  @IsString()
+  @MinLength(8, { message: 'Пароль должен содержать не менее 8 символов' })
+  newPassword: string;
+}
+

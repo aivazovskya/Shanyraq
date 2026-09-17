@@ -3,13 +3,14 @@ import {
   UnauthorizedException,
   BadRequestException,
   ServiceUnavailableException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto } from './dto/auth.dto';
+import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto, ForgotStaffPasswordDto, ResetStaffPasswordDto } from './dto/auth.dto';
 import { UserRole } from '@prisma/client';
 import { JwtPayload } from './jwt.strategy';
 import { RedisService } from '../../redis/redis.service';
@@ -135,8 +136,7 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(dto: VerifyOtpDto) {
-    const { phone, code } = dto;
+  private async verifyOtpCode(phone: string, code: string): Promise<void> {
     const now = Date.now();
 
     // 1. Check lockout (fail-closed if Redis error)
@@ -244,6 +244,11 @@ export class AuthService {
     try {
       await this.redisService.del(`${OTP_KEY_PREFIX}${phone}`);
     } catch {}
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    const { phone, code } = dto;
+    await this.verifyOtpCode(phone, code);
 
     // Find or create resident user
     let user = await this.prisma.user.findUnique({
@@ -499,6 +504,13 @@ export class AuthService {
       return await registerFailedAttempt();
     }
 
+    if (!user.isActive) {
+      throw new UnauthorizedException({
+        code: 'AUTH.USER_BLOCKED_OR_NOT_FOUND',
+        message: 'Пользователь заблокирован или не найден',
+      });
+    }
+
     // Сброс счетчика попыток при успешном входе
     try {
       await this.redisService.del(`${LOGIN_ATTEMPTS_KEY_PREFIX}${loginKey}`);
@@ -621,6 +633,79 @@ export class AuthService {
         tenantName: updatedUser.tenant?.name,
       },
       ...tokens,
+    };
+  }
+
+  async forgotStaffPassword(phone: string) {
+    const staffRoles: UserRole[] = [
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ];
+
+    const user = await this.prisma.user.findUnique({
+      where: { phone },
+    });
+
+    if (!user || !user.isActive || !staffRoles.includes(user.role)) {
+      throw new NotFoundException({
+        code: 'AUTH.STAFF_ACCOUNT_NOT_FOUND',
+        message: 'Аккаунт сотрудника не найден или деактивирован',
+      });
+    }
+
+    return this.requestOtp({ phone });
+  }
+
+  async resetStaffPassword(phone: string, code: string, newPassword: string) {
+    // 1. Verify OTP code using shared helper
+    await this.verifyOtpCode(phone, code);
+
+    // 2. Re-fetch user and re-validate active staff status
+    const staffRoles: UserRole[] = [
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ];
+
+    const user = await this.prisma.user.findUnique({
+      where: { phone },
+    });
+
+    if (!user || !user.isActive || !staffRoles.includes(user.role)) {
+      throw new NotFoundException({
+        code: 'AUTH.STAFF_ACCOUNT_NOT_FOUND',
+        message: 'Аккаунт сотрудника не найден или деактивирован',
+      });
+    }
+
+    // 3. Validate password strength
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException({
+        code: 'AUTH.PASSWORD_TOO_SHORT',
+        message: 'Пароль должен содержать не менее 8 символов',
+      });
+    }
+
+    // 4. Hash new password and update user (mustChangePassword: false, bump tokenVersion)
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    // 5. Response: success only, NO tokens
+    return {
+      success: true,
+      message: 'Пароль успешно изменен. Войдите в систему с новым паролем.',
     };
   }
 

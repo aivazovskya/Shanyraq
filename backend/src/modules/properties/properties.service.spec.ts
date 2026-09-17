@@ -1274,4 +1274,140 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       expect(auditLogServiceMock.log).not.toHaveBeenCalled();
     });
   });
+
+  describe('getStaffMembers & updateStaff (Task 0082)', () => {
+    const mockTenant = { id: 'tenant-1', name: 'ЖК Шаңырақ' };
+    const mockStaff = {
+      id: 'staff-1',
+      firstName: 'Алихан',
+      lastName: 'Бокейханов',
+      phone: '+77011112233',
+      email: 'staff@shanyraq.kz',
+      role: UserRole.HOA_ADMIN,
+      tenantId: 'tenant-1',
+      isActive: true,
+      mustChangePassword: false,
+      createdAt: new Date(),
+    };
+
+    describe('getStaffMembers', () => {
+      it('должен возвращать список сотрудников ЖК с разрешенными ролями', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(mockTenant as any);
+        prismaMock.user.findMany.mockResolvedValue([mockStaff as any]);
+
+        const result = await service.getStaffMembers('tenant-1');
+        expect(result).toHaveLength(1);
+        expect(result[0].id).toBe('staff-1');
+        expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              tenantId: 'tenant-1',
+              role: {
+                in: [
+                  UserRole.HOA_ADMIN,
+                  UserRole.HOA_CHAIRMAN,
+                  UserRole.DISPATCHER,
+                  UserRole.SECURITY,
+                ],
+              },
+            },
+          }),
+        );
+      });
+
+      it('должен выбрасывать NotFoundException при несуществующем ЖК', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(null);
+
+        await expect(service.getStaffMembers('non-existent')).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe('updateStaff', () => {
+      it('должен выбрасывать NotFoundException при несуществующем ЖК', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.updateStaff('non-existent', 'staff-1', { firstName: 'Асқар' }),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('должен выбрасывать NotFoundException при несуществующем пользователе', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(mockTenant as any);
+        prismaMock.user.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.updateStaff('tenant-1', 'non-existent', { firstName: 'Асқар' }),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('должен отклонять управление аккаунтом жильца через данный метод (STAFF_MANAGEMENT_STAFF_ONLY)', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(mockTenant as any);
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...mockStaff,
+          role: UserRole.RESIDENT_OWNER,
+        } as any);
+
+        await expect(
+          service.updateStaff('tenant-1', 'resident-1', { firstName: 'Жан' }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('должен блокировать редактирование сотрудника другого ЖК (CROSS_TENANT_USER_FORBIDDEN)', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(mockTenant as any);
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...mockStaff,
+          tenantId: 'tenant-OTHER',
+        } as any);
+
+        await expect(
+          service.updateStaff('tenant-1', 'staff-1', { firstName: 'Али' }),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('должен отклонять email, если он уже занят другим пользователем', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(mockTenant as any);
+        prismaMock.user.findUnique.mockResolvedValue(mockStaff as any);
+        prismaMock.user.findFirst.mockResolvedValue({ id: 'other-user', email: 'taken@shanyraq.kz' } as any);
+
+        await expect(
+          service.updateStaff('tenant-1', 'staff-1', { email: 'taken@shanyraq.kz' }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('должен успешно обновлять профиль и деактивировать аккаунт сотрудника', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(mockTenant as any);
+        prismaMock.user.findUnique.mockResolvedValue(mockStaff as any);
+        prismaMock.user.findFirst.mockResolvedValue(null);
+        prismaMock.user.update.mockResolvedValue({
+          ...mockStaff,
+          firstName: 'Асқар',
+          lastName: 'Мамин',
+          email: 'new@shanyraq.kz',
+          isActive: false,
+        } as any);
+
+        const updated = await service.updateStaff('tenant-1', 'staff-1', {
+          firstName: 'Асқар',
+          lastName: 'Мамин',
+          email: 'new@shanyraq.kz',
+          isActive: false,
+        });
+
+        expect(updated.isActive).toBe(false);
+        expect(updated.firstName).toBe('Асқар');
+        expect(prismaMock.user.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'staff-1' },
+            data: {
+              firstName: 'Асқар',
+              lastName: 'Мамин',
+              email: 'new@shanyraq.kz',
+              isActive: false,
+            },
+          }),
+        );
+      });
+    });
+  });
 });
+

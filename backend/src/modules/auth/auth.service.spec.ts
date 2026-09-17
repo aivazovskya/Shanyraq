@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, UnauthorizedException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException, ServiceUnavailableException, NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { RedisService } from '../../redis/redis.service';
@@ -547,6 +547,24 @@ describe('AuthService (Аудит безопасности авторизаци�
       expect((res as any).accessToken).toBeUndefined();
     });
 
+    it('должен отклонять деактивированного пользователя (isActive: false) с кодом AUTH.USER_BLOCKED_OR_NOT_FOUND', async () => {
+      prismaMock.user.findFirst.mockResolvedValue({
+        ...mockUser,
+        isActive: false,
+      });
+
+      try {
+        await service.loginWithPassword({
+          login: '+77017778899',
+          password: 'CorrectPassword123!',
+        });
+        fail('Should throw');
+      } catch (err: any) {
+        expect(err).toBeInstanceOf(UnauthorizedException);
+        expect(err.getResponse().code).toBe('AUTH.USER_BLOCKED_OR_NOT_FOUND');
+      }
+    });
+
     describe('setInitialPassword', () => {
       it('должен успешно менять временный пароль, сбрасывать mustChangePassword, инкрементировать tokenVersion и возвращать сессию', async () => {
         const initialUser = {
@@ -624,6 +642,162 @@ describe('AuthService (Аудит безопасности авторизаци�
           expect(err).toBeInstanceOf(UnauthorizedException);
           expect(err.getResponse().code).toBe('AUTH.SESSION_REVOKED');
         }
+      });
+    });
+  });
+
+  describe('Staff password reset: forgotStaffPassword & resetStaffPassword (Task 0082)', () => {
+    const mockStaffUser = {
+      id: 'staff-42',
+      phone: '+77015554433',
+      email: 'dispatcher@shanyraq.kz',
+      role: UserRole.DISPATCHER,
+      tenantId: 'tenant-1',
+      isActive: true,
+      mustChangePassword: false,
+      tokenVersion: 3,
+      passwordHash: 'old_hashed_pwd',
+    };
+
+    describe('forgotStaffPassword', () => {
+      it('должен отклонять запрос, если пользователь не найден, и НЕ вызывать requestOtp', async () => {
+        prismaMock.user.findUnique.mockResolvedValue(null);
+        const requestOtpSpy = jest.spyOn(service, 'requestOtp');
+
+        await expect(service.forgotStaffPassword('+77010000000')).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(requestOtpSpy).not.toHaveBeenCalled();
+      });
+
+      it('должен отклонять запрос, если пользователь не активен (isActive: false), и НЕ вызывать requestOtp', async () => {
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...mockStaffUser,
+          isActive: false,
+        } as any);
+        const requestOtpSpy = jest.spyOn(service, 'requestOtp');
+
+        await expect(service.forgotStaffPassword('+77015554433')).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(requestOtpSpy).not.toHaveBeenCalled();
+      });
+
+      it('должен отклонять запрос для жильца (RESIDENT_OWNER), и НЕ вызывать requestOtp', async () => {
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...mockStaffUser,
+          role: UserRole.RESIDENT_OWNER,
+        } as any);
+        const requestOtpSpy = jest.spyOn(service, 'requestOtp');
+
+        await expect(service.forgotStaffPassword('+77015554433')).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(requestOtpSpy).not.toHaveBeenCalled();
+      });
+
+      it('должен отклонять запрос для SUPERADMIN (только роли персонала ЖК), и НЕ вызывать requestOtp', async () => {
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...mockStaffUser,
+          role: UserRole.SUPERADMIN,
+        } as any);
+        const requestOtpSpy = jest.spyOn(service, 'requestOtp');
+
+        await expect(service.forgotStaffPassword('+77015554433')).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(requestOtpSpy).not.toHaveBeenCalled();
+      });
+
+      it('должен успешно вызывать requestOtp для активного сотрудника (DISPATCHER)', async () => {
+        prismaMock.user.findUnique.mockResolvedValue(mockStaffUser as any);
+        const requestOtpSpy = jest.spyOn(service, 'requestOtp').mockResolvedValue({
+          success: true,
+          message: 'SMS-код отправлен',
+          devCode: '123456',
+        } as any);
+
+        const result = await service.forgotStaffPassword('+77015554433');
+        expect(requestOtpSpy).toHaveBeenCalledWith({ phone: '+77015554433' });
+        expect(result.success).toBe(true);
+        requestOtpSpy.mockRestore();
+      });
+    });
+
+    describe('resetStaffPassword', () => {
+      const validPhone = '+77015554433';
+      const validCode = '123456';
+      const now = Date.now();
+
+      it('должен отклонять сброс при неверном или истекшем коде из Redis', async () => {
+        // Нет записи в Redis
+        redisMock.get.mockResolvedValue(null);
+
+        await expect(
+          service.resetStaffPassword(validPhone, validCode, 'NewSecurePassword123!'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('должен отклонять пароль короче 8 символов', async () => {
+        const otpRecord = JSON.stringify({
+          code: validCode,
+          expiresAt: now + 300000,
+          lastRequestedAt: now,
+          attempts: 0,
+        });
+        redisMock.get.mockImplementation(async (key: string) => {
+          if (key.startsWith('otp:lockout:')) return null;
+          if (key.startsWith('otp:')) return otpRecord;
+          return null;
+        });
+        prismaMock.user.findUnique.mockResolvedValue(mockStaffUser as any);
+
+        await expect(
+          service.resetStaffPassword(validPhone, validCode, 'short'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('должен успешно сбрасывать пароль: обновлять passwordHash, сбрасывать mustChangePassword, инкрементировать tokenVersion и НЕ возвращать токены', async () => {
+        const otpRecord = JSON.stringify({
+          code: validCode,
+          expiresAt: now + 300000,
+          lastRequestedAt: now,
+          attempts: 0,
+        });
+        redisMock.get.mockImplementation(async (key: string) => {
+          if (key.startsWith('otp:lockout:')) return null;
+          if (key.startsWith('otp:')) return otpRecord;
+          return null;
+        });
+
+        prismaMock.user.findUnique.mockResolvedValue(mockStaffUser as any);
+        prismaMock.user.update.mockResolvedValue({
+          ...mockStaffUser,
+          tokenVersion: 4,
+          mustChangePassword: false,
+        } as any);
+
+        const result = await service.resetStaffPassword(
+          validPhone,
+          validCode,
+          'BrandNewStrongPassword2026!',
+        );
+
+        // Проверяем, что ответ успешен и НЕ содержит токенов
+        expect(result.success).toBe(true);
+        expect((result as any).accessToken).toBeUndefined();
+        expect((result as any).refreshToken).toBeUndefined();
+
+        // Проверяем вызов prisma.user.update
+        expect(prismaMock.user.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: mockStaffUser.id },
+            data: expect.objectContaining({
+              mustChangePassword: false,
+              tokenVersion: { increment: 1 },
+            }),
+          }),
+        );
       });
     });
   });

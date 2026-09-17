@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto } from './dto/properties.dto';
+import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto, UpdateStaffDto } from './dto/properties.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -59,6 +59,24 @@ export class PropertiesController {
     @Body() dto: CreateStaffDto,
   ) {
     return this.propertiesService.createStaff(tenantId, dto);
+  }
+
+  @Get('tenants/:tenantId/staff')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Получить список сотрудников ЖК (только для SUPERADMIN)' })
+  async getStaffMembers(@Param('tenantId') tenantId: string) {
+    return this.propertiesService.getStaffMembers(tenantId);
+  }
+
+  @Patch('tenants/:tenantId/staff/:userId')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Обновить данные или статус активности сотрудника ЖК (только для SUPERADMIN)' })
+  async updateStaff(
+    @Param('tenantId') tenantId: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateStaffDto,
+  ) {
+    return this.propertiesService.updateStaff(tenantId, userId, dto);
   }
 
   @Post('buildings/:buildingId/units')

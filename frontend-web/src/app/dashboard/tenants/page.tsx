@@ -20,8 +20,23 @@ import {
   Users,
   Wrench,
   CreditCard,
+  Pencil,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, getApiErrorMessage } from '@/lib/api';
+
+interface StaffItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string | null;
+  role: 'HOA_ADMIN' | 'HOA_CHAIRMAN' | 'DISPATCHER' | 'SECURITY';
+  isActive: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
+}
 
 interface TenantItem {
   id: string;
@@ -99,6 +114,23 @@ export default function TenantsPage() {
   // One-time temporary password display modal
   const [tempPasswordResult, setTempPasswordResult] = useState<CreatedStaffResult | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Staff list modal
+  const [isStaffListOpen, setIsStaffListOpen] = useState(false);
+  const [staffListTenant, setStaffListTenant] = useState<TenantItem | null>(null);
+  const [staffList, setStaffList] = useState<StaffItem[]>([]);
+  const [loadingStaffList, setLoadingStaffList] = useState(false);
+
+  // Edit staff modal
+  const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [isUpdatingStaff, setIsUpdatingStaff] = useState(false);
+
+  // Deactivate confirmation modal
+  const [deactivatingStaff, setDeactivatingStaff] = useState<StaffItem | null>(null);
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
   // Gated to SUPERADMIN
   useEffect(() => {
@@ -238,6 +270,9 @@ export default function TenantsPage() {
         text: t('tenants.addStaffSuccess'),
       });
       setTimeout(() => setActionMessage(null), 5000);
+      if (staffListTenant && staffListTenant.id === selectedTenant.id) {
+        fetchStaffList(selectedTenant);
+      }
     } catch (err: any) {
       setError(getApiErrorMessage(err, t));
     } finally {
@@ -261,6 +296,122 @@ export default function TenantsPage() {
       document.body.removeChild(textarea);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 3000);
+    }
+  };
+
+  const fetchStaffList = async (tItem: TenantItem) => {
+    setLoadingStaffList(true);
+    try {
+      const data = await apiRequest<StaffItem[]>(`/properties/tenants/${tItem.id}/staff`);
+      setStaffList(data || []);
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, t));
+    } finally {
+      setLoadingStaffList(false);
+    }
+  };
+
+  const handleOpenStaffList = (tItem: TenantItem) => {
+    setStaffListTenant(tItem);
+    setIsStaffListOpen(true);
+    fetchStaffList(tItem);
+  };
+
+  const handleOpenEditStaff = (staff: StaffItem) => {
+    setEditingStaff(staff);
+    setEditFirstName(staff.firstName);
+    setEditLastName(staff.lastName);
+    setEditEmail(staff.email || '');
+  };
+
+  const handleSaveEditStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff || !staffListTenant) return;
+    setIsUpdatingStaff(true);
+    setError(null);
+    try {
+      const updated = await apiRequest<StaffItem>(
+        `/properties/tenants/${staffListTenant.id}/staff/${editingStaff.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            firstName: editFirstName.trim(),
+            lastName: editLastName.trim(),
+            email: editEmail.trim() ? editEmail.trim() : null,
+          }),
+        },
+      );
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+      );
+      setEditingStaff(null);
+      setActionMessage({
+        type: 'success',
+        text: t('tenants.editStaffSuccess'),
+      });
+      setTimeout(() => setActionMessage(null), 5000);
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, t));
+    } finally {
+      setIsUpdatingStaff(false);
+    }
+  };
+
+  const handleToggleStaffStatus = async (staff: StaffItem) => {
+    if (!staffListTenant) return;
+    if (staff.isActive) {
+      setDeactivatingStaff(staff);
+      return;
+    }
+
+    setIsTogglingStatus(true);
+    try {
+      const updated = await apiRequest<StaffItem>(
+        `/properties/tenants/${staffListTenant.id}/staff/${staff.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: true }),
+        },
+      );
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...s, isActive: true } : s)),
+      );
+      setActionMessage({
+        type: 'success',
+        text: t('tenants.staffStatusUpdated'),
+      });
+      setTimeout(() => setActionMessage(null), 5000);
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, t));
+    } finally {
+      setIsTogglingStatus(false);
+    }
+  };
+
+  const handleConfirmDeactivateStaff = async () => {
+    if (!staffListTenant || !deactivatingStaff) return;
+    setIsTogglingStatus(true);
+    try {
+      const updated = await apiRequest<StaffItem>(
+        `/properties/tenants/${staffListTenant.id}/staff/${deactivatingStaff.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ isActive: false }),
+        },
+      );
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...s, isActive: false } : s)),
+      );
+      setDeactivatingStaff(null);
+      setActionMessage({
+        type: 'success',
+        text: t('tenants.staffStatusUpdated'),
+      });
+      setTimeout(() => setActionMessage(null), 5000);
+    } catch (err: any) {
+      setError(getApiErrorMessage(err, t));
+    } finally {
+      setIsTogglingStatus(false);
     }
   };
 
@@ -620,13 +771,22 @@ export default function TenantsPage() {
                   <span className="text-[11px] text-slate-400">
                     {new Date(tItem.createdAt).toLocaleDateString()}
                   </span>
-                  <button
-                    onClick={() => handleOpenAddStaff(tItem)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>{t('tenants.addStaff')}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenStaffList(tItem)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{t('tenants.viewStaff')}</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenAddStaff(tItem)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>{t('tenants.addStaff')}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -897,6 +1057,244 @@ export default function TenantsPage() {
                 className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
               >
                 {t('tenants.closeAndConfirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Staff List */}
+      {isStaffListOpen && staffListTenant && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
+                <Users className="w-5 h-5 text-sky-600" />
+                <h3>
+                  {t('tenants.staffListTitle')} — {staffListTenant.name}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenAddStaff(staffListTenant)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-colors shadow-sm"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{t('tenants.addStaff')}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setIsStaffListOpen(false);
+                    setStaffListTenant(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 pr-1">
+              {loadingStaffList ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-500">
+                  <Loader2 className="w-7 h-7 animate-spin text-sky-600" />
+                  <span className="text-sm">{t('common.loading')}</span>
+                </div>
+              ) : staffList.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-sm">
+                  <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="font-medium text-slate-700">{t('tenants.noStaffFound')}</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {staffList.map((staff) => (
+                    <div
+                      key={staff.id}
+                      className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 px-2 rounded-xl transition"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-slate-900">
+                            {staff.firstName} {staff.lastName}
+                          </span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            {staff.role}
+                          </span>
+                          <span
+                            className={`text-[11px] px-2 py-0.5 rounded-md font-semibold ${
+                              staff.isActive
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            {staff.isActive
+                              ? t('tenants.activeStatus')
+                              : t('tenants.inactiveStatus')}
+                          </span>
+                          {staff.mustChangePassword && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              {t('tenants.mustChangePasswordBadge')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 flex items-center gap-3">
+                          <span>{staff.phone}</span>
+                          {staff.email && <span>• {staff.email}</span>}
+                          <span>• {new Date(staff.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <button
+                          onClick={() => handleOpenEditStaff(staff)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>{t('tenants.editStaff')}</span>
+                        </button>
+                        <button
+                          onClick={() => handleToggleStaffStatus(staff)}
+                          disabled={isTogglingStatus}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition border ${
+                            staff.isActive
+                              ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200'
+                              : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                          }`}
+                        >
+                          {staff.isActive ? (
+                            <>
+                              <UserX className="w-3 h-3" />
+                              <span>{t('tenants.deactivate')}</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="w-3 h-3" />
+                              <span>{t('tenants.activate')}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Staff */}
+      {editingStaff && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
+                <Pencil className="w-4 h-4 text-sky-600" />
+                <h3>{t('tenants.editStaffModalTitle')}</h3>
+              </div>
+              <button
+                onClick={() => setEditingStaff(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStaff} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {t('tenants.firstNameLabel')} *
+                  </label>
+                  <input
+                    type="text"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {t('tenants.lastNameLabel')} *
+                  </label>
+                  <input
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {t('tenants.emailLabel')}
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="staff@shanyraq.kz"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaff(null)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingStaff}
+                  className="flex items-center gap-1.5 px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-semibold disabled:opacity-60 transition"
+                >
+                  {isUpdatingStaff && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{t('common.save')}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Deactivate Staff Confirmation */}
+      {deactivatingStaff && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+            <div className="flex items-center gap-3 text-amber-600 mb-3">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900">
+                {t('tenants.deactivateStaffTitle')}
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-5 leading-relaxed">
+              {t('tenants.deactivateStaffPrompt', {
+                name: `${deactivatingStaff.firstName} ${deactivatingStaff.lastName}`,
+              })}
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeactivatingStaff(null)}
+                disabled={isTogglingStatus}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-semibold transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeactivateStaff}
+                disabled={isTogglingStatus}
+                className="flex items-center gap-1.5 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold disabled:opacity-60 transition"
+              >
+                {isTogglingStatus && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{t('tenants.confirmDeactivate')}</span>
               </button>
             </div>
           </div>
