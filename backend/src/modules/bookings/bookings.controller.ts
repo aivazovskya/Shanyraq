@@ -27,6 +27,7 @@ import {
   CreateBookingDto,
   GetAvailabilityQueryDto,
   GetBookingsQueryDto,
+  GetWaitlistQueryDto,
   JoinWaitlistDto,
 } from './dto/bookings.dto';
 
@@ -143,6 +144,17 @@ export class BookingsController {
     @Request() req: any,
   ) {
     return this.bookingsService.getTenantBookings(tenantId, query, req.user);
+  }
+
+  @Get('tenants/:tenantId/waitlist')
+  @Roles(UserRole.HOA_ADMIN, UserRole.DISPATCHER, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN)
+  @ApiOperation({ summary: 'Лист ожидания ЖК для анализа спроса персоналом' })
+  async getTenantWaitlist(
+    @Param('tenantId') tenantId: string,
+    @Query() query: GetWaitlistQueryDto,
+    @Request() req: any,
+  ) {
+    return this.bookingsService.getTenantWaitlist(tenantId, query, req.user);
   }
 
   @Patch(':id/cancel')

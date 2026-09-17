@@ -679,7 +679,19 @@
     "operatingHours": "Жұмыс уақыты: {{start}} - {{end}}",
     "maxDuration": "Шектеу: {{minutes}} мин",
     "activeBadge": "Белсенді",
-    "inactiveBadge": "Белсенді емес"
+    "inactiveBadge": "Белсенді емес",
+    "waitlistBtn": "Күту парағы",
+    "waitlistPageTitle": "Күту парағындағы сұраныс",
+    "waitlistPageSubtitle": "ТК ортақ кеңістіктеріне ағымдағы сұраныс пен кезекті бақылау",
+    "waitlistBackBtn": "Брондауларға қайту",
+    "waitlistEmptyTitle": "Күту парағында ешкім жоқ",
+    "waitlistEmptySub": "Қазіргі уақытта бос слоттарды күтіп отырған тұрғындар жоқ",
+    "waitlistWaitingCount": "Кезекте: {{count}}",
+    "waitlistThUnit": "Пәтер",
+    "waitlistThResident": "Тұрғын",
+    "waitlistThSlot": "Қажетті слот",
+    "waitlistThJoinedAt": "Кезекке тұрған уақыты",
+    "waitlistFilterAllResources": "Барлық кеңістіктер"
   },
   "sos": {
     "title": "Шұғыл шақырулар (SOS)",

@@ -13,6 +13,7 @@ import {
   UpdateBookableResourceDto,
   CreateBookingDto,
   GetBookingsQueryDto,
+  GetWaitlistQueryDto,
   JoinWaitlistDto,
 } from './dto/bookings.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
@@ -549,6 +550,52 @@ export class BookingsService {
         },
       },
       orderBy: { startTime: 'desc' },
+    });
+  }
+
+  async getTenantWaitlist(tenantId: string, query: GetWaitlistQueryDto, user: any) {
+    this.assertStaffRole(user, tenantId);
+
+    const where: any = {
+      resource: { tenantId },
+    };
+
+    if (query?.resourceId) {
+      where.resourceId = query.resourceId;
+    }
+
+    return this.prisma.bookingWaitlistEntry.findMany({
+      where,
+      include: {
+        resource: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            building: {
+              select: {
+                id: true,
+                blockName: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: [{ resourceId: 'asc' }, { createdAt: 'asc' }],
     });
   }
 

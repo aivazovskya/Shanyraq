@@ -185,6 +185,14 @@ export default function BookingsModerationPage() {
             <Layers className="w-4 h-4" />
             {t('bookings.catalogBtn')}
           </Link>
+
+          <Link
+            href="/dashboard/bookings/waitlist"
+            className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition active:scale-95"
+          >
+            <Clock className="w-4 h-4" />
+            {t('bookings.waitlistBtn')}
+          </Link>
         </div>
       </div>
 

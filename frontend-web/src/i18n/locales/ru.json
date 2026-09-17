@@ -679,7 +679,19 @@
     "operatingHours": "Часы работы: с {{start}} до {{end}}",
     "maxDuration": "Лимит: {{minutes}} мин",
     "activeBadge": "Активно",
-    "inactiveBadge": "Неактивно"
+    "inactiveBadge": "Неактивно",
+    "waitlistBtn": "Лист ожидания",
+    "waitlistPageTitle": "Спрос на лист ожидания",
+    "waitlistPageSubtitle": "Мониторинг текущего спроса и очередности на общие пространства ЖК",
+    "waitlistBackBtn": "К бронированиям",
+    "waitlistEmptyTitle": "В листе ожидания никого нет",
+    "waitlistEmptySub": "В данный момент нет жителей, ожидающих освобождения слотов",
+    "waitlistWaitingCount": "{{count}} в очереди",
+    "waitlistThUnit": "Квартира",
+    "waitlistThResident": "Житель",
+    "waitlistThSlot": "Желаемый слот",
+    "waitlistThJoinedAt": "Встал в очередь",
+    "waitlistFilterAllResources": "Все пространства"
   },
   "sos": {
     "title": "Экстренные вызовы (SOS)",

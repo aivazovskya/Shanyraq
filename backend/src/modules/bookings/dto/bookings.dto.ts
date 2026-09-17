@@ -104,3 +104,10 @@ export class GetBookingsQueryDto {
   @IsISO8601()
   to?: string;
 }
+
+export class GetWaitlistQueryDto {
+  @ApiPropertyOptional({ description: 'Фильтр по ресурсу' })
+  @IsOptional()
+  @IsString()
+  resourceId?: string;
+}

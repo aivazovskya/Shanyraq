@@ -748,4 +748,78 @@ describe('BookingsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('getTenantWaitlist (Task 0076: спрос листа ожидания для персонала)', () => {
+    it('отклоняет вызов жителем (ForbiddenException BOOKINGS.MANAGE_FORBIDDEN)', async () => {
+      await expect(
+        service.getTenantWaitlist(mockTenantId, {}, residentOwnerUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('отклоняет вызов сотрудником другого ЖК (ForbiddenException)', async () => {
+      await expect(
+        service.getTenantWaitlist(mockTenantId, {}, staffOtherTenantUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('позволяет SUPERADMIN просматривать чужой ЖК', async () => {
+      prismaMock.bookingWaitlistEntry.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.getTenantWaitlist(mockTenantId, {}, superAdminUser);
+      expect(result).toEqual([]);
+      expect(prismaMock.bookingWaitlistEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ resource: { tenantId: mockTenantId } }),
+        }),
+      );
+    });
+
+    it('позволяет сотруднику ЖК просматривать записи своего ЖК с изоляцией по resource.tenantId', async () => {
+      const mockEntries = [
+        {
+          id: 'wl-1',
+          resourceId: 'res-1',
+          resource: { id: 'res-1', name: 'Барбекю', type: 'BBQ_AREA' },
+          unit: { id: 'u-1', unitNumber: '101', building: { id: 'b-1', blockName: 'A' } },
+          user: { id: 'usr-1', firstName: 'Асан', lastName: 'Асанов', phone: '+77011112233' },
+          createdAt: new Date(),
+        },
+      ];
+      prismaMock.bookingWaitlistEntry.findMany.mockResolvedValueOnce(mockEntries);
+
+      const result = await service.getTenantWaitlist(mockTenantId, {}, staffAdminUser);
+      expect(result).toEqual(mockEntries);
+      expect(prismaMock.bookingWaitlistEntry.findMany).toHaveBeenCalledWith({
+        where: { resource: { tenantId: mockTenantId } },
+        include: {
+          resource: { select: { id: true, name: true, type: true } },
+          unit: {
+            select: {
+              id: true,
+              unitNumber: true,
+              building: { select: { id: true, blockName: true } },
+            },
+          },
+          user: {
+            select: { id: true, firstName: true, lastName: true, phone: true },
+          },
+        },
+        orderBy: [{ resourceId: 'asc' }, { createdAt: 'asc' }],
+      });
+    });
+
+    it('фильтрует по resourceId при передаче в query', async () => {
+      prismaMock.bookingWaitlistEntry.findMany.mockResolvedValueOnce([]);
+
+      await service.getTenantWaitlist(mockTenantId, { resourceId: 'res-special' }, staffAdminUser);
+      expect(prismaMock.bookingWaitlistEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            resource: { tenantId: mockTenantId },
+            resourceId: 'res-special',
+          },
+        }),
+      );
+    });
+  });
 });

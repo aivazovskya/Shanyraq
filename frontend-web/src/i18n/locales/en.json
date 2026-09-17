@@ -679,7 +679,19 @@
     "operatingHours": "Operating hours: {{start}} to {{end}}",
     "maxDuration": "Cap: {{minutes}} min",
     "activeBadge": "Active",
-    "inactiveBadge": "Inactive"
+    "inactiveBadge": "Inactive",
+    "waitlistBtn": "Waitlist Demand",
+    "waitlistPageTitle": "Waitlist Demand",
+    "waitlistPageSubtitle": "Monitor current waitlist demand and queue for shared residential amenities",
+    "waitlistBackBtn": "Back to bookings",
+    "waitlistEmptyTitle": "Waitlist is empty",
+    "waitlistEmptySub": "Currently there are no residents waiting for booking slots",
+    "waitlistWaitingCount": "{{count}} in waitlist",
+    "waitlistThUnit": "Unit",
+    "waitlistThResident": "Resident",
+    "waitlistThSlot": "Requested Slot",
+    "waitlistThJoinedAt": "Joined At",
+    "waitlistFilterAllResources": "All spaces"
   },
   "sos": {
     "title": "Emergency Alerts (SOS)",
