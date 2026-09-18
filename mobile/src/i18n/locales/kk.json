@@ -836,7 +836,13 @@
       "send": "Жіберу",
       "threadTitle": "Диалог",
       "goToChat": "Тұрғындармен чаттарға өту",
-      "activeChatsNote": "ТҮК меншік иелері және жалға алушыларымен тікелей байланыс"
+      "activeChatsNote": "ТҮК меншік иелері және жалға алушыларымен тікелей байланыс",
+      "resolveBtn": "Шешілді",
+      "resolvedBadge": "Шешілді",
+      "resolveError": "Диалогты шешілді деп белгілеу сәтсіз аяқталды",
+      "filterAll": "Барлығы",
+      "filterUnresolved": "Ашық",
+      "filterResolved": "Шешілген"
     },
     "requestsTab": "Өтінімдер",
     "requests": {

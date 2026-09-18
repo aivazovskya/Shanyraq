@@ -836,7 +836,13 @@
       "send": "Отправить",
       "threadTitle": "Диалог",
       "goToChat": "Перейти к чатам с жителями",
-      "activeChatsNote": "Прямая связь с собственниками и арендаторами ЖК"
+      "activeChatsNote": "Прямая связь с собственниками и арендаторами ЖК",
+      "resolveBtn": "Решено",
+      "resolvedBadge": "Решено",
+      "resolveError": "Не удалось отметить диалог как решённый",
+      "filterAll": "Все",
+      "filterUnresolved": "Открытые",
+      "filterResolved": "Решённые"
     },
     "requestsTab": "Заявки",
     "requests": {

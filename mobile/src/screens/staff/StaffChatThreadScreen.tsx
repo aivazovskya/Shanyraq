@@ -11,15 +11,17 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Image,
+  Alert,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { ChatApi, ChatMessage } from '../../api/chat';
+import { Badge } from '../../components/common/Badge';
 import { createRealtimeSocket } from '../../lib/socket';
 import { Socket } from 'socket.io-client';
 import { Colors } from '../../constants/colors';
-import { ArrowLeft, Send, User, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, Send, User, ShieldCheck, CheckCheck } from 'lucide-react-native';
 
 export const StaffChatThreadScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -33,7 +35,11 @@ export const StaffChatThreadScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [isResolved, setIsResolved] = useState<boolean>(route.params?.isResolved ?? false);
+  const [resolving, setResolving] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  const canResolve = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(user?.role || '');
 
   const loadMessages = useCallback(
     async (isSilent = false) => {
@@ -43,6 +49,9 @@ export const StaffChatThreadScreen: React.FC = () => {
       try {
         const conv = await ChatApi.getConversationMessages(conversationId);
         setMessages(conv.messages || []);
+        if (typeof conv.isResolved === 'boolean') {
+          setIsResolved(conv.isResolved);
+        }
       } catch (err) {
         console.error('Failed to load conversation messages:', err);
       } finally {
@@ -51,6 +60,20 @@ export const StaffChatThreadScreen: React.FC = () => {
     },
     [conversationId],
   );
+
+  const handleResolve = async () => {
+    if (!conversationId || resolving) return;
+    setResolving(true);
+    try {
+      await ChatApi.resolveConversation(conversationId);
+      setIsResolved(true);
+    } catch (err: any) {
+      console.error('Failed to resolve conversation:', err);
+      Alert.alert(t('common.error'), err?.response?.data?.message || t('staff.chat.resolveError'));
+    } finally {
+      setResolving(false);
+    }
+  };
 
   // Real-time WebSocket connection to specific conversation room
   useFocusEffect(
@@ -82,6 +105,10 @@ export const StaffChatThreadScreen: React.FC = () => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
+          const role = newMsg.sender?.role;
+          if (!role || role === 'RESIDENT' || role === 'RESIDENT_OWNER' || role === 'RESIDENT_TENANT') {
+            setIsResolved(false);
+          }
           setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
           }, 100);
@@ -213,7 +240,27 @@ export const StaffChatThreadScreen: React.FC = () => {
           {unitInfo && <Text style={styles.headerSubtitle}>{unitInfo}</Text>}
         </View>
 
-        <View style={{ width: 32 }} />
+        <View style={styles.headerRight}>
+          {canResolve && (
+            isResolved ? (
+              <Badge label={t('staff.chat.resolvedBadge')} variant="success" />
+            ) : (
+              <TouchableOpacity
+                style={styles.resolveButton}
+                onPress={handleResolve}
+                disabled={resolving}
+                activeOpacity={0.8}
+              >
+                {resolving ? (
+                  <ActivityIndicator size="small" color="#166534" />
+                ) : (
+                  <CheckCheck size={15} color="#166534" style={{ marginRight: 4 }} />
+                )}
+                <Text style={styles.resolveButtonText}>{t('staff.chat.resolveBtn')}</Text>
+              </TouchableOpacity>
+            )
+          )}
+        </View>
       </View>
 
       {/* Messages list */}
@@ -299,6 +346,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  headerRight: {
+    minWidth: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  resolveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  resolveButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#166534',
   },
   centerContainer: {
     flex: 1,

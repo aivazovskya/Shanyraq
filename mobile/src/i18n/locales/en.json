@@ -836,7 +836,13 @@
       "send": "Send",
       "threadTitle": "Chat",
       "goToChat": "Go to Resident Chats",
-      "activeChatsNote": "Direct messaging with property owners and tenants"
+      "activeChatsNote": "Direct messaging with property owners and tenants",
+      "resolveBtn": "Resolved",
+      "resolvedBadge": "Resolved",
+      "resolveError": "Failed to mark conversation as resolved",
+      "filterAll": "All",
+      "filterUnresolved": "Open",
+      "filterResolved": "Resolved"
     },
     "requestsTab": "Requests",
     "requests": {

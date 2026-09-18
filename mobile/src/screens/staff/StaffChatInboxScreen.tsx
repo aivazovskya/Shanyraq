@@ -9,11 +9,13 @@ import {
   ActivityIndicator,
   SafeAreaView,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { ChatApi, Conversation } from '../../api/chat';
+import { Badge } from '../../components/common/Badge';
 import { createRealtimeSocket } from '../../lib/socket';
 import { Socket } from 'socket.io-client';
 import { Colors } from '../../constants/colors';
@@ -27,6 +29,8 @@ import {
   RefreshCw,
 } from 'lucide-react-native';
 
+type FilterStatus = 'ALL' | 'UNRESOLVED' | 'RESOLVED';
+
 export const StaffChatInboxScreen: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -38,17 +42,22 @@ export const StaffChatInboxScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('ALL');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadConversations = useCallback(
-    async (isSilent = false) => {
+    async (isSilent = false, filterOverride?: FilterStatus) => {
       if (!tenantId) return;
       if (!isSilent) setLoading(true);
       else setRefreshing(true);
       setErrorMsg(null);
 
+      const activeFilter = filterOverride ?? selectedFilter;
+      const resolvedParam =
+        activeFilter === 'UNRESOLVED' ? false : activeFilter === 'RESOLVED' ? true : undefined;
+
       try {
-        const data = await ChatApi.getTenantConversations(tenantId);
+        const data = await ChatApi.getTenantConversations(tenantId, resolvedParam);
         setConversations(data || []);
       } catch (err: any) {
         console.error('Failed to load tenant conversations:', err);
@@ -60,7 +69,7 @@ export const StaffChatInboxScreen: React.FC = () => {
         setRefreshing(false);
       }
     },
-    [tenantId, t],
+    [tenantId, selectedFilter, t],
   );
 
   // Real-time WebSocket connection to tenant inbox room
@@ -89,7 +98,38 @@ export const StaffChatInboxScreen: React.FC = () => {
           loadConversations(true);
         });
 
-        socket.on('chat:inbox:message', () => {
+        socket.on('chat:inbox:conversation-status', (payload: {
+          conversationId: string;
+          isResolved: boolean;
+          resolvedAt: string | null;
+          resolvedById: string | null;
+        }) => {
+          if (!payload || !payload.conversationId) return;
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === payload.conversationId
+                ? {
+                    ...c,
+                    isResolved: payload.isResolved,
+                    resolvedAt: payload.resolvedAt,
+                    resolvedById: payload.resolvedById,
+                  }
+                : c,
+            ),
+          );
+        });
+
+        socket.on('chat:inbox:message', (payload: any) => {
+          const role = payload?.message?.sender?.role;
+          if (payload?.conversationId && (!role || role === 'RESIDENT' || role === 'RESIDENT_OWNER' || role === 'RESIDENT_TENANT')) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === payload.conversationId
+                  ? { ...c, isResolved: false, resolvedAt: null, resolvedById: null }
+                  : c,
+              ),
+            );
+          }
           // Re-fetch conversations and unread counts upon new incoming message
           loadConversations(true);
         });
@@ -161,6 +201,7 @@ export const StaffChatInboxScreen: React.FC = () => {
         conversationId: item.id,
         residentName,
         unitInfo: unitInfo || undefined,
+        isResolved: item.isResolved,
       });
     };
 
@@ -176,9 +217,18 @@ export const StaffChatInboxScreen: React.FC = () => {
 
         <View style={styles.conversationInfo}>
           <View style={styles.nameTimeRow}>
-            <Text style={[styles.residentName, unreadCount > 0 && styles.residentNameBold]}>
-              {residentName}
-            </Text>
+            <View style={styles.nameWithBadge}>
+              <Text style={[styles.residentName, unreadCount > 0 && styles.residentNameBold]}>
+                {residentName}
+              </Text>
+              {item.isResolved && (
+                <Badge
+                  label={t('staff.chat.resolvedBadge')}
+                  variant="success"
+                  style={styles.resolvedBadge}
+                />
+              )}
+            </View>
             <Text style={styles.timeText}>{timeStr}</Text>
           </View>
 
@@ -256,6 +306,40 @@ export const StaffChatInboxScreen: React.FC = () => {
           onChangeText={setSearchQuery}
           clearButtonMode="while-editing"
         />
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={styles.filterSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
+        >
+          {(
+            [
+              { key: 'ALL', label: t('staff.chat.filterAll') },
+              { key: 'UNRESOLVED', label: t('staff.chat.filterUnresolved') },
+              { key: 'RESOLVED', label: t('staff.chat.filterResolved') },
+            ] as const
+          ).map((opt) => {
+            const isActive = selectedFilter === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                onPress={() => {
+                  setSelectedFilter(opt.key);
+                  loadConversations(false, opt.key);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {errorMsg && (
@@ -357,6 +441,34 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingVertical: 0,
   },
+  filterSection: {
+    marginBottom: 8,
+  },
+  filterScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   errorBox: {
     backgroundColor: Colors.dangerBg,
     padding: 12,
@@ -425,12 +537,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 2,
   },
+  nameWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 6,
+    marginRight: 8,
+  },
   residentName: {
     fontSize: 15,
     fontWeight: '600',
     color: Colors.text,
-    flex: 1,
-    marginRight: 8,
+  },
+  resolvedBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
   },
   residentNameBold: {
     fontWeight: '700',

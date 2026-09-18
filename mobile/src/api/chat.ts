@@ -46,6 +46,9 @@ export interface Conversation {
   messages: ChatMessage[];
   lastMessage?: ChatMessage | null;
   unreadCount?: number;
+  isResolved?: boolean;
+  resolvedAt?: string | null;
+  resolvedById?: string | null;
 }
 
 export const ChatApi = {
@@ -62,8 +65,15 @@ export const ChatApi = {
     return res.data;
   },
 
-  async getTenantConversations(tenantId: string): Promise<Conversation[]> {
-    const res = await apiClient.get<Conversation[]>(`/chat/tenants/${tenantId}/conversations`);
+  async getTenantConversations(tenantId: string, resolved?: boolean): Promise<Conversation[]> {
+    const res = await apiClient.get<Conversation[]>(`/chat/tenants/${tenantId}/conversations`, {
+      params: resolved !== undefined ? { resolved } : undefined,
+    });
+    return res.data;
+  },
+
+  async resolveConversation(id: string): Promise<Conversation> {
+    const res = await apiClient.patch<Conversation>(`/chat/conversations/${id}/resolve`);
     return res.data;
   },
 
@@ -80,3 +90,4 @@ export const ChatApi = {
     return res.data;
   },
 };
+
