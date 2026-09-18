@@ -36,6 +36,7 @@ export interface UserProfile {
   } | null;
   isVerified: boolean;
   ownerships: UserOwnership[];
+  hidePhoneInListings?: boolean;
 }
 
 export interface AuthTokensResponse {

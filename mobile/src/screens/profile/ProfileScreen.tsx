@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { AuthApi } from '../../api/auth';
 import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
+import { CommunityBoardApi } from '../../api/community-board';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -22,6 +23,7 @@ import { changeAppLanguage, SupportedLocale } from '../../i18n';
 import {
   User,
   Phone,
+  PhoneOff,
   Home,
   ShieldCheck,
   LogOut,
@@ -44,15 +46,24 @@ const LANGUAGES: { code: SupportedLocale; label: string }[] = [
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshProfile } = useAuth();
   const { t, i18n } = useTranslation();
   const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
+  const [hidePhoneInListings, setHidePhoneInListings] = useState<boolean>(
+    user?.hidePhoneInListings ?? false,
+  );
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     CHAT: true,
     SERVICE_REQUEST: true,
     ANNOUNCEMENT: true,
     FINANCE: true,
   });
+
+  useEffect(() => {
+    if (user?.hidePhoneInListings !== undefined) {
+      setHidePhoneInListings(user.hidePhoneInListings);
+    }
+  }, [user?.hidePhoneInListings]);
 
   useEffect(() => {
     if (isFocused) {
@@ -77,6 +88,20 @@ export const ProfileScreen: React.FC = () => {
       }
     } catch {
       setPreferences((prev) => ({ ...prev, [key]: !value }));
+      Alert.alert(t('common.error'), t('common.networkError'));
+    }
+  };
+
+  const handleTogglePhoneVisibility = async (value: boolean) => {
+    setHidePhoneInListings(value);
+    try {
+      const res = await CommunityBoardApi.updatePhoneVisibility(value);
+      if (res && typeof res.hidePhoneInListings === 'boolean') {
+        setHidePhoneInListings(res.hidePhoneInListings);
+      }
+      refreshProfile().catch(() => {});
+    } catch {
+      setHidePhoneInListings(!value);
       Alert.alert(t('common.error'), t('common.networkError'));
     }
   };
@@ -312,6 +337,24 @@ export const ProfileScreen: React.FC = () => {
             />
             <ChevronRight color={Colors.textMuted} size={18} />
           </TouchableOpacity>
+        </Card>
+
+        {/* Community Board Privacy */}
+        <Text style={styles.sectionHeading}>{t('profile.privacySection')}</Text>
+        <Card style={styles.settingsCard}>
+          <View style={styles.settingItem}>
+            <PhoneOff color={Colors.primary} size={20} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingTitle}>{t('profile.hidePhoneTitle')}</Text>
+              <Text style={styles.settingSub}>{t('profile.hidePhoneSub')}</Text>
+            </View>
+            <Switch
+              value={hidePhoneInListings}
+              onValueChange={handleTogglePhoneVisibility}
+              trackColor={{ false: Colors.border, true: Colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
         </Card>
 
         {/* Logout Button */}

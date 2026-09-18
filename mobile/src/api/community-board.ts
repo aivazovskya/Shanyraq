@@ -78,4 +78,12 @@ export const CommunityBoardApi = {
     const res = await apiClient.get<CommunityListing[]>('/community-board/my-listings');
     return res.data;
   },
+
+  async updatePhoneVisibility(hidePhoneInListings: boolean): Promise<{ hidePhoneInListings: boolean }> {
+    const res = await apiClient.patch<{ hidePhoneInListings: boolean }>(
+      '/community-board/my-phone-visibility',
+      { hidePhoneInListings },
+    );
+    return res.data;
+  },
 };
