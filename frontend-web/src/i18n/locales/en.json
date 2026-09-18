@@ -892,7 +892,13 @@
     "photoLabel": "Photo",
     "exportCsvBtn": "Download CSV",
     "exportingCsv": "Exporting...",
-    "exportError": "Error exporting CSV"
+    "exportError": "Error exporting CSV",
+    "resolveBtn": "Resolved",
+    "resolvedBadge": "Resolved",
+    "resolveError": "Failed to mark conversation as resolved",
+    "filterAll": "All",
+    "filterUnresolved": "Open",
+    "filterResolved": "Resolved"
   },
   "analytics": {
     "pageTitle": "Extended Analytics",

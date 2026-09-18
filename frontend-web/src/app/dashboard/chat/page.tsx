@@ -62,6 +62,9 @@ export interface ConversationItem {
     }>;
   };
   lastMessage?: ChatMessageItem | null;
+  isResolved?: boolean;
+  resolvedAt?: string | null;
+  resolvedById?: string | null;
 }
 
 export interface TenantItem {
@@ -83,6 +86,7 @@ export default function DispatcherChatPage() {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [refreshingList, setRefreshingList] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterResolved, setFilterResolved] = useState<'ALL' | 'UNRESOLVED' | 'RESOLVED'>('ALL');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Selected conversation state
@@ -93,15 +97,45 @@ export default function DispatcherChatPage() {
   const [photoUrl, setPhotoUrl] = useState('');
   const [showPhotoInput, setShowPhotoInput] = useState(false);
   const [sending, setSending] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
   // Photo modal preview
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
-  // CSV Export state
+  // CSV Export & Resolve state
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const canExportCsv = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(currentUser?.role || '');
+  const canResolveChat = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(currentUser?.role || '');
+
+  const handleResolveConversation = async () => {
+    if (!selectedConversationId || resolving) return;
+    setResolving(true);
+    try {
+      const updated = await apiRequest<ConversationItem>(
+        `/chat/conversations/${selectedConversationId}/resolve`,
+        { method: 'PATCH' },
+      );
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === selectedConversationId
+            ? {
+                ...c,
+                isResolved: true,
+                resolvedAt: updated?.resolvedAt || new Date().toISOString(),
+                resolvedById: updated?.resolvedById || currentUser?.id || null,
+              }
+            : c,
+        ),
+      );
+    } catch (err: any) {
+      console.error('Failed to resolve conversation:', err);
+      alert(err.message || t('chat.resolveError'));
+    } finally {
+      setResolving(false);
+    }
+  };
 
   const handleExportCsv = async () => {
     if (!selectedConversationId) return;
@@ -158,14 +192,22 @@ export default function DispatcherChatPage() {
 
   // 2. Fetch conversations list
   const loadConversations = useCallback(
-    async (tId: string, isSilent = false) => {
+    async (tId: string, isSilent = false, resolvedOverride?: 'ALL' | 'UNRESOLVED' | 'RESOLVED') => {
       if (!tId) return;
       if (!isSilent) setLoadingConversations(true);
       else setRefreshingList(true);
       setErrorMsg(null);
 
+      const activeFilter = resolvedOverride ?? filterResolved;
+      let url = `/chat/tenants/${tId}/conversations`;
+      if (activeFilter === 'UNRESOLVED') {
+        url += '?resolved=false';
+      } else if (activeFilter === 'RESOLVED') {
+        url += '?resolved=true';
+      }
+
       try {
-        const data = await apiRequest<ConversationItem[]>(`/chat/tenants/${tId}/conversations`);
+        const data = await apiRequest<ConversationItem[]>(url);
         setConversations(data || []);
       } catch (err: any) {
         console.error('Failed to load conversations:', err);
@@ -175,14 +217,14 @@ export default function DispatcherChatPage() {
         setRefreshingList(false);
       }
     },
-    [t],
+    [t, filterResolved],
   );
 
   useEffect(() => {
     if (tenantId) {
-      loadConversations(tenantId);
+      loadConversations(tenantId, false, filterResolved);
     }
-  }, [tenantId, loadConversations]);
+  }, [tenantId, filterResolved, loadConversations]);
 
   // 3. Fetch messages for selected conversation
   const loadMessages = useCallback(
@@ -246,12 +288,48 @@ export default function DispatcherChatPage() {
       }
     });
 
-    socket.on('chat:inbox:message', () => {
+    const handleConversationStatus = (payload: {
+      conversationId: string;
+      isResolved: boolean;
+      resolvedAt: string | null;
+      resolvedById: string | null;
+    }) => {
+      if (!payload || !payload.conversationId) return;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === payload.conversationId
+            ? {
+                ...c,
+                isResolved: payload.isResolved,
+                resolvedAt: payload.resolvedAt,
+                resolvedById: payload.resolvedById,
+              }
+            : c,
+        ),
+      );
+    };
+
+    const handleInboxMessage = (payload: any) => {
+      const role = payload?.message?.sender?.role;
+      if (payload?.conversationId && (!role || role === 'RESIDENT' || role === 'RESIDENT_OWNER' || role === 'RESIDENT_TENANT')) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === payload.conversationId
+              ? { ...c, isResolved: false, resolvedAt: null, resolvedById: null }
+              : c,
+          ),
+        );
+      }
       // Обновляем список диалогов и счетчики без поллинга
       loadConversations(tenantId, true);
-    });
+    };
+
+    socket.on('chat:inbox:conversation-status', handleConversationStatus);
+    socket.on('chat:inbox:message', handleInboxMessage);
 
     return () => {
+      socket.off('chat:inbox:conversation-status', handleConversationStatus);
+      socket.off('chat:inbox:message', handleInboxMessage);
       socket.disconnect();
       socketRef.current = null;
     };
@@ -280,6 +358,16 @@ export default function DispatcherChatPage() {
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
+        const role = newMsg.sender?.role;
+        if (!role || role === 'RESIDENT' || role === 'RESIDENT_OWNER' || role === 'RESIDENT_TENANT') {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === selectedConversationId
+                ? { ...c, isResolved: false, resolvedAt: null, resolvedById: null }
+                : c,
+            ),
+          );
+        }
       }
     };
 
@@ -417,7 +505,7 @@ export default function DispatcherChatPage() {
       <div className="flex-1 min-h-0 pt-4 flex gap-4">
         {/* Left Column: Conversation List */}
         <div className="w-80 md:w-96 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden shrink-0">
-          {/* Search bar */}
+          {/* Search bar & Status Filter */}
           <div className="p-3 border-b border-slate-100">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -428,6 +516,41 @@ export default function DispatcherChatPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
+            </div>
+            <div className="flex p-1 bg-slate-100/80 rounded-xl mt-2.5 gap-1">
+              <button
+                type="button"
+                onClick={() => setFilterResolved('ALL')}
+                className={`flex-1 py-1 px-2 text-xs font-medium rounded-lg transition-colors ${
+                  filterResolved === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t('chat.filterAll')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterResolved('UNRESOLVED')}
+                className={`flex-1 py-1 px-2 text-xs font-medium rounded-lg transition-colors ${
+                  filterResolved === 'UNRESOLVED'
+                    ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t('chat.filterUnresolved')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterResolved('RESOLVED')}
+                className={`flex-1 py-1 px-2 text-xs font-medium rounded-lg transition-colors ${
+                  filterResolved === 'RESOLVED'
+                    ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t('chat.filterResolved')}
+              </button>
             </div>
           </div>
 
@@ -471,9 +594,16 @@ export default function DispatcherChatPage() {
                         <span className="font-semibold text-sm text-slate-900 truncate">
                           {residentName}
                         </span>
-                        <span className="text-[11px] text-slate-400 shrink-0">
-                          {formatConversationTime(conv.lastMessage?.createdAt || conv.updatedAt)}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {conv.isResolved && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              {t('chat.resolvedBadge')}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-slate-400">
+                            {formatConversationTime(conv.lastMessage?.createdAt || conv.updatedAt)}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Apartment / Block info */}
@@ -558,6 +688,29 @@ export default function DispatcherChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {canResolveChat && (
+                    selectedConv.isResolved ? (
+                      <span className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1.5">
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{t('chat.resolvedBadge')}</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleResolveConversation}
+                        disabled={resolving || !selectedConversationId}
+                        title={t('chat.resolveBtn')}
+                        className="px-2.5 py-1.5 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5 text-xs font-semibold border border-emerald-200 bg-white shadow-sm"
+                      >
+                        {resolving ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                        ) : (
+                          <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        )}
+                        <span>{t('chat.resolveBtn')}</span>
+                      </button>
+                    )
+                  )}
+
                   {canExportCsv && (
                     <button
                       onClick={handleExportCsv}

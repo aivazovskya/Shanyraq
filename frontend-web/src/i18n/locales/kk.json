@@ -892,7 +892,13 @@
     "photoLabel": "Фото",
     "exportCsvBtn": "CSV жүктеп алу",
     "exportingCsv": "Экспортталуда...",
-    "exportError": "CSV экспорттау қатесі"
+    "exportError": "CSV экспорттау қатесі",
+    "resolveBtn": "Шешілді",
+    "resolvedBadge": "Шешілді",
+    "resolveError": "Диалогты шешілді деп белгілеу сәтсіз аяқталды",
+    "filterAll": "Барлығы",
+    "filterUnresolved": "Ашық",
+    "filterResolved": "Шешілген"
   },
   "analytics": {
     "pageTitle": "Кеңейтілген талдау",

@@ -892,7 +892,13 @@
     "photoLabel": "Фото",
     "exportCsvBtn": "Скачать CSV",
     "exportingCsv": "Экспорт...",
-    "exportError": "Ошибка экспорта CSV"
+    "exportError": "Ошибка экспорта CSV",
+    "resolveBtn": "Решено",
+    "resolvedBadge": "Решено",
+    "resolveError": "Не удалось отметить диалог как решённый",
+    "filterAll": "Все",
+    "filterUnresolved": "Открытые",
+    "filterResolved": "Решённые"
   },
   "analytics": {
     "pageTitle": "Расширенная аналитика",
