@@ -801,5 +801,121 @@ describe('AuthService (Аудит безопасности авторизаци�
       });
     });
   });
+
+  describe('getMe (Task 0086: безопасный профиль пользователя)', () => {
+    it('должен использовать select-белый список и НЕ запрашивать / НЕ возвращать passwordHash, accessPinHash, tokenVersion', async () => {
+      const mockRawUserInDb = {
+        id: 'user-safe-1',
+        phone: '+77019998877',
+        email: 'safe@example.com',
+        passwordHash: '$2a$10$insecureHashLeakShouldNeverReturn',
+        accessPinHash: '$2a$10$pinHashLeakShouldNeverReturn',
+        tokenVersion: 5,
+        firstName: 'Алихан',
+        lastName: 'Бокейхан',
+        iin: '900101300123',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        isActive: true,
+        isVerified: true,
+        accessPinSetAt: new Date('2026-01-01'),
+        mustChangePassword: false,
+        hidePhoneInListings: true,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-02'),
+        tenant: {
+          id: 'tenant-1',
+          name: 'ЖК Байтерек',
+          address: 'ул. Достык 10',
+          city: 'Астана',
+        },
+        ownerships: [
+          {
+            id: 'own-1',
+            unitId: 'unit-1',
+            ownershipType: 'OWNER',
+            sharePercent: 100,
+            isVerified: true,
+            unit: {
+              id: 'unit-1',
+              unitNumber: '42',
+              floor: 5,
+              entrance: 1,
+              type: 'APARTMENT',
+              area: 75,
+              building: {
+                id: 'b-1',
+                blockName: 'Блок А',
+              },
+            },
+          },
+        ],
+      };
+
+      prismaMock.user.findUnique.mockImplementation(async (args: any) => {
+        if (!args?.select) {
+          return mockRawUserInDb;
+        }
+        const projected: any = {};
+        for (const [key, val] of Object.entries(args.select)) {
+          if (val && key in mockRawUserInDb) {
+            projected[key] = (mockRawUserInDb as any)[key];
+          }
+        }
+        return projected;
+      });
+
+      const result = await service.getMe('user-safe-1');
+
+      // 1. Проверяем аргументы prisma.user.findUnique
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user-safe-1' },
+        select: expect.objectContaining({
+          id: true,
+          phone: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          tenantId: true,
+          tenant: true,
+          isVerified: true,
+          ownerships: expect.any(Object),
+          hidePhoneInListings: true,
+        }),
+      });
+
+      const callArgs = prismaMock.user.findUnique.mock.calls[0][0];
+      expect(callArgs.select).not.toHaveProperty('passwordHash');
+      expect(callArgs.select).not.toHaveProperty('accessPinHash');
+      expect(callArgs.select).not.toHaveProperty('tokenVersion');
+
+      // 2. Проверяем, что секреты физически отсутствуют в возвращённом объекте
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(result).not.toHaveProperty('accessPinHash');
+      expect(result).not.toHaveProperty('tokenVersion');
+
+      // 3. Проверяем, что все поля, необходимые клиентам (mobile/web), присутствуют
+      expect(result.id).toBe('user-safe-1');
+      expect(result.phone).toBe('+77019998877');
+      expect(result.firstName).toBe('Алихан');
+      expect(result.lastName).toBe('Бокейхан');
+      expect(result.role).toBe(UserRole.RESIDENT_OWNER);
+      expect(result.tenantId).toBe('tenant-1');
+      expect(result.isVerified).toBe(true);
+      expect(result.hidePhoneInListings).toBe(true);
+      expect(result.tenant).toBeDefined();
+      expect(result.tenant.name).toBe('ЖК Байтерек');
+      expect(result.ownerships).toHaveLength(1);
+      expect(result.ownerships[0].unit.building.blockName).toBe('Блок А');
+    });
+
+    it('должен выбрасывать UnauthorizedException AUTH.USER_NOT_FOUND, если пользователь не найден', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getMe('non-existent-user')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
 });
 
