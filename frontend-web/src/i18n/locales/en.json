@@ -425,6 +425,12 @@
       "thCreator": "Issued By",
       "thRevoked": "Revocation",
       "thCreatedAt": "Created",
+      "thActions": "Actions",
+      "redeemBtn": "Confirm Entry",
+      "redeeming": "Confirming...",
+      "redeemSuccess": "Guest entry confirmed successfully",
+      "redeemConfirm": "Confirm entry for guest {{name}}? The pass will become single-used.",
+      "redeemError": "Failed to confirm guest pass entry",
       "emptyList": "No guest passes found",
       "emptyListDesc": "No guest passes were found for the selected period or filters.",
       "loading": "Loading guest pass history...",
@@ -1151,7 +1157,11 @@
       "STAFF_CROSS_TENANT_FORBIDDEN": "Staff only has access to resources of their own residential complex",
       "RESIDENT_ACCESS_FORBIDDEN": "You do not have verified access to shared resources of this residential complex",
       "MANAGE_FORBIDDEN": "Insufficient permissions to manage bookings of this complex",
-      "OUTSIDE_OPERATING_HOURS": "Booking is only available during operating hours (from {{opStart}} to {{opEnd}})"
+      "OUTSIDE_OPERATING_HOURS": "Booking is only available during operating hours (from {{opStart}} to {{opEnd}})",
+      "SLOT_NOT_FULL": "You can only join the waitlist for a fully booked slot",
+      "ALREADY_ON_WAITLIST": "This unit is already on the waitlist for this slot",
+      "WAITLIST_ENTRY_NOT_FOUND": "Waitlist entry not found",
+      "WAITLIST_LEAVE_FORBIDDEN": "You can only remove your own waitlist entry"
     },
     "ACCESS_CONTROL": {
       "HIKVISION_CREDENTIALS_MISSING": "Hikvision intercom credentials are not configured",
@@ -1177,6 +1187,14 @@
       "PIN_INVALID": "Invalid PIN. Attempts remaining: {{remaining}}",
       "GUEST_PASS_OWN_UNIT_ONLY": "You can only issue a guest pass for your own verified apartment",
       "GUEST_PASS_CROSS_TENANT_FORBIDDEN": "Staff can only issue guest passes for units in their own property complex",
+      "GUEST_PASS_NOT_FOUND": "Guest pass not found",
+      "GUEST_PASS_ALREADY_REVOKED": "Guest pass is already revoked",
+      "GUEST_PASS_REVOKE_FORBIDDEN": "You are not authorized to revoke this guest pass",
+      "GUEST_PASS_REDEEM_FORBIDDEN": "You are not authorized to redeem this guest pass",
+      "GUEST_PASS_ALREADY_USED": "Guest pass has already been used",
+      "GUEST_PASS_REVOKED": "Guest pass has been revoked",
+      "GUEST_PASS_NOT_YET_VALID": "Guest pass is not valid yet",
+      "GUEST_PASS_EXPIRED": "Guest pass has expired",
       "UNIT_NOT_FOUND": "Unit/apartment not found"
     },
     "SOS": {
@@ -1240,6 +1258,11 @@
       "STORAGE_ERROR": "Error saving file to storage",
       "FILE_MISSING": "File not provided in the \"file\" field",
       "INVALID_MIME_TYPE": "Invalid file type. Only JPEG, PNG, WebP, and PDF are allowed"
+    },
+    "SHIFT_HANDOVER": {
+      "POST_FORBIDDEN": "You do not have permission to post shift handover notes",
+      "VIEW_FORBIDDEN": "You do not have permission to view shift handover notes",
+      "CONTENT_REQUIRED": "Note text cannot be empty"
     },
     "VALIDATION": {
       "REQUIRED": "The «{{field}}» field is required",

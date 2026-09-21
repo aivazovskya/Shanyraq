@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
@@ -13,7 +13,7 @@ import {
   Calendar,
   AlertCircle,
 } from 'lucide-react';
-import { apiRequest, getStoredSession } from '@/lib/api';
+import { apiRequest, getStoredSession, getApiErrorMessage } from '@/lib/api';
 
 interface WaitlistEntry {
   id: string;
@@ -120,7 +120,7 @@ export default function BookingsWaitlistPage() {
       setEntries(data || []);
     } catch (err: any) {
       console.warn('Failed to load waitlist demand:', err);
-      setError(err.message || t('bookings.loadError'));
+      setError(getApiErrorMessage(err, t) || t('bookings.loadError'));
     } finally {
       setLoading(false);
     }

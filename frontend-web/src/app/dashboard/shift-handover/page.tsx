@@ -10,7 +10,7 @@ import {
   Building2,
   Clock,
 } from 'lucide-react';
-import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { apiRequest, getStoredSession, AuthUser, getApiErrorMessage } from '@/lib/api';
 
 interface TenantItem {
   id: string;
@@ -81,7 +81,7 @@ export default function ShiftHandoverPage() {
         setNotes(data || []);
       } catch (err: any) {
         console.error('Failed to load shift handover notes:', err);
-        setErrorMsg(err.message || t('shiftHandover.loadError'));
+        setErrorMsg(getApiErrorMessage(err, t) || t('shiftHandover.loadError'));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -164,15 +164,7 @@ export default function ShiftHandoverPage() {
       await loadNotes(tenantId, true);
     } catch (err: any) {
       console.error('Failed to post shift handover note:', err);
-      if (err.status === 403) {
-        setFormError(t('shiftHandover.error403'));
-      } else if (err.status === 400) {
-        setFormError(
-          t('shiftHandover.error400', { message: err.message || '' }),
-        );
-      } else {
-        setFormError(err.message || t('common.error'));
-      }
+      setFormError(getApiErrorMessage(err, t) || t('common.error'));
     } finally {
       setIsSubmitting(false);
     }
