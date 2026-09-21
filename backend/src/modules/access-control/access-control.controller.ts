@@ -139,6 +139,19 @@ export class AccessControlController {
     return this.accessControlService.revokeGuestPass(id, user);
   }
 
+  @Patch('guest-passes/:id/redeem')
+  @Roles(
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SECURITY,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Подтвердить использование гостевого пропуска (вход гостя)' })
+  async redeemGuestPass(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.accessControlService.redeemGuestPass(id, user);
+  }
+
   @Get('tenant/:tenantId/logs')
   @Roles(UserRole.SECURITY, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
   @ApiOperation({ summary: 'Журнал событий проезда и открытий (только для сотрудников своего ЖК)' })

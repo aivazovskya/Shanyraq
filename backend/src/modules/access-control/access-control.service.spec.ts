@@ -1490,6 +1490,216 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
       });
     });
+
+    describe('redeemGuestPass (Task 0088: One-time redemption)', () => {
+      const now = Date.now();
+      const mockActivePass = {
+        id: 'pass-redeem-1',
+        unitId: 'unit-1',
+        creatorId: 'creator-res-1',
+        guestName: 'Нурлан Гостев',
+        guestPlateNumber: '777KZ01',
+        accessCode: '123456',
+        isRevoked: false,
+        isUsed: false,
+        usedAt: null,
+        validFrom: new Date(now - 3600000), // 1 hour ago
+        validTo: new Date(now + 3600000),   // 1 hour later
+        unit: {
+          building: {
+            tenantId: 'tenant-1',
+          },
+        },
+      };
+
+      const staffUser = {
+        id: 'security-1',
+        role: UserRole.SECURITY,
+        tenantId: 'tenant-1',
+      };
+
+      it('успешно подтверждает вход (isUsed: true, usedAt), логирует GUEST_PASS_REDEEMED и возвращает статус USED', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockActivePass);
+        prismaMock.guestPass.update.mockResolvedValue({
+          ...mockActivePass,
+          isUsed: true,
+          usedAt: new Date(),
+        });
+
+        const res = await service.redeemGuestPass('pass-redeem-1', staffUser);
+
+        expect(res.status).toBe('USED');
+        expect(res.isUsed).toBe(true);
+        expect(prismaMock.guestPass.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'pass-redeem-1' },
+            data: {
+              isUsed: true,
+              usedAt: expect.any(Date),
+            },
+          }),
+        );
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId: 'tenant-1',
+          actorId: 'security-1',
+          action: 'GUEST_PASS_REDEEMED',
+          targetType: 'GuestPass',
+          targetId: 'pass-redeem-1',
+          metadata: {
+            guestName: 'Нурлан Гостев',
+            guestPlateNumber: '777KZ01',
+            unitId: 'unit-1',
+          },
+        });
+      });
+
+      it('отклоняет подтверждение несуществующего пропуска (404 ACCESS_CONTROL.GUEST_PASS_NOT_FOUND)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.redeemGuestPass('non-existent', staffUser),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_NOT_FOUND',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('блокирует сотрудника чужого ЖК (403 ACCESS_CONTROL.GUEST_PASS_REDEEM_FORBIDDEN)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockActivePass);
+
+        const foreignStaff = {
+          id: 'alien-sec-1',
+          role: UserRole.SECURITY,
+          tenantId: 'tenant-OTHER',
+        };
+
+        await expect(
+          service.redeemGuestPass('pass-redeem-1', foreignStaff),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_REDEEM_FORBIDDEN',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('блокирует не-сотрудника (например жильца) (403 ACCESS_CONTROL.GUEST_PASS_REDEEM_FORBIDDEN)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockActivePass);
+
+        const residentUser = {
+          id: 'creator-res-1',
+          role: UserRole.RESIDENT_OWNER,
+          tenantId: 'tenant-1',
+        };
+
+        await expect(
+          service.redeemGuestPass('pass-redeem-1', residentUser),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_REDEEM_FORBIDDEN',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('отклоняет повторное использование уже использованного пропуска (400 ACCESS_CONTROL.GUEST_PASS_ALREADY_USED)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue({
+          ...mockActivePass,
+          isUsed: true,
+          usedAt: new Date(now - 10000),
+        });
+
+        await expect(
+          service.redeemGuestPass('pass-redeem-1', staffUser),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_ALREADY_USED',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('отклоняет подтверждение отозванного пропуска (400 ACCESS_CONTROL.GUEST_PASS_REVOKED)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue({
+          ...mockActivePass,
+          isRevoked: true,
+          revokedAt: new Date(now - 5000),
+        });
+
+        await expect(
+          service.redeemGuestPass('pass-redeem-1', staffUser),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_REVOKED',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('отклоняет подтверждение еще не наступившего пропуска (400 ACCESS_CONTROL.GUEST_PASS_NOT_YET_VALID)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue({
+          ...mockActivePass,
+          validFrom: new Date(now + 3600000), // in the future
+          validTo: new Date(now + 7200000),
+        });
+
+        await expect(
+          service.redeemGuestPass('pass-redeem-1', staffUser),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_NOT_YET_VALID',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('отклоняет подтверждение истекшего пропуска (400 ACCESS_CONTROL.GUEST_PASS_EXPIRED)', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue({
+          ...mockActivePass,
+          validFrom: new Date(now - 7200000),
+          validTo: new Date(now - 3600000), // in the past
+        });
+
+        await expect(
+          service.redeemGuestPass('pass-redeem-1', staffUser),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'ACCESS_CONTROL.GUEST_PASS_EXPIRED',
+          },
+        });
+
+        expect(prismaMock.guestPass.update).not.toHaveBeenCalled();
+      });
+
+      it('разрешает SUPERADMIN подтверждать вход пропуска любого ЖК', async () => {
+        prismaMock.guestPass.findUnique.mockResolvedValue(mockActivePass);
+        prismaMock.guestPass.update.mockResolvedValue({
+          ...mockActivePass,
+          isUsed: true,
+          usedAt: new Date(),
+        });
+
+        const superAdmin = {
+          id: 'super-1',
+          role: UserRole.SUPERADMIN,
+          tenantId: null,
+        };
+
+        const res = await service.redeemGuestPass('pass-redeem-1', superAdmin);
+
+        expect(res.status).toBe('USED');
+        expect(res.isUsed).toBe(true);
+        expect(prismaMock.guestPass.update).toHaveBeenCalled();
+      });
+    });
   });
 
   // -----------------------------------------------------------------------

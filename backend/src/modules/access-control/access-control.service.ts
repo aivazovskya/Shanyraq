@@ -1044,6 +1044,128 @@ export class AccessControlService {
     };
   }
 
+  async redeemGuestPass(
+    passId: string,
+    user: { id: string; role: UserRole; tenantId?: string | null },
+  ) {
+    const pass = await this.prisma.guestPass.findUnique({
+      where: { id: passId },
+      include: {
+        unit: {
+          include: {
+            building: true,
+          },
+        },
+      },
+    });
+
+    if (!pass) {
+      throw new NotFoundException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_NOT_FOUND',
+        message: 'Гостевой пропуск не найден',
+      });
+    }
+
+    const isStaff = ([
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+      UserRole.SECURITY,
+    ] as UserRole[]).includes(user.role);
+
+    const isSuperAdmin = user.role === UserRole.SUPERADMIN;
+    const isAuthorizedStaff =
+      isStaff && user.tenantId === pass.unit?.building?.tenantId;
+
+    if (!isSuperAdmin && !isAuthorizedStaff) {
+      throw new ForbiddenException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_REDEEM_FORBIDDEN',
+        message: 'Вы не имеете права подтверждать вход по данному гостевому пропуску',
+      });
+    }
+
+    if (pass.isRevoked) {
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_REVOKED',
+        message: 'Гостевой пропуск отозван и недействителен',
+      });
+    }
+
+    if (pass.isUsed) {
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_ALREADY_USED',
+        message: 'Гостевой пропуск уже был использован',
+      });
+    }
+
+    const now = Date.now();
+    const validFromTime = new Date(pass.validFrom).getTime();
+    const validToTime = new Date(pass.validTo).getTime();
+
+    if (now < validFromTime) {
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_NOT_YET_VALID',
+        message: 'Срок действия гостевого пропуска еще не начался',
+      });
+    }
+
+    if (now > validToTime) {
+      throw new BadRequestException({
+        code: 'ACCESS_CONTROL.GUEST_PASS_EXPIRED',
+        message: 'Срок действия гостевого пропуска истек',
+      });
+    }
+
+    const updated = await this.prisma.guestPass.update({
+      where: { id: passId },
+      data: {
+        isUsed: true,
+        usedAt: new Date(),
+      },
+      include: {
+        creator: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        revokedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        unit: {
+          select: {
+            id: true,
+            unitNumber: true,
+            building: {
+              select: {
+                id: true,
+                blockName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const tenantId = pass.unit?.building?.tenantId || user.tenantId;
+    if (tenantId) {
+      await this.auditLogService.log({
+        tenantId,
+        actorId: user.id,
+        action: 'GUEST_PASS_REDEEMED',
+        targetType: 'GuestPass',
+        targetId: passId,
+        metadata: {
+          guestName: pass.guestName,
+          guestPlateNumber: pass.guestPlateNumber,
+          unitId: pass.unitId,
+        },
+      });
+    }
+
+    return {
+      ...updated,
+      status: this.computeGuestPassStatus(updated),
+    };
+  }
+
   async getAccessLogs(tenantId: string) {
     return this.prisma.accessLog.findMany({
       where: {

@@ -444,6 +444,7 @@ model GuestPass {
   validFrom        DateTime
   validTo          DateTime
   isUsed           Boolean           @default(false)
+  usedAt           DateTime?
   isRevoked        Boolean           @default(false)
   revokedAt        DateTime?
   revokedById      String?

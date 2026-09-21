@@ -38,6 +38,7 @@ export interface GuestPassItem {
   validFrom: string;
   validTo: string;
   isUsed: boolean;
+  usedAt?: string | null;
   isRevoked: boolean;
   revokedAt: string | null;
   createdAt: string;
@@ -89,6 +90,11 @@ export default function GuestPassesHistoryPage() {
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  // Redemption State
+  const [redeemingId, setRedeemingId] = useState<string | null>(null);
+  const [redeemSuccessMsg, setRedeemSuccessMsg] = useState<string | null>(null);
+  const [redeemErrorMsg, setRedeemErrorMsg] = useState<string | null>(null);
+
   const isAuthorized = currentUser && GUEST_PASS_ROLES.includes(currentUser.role);
 
   const loadPasses = useCallback(async (tId: string) => {
@@ -138,6 +144,29 @@ export default function GuestPassesHistoryPage() {
       setTimeout(() => setExportError(null), 5000);
     } finally {
       setExportingCsv(false);
+    }
+  };
+
+  const handleRedeemPass = async (pass: GuestPassItem) => {
+    if (!window.confirm(t('access.guestPassHistory.redeemConfirm', { name: pass.guestName }))) {
+      return;
+    }
+    setRedeemingId(pass.id);
+    setRedeemErrorMsg(null);
+    try {
+      await apiRequest<GuestPassItem>(`/access/guest-passes/${pass.id}/redeem`, {
+        method: 'PATCH',
+      });
+      setRedeemSuccessMsg(t('access.guestPassHistory.redeemSuccess'));
+      setTimeout(() => setRedeemSuccessMsg(null), 4000);
+      if (tenantId) {
+        await loadPasses(tenantId);
+      }
+    } catch (err: any) {
+      setRedeemErrorMsg(err.message || t('access.guestPassHistory.redeemError'));
+      setTimeout(() => setRedeemErrorMsg(null), 5000);
+    } finally {
+      setRedeemingId(null);
     }
   };
 
@@ -344,6 +373,30 @@ export default function GuestPassesHistoryPage() {
         </div>
       )}
 
+      {/* Redemption Alerts */}
+      {redeemSuccessMsg && (
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+            <span>{redeemSuccessMsg}</span>
+          </div>
+          <button onClick={() => setRedeemSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {redeemErrorMsg && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>{redeemErrorMsg}</span>
+          </div>
+          <button onClick={() => setRedeemErrorMsg(null)} className="text-rose-400 hover:text-rose-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -440,12 +493,13 @@ export default function GuestPassesHistoryPage() {
                 <th className="py-3 px-4">{t('access.guestPassHistory.thCreator')}</th>
                 <th className="py-3 px-4">{t('access.guestPassHistory.thRevoked')}</th>
                 <th className="py-3 px-4 text-right">{t('access.guestPassHistory.thCreatedAt')}</th>
+                <th className="py-3 px-4 text-right">{t('access.guestPassHistory.thActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading && passes.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     <div className="flex items-center justify-center gap-2">
                       <RefreshCw className="w-5 h-5 animate-spin text-slate-500" />
                       <span>{t('access.guestPassHistory.loading')}</span>
@@ -454,7 +508,7 @@ export default function GuestPassesHistoryPage() {
                 </tr>
               ) : filteredPasses.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Ticket className="w-8 h-8 text-slate-300" />
                       <div className="font-semibold text-slate-700">
@@ -556,6 +610,25 @@ export default function GuestPassesHistoryPage() {
                       {/* Created at */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap font-mono text-slate-500 text-[11px]">
                         {formatDate(pass.createdAt)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        {pass.status === 'ACTIVE' && (
+                          <button
+                            onClick={() => handleRedeemPass(pass)}
+                            disabled={redeemingId === pass.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-sm transition disabled:opacity-50"
+                          >
+                            <CheckCircle2 className={`w-3.5 h-3.5 ${redeemingId === pass.id ? 'animate-spin' : ''}`} />
+                            <span>{redeemingId === pass.id ? t('access.guestPassHistory.redeeming') : t('access.guestPassHistory.redeemBtn')}</span>
+                          </button>
+                        )}
+                        {pass.status === 'USED' && pass.usedAt && (
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {formatDate(pass.usedAt)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

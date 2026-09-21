@@ -34,6 +34,7 @@ export interface GuestPass {
   validFrom: string;
   validTo: string;
   isUsed: boolean;
+  usedAt?: string | null;
   isRevoked?: boolean;
   revokedAt?: string | null;
   revokedById?: string | null;
@@ -136,6 +137,11 @@ export const AccessApi = {
 
   async revokeGuestPass(id: string): Promise<GuestPass> {
     const res = await apiClient.patch(`/access/guest-passes/${id}/revoke`);
+    return res.data;
+  },
+
+  async redeemGuestPass(id: string): Promise<GuestPass> {
+    const res = await apiClient.patch(`/access/guest-passes/${id}/redeem`);
     return res.data;
   },
 };

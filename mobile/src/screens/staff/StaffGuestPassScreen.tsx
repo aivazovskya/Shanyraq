@@ -69,6 +69,7 @@ export const StaffGuestPassScreen: React.FC = () => {
   const [loadingPasses, setLoadingPasses] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [revokingPassId, setRevokingPassId] = useState<string | null>(null);
+  const [redeemingPassId, setRedeemingPassId] = useState<string | null>(null);
 
   const isStaff = isStaffUser(user?.role);
 
@@ -196,6 +197,31 @@ export const StaffGuestPassScreen: React.FC = () => {
               Alert.alert(t('common.error'), getApiErrorMessage(err));
             } finally {
               setRevokingPassId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRedeemPass = (pass: GuestPass) => {
+    Alert.alert(
+      t('access.redeemConfirmTitle'),
+      t('access.redeemConfirmMsg'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('access.redeemPassBtn'),
+          onPress: async () => {
+            setRedeemingPassId(pass.id);
+            try {
+              await AccessApi.redeemGuestPass(pass.id);
+              Alert.alert(t('common.success'), t('access.redeemedSuccess'));
+              fetchTenantPasses();
+            } catch (err: any) {
+              Alert.alert(t('common.error'), getApiErrorMessage(err));
+            } finally {
+              setRedeemingPassId(null);
             }
           },
         },
@@ -512,14 +538,23 @@ export const StaffGuestPassScreen: React.FC = () => {
                         </View>
 
                         {pass.status === 'ACTIVE' && (
-                          <Button
-                            title={t('access.revokePassBtn')}
-                            onPress={() => handleRevokePass(pass)}
-                            loading={revokingPassId === pass.id}
-                            variant="outline"
-                            size="sm"
-                            style={styles.revokeButton}
-                          />
+                          <View style={styles.actionButtonsRow}>
+                            <Button
+                              title={t('access.redeemPassBtn')}
+                              onPress={() => handleRedeemPass(pass)}
+                              loading={redeemingPassId === pass.id}
+                              size="sm"
+                              style={styles.redeemButton}
+                            />
+                            <Button
+                              title={t('access.revokePassBtn')}
+                              onPress={() => handleRevokePass(pass)}
+                              loading={revokingPassId === pass.id}
+                              variant="outline"
+                              size="sm"
+                              style={styles.revokeButton}
+                            />
+                          </View>
                         )}
                       </View>
                     </Card>
@@ -910,8 +945,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
   },
-  revokeButton: {
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginLeft: 8,
+  },
+  redeemButton: {
+    backgroundColor: Colors.primary,
+  },
+  revokeButton: {
     borderColor: Colors.danger,
   },
 });
