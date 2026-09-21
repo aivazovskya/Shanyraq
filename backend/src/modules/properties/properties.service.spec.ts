@@ -31,6 +31,7 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       unitOwnership: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
@@ -46,6 +47,12 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       personalAccount: {
         create: jest.fn(),
       },
+      $transaction: jest.fn().mockImplementation(async (callback) => {
+        if (typeof callback === 'function') {
+          return callback(prismaMock);
+        }
+        return Promise.all(callback);
+      }),
     };
 
     auditLogServiceMock = {
@@ -981,8 +988,62 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         expect(auditLogServiceMock.log).not.toHaveBeenCalled();
       });
 
-      it('должен удалять запись при отклонении (dto.isVerified: false) и логировать OWNERSHIP_REJECTED', async () => {
+      it('должен удалять запись при отклонении (dto.isVerified: false), сбрасывать tenantId на null если это единственная заявка в ЖК, и логировать OWNERSHIP_REJECTED', async () => {
         prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.findFirst.mockResolvedValue(null); // других заявок в этом ЖК нет
+        prismaMock.unitOwnership.delete.mockResolvedValue({ id: 'own-record-1' });
+        prismaMock.user.update.mockResolvedValue({ id: 'user-resident-1', tenantId: null });
+
+        const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
+        const res = await service.verifyOwnership('own-record-1', verifier, {
+          isVerified: false,
+        });
+
+        expect(res).toEqual({
+          id: 'own-record-1',
+          isVerified: false,
+          status: 'REJECTED',
+        });
+        expect(prismaMock.unitOwnership.findFirst).toHaveBeenCalledWith({
+          where: {
+            userId: 'user-resident-1',
+            id: { not: 'own-record-1' },
+            unit: {
+              building: {
+                tenantId: 'tenant-1',
+              },
+            },
+          },
+        });
+        expect(prismaMock.unitOwnership.delete).toHaveBeenCalledWith({
+          where: { id: 'own-record-1' },
+        });
+        expect(prismaMock.unitOwnership.update).not.toHaveBeenCalled();
+        expect(prismaMock.user.update).toHaveBeenCalledWith({
+          where: { id: 'user-resident-1' },
+          data: { tenantId: null },
+        });
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId: 'tenant-1',
+          actorId: 'admin-1',
+          action: 'OWNERSHIP_REJECTED',
+          targetType: 'UnitOwnership',
+          targetId: 'own-record-1',
+          metadata: {
+            residentId: 'user-resident-1',
+            unitId: 'unit-1',
+            requestedShare: 50.0,
+          },
+        });
+      });
+
+      it('должен оставлять tenantId без изменений при отклонении, если у пользователя есть другая заявка/право в том же ЖК', async () => {
+        prismaMock.unitOwnership.findUnique.mockResolvedValue(mockRecord);
+        prismaMock.unitOwnership.findFirst.mockResolvedValue({
+          id: 'own-record-2',
+          userId: 'user-resident-1',
+          unitId: 'unit-2',
+        });
         prismaMock.unitOwnership.delete.mockResolvedValue({ id: 'own-record-1' });
 
         const verifier = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId: 'tenant-1' };
@@ -998,7 +1059,6 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         expect(prismaMock.unitOwnership.delete).toHaveBeenCalledWith({
           where: { id: 'own-record-1' },
         });
-        expect(prismaMock.unitOwnership.update).not.toHaveBeenCalled();
         expect(prismaMock.user.update).not.toHaveBeenCalled();
         expect(auditLogServiceMock.log).toHaveBeenCalledWith({
           tenantId: 'tenant-1',

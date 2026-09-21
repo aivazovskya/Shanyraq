@@ -19,6 +19,9 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
       tenant: {
         findUnique: jest.fn(),
       },
+      unitOwnership: {
+        findFirst: jest.fn(),
+      },
       announcement: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
@@ -57,10 +60,30 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
         role: UserRole.RESIDENT_OWNER,
         tenantId: 'tenant-MY-HOA',
       };
+      prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
 
       await expect(
         controller.getAnnouncements('tenant-OTHER-HOA', alienUser),
       ).rejects.toThrow(ForbiddenException);
+
+      expect(prismaMock.announcement.findMany).not.toHaveBeenCalled();
+    });
+
+    it('должен блокировать доступ жителя без подтвержденного владения (403 ANNOUNCEMENTS.RESIDENT_ACCESS_FORBIDDEN)', async () => {
+      const unverifiedUser = {
+        id: 'user-unverified',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+      };
+      prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        controller.getAnnouncements('tenant-1', unverifiedUser),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ANNOUNCEMENTS.RESIDENT_ACCESS_FORBIDDEN',
+        },
+      });
 
       expect(prismaMock.announcement.findMany).not.toHaveBeenCalled();
     });
@@ -72,6 +95,11 @@ describe('AnnouncementsModule (Безопасность и Tenant-изоляци
         tenantId: 'tenant-1',
       };
 
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-1',
+        userId: 'user-1',
+        isVerified: true,
+      });
       prismaMock.announcement.findMany.mockResolvedValue([
         { id: 'ann-1', title: 'Отключение воды', isUrgent: true },
       ]);

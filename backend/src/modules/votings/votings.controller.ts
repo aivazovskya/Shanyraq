@@ -7,22 +7,41 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
+import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
+
+const VOTINGS_ACCESS_ERRORS: TenantAccessErrorCodes = {
+  authRequired: {
+    code: 'VOTINGS.AUTH_REQUIRED',
+    message: 'Требуется авторизация',
+  },
+  staffForbidden: {
+    code: 'VOTINGS.STAFF_CROSS_TENANT_FORBIDDEN',
+    message: 'Персонал имеет доступ только к собраниям своего жилого комплекса',
+  },
+  residentForbidden: {
+    code: 'VOTINGS.RESIDENT_ACCESS_FORBIDDEN',
+    message: 'У вас нет подтвержденного доступа к собраниям данного жилого комплекса',
+  },
+};
 
 @ApiTags('Votings & Meetings (Собрания и Голосования ОСС)')
 @Controller('votings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class VotingsController {
-  constructor(private readonly votingsService: VotingsService) {}
+  constructor(
+    private readonly votingsService: VotingsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('tenant/:tenantId')
   @ApiOperation({ summary: 'Список собраний и голосований ЖК с актуальным кворумом (с изоляцией ЖК)' })
   async getMeetingsByTenant(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
-    // Аудит безопасности: BOLA/IDOR защита — житель или сотрудник может запрашивать собрания только своего ЖК
-    assertUserBelongsToTenant(user, tenantId, 'собраний ОСС');
+    // Аудит безопасности: BOLA/IDOR защита — житель должен иметь верифицированное владение в ЖК, персонал — принадлежать ЖК
+    await assertAccessToTenant(this.prisma, user, tenantId, VOTINGS_ACCESS_ERRORS);
     return this.votingsService.getMeetingsByTenant(tenantId);
   }
 

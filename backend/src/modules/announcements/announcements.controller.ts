@@ -7,21 +7,40 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { assertUserBelongsToTenant, assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
+import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
+
+const ANNOUNCEMENTS_ACCESS_ERRORS: TenantAccessErrorCodes = {
+  authRequired: {
+    code: 'ANNOUNCEMENTS.AUTH_REQUIRED',
+    message: 'Требуется авторизация',
+  },
+  staffForbidden: {
+    code: 'ANNOUNCEMENTS.STAFF_CROSS_TENANT_FORBIDDEN',
+    message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+  },
+  residentForbidden: {
+    code: 'ANNOUNCEMENTS.RESIDENT_ACCESS_FORBIDDEN',
+    message: 'У вас нет подтвержденного доступа к новостям данного жилого комплекса',
+  },
+};
 
 @ApiTags('Announcements & News (Лента новостей и оповещений)')
 @Controller('announcements')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class AnnouncementsController {
-  constructor(private readonly announcementsService: AnnouncementsService) {}
+  constructor(
+    private readonly announcementsService: AnnouncementsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('tenant/:tenantId')
   @ApiOperation({ summary: 'Лента новостей и оповещений жилого комплекса (с tenant-изоляцией)' })
   async getAnnouncements(@Param('tenantId') tenantId: string, @CurrentUser() user: any) {
-    // Безопасность: BOLA/IDOR защита — житель или сотрудник может читать новости только своего ЖК
-    assertUserBelongsToTenant(user, tenantId, 'новостей ЖК');
+    // Безопасность: BOLA/IDOR защита — житель должен иметь подтвержденный доступ в ЖК, сотрудник — принадлежать ЖК
+    await assertAccessToTenant(this.prisma, user, tenantId, ANNOUNCEMENTS_ACCESS_ERRORS);
     return this.announcementsService.getAnnouncements(tenantId, user);
   }
 

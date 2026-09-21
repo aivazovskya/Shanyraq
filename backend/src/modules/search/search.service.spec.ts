@@ -13,6 +13,9 @@ describe('SearchService (Глобальный быстрый поиск)', () =>
       user: {
         findMany: jest.fn(),
       },
+      unitOwnership: {
+        findFirst: jest.fn(),
+      },
       serviceRequest: {
         findMany: jest.fn(),
       },
@@ -124,12 +127,62 @@ describe('SearchService (Глобальный быстрый поиск)', () =>
   });
 
   describe('Изоляция арендаторов (Tenant Isolation)', () => {
-    it('запрещает сотруднику доступ к поиску чужого ЖК (403 Forbidden)', async () => {
+    it('запрещает жителю без верифицированного владения доступ к поиску ЖК (403 SEARCH.RESIDENT_ACCESS_FORBIDDEN)', async () => {
+      const resident = { id: 'user-resident-1', tenantId: 'tenant-1', role: UserRole.RESIDENT_OWNER };
+      prismaMock.unitOwnership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.search('tenant-1', resident, 'Поиск'),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'SEARCH.RESIDENT_ACCESS_FORBIDDEN',
+        },
+      });
+
+      expect(prismaMock.unitOwnership.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-resident-1',
+          isVerified: true,
+          unit: {
+            building: {
+              tenantId: 'tenant-1',
+            },
+          },
+        },
+      });
+      expect(prismaMock.user.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.serviceRequest.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.personalAccount.findMany).not.toHaveBeenCalled();
+    });
+
+    it('разрешает жителю с верифицированным владением доступ к поиску своего ЖК', async () => {
+      const resident = { id: 'user-resident-1', tenantId: 'tenant-1', role: UserRole.RESIDENT_OWNER };
+      prismaMock.unitOwnership.findFirst.mockResolvedValue({
+        id: 'own-1',
+        userId: 'user-resident-1',
+        isVerified: true,
+      });
+      prismaMock.user.findMany.mockResolvedValue([]);
+      prismaMock.serviceRequest.findMany.mockResolvedValue([]);
+
+      const res = await service.search('tenant-1', resident, 'Иван');
+
+      expect(res).toEqual({ residents: [], requests: [], accounts: [] });
+      expect(prismaMock.unitOwnership.findFirst).toHaveBeenCalled();
+      expect(prismaMock.user.findMany).toHaveBeenCalled();
+      expect(prismaMock.serviceRequest.findMany).toHaveBeenCalled();
+    });
+
+    it('запрещает сотруднику доступ к поиску чужого ЖК (403 SEARCH.STAFF_CROSS_TENANT_FORBIDDEN)', async () => {
       const staffUser = { tenantId: 'tenant-1', role: UserRole.HOA_ADMIN };
 
       await expect(
         service.search('tenant-2', staffUser, 'Поиск'),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toMatchObject({
+        response: {
+          code: 'SEARCH.STAFF_CROSS_TENANT_FORBIDDEN',
+        },
+      });
 
       expect(prismaMock.user.findMany).not.toHaveBeenCalled();
       expect(prismaMock.serviceRequest.findMany).not.toHaveBeenCalled();

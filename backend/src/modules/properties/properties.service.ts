@@ -528,9 +528,32 @@ export class PropertiesService {
     }
 
     if (!dto.isVerified) {
-      // При отклонении заявки удаляем ее из очереди, освобождая возможность повторной подачи
-      await this.prisma.unitOwnership.delete({
-        where: { id: ownershipId },
+      await this.prisma.$transaction(async (tx) => {
+        // Проверяем, есть ли у пользователя другие заявки/права собственности в этом же ЖК
+        const otherOwnership = await tx.unitOwnership.findFirst({
+          where: {
+            userId: record.userId,
+            id: { not: ownershipId },
+            unit: {
+              building: {
+                tenantId: record.unit.building.tenantId,
+              },
+            },
+          },
+        });
+
+        // При отклонении заявки удаляем ее из очереди, освобождая возможность повторной подачи
+        await tx.unitOwnership.delete({
+          where: { id: ownershipId },
+        });
+
+        if (!otherOwnership) {
+          // Если других заявок/прав в данном ЖК нет, отзываем выданный при подаче tenantId
+          await tx.user.update({
+            where: { id: record.userId },
+            data: { tenantId: null },
+          });
+        }
       });
 
       await this.auditLogService.log({

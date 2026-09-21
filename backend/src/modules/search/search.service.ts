@@ -1,7 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
-import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
+
+const SEARCH_ACCESS_ERRORS: TenantAccessErrorCodes = {
+  authRequired: {
+    code: 'SEARCH.AUTH_REQUIRED',
+    message: 'Требуется авторизация',
+  },
+  staffForbidden: {
+    code: 'SEARCH.STAFF_CROSS_TENANT_FORBIDDEN',
+    message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+  },
+  residentForbidden: {
+    code: 'SEARCH.RESIDENT_ACCESS_FORBIDDEN',
+    message: 'У вас нет подтвержденного доступа к поиску данного жилого комплекса',
+  },
+};
 
 export interface UserContext {
   id?: string;
@@ -46,7 +61,7 @@ export class SearchService {
     user: UserContext,
     q: string,
   ): Promise<GlobalSearchResult> {
-    assertUserBelongsToTenant(user, tenantId, 'поиска');
+    await assertAccessToTenant(this.prisma, user, tenantId, SEARCH_ACCESS_ERRORS);
 
     const term = q?.trim() || '';
     if (term.length < 2) {
