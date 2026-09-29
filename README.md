@@ -84,11 +84,22 @@ docker compose up -d
 cd backend
 npm install
 npx prisma generate
-npm run test           # Запуск юнит-тестов кворума и голосований
-npm run start:dev      # Запуск API сервера в watch-режиме
+npm run prisma:migrate:deploy  # Применение миграций БД
+npm run test                   # Запуск юнит-тестов кворума и голосований
+npm run start:dev              # Запуск API сервера в watch-режиме
 ```
 * **API эндпоинты**: `http://localhost:4000/api/v1`
 * **Swagger API Документация**: `http://localhost:4000/api/docs`
+
+### 4.1. Управление миграциями БД (Prisma Migrate)
+
+Схема базы данных управляется версионированными миграциями (`backend/prisma/migrations`):
+* **Применение миграций**: `npm run prisma:migrate:deploy` (в CI/CD, staging и production).
+* **Создание новой миграции**: `npm run prisma:migrate:dev -- --name <migration_name>`.
+* **Статус миграций**: `npm run prisma:migrate:status`.
+* **Baseline существующей БД**: `npx prisma migrate resolve --applied 0_init` (для баз данных, где схема уже была создана ранее).
+* **Проверка дубликатов ИИН**: `npx ts-node scripts/check-iin-hash-duplicates.ts` (предмиграционный аудит перед наложением `@unique`).
+* ⚠️ **Внимание**: Команда `prisma db push` разрешена **только локально для быстрого прототипирования** и строго запрещена на продакшене. Откат изменений выполняется через создание новой миграции вперёд.
 
 ### 5. Запуск Веб-панели (Next.js)
 ```bash

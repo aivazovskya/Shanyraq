@@ -11,6 +11,21 @@ jobs:
     name: Backend Tests & Build
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shanyraq_admin
+          POSTGRES_PASSWORD: shanyraq_secure_password_2026
+          POSTGRES_DB: shanyraq_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,6 +44,22 @@ jobs:
       - name: Generate Prisma Client
         working-directory: backend
         run: npx prisma generate
+
+      - name: Deploy Prisma Migrations (clean database)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://shanyraq_admin:shanyraq_secure_password_2026@localhost:5432/shanyraq_test?schema=public
+        run: npx prisma migrate deploy
+
+      - name: Create Shadow Database for CI Drift Check
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U shanyraq_admin -d shanyraq_test -c "CREATE DATABASE shanyraq_shadow;" || true
+
+      - name: Verify Schema Drift (migrations vs schema.prisma)
+        working-directory: backend
+        env:
+          SHADOW_DATABASE_URL: postgresql://shanyraq_admin:shanyraq_secure_password_2026@localhost:5432/shanyraq_shadow?schema=public
+        run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url "$SHADOW_DATABASE_URL" --exit-code
 
       - name: Run Unit Tests (Votings, Quorum, RBAC)
         working-directory: backend

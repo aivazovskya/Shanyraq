@@ -32,8 +32,45 @@ docker compose up -d
 cd backend
 npm install
 npx prisma generate
+npm run prisma:migrate:deploy  # Применение миграций БД
 npm run start:dev
 ```
+
+### 3.1. Миграции базы данных (Prisma Migrate)
+
+В проекте используется версионирование схемы БД через Prisma Migrate (`backend/prisma/migrations`).
+
+* **Создание новой миграции при разработке**:
+  ```bash
+  cd backend
+  npm run prisma:migrate:dev -- --name <migration_name>
+  ```
+* **Применение миграций (CI / Staging / Production)**:
+  ```bash
+  cd backend
+  npm run prisma:migrate:deploy
+  ```
+* **Проверка статуса миграций**:
+  ```bash
+  cd backend
+  npm run prisma:migrate:status
+  ```
+* **Baseline для существующей БД (dev / пилот)**:
+  Если база данных уже содержит таблицы, начальная baseline-миграция `0_init` помечается как выполненная без повторного выполнения SQL:
+  ```bash
+  cd backend
+  npx prisma migrate resolve --applied 0_init
+  ```
+* **Предмиграционная проверка дубликатов ИИН**:
+  Перед применением миграций на базе с данными обязательно выполните проверку:
+  ```bash
+  npx ts-node scripts/check-iin-hash-duplicates.ts
+  ```
+  Скрипт проверяет отсутствие дублей по хешу `iinHash` перед наложением индекса `@unique` (завершается с ошибкой при дублях, без раскрытия значений ИИН).
+* ⚠️ **Запрет `prisma db push` на продакшене**:
+  Команда `npm run prisma:push` предназначена **исключительно для быстрого локального прототипирования (dev-only)** и категорически запрещена в production / staging окружениях. Она не ведёт историю изменений, не позволяет версионировать схему и может привести к безвозвратной потере данных.
+* **Откат миграций (Rollback)**:
+  Prisma Migrate не поддерживает автоматический rollback. Откат выполняется в виде **новой миграции вперёд** (forward migration), восстанавливающей прежнюю структуру схемы.
 
 ### 4. Запуск Web Admin
 ```bash
