@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto, UpdateStaffDto } from './dto/properties.dto';
@@ -17,6 +18,8 @@ import { decryptPii, hashIin } from '../../common/crypto/pii-crypto.helper';
 
 @Injectable()
 export class PropertiesService {
+  private readonly logger = new Logger(PropertiesService.name);
+
   constructor(
     private prisma: PrismaService,
     private readonly auditLogService: AuditLogService,
@@ -720,10 +723,23 @@ export class PropertiesService {
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
 
-    return residents.map((resident) => ({
-      ...resident,
-      iin: decryptPii(resident.iin),
-    }));
+    return residents.map((resident) => {
+      let iin = resident.iin;
+      if (resident.iin) {
+        try {
+          iin = decryptPii(resident.iin);
+        } catch (err) {
+          this.logger.error(
+            `Failed to decrypt resident IIN (residentId: ${resident.id}): ${err instanceof Error ? err.message : String(err)}`,
+          );
+          iin = '—';
+        }
+      }
+      return {
+        ...resident,
+        iin,
+      };
+    });
   }
 
   async exportConfirmedResidentsCsv(
@@ -752,7 +768,17 @@ export class PropertiesService {
       const fullName = `${resident.lastName || ''} ${resident.firstName || ''}`.trim() || '—';
       const phone = resident.phone || '—';
       const email = resident.email || '—';
-      const iin = resident.iin || '—';
+      let iin = '—';
+      if (resident.iin) {
+        try {
+          iin = decryptPii(resident.iin) || '—';
+        } catch (err) {
+          this.logger.error(
+            `Failed to decrypt resident IIN for CSV export (residentId: ${resident.id}): ${err instanceof Error ? err.message : String(err)}`,
+          );
+          iin = '—';
+        }
+      }
       const accountStatus = resident.isActive ? 'Активен' : 'Деактивирован';
 
       for (const ownership of resident.ownerships) {
@@ -868,9 +894,21 @@ export class PropertiesService {
       });
     }
 
+    let iin = user.iin;
+    if (user.iin) {
+      try {
+        iin = decryptPii(user.iin);
+      } catch (err) {
+        this.logger.error(
+          `Failed to decrypt resident IIN in getResidentDetail (userId: ${user.id}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        iin = '—';
+      }
+    }
+
     return {
       ...user,
-      iin: decryptPii(user.iin),
+      iin,
     };
   }
 

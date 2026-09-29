@@ -74,6 +74,9 @@
     "typescript": "^5.3.3"
   },
   "jest": {
+    "setupFiles": [
+      "<rootDir>/test-setup.ts"
+    ],
     "moduleFileExtensions": [
       "js",
       "json",

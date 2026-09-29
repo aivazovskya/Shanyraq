@@ -1331,6 +1331,43 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       expect(content).toContain('900101300123');
       expect(content).not.toContain('v1:');
     });
+
+    it('при ошибке расшифровки ИИН (повреждённый шифротекст) пишет "—" в CSV и не падает', async () => {
+      const corruptedIin = 'v1:badiv:badtag:badciphertext';
+      const mockResident = {
+        id: 'user-corrupted',
+        lastName: 'Петров',
+        firstName: 'Пётр',
+        phone: '+77022223344',
+        email: 'petrov@example.com',
+        iin: corruptedIin,
+        isActive: true,
+        ownerships: [
+          {
+            id: 'own-corrupted',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 100.0,
+            isVerified: true,
+            verifiedAt: new Date('2026-05-10T10:00:00.000Z'),
+            unit: {
+              unitNumber: '102',
+              area: 50.0,
+              building: { blockName: 'Блок Б' },
+            },
+          },
+        ],
+      };
+
+      prismaMock.user.findMany.mockResolvedValue([mockResident]);
+
+      const { buffer } = await service.exportConfirmedResidentsCsv('tenant-1');
+      const content = buffer.toString('utf-8');
+
+      expect(content).not.toContain('v1:');
+      expect(content).not.toContain('badciphertext');
+      expect(content).toContain('Петров');
+      expect(content).toContain('—');
+    });
   });
 
   describe('unlinkOwnership (Audit trail: OWNERSHIP_UNLINKED)', () => {

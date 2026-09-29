@@ -5,6 +5,8 @@ import {
   hashIin,
   maskIin,
   validatePiiCryptoConfig,
+  getPiiEncryptionKey,
+  getPiiHashKey,
   sanitizeAuditMetadata,
 } from './pii-crypto.helper';
 
@@ -43,6 +45,48 @@ describe('pii-crypto.helper (AES-256-GCM, HMAC-SHA256, Masking & Audit)', () => 
       process.env.PII_ENCRYPTION_KEY = crypto.randomBytes(16).toString('base64');
       expect(() => validatePiiCryptoConfig()).toThrow(
         /must decode to exactly 32 bytes/,
+      );
+    });
+
+    it('успешно проходит, если PII_HASH_KEY не задан (fallback на PII_ENCRYPTION_KEY)', () => {
+      delete process.env.PII_HASH_KEY;
+      expect(() => validatePiiCryptoConfig()).not.toThrow();
+    });
+
+    it('выбрасывает ошибку, если PII_HASH_KEY задан, но декодируется не в 32 байта', () => {
+      process.env.PII_HASH_KEY = crypto.randomBytes(16).toString('base64');
+      expect(() => validatePiiCryptoConfig()).toThrow(
+        /FATAL: PII_HASH_KEY must decode to exactly 32 bytes/,
+      );
+    });
+  });
+
+  describe('getPiiEncryptionKey & getPiiHashKey', () => {
+    it('выбрасывает ошибку в getPiiEncryptionKey, если переменная отсутствует (нет хардкода)', () => {
+      delete process.env.PII_ENCRYPTION_KEY;
+      expect(() => getPiiEncryptionKey()).toThrow(
+        /PII_ENCRYPTION_KEY environment variable is required/,
+      );
+    });
+
+    it('getPiiHashKey возвращает PII_ENCRYPTION_KEY, если PII_HASH_KEY не задан', () => {
+      delete process.env.PII_HASH_KEY;
+      const hashKey = getPiiHashKey();
+      const encKey = getPiiEncryptionKey();
+      expect(hashKey).toEqual(encKey);
+    });
+
+    it('getPiiHashKey возвращает PII_HASH_KEY, если он задан корректно (32 байта)', () => {
+      const customHashKey = crypto.randomBytes(32).toString('base64');
+      process.env.PII_HASH_KEY = customHashKey;
+      const hashKey = getPiiHashKey();
+      expect(hashKey).toEqual(Buffer.from(customHashKey, 'base64'));
+    });
+
+    it('getPiiHashKey выбрасывает ошибку при невалидном PII_HASH_KEY без молчаливого отката', () => {
+      process.env.PII_HASH_KEY = crypto.randomBytes(16).toString('base64');
+      expect(() => getPiiHashKey()).toThrow(
+        /PII_HASH_KEY must decode to exactly 32 bytes/,
       );
     });
   });

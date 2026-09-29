@@ -3,11 +3,10 @@ import * as crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH_BYTES = 12; // 96 bits standard for AES-GCM
 const VERSION_PREFIX = 'v1';
-const FALLBACK_TEST_KEY_BASE64 = 'oe3FdI9y3WTxUngovENTYMvTbjf+mhQOZ85a3elnVJU=';
-
 /**
  * Валидация конфигурации шифрования ПДн при старте приложения (fail-fast).
- * Выбрасывает исключение, если PII_ENCRYPTION_KEY отсутствует или не равен 32 байтам.
+ * Выбрасывает исключение, если PII_ENCRYPTION_KEY отсутствует или не равен 32 байтам,
+ * либо если PII_HASH_KEY задан, но не равен 32 байтам.
  */
 export function validatePiiCryptoConfig(): void {
   const keyBase64 = process.env.PII_ENCRYPTION_KEY;
@@ -21,6 +20,16 @@ export function validatePiiCryptoConfig(): void {
       `FATAL: PII_ENCRYPTION_KEY must decode to exactly 32 bytes (got ${keyBuffer.length} bytes)`,
     );
   }
+
+  const hashKeyBase64 = process.env.PII_HASH_KEY;
+  if (hashKeyBase64) {
+    const hashKeyBuffer = Buffer.from(hashKeyBase64, 'base64');
+    if (hashKeyBuffer.length !== 32) {
+      throw new Error(
+        `FATAL: PII_HASH_KEY must decode to exactly 32 bytes (got ${hashKeyBuffer.length} bytes)`,
+      );
+    }
+  }
 }
 
 /**
@@ -29,9 +38,6 @@ export function validatePiiCryptoConfig(): void {
 export function getPiiEncryptionKey(): Buffer {
   const keyBase64 = process.env.PII_ENCRYPTION_KEY;
   if (!keyBase64) {
-    if (process.env.NODE_ENV === 'test') {
-      return Buffer.from(FALLBACK_TEST_KEY_BASE64, 'base64');
-    }
     throw new Error('PII_ENCRYPTION_KEY environment variable is required');
   }
 
@@ -47,15 +53,18 @@ export function getPiiEncryptionKey(): Buffer {
 
 /**
  * Получение ключа для вычисления HMAC-SHA256 хеша ИИН.
- * Использует PII_HASH_KEY, если он задан, либо PII_ENCRYPTION_KEY.
+ * Использует PII_HASH_KEY, если он задан (строго 32 байта), иначе PII_ENCRYPTION_KEY.
  */
 export function getPiiHashKey(): Buffer {
   const hashKeyBase64 = process.env.PII_HASH_KEY;
-  if (hashKeyBase64) {
+  if (hashKeyBase64 !== undefined && hashKeyBase64 !== null && hashKeyBase64 !== '') {
     const keyBuffer = Buffer.from(hashKeyBase64, 'base64');
-    if (keyBuffer.length === 32) {
-      return keyBuffer;
+    if (keyBuffer.length !== 32) {
+      throw new Error(
+        `PII_HASH_KEY must decode to exactly 32 bytes (got ${keyBuffer.length} bytes)`,
+      );
     }
+    return keyBuffer;
   }
   return getPiiEncryptionKey();
 }
