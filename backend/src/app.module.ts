@@ -26,6 +26,7 @@ import { ShiftHandoverModule } from './modules/shift-handover/shift-handover.mod
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     ShiftHandoverModule,
     EventEmitterModule.forRoot(),
     RealtimeModule,
+    HealthModule,
   ],
   providers: [
     {

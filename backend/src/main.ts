@@ -33,8 +33,10 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   });
 
-  // Global prefix: /api/v1
-  app.setGlobalPrefix('api/v1');
+  // Global prefix: /api/v1 (исключая health-эндпоинты для Docker / K8s probes)
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['health', 'health/(.*)'],
+  });
 
   // Global validation pipe
   app.useGlobalPipes(

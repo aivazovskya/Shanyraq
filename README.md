@@ -126,6 +126,49 @@ npm test
 
 ---
 
+## 🚀 Деплой и контейнеризация (Production Deployment)
+
+Для развертывания платформы в staging/production окружениях используются оптимизированные multi-stage Dockerfile и файл оркестрации `docker-compose.prod.yml`.
+
+### 1. Подготовка конфигурации окружения
+Создайте файл `.env` на основе шаблона `.env.example` и обязательно укажите уникальные криптографические ключи и пароли:
+```bash
+cp .env.example .env
+# Сгенерируйте уникальные 32-байтные ключи для PII шифрования и хеширования:
+# openssl rand -base64 32
+```
+
+### 2. Сборка и запуск контейнеров
+Запуск полного стека (PostgreSQL 16, Redis 7, MinIO S3, Backend API и Next.js Web Admin):
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Порядок инициализации и зависимости сервисов:
+1. `postgres` и `redis` поднимаются первыми и проходят healthcheck.
+2. `backend` ожидает `service_healthy` от БД и Redis, в entrypoint выполняет безопасные миграции `prisma migrate deploy` и запускает NestJS сервер.
+3. `web` запускается после успешного перехода `backend` в статус `healthy` (по эндпоинту `/health/ready`).
+
+### 3. Проверка работоспособности (Health Checks)
+Платформа предоставляет открытые health-эндпоинты (вне API-префикса, без авторизации и без утечки чувствительных данных):
+
+* **Liveness probe** (живучесть процесса):
+  ```bash
+  curl -i http://localhost:4000/health
+  # HTTP/1.1 200 OK
+  # {"status":"ok","timestamp":"2026-09-29T..."}
+  ```
+
+* **Readiness probe** (готовность зависимостей — PostgreSQL и Redis):
+  ```bash
+  curl -i http://localhost:4000/health/ready
+  # HTTP/1.1 200 OK
+  # {"status":"ok","details":{"database":"up","redis":"up"},"timestamp":"2026-09-29T..."}
+  ```
+  В случае недоступности базы данных или Redis эндпоинт возвращает HTTP 503 `Service Unavailable`.
+
+---
+
 ## 🔒 Безопасность и регламент учетных данных (Security Notice)
 
 > [!WARNING]
