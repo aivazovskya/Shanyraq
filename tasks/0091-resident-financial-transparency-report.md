@@ -1,7 +1,8 @@
 # Task 0091: Resident-facing financial transparency report (mobile)
 
-**Status:** Blocked on [Task 0090](0090-hoa-expense-ledger.md)
+**Status:** Completed
 **Assignee:** Antigravity
+
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 
 ## Context

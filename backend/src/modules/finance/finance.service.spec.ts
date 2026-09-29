@@ -17,6 +17,7 @@ import {
 import { generateAccountNumber, getOrCreatePersonalAccount } from './personal-account.helper';
 
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 describe('FinanceService (Лицевые счета, тарифы, начисления и оплаты)', () => {
   let service: FinanceService;
@@ -53,6 +54,7 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         findMany: jest.fn(),
         create: jest.fn(),
         aggregate: jest.fn(),
+        groupBy: jest.fn(),
       },
       payment: {
         create: jest.fn(),
@@ -60,6 +62,7 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       },
       unitOwnership: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
       },
       meter: {
         findFirst: jest.fn(),
@@ -72,6 +75,8 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        aggregate: jest.fn(),
+        groupBy: jest.fn(),
       },
     };
 
@@ -80,8 +85,10 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         FinanceService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditLogService, useValue: auditLogServiceMock },
+        { provide: AnalyticsService, useValue: new AnalyticsService(prismaMock) },
       ],
     }).compile();
+
 
     service = module.get<FinanceService>(FinanceService);
   });
@@ -1362,4 +1369,326 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       });
     });
   });
+
+  // =============================================================
+  // Отчет о прозрачности финансов для жильцов (Task 0091)
+  // =============================================================
+  describe('Financial Transparency Report (Task 0091)', () => {
+    const tenantId = 'tenant-transparency-1';
+    const otherTenantId = 'tenant-other-2';
+
+    const verifiedOwner = { id: 'owner-1', role: UserRole.RESIDENT_OWNER, tenantId };
+    const unverifiedOwner = { id: 'unverified-1', role: UserRole.RESIDENT_OWNER, tenantId };
+    const tenantResident = { id: 'tenant-res-1', role: UserRole.RESIDENT_TENANT, tenantId };
+    const hoaAdmin = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId };
+    const hoaChairman = { id: 'chairman-1', role: UserRole.HOA_CHAIRMAN, tenantId };
+    const crossTenantAdmin = { id: 'admin-other', role: UserRole.HOA_ADMIN, tenantId: otherTenantId };
+    const superAdmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+
+    const periodMonth = 9;
+    const periodYear = 2026;
+
+    beforeEach(() => {
+      // Mock verified ownership check for assertAccessToTenant
+      prismaMock.unitOwnership.findFirst.mockImplementation((args: any) => {
+        if (
+          args?.where?.userId === verifiedOwner.id &&
+          args?.where?.isVerified === true &&
+          args?.where?.unit?.building?.tenantId === tenantId
+        ) {
+          return Promise.resolve({
+            id: 'ownership-1',
+            userId: verifiedOwner.id,
+            isVerified: true,
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      // Charges mock (доходы)
+      prismaMock.charge.aggregate.mockResolvedValue({
+        _sum: { amount: 100000 },
+      });
+
+      // Payments mock (оплаты)
+      prismaMock.payment.aggregate.mockResolvedValue({
+        _sum: { amount: 80000 },
+      });
+
+      // Grouped charges by tariff
+      prismaMock.charge.groupBy.mockResolvedValue([
+        { tariffItemId: 'tariff-1', _sum: { amount: 60000 } },
+        { tariffItemId: 'tariff-2', _sum: { amount: 40000 } },
+      ]);
+
+      prismaMock.tariffItem.findMany.mockResolvedValue([
+        { id: 'tariff-1', name: 'РСЖ' },
+        { id: 'tariff-2', name: 'Капитальный ремонт' },
+      ]);
+
+      // Expenses mock (расходы)
+      prismaMock.expense.aggregate.mockResolvedValue({
+        _sum: { amount: 45000 },
+      });
+
+      // Grouped expenses by category
+      prismaMock.expense.groupBy.mockResolvedValue([
+        { category: 'Зарплата персонала', _sum: { amount: 30000 } },
+        { category: 'Сантехника', _sum: { amount: 15000 } },
+      ]);
+
+      prismaMock.tenant.findUnique.mockResolvedValue({
+        id: tenantId,
+        name: 'ЖК Шаңырақ Премиум',
+      });
+
+      // Personal accounts for debtor check in analytics comparison
+      prismaMock.personalAccount.findMany.mockResolvedValue([
+        {
+          id: 'acc-debt-1',
+          accountNumber: 'SHAN-101',
+          unitId: 'unit-1',
+          balance: -15000,
+          unit: { unitNumber: '101', building: { blockName: 'Блок А' } },
+        },
+      ]);
+    });
+
+    describe('getTransparencyReport', () => {
+      it('подтверждённый RESIDENT_OWNER получает 200 с верными числами', async () => {
+        const report = await service.getTransparencyReport(tenantId, verifiedOwner, {
+          month: periodMonth,
+          year: periodYear,
+        });
+
+        // Сверка с вручную рассчитанными значениями фикстуры
+        expect(report.periodMonth).toBe(9);
+        expect(report.periodYear).toBe(2026);
+        expect(report.totalCharged).toBe(100000);
+        expect(report.totalCollected).toBe(80000);
+        expect(report.collectionRatePercent).toBe(80);
+        expect(report.totalExpenses).toBe(45000);
+        // netBalance = totalCollected - totalExpenses = 80000 - 45000 = 35000
+        expect(report.netBalance).toBe(35000);
+
+        expect(report.byTariff).toEqual([
+          { tariffId: 'tariff-1', tariffName: 'РСЖ', amount: 60000 },
+          { tariffId: 'tariff-2', tariffName: 'Капитальный ремонт', amount: 40000 },
+        ]);
+
+        expect(report.byExpenseCategory).toEqual([
+          { category: 'Зарплата персонала', amount: 30000 },
+          { category: 'Сантехника', amount: 15000 },
+        ]);
+
+        // Проверяем, что в запрос расходов передается фильтр isVoided: false
+        expect(prismaMock.expense.aggregate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              tenantId,
+              isVoided: false,
+            }),
+          }),
+        );
+        expect(prismaMock.expense.groupBy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              tenantId,
+              isVoided: false,
+            }),
+          }),
+        );
+      });
+
+      it('строго гарантирует отсутствие данных по должникам, жильцам и счетам (privacy-safe)', async () => {
+        const report = await service.getTransparencyReport(tenantId, verifiedOwner, {
+          month: periodMonth,
+          year: periodYear,
+        });
+
+        // Явная проверка отсутствия полей должников и жильцов
+        expect(report).not.toHaveProperty('topDebtors');
+        expect(report).not.toHaveProperty('debtors');
+        expect(report).not.toHaveProperty('accounts');
+        expect(report).not.toHaveProperty('debtorAccounts');
+        expect(report).not.toHaveProperty('residents');
+        expect(report).not.toHaveProperty('users');
+        expect(report).not.toHaveProperty('personalAccounts');
+
+        // Проверяем сериализованный JSON на отсутствие номеров счетов и балансов должников
+        const json = JSON.stringify(report);
+        expect(json).not.toContain('SHAN-101');
+        expect(json).not.toContain('-15000');
+        expect(json).not.toContain('topDebtors');
+      });
+
+      it('числа доходов строго совпадают со staff-версией getFinanceAnalytics (без дрифта)', async () => {
+        const analyticsService = new AnalyticsService(prismaMock);
+        const staffAnalytics = await analyticsService.getFinanceAnalytics(
+          tenantId,
+          hoaAdmin,
+          { month: periodMonth, year: periodYear },
+        );
+
+        const residentReport = await service.getTransparencyReport(
+          tenantId,
+          verifiedOwner,
+          { month: periodMonth, year: periodYear },
+        );
+
+        expect(residentReport.totalCharged).toBe(staffAnalytics.totalCharged);
+        expect(residentReport.totalCollected).toBe(staffAnalytics.totalCollected);
+        expect(residentReport.collectionRatePercent).toBe(staffAnalytics.collectionRatePercent);
+        expect(residentReport.byTariff).toEqual(staffAnalytics.byTariff);
+
+        // Staff версия имеет topDebtors, resident версия — никогда
+        expect(staffAnalytics).toHaveProperty('topDebtors');
+        expect(residentReport).not.toHaveProperty('topDebtors');
+      });
+
+      it('неподтверждённый жилец получает 403 Forbidden', async () => {
+        await expect(
+          service.getTransparencyReport(tenantId, unverifiedOwner, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toThrow(ForbiddenException);
+
+        await expect(
+          service.getTransparencyReport(tenantId, unverifiedOwner, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.RESIDENT_ACCESS_FORBIDDEN' },
+        });
+      });
+
+      it('RESIDENT_TENANT получает 403 Forbidden', async () => {
+        await expect(
+          service.getTransparencyReport(tenantId, tenantResident, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toThrow(ForbiddenException);
+
+        await expect(
+          service.getTransparencyReport(tenantId, tenantResident, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.RESIDENT_ACCESS_FORBIDDEN' },
+        });
+      });
+
+      it('персонал своего ЖК (HOA_ADMIN, HOA_CHAIRMAN) получает 200 с верными числами', async () => {
+        const adminReport = await service.getTransparencyReport(tenantId, hoaAdmin, {
+          month: periodMonth,
+          year: periodYear,
+        });
+        expect(adminReport.totalCollected).toBe(80000);
+        expect(adminReport.netBalance).toBe(35000);
+
+        const chairmanReport = await service.getTransparencyReport(tenantId, hoaChairman, {
+          month: periodMonth,
+          year: periodYear,
+        });
+        expect(chairmanReport.totalCollected).toBe(80000);
+        expect(chairmanReport.netBalance).toBe(35000);
+      });
+
+      it('персонал чужого ЖК получает 403 Forbidden (BOLA / tenant isolation)', async () => {
+        await expect(
+          service.getTransparencyReport(tenantId, crossTenantAdmin, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toThrow(ForbiddenException);
+
+        await expect(
+          service.getTransparencyReport(tenantId, crossTenantAdmin, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.STAFF_CROSS_TENANT_FORBIDDEN' },
+        });
+      });
+
+      it('SUPERADMIN получает 200 без привязки к tenantId', async () => {
+        const report = await service.getTransparencyReport(tenantId, superAdmin, {
+          month: periodMonth,
+          year: periodYear,
+        });
+        expect(report.totalCharged).toBe(100000);
+        expect(report.netBalance).toBe(35000);
+      });
+
+      it('выбрасывает 403 authRequired, если user не передан', async () => {
+        await expect(
+          service.getTransparencyReport(tenantId, null as any),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.AUTH_REQUIRED' },
+        });
+      });
+    });
+
+    describe('exportTransparencyReportCsv', () => {
+      it('формирует CSV с UTF-8 BOM, секциями доходов и расходов, без должников', async () => {
+        const res = await service.exportTransparencyReportCsv(tenantId, verifiedOwner, {
+          month: periodMonth,
+          year: periodYear,
+        });
+
+        expect(res.filename).toBe(`transparency-report-${tenantId}-2026-09.csv`);
+        const content = res.buffer.toString('utf-8');
+
+        // UTF-8 BOM
+        expect(res.buffer[0]).toBe(0xef);
+        expect(res.buffer[1]).toBe(0xbb);
+        expect(res.buffer[2]).toBe(0xbf);
+
+        // Заголовки и общие показатели
+        expect(content).toContain('Отчет о прозрачности финансов ЖК');
+        expect(content).toContain('ЖК Шаңырақ Премиум');
+        expect(content).toContain('Период,09.2026');
+        expect(content).toContain('Начислено всего (₸),100000');
+        expect(content).toContain('Оплачено всего (₸),80000');
+        expect(content).toContain('Собираемость,80%');
+        expect(content).toContain('Расходы всего (₸),45000');
+        expect(content).toContain('Чистый баланс (₸),35000');
+
+        // Секция доходов по тарифам
+        expect(content).toContain('Доходы по тарифам');
+        expect(content).toContain('Тариф,Сумма (₸)');
+        expect(content).toContain('РСЖ,60000');
+        expect(content).toContain('Капитальный ремонт,40000');
+
+        // Секция расходов по категориям
+        expect(content).toContain('Расходы по категориям');
+        expect(content).toContain('Категория,Сумма (₸)');
+        expect(content).toContain('Зарплата персонала,30000');
+        expect(content).toContain('Сантехника,15000');
+
+        // Отсутствие должников и персональных счетов
+        expect(content).not.toContain('Должники');
+        expect(content).not.toContain('Лицевой счет');
+        expect(content).not.toContain('SHAN-101');
+      });
+
+      it('отклоняет экспорт для неподтвержденного жильца с 403', async () => {
+        await expect(
+          service.exportTransparencyReportCsv(tenantId, unverifiedOwner),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('отклоняет экспорт для персонала чужого ЖК с 403', async () => {
+        await expect(
+          service.exportTransparencyReportCsv(tenantId, crossTenantAdmin),
+        ).rejects.toThrow(ForbiddenException);
+      });
+    });
+  });
 });
+

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, IsInt, Min, Max, IsISO8601 } from 'class-validator';
 import { ChargeCalculationMethod, MeterType } from '@prisma/client';
+import { TariffBreakdownItem } from '../../analytics/dto/analytics.dto';
 
 export class CreateTariffDto {
   @ApiProperty({ example: 'Коммунальные услуги' })
@@ -123,3 +124,31 @@ export class GetExpensesQueryDto {
   @IsString()
   category?: string;
 }
+
+export class TransparencyReportQueryDto {
+  @ApiPropertyOptional({ example: 9, description: 'Месяц периода (1-12)' })
+  @IsOptional()
+  month?: string | number;
+
+  @ApiPropertyOptional({ example: 2026, description: 'Год периода (например, 2026)' })
+  @IsOptional()
+  year?: string | number;
+}
+
+export interface TransparencyExpenseCategoryItem {
+  category: string;
+  amount: number;
+}
+
+export interface FinancialTransparencyReport {
+  periodMonth: number;
+  periodYear: number;
+  totalCharged: number;
+  totalCollected: number;
+  collectionRatePercent: number;
+  byTariff: TariffBreakdownItem[];
+  totalExpenses: number;
+  byExpenseCategory: TransparencyExpenseCategoryItem[];
+  netBalance: number;
+}
+

@@ -36,6 +36,7 @@ export type RootStackParamList = {
   Announcements: undefined;
   PinSetup: { returnTo?: string } | undefined;
   FinanceAccount: undefined;
+  TransparencyReport: { tenantId?: string } | undefined;
   Meters: undefined;
   Bookings: undefined;
   SosHistory: undefined;

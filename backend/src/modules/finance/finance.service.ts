@@ -13,7 +13,11 @@ import {
   MeterType,
   ReadingStatus,
 } from '@prisma/client';
-import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
+import {
+  assertUserBelongsToTenant,
+  assertAccessToTenant,
+  TenantAccessErrorCodes,
+} from '../../common/guards/tenant.guard';
 import {
   CreateTariffDto,
   UpdateTariffDto,
@@ -22,6 +26,8 @@ import {
   CreateExpenseDto,
   VoidExpenseDto,
   GetExpensesQueryDto,
+  TransparencyReportQueryDto,
+  FinancialTransparencyReport,
 } from './dto/finance.dto';
 import { getOrCreatePersonalAccount } from './personal-account.helper';
 import {
@@ -35,13 +41,31 @@ import {
 import { buildCsv } from '../../common/csv/csv.helper';
 
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AnalyticsService } from '../analytics/analytics.service';
+
+export const FINANCE_TRANSPARENCY_ERRORS: TenantAccessErrorCodes = {
+  authRequired: {
+    code: 'FINANCE.AUTH_REQUIRED',
+    message: 'Требуется авторизация',
+  },
+  staffForbidden: {
+    code: 'FINANCE.STAFF_CROSS_TENANT_FORBIDDEN',
+    message: 'Персонал имеет доступ только к финансовым отчетам своего жилого комплекса',
+  },
+  residentForbidden: {
+    code: 'FINANCE.RESIDENT_ACCESS_FORBIDDEN',
+    message: 'У вас нет подтвержденного доступа к финансовым отчетам данного жилого комплекса',
+  },
+};
 
 @Injectable()
 export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogService: AuditLogService,
+    private readonly analyticsService: AnalyticsService,
   ) {}
+
 
   // -------------------------------------------------------------
   // 1. Управление тарифами ЖК
@@ -1170,4 +1194,151 @@ export class FinanceService {
 
     return { buffer, filename };
   }
+
+  // -------------------------------------------------------------
+  // 7. Отчет о прозрачности финансов для жильцов (Task 0091)
+  // -------------------------------------------------------------
+
+  async getTransparencyReport(
+    tenantId: string,
+    user: any,
+    query?: TransparencyReportQueryDto,
+  ): Promise<FinancialTransparencyReport> {
+    if (!user) {
+      throw new ForbiddenException(FINANCE_TRANSPARENCY_ERRORS.authRequired);
+    }
+
+    const allowedRoles: UserRole[] = [
+      UserRole.RESIDENT_OWNER,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.SUPERADMIN,
+    ];
+
+    if (!allowedRoles.includes(user.role)) {
+      throw new ForbiddenException(FINANCE_TRANSPARENCY_ERRORS.residentForbidden);
+    }
+
+    await assertAccessToTenant(
+      this.prisma,
+      user,
+      tenantId,
+      FINANCE_TRANSPARENCY_ERRORS,
+    );
+
+    const now = new Date();
+    const periodMonth = query?.month
+      ? parseInt(String(query.month), 10)
+      : now.getMonth() + 1;
+    const periodYear = query?.year
+      ? parseInt(String(query.year), 10)
+      : now.getFullYear();
+
+    // 1. Доходы через единый агрегатор AnalyticsService (числа строго совпадают)
+    const { totalCharged, totalCollected, collectionRatePercent, byTariff } =
+      await this.analyticsService.getIncomeAggregates(
+        tenantId,
+        periodMonth,
+        periodYear,
+      );
+
+    // 2. Расходы за этот же период (без аннулированных)
+    const startOfMonth = new Date(Date.UTC(periodYear, periodMonth - 1, 1, 0, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(periodYear, periodMonth, 1, 0, 0, 0, 0));
+
+    const expensesAgg = await this.prisma.expense.aggregate({
+      where: {
+        tenantId,
+        isVoided: false,
+        expenseDate: {
+          gte: startOfMonth,
+          lt: endOfMonth,
+        },
+      },
+      _sum: { amount: true },
+    });
+
+    const totalExpenses = expensesAgg._sum.amount
+      ? Math.round(expensesAgg._sum.amount * 100) / 100
+      : 0;
+
+    const groupedExpenses = await this.prisma.expense.groupBy({
+      by: ['category'],
+      where: {
+        tenantId,
+        isVoided: false,
+        expenseDate: {
+          gte: startOfMonth,
+          lt: endOfMonth,
+        },
+      },
+      _sum: { amount: true },
+      orderBy: { category: 'asc' },
+    });
+
+    const byExpenseCategory = groupedExpenses.map((g) => ({
+      category: g.category,
+      amount: g._sum.amount ? Math.round(g._sum.amount * 100) / 100 : 0,
+    }));
+
+    // 3. Сальдо (чистый баланс) = собрано - потрачено
+    const netBalance = Math.round((totalCollected - totalExpenses) * 100) / 100;
+
+    return {
+      periodMonth,
+      periodYear,
+      totalCharged,
+      totalCollected,
+      collectionRatePercent,
+      byTariff,
+      totalExpenses,
+      byExpenseCategory,
+      netBalance,
+    };
+  }
+
+  async exportTransparencyReportCsv(
+    tenantId: string,
+    user: any,
+    query?: TransparencyReportQueryDto,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const report = await this.getTransparencyReport(tenantId, user, query);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { name: true },
+    });
+
+    const rows: unknown[][] = [
+      ['Отчет о прозрачности финансов ЖК'],
+      ['Жилой комплекс', tenant?.name || 'Не указан'],
+      ['Период', `${String(report.periodMonth).padStart(2, '0')}.${report.periodYear}`],
+      ['Начислено всего (₸)', report.totalCharged],
+      ['Оплачено всего (₸)', report.totalCollected],
+      ['Собираемость', `${report.collectionRatePercent}%`],
+      ['Расходы всего (₸)', report.totalExpenses],
+      ['Чистый баланс (₸)', report.netBalance],
+      [],
+      ['Доходы по тарифам'],
+      ['Тариф', 'Сумма (₸)'],
+    ];
+
+    for (const item of report.byTariff) {
+      rows.push([item.tariffName, item.amount]);
+    }
+
+    rows.push([]);
+    rows.push(['Расходы по категориям']);
+    rows.push(['Категория', 'Сумма (₸)']);
+
+    for (const item of report.byExpenseCategory) {
+      rows.push([item.category, item.amount]);
+    }
+
+    const buffer = buildCsv(rows);
+    const filename = `transparency-report-${tenantId}-${report.periodYear}-${String(report.periodMonth).padStart(2, '0')}.csv`;
+
+    return { buffer, filename };
+  }
 }
+

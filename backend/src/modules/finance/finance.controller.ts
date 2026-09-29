@@ -21,6 +21,7 @@ import {
   CreateExpenseDto,
   VoidExpenseDto,
   GetExpensesQueryDto,
+  TransparencyReportQueryDto,
 } from './dto/finance.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -278,4 +279,52 @@ export class FinanceController {
   ) {
     return this.financeService.voidExpense(id, user, dto);
   }
+
+  // -------------------------------------------------------------
+  // Отчет о прозрачности финансов для жильцов (Task 0091)
+  // -------------------------------------------------------------
+
+  @Get('tenants/:tenantId/transparency-report')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Отчет о прозрачности финансов ЖК (доходы, расходы, сальдо)' })
+  async getTransparencyReport(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query() query: TransparencyReportQueryDto,
+  ) {
+    return this.financeService.getTransparencyReport(tenantId, user, query);
+  }
+
+  @Get('tenants/:tenantId/transparency-report/export')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Экспорт отчета о прозрачности финансов ЖК в формате CSV' })
+  async exportTransparencyReportCsv(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query() query: TransparencyReportQueryDto,
+    @Res() res?: Response,
+  ) {
+    const { buffer, filename } =
+      await this.financeService.exportTransparencyReportCsv(
+        tenantId,
+        user,
+        query,
+      );
+
+    res!.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res!.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res!.setHeader('Content-Length', buffer.length);
+    res!.end(buffer);
+  }
 }
+

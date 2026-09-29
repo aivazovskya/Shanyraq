@@ -46,8 +46,32 @@ export interface PersonalAccountData {
     building: {
       id: string;
       blockName: string;
+      tenantId?: string;
     };
   };
+}
+
+export interface TariffBreakdownItem {
+  tariffId: string;
+  tariffName: string;
+  amount: number;
+}
+
+export interface TransparencyExpenseCategoryItem {
+  category: string;
+  amount: number;
+}
+
+export interface FinancialTransparencyReport {
+  periodMonth: number;
+  periodYear: number;
+  totalCharged: number;
+  totalCollected: number;
+  collectionRatePercent: number;
+  byTariff: TariffBreakdownItem[];
+  totalExpenses: number;
+  byExpenseCategory: TransparencyExpenseCategoryItem[];
+  netBalance: number;
 }
 
 export const financeApi = {
@@ -55,4 +79,15 @@ export const financeApi = {
     const res = await apiClient.get<PersonalAccountData[]>('/finance/my-accounts');
     return res.data;
   },
+  getTransparencyReport: async (
+    tenantId: string,
+    params?: { month?: number; year?: number },
+  ): Promise<FinancialTransparencyReport> => {
+    const res = await apiClient.get<FinancialTransparencyReport>(
+      `/finance/tenants/${tenantId}/transparency-report`,
+      { params },
+    );
+    return res.data;
+  },
 };
+

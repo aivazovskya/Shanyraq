@@ -17,6 +17,7 @@ import { RequestDetailScreen } from '../screens/requests/RequestDetailScreen';
 import { AnnouncementsScreen } from '../screens/announcements/AnnouncementsScreen';
 import { PinSetupScreen } from '../screens/access/PinSetupScreen';
 import { AccountScreen } from '../screens/finance/AccountScreen';
+import { TransparencyReportScreen } from '../screens/finance/TransparencyReportScreen';
 import { MetersScreen } from '../screens/meters/MetersScreen';
 import { BookingsScreen } from '../screens/bookings/BookingsScreen';
 import { SosHistoryScreen } from '../screens/sos/SosHistoryScreen';
@@ -68,6 +69,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="ClaimUnit" component={ClaimUnitScreen} />
             <Stack.Screen name="PinSetup" component={PinSetupScreen} />
             <Stack.Screen name="FinanceAccount" component={AccountScreen} />
+            <Stack.Screen name="TransparencyReport" component={TransparencyReportScreen} />
             <Stack.Screen name="Meters" component={MetersScreen} />
             <Stack.Screen name="Bookings" component={BookingsScreen} />
             <Stack.Screen name="SosHistory" component={SosHistoryScreen} />

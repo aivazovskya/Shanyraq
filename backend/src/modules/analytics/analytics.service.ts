@@ -64,24 +64,20 @@ export class AnalyticsService {
     }
   }
 
-  // -------------------------------------------------------------
-  // 1. Финансовая аналитика (Finance)
-  // -------------------------------------------------------------
-  async getFinanceAnalytics(
+  /**
+   * Агрегаты доходов ЖК за выбранный период (начислено, оплачено, собираемость, по тарифам).
+   * Используется как в getFinanceAnalytics, так и в resident-facing отчете прозрачности финансов (Task 0091).
+   */
+  async getIncomeAggregates(
     tenantId: string,
-    user: RequestUser,
-    query?: FinanceAnalyticsQueryDto,
-  ): Promise<FinanceAnalyticsResponse> {
-    await this.assertStaffAccess(user, tenantId);
-
-    const now = new Date();
-    const periodMonth = query?.month
-      ? parseInt(String(query.month), 10)
-      : now.getMonth() + 1;
-    const periodYear = query?.year
-      ? parseInt(String(query.year), 10)
-      : now.getFullYear();
-
+    periodMonth: number,
+    periodYear: number,
+  ): Promise<{
+    totalCharged: number;
+    totalCollected: number;
+    collectionRatePercent: number;
+    byTariff: TariffBreakdownItem[];
+  }> {
     // 1. Начислено за выбранный период (месяц/год)
     const chargesAgg = await this.prisma.charge.aggregate({
       where: {
@@ -162,6 +158,36 @@ export class AnalyticsService {
       tariffName: tariffNameMap.get(g.tariffItemId) || 'Услуга',
       amount: g._sum.amount ? Math.round(g._sum.amount * 100) / 100 : 0,
     }));
+
+    return {
+      totalCharged,
+      totalCollected,
+      collectionRatePercent,
+      byTariff,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 1. Финансовая аналитика (Finance)
+  // -------------------------------------------------------------
+  async getFinanceAnalytics(
+    tenantId: string,
+    user: RequestUser,
+    query?: FinanceAnalyticsQueryDto,
+  ): Promise<FinanceAnalyticsResponse> {
+    await this.assertStaffAccess(user, tenantId);
+
+    const now = new Date();
+    const periodMonth = query?.month
+      ? parseInt(String(query.month), 10)
+      : now.getMonth() + 1;
+    const periodYear = query?.year
+      ? parseInt(String(query.year), 10)
+      : now.getFullYear();
+
+    const { totalCharged, totalCollected, collectionRatePercent, byTariff } =
+      await this.getIncomeAggregates(tenantId, periodMonth, periodYear);
+
 
     // 4. Топ должников (topDebtors - отрицательный баланс, топ-10)
     const debtorAccounts = await this.prisma.personalAccount.findMany({
@@ -228,86 +254,9 @@ export class AnalyticsService {
       ? parseInt(String(query.year), 10)
       : now.getFullYear();
 
-    // 1. Начислено за выбранный период (месяц/год)
-    const chargesAgg = await this.prisma.charge.aggregate({
-      where: {
-        periodMonth,
-        periodYear,
-        account: {
-          unit: {
-            building: {
-              tenantId,
-            },
-          },
-        },
-      },
-      _sum: { amount: true },
-    });
-    const totalCharged = chargesAgg._sum.amount
-      ? Math.round(chargesAgg._sum.amount * 100) / 100
-      : 0;
+    const { totalCharged, totalCollected, collectionRatePercent, byTariff } =
+      await this.getIncomeAggregates(tenantId, periodMonth, periodYear);
 
-    // 2. Оплачено в этом месяце (по дате paidAt)
-    const startOfMonth = new Date(Date.UTC(periodYear, periodMonth - 1, 1, 0, 0, 0, 0));
-    const endOfMonth = new Date(Date.UTC(periodYear, periodMonth, 1, 0, 0, 0, 0));
-
-    const paymentsAgg = await this.prisma.payment.aggregate({
-      where: {
-        account: {
-          unit: {
-            building: {
-              tenantId,
-            },
-          },
-        },
-        paidAt: {
-          gte: startOfMonth,
-          lt: endOfMonth,
-        },
-      },
-      _sum: { amount: true },
-    });
-    const totalCollected = paymentsAgg._sum.amount
-      ? Math.round(paymentsAgg._sum.amount * 100) / 100
-      : 0;
-
-    const collectionRatePercent =
-      totalCharged > 0
-        ? Math.round((totalCollected / totalCharged) * 1000) / 10
-        : 0;
-
-    // 3. Структура начислений по тарифам (byTariff)
-    const groupedCharges = await this.prisma.charge.groupBy({
-      by: ['tariffItemId'],
-      where: {
-        periodMonth,
-        periodYear,
-        account: {
-          unit: {
-            building: {
-              tenantId,
-            },
-          },
-        },
-      },
-      _sum: { amount: true },
-    });
-
-    const tariffIds = groupedCharges.map((g) => g.tariffItemId);
-    const tariffs =
-      tariffIds.length > 0
-        ? await this.prisma.tariffItem.findMany({
-            where: { id: { in: tariffIds } },
-            select: { id: true, name: true },
-          })
-        : [];
-    const tariffNameMap = new Map(tariffs.map((t) => [t.id, t.name]));
-
-    const byTariff: TariffBreakdownItem[] = groupedCharges.map((g) => ({
-      tariffId: g.tariffItemId,
-      tariffName: tariffNameMap.get(g.tariffItemId) || 'Услуга',
-      amount: g._sum.amount ? Math.round(g._sum.amount * 100) / 100 : 0,
-    }));
 
     // 4. Все должники ЖК (без ограничения take: 10)
     const debtorAccounts = await this.prisma.personalAccount.findMany({

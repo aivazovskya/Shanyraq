@@ -22,14 +22,17 @@ import {
   Home,
   AlertCircle,
   Gauge,
+  FileText,
 } from 'lucide-react-native';
 import { Colors } from '../../constants/colors';
 import { LoadingState } from '../../components/common/LoadingState';
 import { financeApi, PersonalAccountData } from '../../api/finance';
+import { useAuth } from '../../context/AuthContext';
 
 export const AccountScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
 
   const [accounts, setAccounts] = useState<PersonalAccountData[]>([]);
   const [selectedAccountIndex, setSelectedAccountIndex] = useState(0);
@@ -225,6 +228,35 @@ export const AccountScreen: React.FC = () => {
               </View>
               <ChevronLeft color={Colors.textMuted} size={18} style={{ transform: [{ rotate: '180deg' }] }} />
             </TouchableOpacity>
+
+            {/* Financial Transparency Report Action Button */}
+            <TouchableOpacity
+              style={styles.transparencyActionButton}
+              onPress={() =>
+                (navigation as any).navigate('TransparencyReport', {
+                  tenantId:
+                    (currentAccount?.unit?.building as any)?.tenantId ||
+                    user?.tenantId ||
+                    (user?.ownerships?.[0] as any)?.unit?.building?.tenantId,
+                })
+              }
+            >
+              <View style={styles.metersActionContent}>
+                <View style={[styles.metersActionIconWrap, { backgroundColor: '#F0FDF4' }]}>
+                  <FileText color="#16A34A" size={18} />
+                </View>
+                <View style={styles.transparencyTextContainer}>
+                  <Text style={styles.metersActionText}>
+                    {t('finance.transparencyQuickLink', 'Отчет о прозрачности финансов')}
+                  </Text>
+                  <Text style={styles.transparencySubText}>
+                    {t('finance.transparencyQuickLinkSub', 'Доходы, расходы и сальдо дома')}
+                  </Text>
+                </View>
+              </View>
+              <ChevronLeft color={Colors.textMuted} size={18} style={{ transform: [{ rotate: '180deg' }] }} />
+            </TouchableOpacity>
+
 
             {/* Tabs: Charges vs Payments */}
             <View style={styles.tabContainer}>
@@ -649,4 +681,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
   },
+  transparencyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
+  transparencyTextContainer: {
+    flex: 1,
+  },
+  transparencySubText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
 });
+
