@@ -616,7 +616,16 @@
       "TARIFF_NOT_FOUND": "Tariff not found",
       "NO_ACTIVE_TARIFFS": "No active tariffs for billing",
       "ACCOUNT_NOT_FOUND": "Personal account not found",
-      "ACCOUNT_ACCESS_CONFIRMED_ONLY": "Access to personal account is only allowed for confirmed residents of this apartment"
+      "ACCOUNT_ACCESS_CONFIRMED_ONLY": "Access to personal account is only allowed for confirmed residents of this apartment",
+      "EXPENSE_NOT_FOUND": "Expense not found",
+      "EXPENSE_ALREADY_VOIDED": "Expense has already been voided",
+      "VOID_REASON_REQUIRED": "A reason is required to void an expense",
+      "INVALID_AMOUNT": "Expense amount must be a positive number",
+      "INVALID_CATEGORY": "Please specify an expense category",
+      "INVALID_EXPENSE_DATE": "Invalid expense date",
+      "CREATE_EXPENSE_FORBIDDEN": "You do not have permission to record HOA expenses",
+      "VOID_EXPENSE_FORBIDDEN": "You do not have permission to void HOA expenses",
+      "VIEW_EXPENSE_FORBIDDEN": "You do not have permission to view HOA expenses"
     },
     "METERS": {
       "UNIT_NOT_FOUND": "Apartment/unit not found",

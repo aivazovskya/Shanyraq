@@ -67,6 +67,12 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       meterReading: {
         findFirst: jest.fn(),
       },
+      expense: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -1027,6 +1033,333 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       // Escaped quotes and commas per RFC 4180
       expect(content).toContain('"Услуги консьержа, домофон и ""охрана"""');
       expect(content).toContain('"Вручную (касса) / Оплата наличными, касса №2, чек ""А-1"""');
+    });
+  });
+
+  describe('Учёт расходов ЖК (Expense Ledger, Task 0090)', () => {
+    const tenantId = 'tenant-expense-1';
+    const otherTenantId = 'tenant-other-2';
+    const hoaAdmin = { id: 'admin-1', role: UserRole.HOA_ADMIN, tenantId };
+    const superAdmin = { id: 'super-1', role: UserRole.SUPERADMIN, tenantId: null };
+    const hoaChairman = { id: 'chairman-1', role: UserRole.HOA_CHAIRMAN, tenantId };
+    const dispatcher = { id: 'disp-1', role: UserRole.DISPATCHER, tenantId };
+    const resident = { id: 'res-1', role: UserRole.RESIDENT_OWNER, tenantId };
+    const crossTenantAdmin = { id: 'admin-2', role: UserRole.HOA_ADMIN, tenantId: otherTenantId };
+
+    const validDto = {
+      category: 'Ремонт кровли',
+      amount: 150000,
+      expenseDate: '2026-09-20T10:00:00.000Z',
+      description: 'Закупка гидроизоляционных материалов',
+    };
+
+    describe('createExpense', () => {
+      it('HOA_ADMIN того же ЖК успешно вносит расход с аудитом', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue({ id: tenantId });
+        const createdMock = {
+          id: 'exp-1',
+          tenantId,
+          ...validDto,
+          expenseDate: new Date(validDto.expenseDate),
+          recordedById: hoaAdmin.id,
+          isVoided: false,
+          voidedAt: null,
+          voidedById: null,
+          voidedReason: null,
+          createdAt: new Date(),
+          recordedBy: { id: hoaAdmin.id, firstName: 'Азамат', lastName: 'Админов', role: UserRole.HOA_ADMIN },
+          voidedBy: null,
+        };
+        prismaMock.expense.create.mockResolvedValue(createdMock);
+
+        const res = await service.createExpense(tenantId, hoaAdmin, validDto);
+
+        expect(res.id).toBe('exp-1');
+        expect(res.category).toBe('Ремонт кровли');
+        expect(prismaMock.expense.create).toHaveBeenCalledWith({
+          data: {
+            tenantId,
+            category: 'Ремонт кровли',
+            amount: 150000,
+            expenseDate: new Date(validDto.expenseDate),
+            description: 'Закупка гидроизоляционных материалов',
+            recordedById: hoaAdmin.id,
+          },
+          include: {
+            recordedBy: {
+              select: { id: true, firstName: true, lastName: true, role: true },
+            },
+            voidedBy: {
+              select: { id: true, firstName: true, lastName: true, role: true },
+            },
+          },
+        });
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+          tenantId,
+          actorId: hoaAdmin.id,
+          action: 'EXPENSE_CREATED',
+          targetType: 'Expense',
+          targetId: 'exp-1',
+          metadata: {
+            category: 'Ремонт кровли',
+            amount: 150000,
+            expenseDate: new Date(validDto.expenseDate).toISOString(),
+          },
+        });
+      });
+
+      it('SUPERADMIN может вносить расход в любой ЖК', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue({ id: tenantId });
+        prismaMock.expense.create.mockResolvedValue({
+          id: 'exp-super',
+          tenantId,
+          ...validDto,
+          expenseDate: new Date(validDto.expenseDate),
+          recordedById: superAdmin.id,
+        });
+
+        const res = await service.createExpense(tenantId, superAdmin, validDto);
+        expect(res.id).toBe('exp-super');
+      });
+
+      it('HOA_CHAIRMAN отклоняется с 403 (только чтение)', async () => {
+        await expect(service.createExpense(tenantId, hoaChairman, validDto)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('DISPATCHER отклоняется с 403 (нет доступа к финансам)', async () => {
+        await expect(service.createExpense(tenantId, dispatcher, validDto)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('RESIDENT_OWNER отклоняется с 403', async () => {
+        await expect(service.createExpense(tenantId, resident, validDto)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('сотрудник чужого ЖК отклоняется с 403 (tenant-изоляция)', async () => {
+        await expect(service.createExpense(tenantId, crossTenantAdmin, validDto)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('отклоняет сумму <= 0 с INVALID_AMOUNT', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue({ id: tenantId });
+        await expect(
+          service.createExpense(tenantId, hoaAdmin, { ...validDto, amount: 0 }),
+        ).rejects.toThrow(BadRequestException);
+        await expect(
+          service.createExpense(tenantId, hoaAdmin, { ...validDto, amount: -500 }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.INVALID_AMOUNT' },
+        });
+      });
+
+      it('отклоняет пустую категорию с INVALID_CATEGORY', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue({ id: tenantId });
+        await expect(
+          service.createExpense(tenantId, hoaAdmin, { ...validDto, category: '   ' }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.INVALID_CATEGORY' },
+        });
+      });
+
+      it('отклоняет несуществующий ЖК с COMPLEX_NOT_FOUND', async () => {
+        prismaMock.tenant.findUnique.mockResolvedValue(null);
+        await expect(
+          service.createExpense('non-existent', superAdmin, validDto),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.COMPLEX_NOT_FOUND' },
+        });
+      });
+    });
+
+    describe('voidExpense', () => {
+      const expenseId = 'exp-to-void';
+      const existingExpense = {
+        id: expenseId,
+        tenantId,
+        category: 'Канцтовары',
+        amount: 12000,
+        isVoided: false,
+        voidedReason: null,
+      };
+
+      it('HOA_ADMIN успешно аннулирует расход с обязательной причиной', async () => {
+        prismaMock.expense.findUnique.mockResolvedValue(existingExpense);
+        prismaMock.expense.update.mockResolvedValue({
+          ...existingExpense,
+          isVoided: true,
+          voidedAt: new Date(),
+          voidedById: hoaAdmin.id,
+          voidedReason: 'Ошибочный чек',
+          recordedBy: { id: hoaAdmin.id, firstName: 'Азамат', role: UserRole.HOA_ADMIN },
+          voidedBy: { id: hoaAdmin.id, firstName: 'Азамат', role: UserRole.HOA_ADMIN },
+        });
+
+        const res = await service.voidExpense(expenseId, hoaAdmin, { reason: 'Ошибочный чек' });
+
+        expect(res.isVoided).toBe(true);
+        expect(prismaMock.expense.update).toHaveBeenCalledWith({
+          where: { id: expenseId },
+          data: expect.objectContaining({
+            isVoided: true,
+            voidedById: hoaAdmin.id,
+            voidedReason: 'Ошибочный чек',
+          }),
+          include: expect.any(Object),
+        });
+        expect(auditLogServiceMock.log).toHaveBeenCalledWith(
+          expect.objectContaining({
+            action: 'EXPENSE_VOIDED',
+            targetId: expenseId,
+          }),
+        );
+      });
+
+      it('отклоняет аннулирование без указания причины (VOID_REASON_REQUIRED)', async () => {
+        prismaMock.expense.findUnique.mockResolvedValue(existingExpense);
+        await expect(
+          service.voidExpense(expenseId, hoaAdmin, { reason: '   ' }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.VOID_REASON_REQUIRED' },
+        });
+      });
+
+      it('отклоняет повторное аннулирование (EXPENSE_ALREADY_VOIDED)', async () => {
+        prismaMock.expense.findUnique.mockResolvedValue({
+          ...existingExpense,
+          isVoided: true,
+        });
+        await expect(
+          service.voidExpense(expenseId, hoaAdmin, { reason: 'Повторный войд' }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.EXPENSE_ALREADY_VOIDED' },
+        });
+      });
+
+      it('отклоняет несуществующий расход (EXPENSE_NOT_FOUND)', async () => {
+        prismaMock.expense.findUnique.mockResolvedValue(null);
+        await expect(
+          service.voidExpense('non-existent', hoaAdmin, { reason: 'Причина' }),
+        ).rejects.toMatchObject({
+          response: { code: 'FINANCE.EXPENSE_NOT_FOUND' },
+        });
+      });
+
+      it('блокирует сотрудника чужого ЖК', async () => {
+        prismaMock.expense.findUnique.mockResolvedValue(existingExpense);
+        await expect(
+          service.voidExpense(expenseId, crossTenantAdmin, { reason: 'Причина' }),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('блокирует HOA_CHAIRMAN и DISPATCHER', async () => {
+        await expect(
+          service.voidExpense(expenseId, hoaChairman, { reason: 'Причина' }),
+        ).rejects.toThrow(ForbiddenException);
+        await expect(
+          service.voidExpense(expenseId, dispatcher, { reason: 'Причина' }),
+        ).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    describe('getExpenses', () => {
+      it('HOA_ADMIN и HOA_CHAIRMAN имеют право на просмотр журнала расходов', async () => {
+        prismaMock.expense.findMany.mockResolvedValue([]);
+
+        const adminRes = await service.getExpenses(tenantId, hoaAdmin);
+        expect(adminRes).toEqual([]);
+
+        const chairmanRes = await service.getExpenses(tenantId, hoaChairman);
+        expect(chairmanRes).toEqual([]);
+      });
+
+      it('DISPATCHER и жильцы получают отказ с 403 (VIEW_EXPENSE_FORBIDDEN)', async () => {
+        await expect(service.getExpenses(tenantId, dispatcher)).rejects.toMatchObject({
+          response: { code: 'FINANCE.VIEW_EXPENSE_FORBIDDEN' },
+        });
+        await expect(service.getExpenses(tenantId, resident)).rejects.toMatchObject({
+          response: { code: 'FINANCE.VIEW_EXPENSE_FORBIDDEN' },
+        });
+      });
+
+      it('сотрудник чужого ЖК получает 403', async () => {
+        await expect(service.getExpenses(tenantId, crossTenantAdmin)).rejects.toThrow(
+          ForbiddenException,
+        );
+      });
+
+      it('применяет фильтры по дате и категории', async () => {
+        prismaMock.expense.findMany.mockResolvedValue([]);
+        await service.getExpenses(tenantId, hoaAdmin, {
+          from: '2026-09-01',
+          to: '2026-09-30',
+          category: 'Ремонт',
+        });
+
+        expect(prismaMock.expense.findMany).toHaveBeenCalledWith({
+          where: expect.objectContaining({
+            tenantId,
+            expenseDate: expect.any(Object),
+            category: { contains: 'Ремонт' },
+          }),
+          orderBy: { expenseDate: 'desc' },
+          include: expect.any(Object),
+        });
+      });
+    });
+
+    describe('exportExpensesCsv', () => {
+      it('формирует CSV выгрузку с UTF-8 BOM и корректными строками', async () => {
+        prismaMock.expense.findMany.mockResolvedValue([
+          {
+            id: 'exp-1',
+            tenantId,
+            category: 'Сантехника',
+            description: 'Замена вентилей',
+            amount: 45000,
+            expenseDate: new Date('2026-09-15T12:00:00Z'),
+            isVoided: false,
+            voidedAt: null,
+            voidedById: null,
+            voidedReason: null,
+            recordedBy: { firstName: 'Олжас', lastName: 'Касымов', role: UserRole.HOA_ADMIN },
+            voidedBy: null,
+          },
+          {
+            id: 'exp-2',
+            tenantId,
+            category: 'Ошибочный расход',
+            description: 'Тест',
+            amount: 10000,
+            expenseDate: new Date('2026-09-16T12:00:00Z'),
+            isVoided: true,
+            voidedAt: new Date('2026-09-17T14:00:00Z'),
+            voidedById: 'admin-1',
+            voidedReason: 'Чек выписан ошибочно',
+            recordedBy: { firstName: 'Олжас', lastName: 'Касымов', role: UserRole.HOA_ADMIN },
+            voidedBy: { firstName: 'Олжас', lastName: 'Касымов', role: UserRole.HOA_ADMIN },
+          },
+        ]);
+
+        const res = await service.exportExpensesCsv(tenantId, hoaAdmin, {
+          from: '2026-09-01',
+          to: '2026-09-30',
+        });
+
+        expect(res.filename).toBe(`expenses-${tenantId}-2026-09-01_2026-09-30.csv`);
+        const content = res.buffer.toString('utf-8');
+        expect(content).toContain('Дата расхода,Категория,Описание,Сумма (₸)');
+        expect(content).toContain('Сантехника');
+        expect(content).toContain('45000');
+        expect(content).toContain('Действителен');
+        expect(content).toContain('Аннулирован');
+        expect(content).toContain('Чек выписан ошибочно');
+      });
     });
   });
 });

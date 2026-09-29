@@ -23,6 +23,7 @@ import {
   Plus,
   FileText,
   Download,
+  Receipt,
 } from 'lucide-react';
 import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
 
@@ -131,6 +132,7 @@ export default function FinancePage() {
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
   const canWrite = userRole === 'SUPERADMIN' || userRole === 'HOA_ADMIN';
+  const canViewExpenses = userRole === 'SUPERADMIN' || userRole === 'HOA_ADMIN' || userRole === 'HOA_CHAIRMAN';
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -329,6 +331,16 @@ export default function FinancePage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {canViewExpenses && (
+            <Link
+              href="/dashboard/finance/expenses"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
+            >
+              <Receipt className="w-4 h-4 text-slate-500" />
+              <span>{t('finance.expensesBtn')}</span>
+            </Link>
+          )}
+
           {canWrite && (
             <>
               <Link

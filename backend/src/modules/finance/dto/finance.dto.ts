@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, IsInt, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, IsInt, Min, Max, IsISO8601 } from 'class-validator';
 import { ChargeCalculationMethod, MeterType } from '@prisma/client';
 
 export class CreateTariffDto {
@@ -76,4 +76,50 @@ export class RecordPaymentDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+export class CreateExpenseDto {
+  @ApiProperty({ example: 'Ремонт кровли', description: 'Категория расхода (свободный текст)' })
+  @IsNotEmpty()
+  @IsString()
+  category: string;
+
+  @ApiProperty({ example: 150000.0, description: 'Сумма расхода (тг)' })
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @ApiProperty({ example: '2026-09-20T10:00:00.000Z', description: 'Дата фактической траты' })
+  @IsNotEmpty()
+  @IsISO8601()
+  expenseDate: string;
+
+  @ApiPropertyOptional({ example: 'Закупка гидроизоляционных материалов для блока Б' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
+export class VoidExpenseDto {
+  @ApiProperty({ example: 'Ошибочно внесен дублирующий чек от поставщика', description: 'Обязательная причина аннулирования' })
+  @IsNotEmpty()
+  @IsString()
+  reason: string;
+}
+
+export class GetExpensesQueryDto {
+  @ApiPropertyOptional({ example: '2026-09-01' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-30' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+
+  @ApiPropertyOptional({ example: 'Ремонт' })
+  @IsOptional()
+  @IsString()
+  category?: string;
 }

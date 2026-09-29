@@ -616,7 +616,16 @@
       "TARIFF_NOT_FOUND": "Тариф табылмады",
       "NO_ACTIVE_TARIFFS": "Есептеу үшін белсенді тарифтер жоқ",
       "ACCOUNT_NOT_FOUND": "Дербес шот табылмады",
-      "ACCOUNT_ACCESS_CONFIRMED_ONLY": "Дербес шотқа кіру тек осы пәтердің расталған тұрғындарына рұқсат етіледі"
+      "ACCOUNT_ACCESS_CONFIRMED_ONLY": "Дербес шотқа кіру тек осы пәтердің расталған тұрғындарына рұқсат етіледі",
+      "EXPENSE_NOT_FOUND": "Шығын табылмады",
+      "EXPENSE_ALREADY_VOIDED": "Шығын әлдеқашан жойылған",
+      "VOID_REASON_REQUIRED": "Шығынды жою себебін көрсету қажет",
+      "INVALID_AMOUNT": "Шығын сомасы оң сан болуы керек",
+      "INVALID_CATEGORY": "Шығын санатын көрсетіңіз",
+      "INVALID_EXPENSE_DATE": "Шығын күні дұрыс емес",
+      "CREATE_EXPENSE_FORBIDDEN": "ТК шығындарын қосуға құқығыңыз жоқ",
+      "VOID_EXPENSE_FORBIDDEN": "ТК шығындарын жоюға құқығыңыз жоқ",
+      "VIEW_EXPENSE_FORBIDDEN": "ТК шығындарын көруге құқығыңыз жоқ"
     },
     "METERS": {
       "UNIT_NOT_FOUND": "Пәтер/үй-жай табылмады",

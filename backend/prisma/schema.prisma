@@ -109,6 +109,7 @@ model Tenant {
   conversations     Conversation[]
   auditLogs         AuditLog[]
   shiftHandoverNotes ShiftHandoverNote[]
+  expenses          Expense[]
 
   @@map("tenants")
 }
@@ -210,6 +211,8 @@ model User {
   chatMessagesSent        ChatMessage[]  @relation("ChatMessagesSent")
   auditLogs               AuditLog[]
   shiftHandoverNotesAuthored ShiftHandoverNote[]
+  recordedExpenses        Expense[]          @relation("RecordedExpenses")
+  voidedExpenses          Expense[]          @relation("VoidedExpenses")
 
   @@map("users")
 }
@@ -575,6 +578,27 @@ model Payment {
   recordedBy     User            @relation(fields: [recordedById], references: [id], onDelete: Restrict)
 
   @@map("payments")
+}
+
+model Expense {
+  id           String    @id @default(uuid())
+  tenantId     String
+  category     String    // "Ремонт", "Зарплата персонала", "Коммунальные услуги" и т.д. — полностью определяется УК, как TariffItem.name
+  description  String?
+  amount       Float
+  expenseDate  DateTime  // дата фактической траты, не дата ввода в систему
+  recordedById String
+  isVoided     Boolean   @default(false)
+  voidedAt     DateTime?
+  voidedById   String?
+  voidedReason String?
+  createdAt    DateTime  @default(now())
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recordedBy   User      @relation("RecordedExpenses", fields: [recordedById], references: [id], onDelete: Restrict)
+  voidedBy     User?     @relation("VoidedExpenses", fields: [voidedById], references: [id], onDelete: SetNull)
+
+  @@map("expenses")
 }
 
 // -------------------------------------------------------------

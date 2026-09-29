@@ -18,6 +18,9 @@ import {
   UpdateTariffDto,
   GenerateChargesDto,
   RecordPaymentDto,
+  CreateExpenseDto,
+  VoidExpenseDto,
+  GetExpensesQueryDto,
 } from './dto/finance.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -216,5 +219,63 @@ export class FinanceController {
     @CurrentUser() user: any,
   ) {
     return this.financeService.getAccountById(accountId, user);
+  }
+
+  // -------------------------------------------------------------
+  // Расходы ЖК (Expense Ledger, Task 0090)
+  // -------------------------------------------------------------
+
+  @Post('tenants/:tenantId/expenses')
+  @Roles(UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Внести расход ЖК (только УК и суперадмин)' })
+  async createExpense(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Body() dto: CreateExpenseDto,
+  ) {
+    return this.financeService.createExpense(tenantId, user, dto);
+  }
+
+  @Get('tenants/:tenantId/expenses')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Журнал расходов ЖК (УК, председатель, суперадмин)' })
+  async getExpenses(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query() query: GetExpensesQueryDto,
+  ) {
+    return this.financeService.getExpenses(tenantId, user, query);
+  }
+
+  @Get('tenants/:tenantId/expenses/export')
+  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Экспорт журнала расходов ЖК в формате CSV' })
+  async exportExpensesCsv(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser() user: any,
+    @Query() query: GetExpensesQueryDto,
+    @Res() res?: Response,
+  ) {
+    const { buffer, filename } = await this.financeService.exportExpensesCsv(
+      tenantId,
+      user,
+      query,
+    );
+
+    res!.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res!.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res!.setHeader('Content-Length', buffer.length);
+    res!.end(buffer);
+  }
+
+  @Patch('expenses/:id/void')
+  @Roles(UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Аннулировать расход ЖК с обязательной причиной (только УК и суперадмин)' })
+  async voidExpense(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: VoidExpenseDto,
+  ) {
+    return this.financeService.voidExpense(id, user, dto);
   }
 }

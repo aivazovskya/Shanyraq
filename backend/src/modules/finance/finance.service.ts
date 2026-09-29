@@ -19,6 +19,9 @@ import {
   UpdateTariffDto,
   GenerateChargesDto,
   RecordPaymentDto,
+  CreateExpenseDto,
+  VoidExpenseDto,
+  GetExpensesQueryDto,
 } from './dto/finance.dto';
 import { getOrCreatePersonalAccount } from './personal-account.helper';
 import {
@@ -899,5 +902,272 @@ export class FinanceService {
         `Лицевой счет: ${account.accountNumber} | Документ сформирован автоматически в системе Shanyraq`,
       );
     });
+  }
+
+  // -------------------------------------------------------------
+  // 6. Учёт расходов ЖК (Expense Ledger, Task 0090)
+  // -------------------------------------------------------------
+
+  async createExpense(
+    tenantId: string,
+    user: { id?: string; tenantId?: string | null; role: UserRole },
+    dto: CreateExpenseDto,
+  ) {
+    if (user.role !== UserRole.HOA_ADMIN && user.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException({
+        code: 'FINANCE.CREATE_EXPENSE_FORBIDDEN',
+        message: 'Недостаточно прав для внесения расходов ЖК',
+      });
+    }
+
+    assertUserBelongsToTenant(user, tenantId, 'внесения расходов');
+
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException({
+        code: 'FINANCE.COMPLEX_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
+    }
+
+    const category = dto.category?.trim();
+    if (!category) {
+      throw new BadRequestException({
+        code: 'FINANCE.INVALID_CATEGORY',
+        message: 'Категория расхода обязательна для заполнения',
+      });
+    }
+
+    if (!dto.amount || dto.amount <= 0) {
+      throw new BadRequestException({
+        code: 'FINANCE.INVALID_AMOUNT',
+        message: 'Сумма расхода должна быть больше нуля',
+      });
+    }
+
+    const expenseDate = new Date(dto.expenseDate);
+    if (isNaN(expenseDate.getTime())) {
+      throw new BadRequestException({
+        code: 'FINANCE.INVALID_EXPENSE_DATE',
+        message: 'Некорректная дата фактической траты',
+      });
+    }
+
+    const expense = await this.prisma.expense.create({
+      data: {
+        tenantId,
+        category,
+        amount: dto.amount,
+        expenseDate,
+        description: dto.description?.trim() || null,
+        recordedById: user.id!,
+      },
+      include: {
+        recordedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        voidedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+      },
+    });
+
+    await this.auditLogService.log({
+      tenantId,
+      actorId: user.id,
+      action: 'EXPENSE_CREATED',
+      targetType: 'Expense',
+      targetId: expense.id,
+      metadata: {
+        category: expense.category,
+        amount: expense.amount,
+        expenseDate: expense.expenseDate.toISOString(),
+      },
+    });
+
+    return expense;
+  }
+
+  async voidExpense(
+    id: string,
+    user: { id?: string; tenantId?: string | null; role: UserRole },
+    dto: VoidExpenseDto,
+  ) {
+    if (user.role !== UserRole.HOA_ADMIN && user.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException({
+        code: 'FINANCE.VOID_EXPENSE_FORBIDDEN',
+        message: 'Недостаточно прав для аннулирования расходов ЖК',
+      });
+    }
+
+    const expense = await this.prisma.expense.findUnique({
+      where: { id },
+    });
+
+    if (!expense) {
+      throw new NotFoundException({
+        code: 'FINANCE.EXPENSE_NOT_FOUND',
+        message: 'Расход не найден',
+      });
+    }
+
+    assertUserBelongsToTenant(user, expense.tenantId, 'аннулирования расходов');
+
+    if (expense.isVoided) {
+      throw new BadRequestException({
+        code: 'FINANCE.EXPENSE_ALREADY_VOIDED',
+        message: 'Расход уже аннулирован',
+      });
+    }
+
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException({
+        code: 'FINANCE.VOID_REASON_REQUIRED',
+        message: 'Причина аннулирования расхода обязательна для заполнения',
+      });
+    }
+
+    const updated = await this.prisma.expense.update({
+      where: { id },
+      data: {
+        isVoided: true,
+        voidedAt: new Date(),
+        voidedById: user.id!,
+        voidedReason: reason,
+      },
+      include: {
+        recordedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        voidedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+      },
+    });
+
+    await this.auditLogService.log({
+      tenantId: expense.tenantId,
+      actorId: user.id,
+      action: 'EXPENSE_VOIDED',
+      targetType: 'Expense',
+      targetId: updated.id,
+      metadata: {
+        category: updated.category,
+        amount: updated.amount,
+        voidedReason: reason,
+      },
+    });
+
+    return updated;
+  }
+
+  async getExpenses(
+    tenantId: string,
+    user: { id?: string; tenantId?: string | null; role: UserRole },
+    query?: GetExpensesQueryDto,
+  ) {
+    const allowedRoles: UserRole[] = [
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.SUPERADMIN,
+    ];
+
+    if (!allowedRoles.includes(user.role)) {
+      throw new ForbiddenException({
+        code: 'FINANCE.VIEW_EXPENSE_FORBIDDEN',
+        message: 'Недостаточно прав для просмотра расходов ЖК',
+      });
+    }
+
+    assertUserBelongsToTenant(user, tenantId, 'просмотра расходов');
+
+    const where: any = { tenantId };
+
+    if (query?.from || query?.to) {
+      where.expenseDate = {};
+      if (query.from) {
+        const f = new Date(query.from);
+        f.setHours(0, 0, 0, 0);
+        where.expenseDate.gte = f;
+      }
+      if (query.to) {
+        const t = new Date(query.to);
+        t.setHours(23, 59, 59, 999);
+        where.expenseDate.lte = t;
+      }
+    }
+
+    if (query?.category?.trim()) {
+      where.category = {
+        contains: query.category.trim(),
+      };
+    }
+
+    return this.prisma.expense.findMany({
+      where,
+      orderBy: { expenseDate: 'desc' },
+      include: {
+        recordedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        voidedBy: {
+          select: { id: true, firstName: true, lastName: true, role: true },
+        },
+      },
+    });
+  }
+
+  async exportExpensesCsv(
+    tenantId: string,
+    user: { id?: string; tenantId?: string | null; role: UserRole },
+    query?: GetExpensesQueryDto,
+  ) {
+    const expenses = await this.getExpenses(tenantId, user, query);
+
+    const rows: unknown[][] = [
+      [
+        'Дата расхода',
+        'Категория',
+        'Описание',
+        'Сумма (₸)',
+        'Кто записал',
+        'Роль',
+        'Статус',
+        'Кто аннулировал',
+        'Дата аннулирования',
+        'Причина аннулирования',
+      ],
+    ];
+
+    for (const exp of expenses) {
+      const rec = exp.recordedBy
+        ? `${exp.recordedBy.firstName || ''} ${exp.recordedBy.lastName || ''}`.trim() || exp.recordedBy.role
+        : 'Сотрудник УК';
+      const voidBy = exp.voidedBy
+        ? `${exp.voidedBy.firstName || ''} ${exp.voidedBy.lastName || ''}`.trim() || exp.voidedBy.role
+        : '—';
+
+      rows.push([
+        exp.expenseDate.toISOString().slice(0, 10),
+        exp.category,
+        exp.description || '—',
+        exp.amount,
+        rec,
+        exp.recordedBy?.role || '—',
+        exp.isVoided ? 'Аннулирован' : 'Действителен',
+        exp.isVoided ? voidBy : '—',
+        exp.isVoided && exp.voidedAt ? exp.voidedAt.toISOString().slice(0, 16).replace('T', ' ') : '—',
+        exp.isVoided ? exp.voidedReason || '—' : '—',
+      ]);
+    }
+
+    const buffer = buildCsv(rows);
+    const fromStr = query?.from ? query.from.slice(0, 10) : '';
+    const toStr = query?.to ? query.to.slice(0, 10) : '';
+    const dateSuffix = fromStr || toStr ? `-${fromStr || 'start'}_${toStr || 'end'}` : '';
+    const filename = `expenses-${tenantId}${dateSuffix}.csv`;
+
+    return { buffer, filename };
   }
 }
