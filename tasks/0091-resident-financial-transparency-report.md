@@ -1,6 +1,6 @@
 # Task 0091: Resident-facing financial transparency report (mobile)
 
-**Status:** Blocked on [Task 0090](0090-hoa-expense-ledger.md)
+**Status:** Ready (unblocked 2026-09-29 — [Task 0090](0090-hoa-expense-ledger.md) is completed, 749/749 backend tests green, `tsc` clean in backend and frontend-web)
 **Assignee:** Antigravity
 **Reviewer:** Team lead (architecture review only, no direct code changes)
 
@@ -17,8 +17,7 @@ their **own** personal account statement
 (`GET /finance/accounts/:accountId/statement`), never the HOA's overall
 financial picture.
 
-**Do not start this task until [Task 0090](0090-hoa-expense-ledger.md) is
-merged** — it depends on the `Expense` model and `getExpenses`-equivalent
+**Prerequisite [Task 0090](0090-hoa-expense-ledger.md) is merged (verified)** — it depends on the `Expense` model and `getExpenses`-equivalent
 data existing.
 
 ## Architecture decisions — do not re-litigate
@@ -69,6 +68,19 @@ data existing.
    analytics (`dashboard/finance/page.tsx`,
    [Task 0013](0013-analytics.md)'s dashboard) — this task adds nothing
    there.
+
+## Architect notes (2026-09-29 audit)
+
+- `assertAccessToTenant` is the **standalone function** in
+  `backend/src/common/guards/tenant.guard.ts:37` (signature
+  `(prisma, user, tenantId, errorCodes)`), not a service method — the
+  service-level copies in chat/bookings/community-board are the older
+  pattern. Follow `votings.controller.ts:44`.
+- No circular-dependency risk: `AnalyticsModule` exports `AnalyticsService`
+  and imports only `PrismaModule`; `FinanceModule` may import
+  `AnalyticsModule` and inject the service to reuse the aggregation.
+- Use `getExpenses`/expense aggregation from `finance.service.ts:1065`
+  and exclude voided expenses.
 
 ## Subtask A — Backend read-only aggregate endpoint
 
