@@ -73,6 +73,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       DATABASE_URL: postgresql://${POSTGRES_USER:-shanyraq_admin}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-shanyraq_prod}?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379

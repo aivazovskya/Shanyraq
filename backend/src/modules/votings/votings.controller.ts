@@ -11,6 +11,8 @@ import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guard
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
+import { RATE_LIMITS } from '../../common/constants/rate-limit.constants';
 
 const VOTINGS_ACCESS_ERRORS: TenantAccessErrorCodes = {
   authRequired: {
@@ -62,6 +64,7 @@ export class VotingsController {
   }
 
   @Post('vote')
+  @Throttle({ default: { limit: RATE_LIMITS.VOTING_CAST_VOTE.LIMIT, ttl: RATE_LIMITS.VOTING_CAST_VOTE.TTL } })
   @Roles(UserRole.RESIDENT_OWNER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
   @ApiOperation({ summary: 'Проголосовать по вопросу повестки с весом полезной площади и SMS-OTP' })
   async castVote(@CurrentUser('id') userId: string, @Body() dto: CastVoteDto, @Req() req: Request) {

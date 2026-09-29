@@ -28,6 +28,10 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { HealthModule } from './modules/health/health.module';
 
+import { RATE_LIMITS } from './common/constants/rate-limit.constants';
+import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -35,10 +39,25 @@ import { HealthModule } from './modules/health/health.module';
       envFilePath: ['.env', '../.env'],
     }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 60,
-    }]),
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: RATE_LIMITS.GLOBAL.TTL,
+            limit: RATE_LIMITS.GLOBAL.LIMIT,
+          },
+        ],
+        storage,
+        generateKey: (context, tracker, name) => {
+          const className = context.getClass().name;
+          const handlerName = context.getHandler().name;
+          return `${className}:${handlerName}:${name}:${tracker}`;
+        },
+      }),
+    }),
     PrismaModule,
     RedisModule,
     NotificationsModule,
@@ -66,7 +85,7 @@ import { HealthModule } from './modules/health/health.module';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
   ],
 })

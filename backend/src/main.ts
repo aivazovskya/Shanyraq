@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import { validatePiiCryptoConfig } from './common/crypto/pii-crypto.helper';
 
@@ -11,7 +12,17 @@ async function bootstrap() {
   // Fail-fast проверка обязательных ключей шифрования ПДн (AES-256-GCM)
   validatePiiCryptoConfig();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Настройка Trust Proxy (Express)
+  // 0 (по умолчанию в dev) — отключено, защищает от подделки X-Forwarded-For
+  // 1 (в production за Nginx/ALB) — доверяет 1 хопу прокси для точного определения req.ip
+  const trustProxyEnv = process.env.TRUST_PROXY ?? '0';
+  const trustProxyHops = parseInt(trustProxyEnv, 10);
+  const trustProxy = !isNaN(trustProxyHops)
+    ? trustProxyHops
+    : trustProxyEnv.toLowerCase() === 'true';
+  app.set('trust proxy', trustProxy);
 
   // Security Headers
   app.use(helmet());

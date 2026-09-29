@@ -1135,7 +1135,9 @@
       "PIN_REPEATED_DIGITS": "PIN is too simple: repeated digits are not allowed",
       "PIN_PREDICTABLE": "PIN is too simple or predictable. Please choose a more complex combination",
       "INVALID_TOKEN_TYPE": "Invalid token type. Refresh token cannot be used to authorize requests",
-      "LOGIN_LOCKED": "Too many failed login attempts. Please try again in {{waitMinutes}} min."
+      "LOGIN_LOCKED": "Too many failed login attempts. Please try again in {{waitMinutes}} min.",
+      "RATE_LIMITED": "Too many requests. Please try again later.",
+      "PHONE_RATE_LIMITED": "SMS request limit exceeded for this phone number. Please wait 10 minutes."
     },
     "VOTINGS": {
       "TENANT_ID_REQUIRED": "Residential complex ID is required",
@@ -1149,7 +1151,8 @@
       "OUTSIDE_VOTING_PERIOD": "Voting period has expired or has not started yet",
       "NOT_ELIGIBLE_VOTER": "Only verified property owners have the right to vote. Tenants and unverified users cannot vote.",
       "UNIT_TENANT_MISMATCH": "The premises do not belong to the residential complex holding the meeting",
-      "ALREADY_VOTED": "A vote from this apartment has already been recorded for this agenda item"
+      "ALREADY_VOTED": "A vote from this apartment has already been recorded for this agenda item",
+      "RATE_LIMITED": "Too many voting attempts. Please try again later."
     },
     "PROPERTIES": {
       "COMPLEX_NOT_FOUND": "Residential complex not found",
