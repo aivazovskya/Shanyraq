@@ -1,15 +1,15 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load .env from root or backend directory if not already loaded
+// Load .env from backend directory or root if not already loaded
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../backend/.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { PrismaClient } from '@prisma/client';
 import {
   checkIinHashDuplicates,
   formatDuplicateReport,
-} from '../backend/src/common/db/iin-duplicates-checker.helper';
+} from '../src/common/db/iin-duplicates-checker.helper';
 
 export async function runIinHashDuplicatesCheck(): Promise<boolean> {
   const prisma = new PrismaClient();

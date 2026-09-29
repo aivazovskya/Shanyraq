@@ -11,6 +11,7 @@ RUN npm ci
 # Stage 2: Build (builder)
 # ==========================================
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -28,6 +29,7 @@ RUN npm prune --production && rm -rf /root/.npm
 # Stage 3: Production Runtime (runner)
 # ==========================================
 FROM node:20-alpine AS runner
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 ENV NODE_ENV=production

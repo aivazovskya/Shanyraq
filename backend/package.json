@@ -18,6 +18,8 @@
     "prisma:migrate:status": "prisma migrate status",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "db:check-iin-duplicates": "ts-node scripts/check-iin-hash-duplicates.ts",
+    "db:encrypt-iin": "ts-node scripts/encrypt-existing-iin.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

@@ -98,7 +98,8 @@ npm run start:dev              # Запуск API сервера в watch-реж
 * **Создание новой миграции**: `npm run prisma:migrate:dev -- --name <migration_name>`.
 * **Статус миграций**: `npm run prisma:migrate:status`.
 * **Baseline существующей БД**: `npx prisma migrate resolve --applied 0_init` (для баз данных, где схема уже была создана ранее).
-* **Проверка дубликатов ИИН**: `npx ts-node scripts/check-iin-hash-duplicates.ts` (предмиграционный аудит перед наложением `@unique`).
+* **Проверка дубликатов ИИН**: `npm run db:check-iin-duplicates` (внутри `backend/`; запускается на БД, где колонка `iinHash` уже есть, перед наложением ограничения `@unique`).
+* **Миграция шифрования ИИН**: `npm run db:encrypt-iin` (внутри `backend/`; шифрование открытых ИИН и расчет хешей).
 * ⚠️ **Внимание**: Команда `prisma db push` разрешена **только локально для быстрого прототипирования** и строго запрещена на продакшене. Откат изменений выполняется через создание новой миграции вперёд.
 
 ### 5. Запуск Веб-панели (Next.js)
@@ -138,11 +139,21 @@ cp .env.example .env
 # openssl rand -base64 32
 ```
 
+> [!IMPORTANT]
+> В `docker-compose.prod.yml` используется строгая fail-fast валидация секретов через синтаксис `${VAR:?required}` (`POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ROOT_PASSWORD`, `JWT_ACCESS_SECRET`, `PII_ENCRYPTION_KEY` и др.). Если хотя бы один пароль не задан, запуск контейнеров будет заблокирован Docker Compose до устранения уязвимости.
+
 ### 2. Сборка и запуск контейнеров
-Запуск полного стека (PostgreSQL 16, Redis 7, MinIO S3, Backend API и Next.js Web Admin):
+Запуск полного стека (PostgreSQL 16, Redis 7 с паролем, MinIO S3, go2rtc, Backend API и Next.js Web Admin):
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
+
+**Архитектура безопасности и изоляция сервисов**:
+1. **Сетевая изоляция БД и кэша**: порты `postgres` (5432) и `redis` (6379), а также внутренний S3 API `minio` (9000) **не публикуются на хост** и доступны исключительно внутри изолированной Docker-сети для сервиса `backend`.
+2. **Парольная защита Redis**: Redis запускается с флагом `--requirepass` и требует аутентификации при обращениях и healthcheck (`redis-cli -a ... ping`).
+3. **Безопасность консоли MinIO**: порт консоли MinIO (`9001`) жестко привязан к локальному интерфейсу `127.0.0.1:9001` для безопасного администрирования.
+4. **Камеры видеонаблюдения (`go2rtc`)**: сервис `go2rtc` включен в prod-стек с монтированием конфигурации из `infra/go2rtc.yaml` и публикацией портов 1984 (API/Web UI), 8554 (RTSP), 8555 (WebRTC).
+5. **Ротация логов**: для всех контейнеров настроен драйвер `json-file` с лимитом размера `max-size: 10m` и глубиной ротации `max-file: 3`.
 
 Порядок инициализации и зависимости сервисов:
 1. `postgres` и `redis` поднимаются первыми и проходят healthcheck.

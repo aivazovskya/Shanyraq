@@ -34,12 +34,16 @@
    - `GET /health/ready` (readiness probe): выполняет `SELECT 1` в PostgreSQL через `PrismaService` и `PING` в Redis через `RedisService`. При успехе возвращает HTTP 200 `{ status: 'ok', details: { database: 'up', redis: 'up' }, timestamp }`. При сбое любого сервиса возвращает HTTP 503 `{ status: 'error', details: { database: 'up'|'down', redis: 'up'|'down' }, timestamp }`.
    - Эндпоинты публичные (без `JwtAuthGuard`), исключены из глобального префикса `/api/v1`, снабжены декоратором `@SkipThrottle()` от rate-limiting.
    - Ответы не содержат секретов, версий пакетов или внутренних стек-трейсов.
-5. **`docker-compose.prod.yml`**:
-   - Отдельный файл конфигурации для production/staging, не ломающий текущий локальный `docker-compose.yml`.
-   - Сервисы: `backend`, `web`, `postgres`, `redis`, `minio`.
+5. **`docker-compose.prod.yml` (Security Hardening)**:
+   - Отдельный файл конфигурации для production/staging, без устаревшего `version:`.
+   - Сервисы: `backend`, `web`, `postgres`, `redis`, `minio`, `go2rtc`.
+   - Сетевая безопасность: порты `postgres` (5432), `redis` (6379) и `minio` API (9000) **не публикуются на хост** и доступны только внутри Docker-сети. Порт консоли MinIO (`9001`) жестко привязан к `127.0.0.1`.
+   - Защита Redis: запуск с флагом `--requirepass` и обязательным паролем `REDIS_PASSWORD`, healthcheck с аутентификацией (`redis-cli -a ... ping`).
+   - Fail-fast валидация: обязательные секреты и пароли заданы через синтаксис `${VAR:?VAR is required}` (`POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ROOT_PASSWORD`, `DATABASE_URL`, `JWT_*`, `PII_*`), что гарантирует немедленное падение Compose при их отсутствии.
+   - Сервис `go2rtc`: включен в prod-стек с конфигурацией `infra/go2rtc.yaml` для стриминга камер.
+   - Ротация логов: для всех сервисов настроен драйвер `json-file` (`max-size: 10m`, `max-file: 3`).
    - Сервис `backend` снабжен healthcheck по `GET /health/ready` (интервал 10s, таймаут 5s, 3 попытки).
    - Зависимости `depends_on` с условием `condition: service_healthy` для гарантированного старта после готовности БД/Redis.
-   - Все секреты и пароли передаются строго через переменные окружения (.env), без хардкода значений по умолчанию в prod-файле.
 6. **CI Pipeline (`.github/workflows/ci.yml`)**:
    - Добавлена джоба `docker-build`, проверяющая успешность сборки Docker-образов `backend` и `frontend-web` без отправки в registry.
 7. **Документация**:

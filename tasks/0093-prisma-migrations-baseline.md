@@ -33,7 +33,7 @@
    - `prisma:migrate:status` (`prisma migrate status`) — для проверки состояния примененных миграций.
    - `prisma:push` (`prisma db push`) — остаётся исключительно для локального прототипирования (dev-only, запрещён на проде).
 4. **Предмиграционный скрипт проверки дубликатов `iinHash`**:
-   - Скрипт `scripts/check-iin-hash-duplicates.ts` (read-only): находит пользователей с одинаковым непустым `iinHash`.
+   - Скрипт `backend/scripts/check-iin-hash-duplicates.ts` (команда `npm run db:check-iin-duplicates` в `backend/`): запускается на существующей БД, где колонка `iinHash` уже присутствует, перед применением миграции, накладывающей уникальный индекс `@unique`.
    - Выводит ID пользователей, ID ЖК (`tenantId`), роли и дату создания **строго без раскрытия значений ИИН или шифротекстов**.
    - Возвращает ненулевой код выхода (`exit 1`) при обнаружении дубликатов, предотвращая сбой при накатывании миграции на проде.
 5. **CI проверка дрифта схемы (Schema Drift Check)**:
@@ -50,8 +50,8 @@
 ## Subtasks
 
 - [x] **Subtask 1**: Генерация baseline-миграции `backend/prisma/migrations/0_init/migration.sql` и `migration_lock.toml`.
-- [x] **Subtask 2**: Обновление скриптов в `backend/package.json` (`prisma:migrate:dev`, `prisma:migrate:deploy`, `prisma:migrate:status`).
-- [x] **Subtask 3**: Реализация предмиграционной проверки `scripts/check-iin-hash-duplicates.ts` и модуля `iin-duplicates-checker.helper.ts` с тестами.
+- [x] **Subtask 2**: Обновление скриптов в `backend/package.json` (`prisma:migrate:dev`, `prisma:migrate:deploy`, `prisma:migrate:status`, `db:check-iin-duplicates`, `db:encrypt-iin`).
+- [x] **Subtask 3**: Реализация предмиграционной проверки `backend/scripts/check-iin-hash-duplicates.ts` и модуля `iin-duplicates-checker.helper.ts` с тестами.
 - [x] **Subtask 4**: Настройка CI (`.github/workflows/ci.yml`) с сервисом `postgres:16`, `migrate deploy` и drift check.
 - [x] **Subtask 5**: Документирование регламента миграций в `CONTRIBUTING.md` и `README.md`.
 - [x] **Subtask 6**: Верификация: проверка чистой БД, проверка скрипта дубликатов, запуск тестов и typecheck.
@@ -60,8 +60,9 @@
 
 1. В репозитории присутствует каталог `backend/prisma/migrations/0_init/` с валидным `migration.sql` и файл `migration_lock.toml`.
 2. Команда `prisma migrate diff` между директорией миграций и текущей `schema.prisma` при наличии shadow DB не выявляет расхождений.
-3. В `backend/package.json` присутствуют команды `prisma:migrate:dev`, `prisma:migrate:deploy`, `prisma:migrate:status`.
-4. Скрипт `scripts/check-iin-hash-duplicates.ts`:
+3. В `backend/package.json` присутствуют команды `prisma:migrate:dev`, `prisma:migrate:deploy`, `prisma:migrate:status`, `db:check-iin-duplicates`, `db:encrypt-iin`.
+4. Скрипт `backend/scripts/check-iin-hash-duplicates.ts` (`npm run db:check-iin-duplicates`):
+   - Запускается на базе данных, где колонка `iinHash` уже создана, перед наложением `@unique`.
    - Находит дубликаты `iinHash` без утечки персональных данных (не печатает значения ИИН).
    - Завершается с кодом 1 при дубликатах и с кодом 0 при их отсутствии.
    - Покрыт тестами.

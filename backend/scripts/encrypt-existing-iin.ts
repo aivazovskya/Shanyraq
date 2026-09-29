@@ -1,14 +1,14 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load .env from root or backend directory if not already loaded
+// Load .env from backend directory or root if not already loaded
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../backend/.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import {
   encryptExistingIin,
   MigrationResult,
-} from '../backend/src/common/crypto/pii-migration.helper';
+} from '../src/common/crypto/pii-migration.helper';
 
 export { encryptExistingIin, MigrationResult };
 
