@@ -1185,7 +1185,10 @@
       "INVALID_EXPENSE_DATE": "Invalid expense date",
       "CREATE_EXPENSE_FORBIDDEN": "You do not have permission to record HOA expenses",
       "VOID_EXPENSE_FORBIDDEN": "You do not have permission to void HOA expenses",
-      "VIEW_EXPENSE_FORBIDDEN": "You do not have permission to view HOA expenses"
+      "VIEW_EXPENSE_FORBIDDEN": "You do not have permission to view HOA expenses",
+      "AUTH_REQUIRED": "Authorization is required to access HOA financial reports",
+      "STAFF_CROSS_TENANT_FORBIDDEN": "Staff only has access to financial reports of their own residential complex",
+      "RESIDENT_ACCESS_FORBIDDEN": "You do not have verified access to the financial reports of this residential complex"
     },
     "METERS": {
       "UNIT_NOT_FOUND": "Apartment/unit not found",

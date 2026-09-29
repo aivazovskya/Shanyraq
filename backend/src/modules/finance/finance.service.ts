@@ -66,7 +66,6 @@ export class FinanceService {
     private readonly analyticsService: AnalyticsService,
   ) {}
 
-
   // -------------------------------------------------------------
   // 1. Управление тарифами ЖК
   // -------------------------------------------------------------
@@ -1227,12 +1226,24 @@ export class FinanceService {
     );
 
     const now = new Date();
-    const periodMonth = query?.month
-      ? parseInt(String(query.month), 10)
-      : now.getMonth() + 1;
-    const periodYear = query?.year
-      ? parseInt(String(query.year), 10)
-      : now.getFullYear();
+    let periodMonth = now.getMonth() + 1;
+    let periodYear = now.getFullYear();
+
+    if (query?.month !== undefined && query?.month !== null) {
+      const m = typeof query.month === 'number' ? query.month : parseInt(String(query.month), 10);
+      if (Number.isNaN(m) || !Number.isInteger(m) || m < 1 || m > 12) {
+        throw new BadRequestException('Некорректный месяц (ожидается целое число от 1 до 12)');
+      }
+      periodMonth = m;
+    }
+
+    if (query?.year !== undefined && query?.year !== null) {
+      const y = typeof query.year === 'number' ? query.year : parseInt(String(query.year), 10);
+      if (Number.isNaN(y) || !Number.isInteger(y) || y < 2000 || y > 2100) {
+        throw new BadRequestException('Некорректный год (ожидается целое число от 2000 до 2100)');
+      }
+      periodYear = y;
+    }
 
     // 1. Доходы через единый агрегатор AnalyticsService (числа строго совпадают)
     const { totalCharged, totalCollected, collectionRatePercent, byTariff } =
@@ -1341,4 +1352,3 @@ export class FinanceService {
     return { buffer, filename };
   }
 }
-

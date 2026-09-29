@@ -236,8 +236,7 @@ export const AccountScreen: React.FC = () => {
                 (navigation as any).navigate('TransparencyReport', {
                   tenantId:
                     (currentAccount?.unit?.building as any)?.tenantId ||
-                    user?.tenantId ||
-                    (user?.ownerships?.[0] as any)?.unit?.building?.tenantId,
+                    user?.ownerships?.find((o) => o.isVerified)?.unit?.building?.tenantId,
                 })
               }
             >

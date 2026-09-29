@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, IsInt, Min, Max, IsISO8601 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ChargeCalculationMethod, MeterType } from '@prisma/client';
 import { TariffBreakdownItem } from '../../analytics/dto/analytics.dto';
 
@@ -128,11 +129,19 @@ export class GetExpensesQueryDto {
 export class TransparencyReportQueryDto {
   @ApiPropertyOptional({ example: 9, description: 'Месяц периода (1-12)' })
   @IsOptional()
-  month?: string | number;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month?: number;
 
   @ApiPropertyOptional({ example: 2026, description: 'Год периода (например, 2026)' })
   @IsOptional()
-  year?: string | number;
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
 }
 
 export interface TransparencyExpenseCategoryItem {
@@ -151,4 +160,3 @@ export interface FinancialTransparencyReport {
   byExpenseCategory: TransparencyExpenseCategoryItem[];
   netBalance: number;
 }
-

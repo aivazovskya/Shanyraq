@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   UserRole,
@@ -15,7 +16,8 @@ import {
   ReadingStatus,
 } from '@prisma/client';
 import { generateAccountNumber, getOrCreatePersonalAccount } from './personal-account.helper';
-
+import { validationExceptionFactory } from '../../common/pipes/validation-exception.factory';
+import { TransparencyReportQueryDto } from './dto/finance.dto';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 
@@ -1632,6 +1634,109 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
           response: { code: 'FINANCE.AUTH_REQUIRED' },
         });
       });
+
+      it('выбрасывает 400 BadRequestException при невалидном месяце (не 1..12)', async () => {
+        await expect(
+          service.getTransparencyReport(tenantId, verifiedOwner, {
+            month: 13,
+            year: periodYear,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        await expect(
+          service.getTransparencyReport(tenantId, verifiedOwner, {
+            month: 0,
+            year: periodYear,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('выбрасывает 400 BadRequestException при невалидном годе (не 2000..2100)', async () => {
+        await expect(
+          service.getTransparencyReport(tenantId, verifiedOwner, {
+            month: periodMonth,
+            year: 1999,
+          }),
+        ).rejects.toThrow(BadRequestException);
+
+        await expect(
+          service.getTransparencyReport(tenantId, verifiedOwner, {
+            month: periodMonth,
+            year: 2101,
+          }),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
+
+    describe('TransparencyReportQueryDto ValidationPipe integration', () => {
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        exceptionFactory: validationExceptionFactory,
+      });
+
+      it('отклоняет невалидный month (>12) со статусом 400', async () => {
+        await expect(
+          pipe.transform(
+            { month: '13', year: '2026' },
+            { type: 'query', metatype: TransparencyReportQueryDto },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('отклоняет невалидный month (<1) со статусом 400', async () => {
+        await expect(
+          pipe.transform(
+            { month: '0', year: '2026' },
+            { type: 'query', metatype: TransparencyReportQueryDto },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('отклоняет невалидный year (<2000) со статусом 400', async () => {
+        await expect(
+          pipe.transform(
+            { month: '9', year: '1999' },
+            { type: 'query', metatype: TransparencyReportQueryDto },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('отклоняет невалидный year (>2100) со статусом 400', async () => {
+        await expect(
+          pipe.transform(
+            { month: '9', year: '2105' },
+            { type: 'query', metatype: TransparencyReportQueryDto },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('отклоняет нечисловой month со статусом 400', async () => {
+        await expect(
+          pipe.transform(
+            { month: 'abc', year: '2026' },
+            { type: 'query', metatype: TransparencyReportQueryDto },
+          ),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('успешно преобразует строковые параметры в числа при валидных данных', async () => {
+        const transformed = await pipe.transform(
+          { month: '9', year: '2026' },
+          { type: 'query', metatype: TransparencyReportQueryDto },
+        );
+        expect(transformed.month).toBe(9);
+        expect(transformed.year).toBe(2026);
+      });
+
+      it('пропускает пустой query объект при необязательных полях', async () => {
+        const transformed = await pipe.transform(
+          {},
+          { type: 'query', metatype: TransparencyReportQueryDto },
+        );
+        expect(transformed.month).toBeUndefined();
+        expect(transformed.year).toBeUndefined();
+      });
     });
 
     describe('exportTransparencyReportCsv', () => {
@@ -1691,4 +1796,3 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
     });
   });
 });
-

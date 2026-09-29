@@ -17,6 +17,7 @@ export interface UserOwnership {
     building: {
       id: string;
       blockName: string;
+      tenantId?: string;
     };
   };
 }

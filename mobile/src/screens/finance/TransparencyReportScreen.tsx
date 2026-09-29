@@ -25,7 +25,7 @@ import {
 import { Colors } from '../../constants/colors';
 import { LoadingState } from '../../components/common/LoadingState';
 import { financeApi, FinancialTransparencyReport } from '../../api/finance';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, isStaffUser } from '../../context/AuthContext';
 import { RootStackParamList } from '../../navigation/types';
 
 type TransparencyReportRouteProp = RouteProp<RootStackParamList, 'TransparencyReport'>;
@@ -45,10 +45,22 @@ export const TransparencyReportScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Определение tenantId строго из подтверждённого владения (не из сырого user.tenantId)
+  const verifiedOwnerships = (user?.ownerships || []).filter((o) => o.isVerified);
+  const matchedOwnership = route.params?.tenantId
+    ? verifiedOwnerships.find((o) => o.unit?.building?.tenantId === route.params?.tenantId)
+    : null;
+  const verifiedTenantId =
+    matchedOwnership?.unit?.building?.tenantId ||
+    verifiedOwnerships[0]?.unit?.building?.tenantId;
+
+  // Для жильцов — строго из подтверждённого владения.
+  // Для персонала (УК, ОСИ, суперадмин) — fallback на route.params или user.tenantId
   const resolvedTenantId =
-    route.params?.tenantId ||
-    user?.tenantId ||
-    (user?.ownerships?.[0] as any)?.unit?.building?.tenantId ||
+    verifiedTenantId ||
+    (user?.role && isStaffUser(user.role)
+      ? (route.params?.tenantId || user?.tenantId)
+      : null) ||
     null;
 
   const loadReport = useCallback(async () => {
