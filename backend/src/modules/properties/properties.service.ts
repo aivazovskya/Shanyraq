@@ -13,6 +13,7 @@ import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { buildCsv } from '../../common/csv/csv.helper';
+import { decryptPii, hashIin } from '../../common/crypto/pii-crypto.helper';
 
 @Injectable()
 export class PropertiesService {
@@ -640,29 +641,32 @@ export class PropertiesService {
 
     if (search && search.trim().length > 0) {
       const term = search.trim();
-      whereClause.AND = [
+      const orConditions: any[] = [
+        { firstName: { contains: term, mode: 'insensitive' as const } },
+        { lastName: { contains: term, mode: 'insensitive' as const } },
+        { phone: { contains: term, mode: 'insensitive' as const } },
         {
-          OR: [
-            { firstName: { contains: term, mode: 'insensitive' as const } },
-            { lastName: { contains: term, mode: 'insensitive' as const } },
-            { phone: { contains: term, mode: 'insensitive' as const } },
-            {
-              ownerships: {
-                some: {
-                  isVerified: true,
-                  unit: {
-                    unitNumber: { contains: term, mode: 'insensitive' as const },
-                    building: { tenantId },
-                  },
-                },
+          ownerships: {
+            some: {
+              isVerified: true,
+              unit: {
+                unitNumber: { contains: term, mode: 'insensitive' as const },
+                building: { tenantId },
               },
             },
-          ],
+          },
         },
       ];
+
+      // Поиск по ИИН выполняется строго по HMAC-SHA256 хешу (Decision #3)
+      if (/^\d{12}$/.test(term)) {
+        orConditions.push({ iinHash: hashIin(term) });
+      }
+
+      whereClause.AND = [{ OR: orConditions }];
     }
 
-    return this.prisma.user.findMany({
+    const residents = await this.prisma.user.findMany({
       where: whereClause,
       select: {
         id: true,
@@ -715,6 +719,11 @@ export class PropertiesService {
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
+
+    return residents.map((resident) => ({
+      ...resident,
+      iin: decryptPii(resident.iin),
+    }));
   }
 
   async exportConfirmedResidentsCsv(
@@ -859,7 +868,10 @@ export class PropertiesService {
       });
     }
 
-    return user;
+    return {
+      ...user,
+      iin: decryptPii(user.iin),
+    };
   }
 
   async updateResidentStatus(userId: string, staffUser: any, dto: UpdateResidentStatusDto) {

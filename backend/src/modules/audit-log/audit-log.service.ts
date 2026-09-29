@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { buildCsv } from '../../common/csv/csv.helper';
+import { sanitizeAuditMetadata } from '../../common/crypto/pii-crypto.helper';
 import { UserRole } from '@prisma/client';
 
 export interface LogAuditParams {
@@ -44,7 +45,7 @@ export class AuditLogService {
           action: params.action,
           targetType: params.targetType,
           targetId: params.targetId,
-          metadata: params.metadata ?? undefined,
+          metadata: params.metadata ? sanitizeAuditMetadata(params.metadata) : undefined,
         },
       });
     } catch (err: any) {

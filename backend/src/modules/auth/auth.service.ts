@@ -14,6 +14,7 @@ import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinD
 import { UserRole } from '@prisma/client';
 import { JwtPayload } from './jwt.strategy';
 import { RedisService } from '../../redis/redis.service';
+import { maskIin } from '../../common/crypto/pii-crypto.helper';
 
 interface OtpEntry {
   code: string;
@@ -804,7 +805,10 @@ export class AuthService {
       });
     }
 
-    return user;
+    return {
+      ...user,
+      iin: maskIin(user.iin),
+    };
   }
 
   async getPinStatus(userId: string): Promise<{ isPinSet: boolean }> {

@@ -7,6 +7,7 @@ import { BadRequestException, UnauthorizedException, ServiceUnavailableException
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { RedisService } from '../../redis/redis.service';
+import { encryptPii } from '../../common/crypto/pii-crypto.helper';
 
 describe('AuthService (Аудит безопасности авторизации и OTP)', () => {
   let service: AuthService;
@@ -907,6 +908,39 @@ describe('AuthService (Аудит безопасности авторизаци�
       expect(result.tenant.name).toBe('ЖК Байтерек');
       expect(result.ownerships).toHaveLength(1);
       expect(result.ownerships[0].unit.building.blockName).toBe('Блок А');
+      // Проверяем маскирование открытого ИИН
+      expect(result.iin).toBe('******0123');
+    });
+
+    it('маскирует зашифрованный ИИН (v1:...) в ответе getMe', async () => {
+      const encryptedIin = encryptPii('950202400567');
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-enc-1',
+        phone: '+77015556677',
+        firstName: 'Ербол',
+        lastName: 'Омаров',
+        iin: encryptedIin,
+        role: UserRole.RESIDENT_OWNER,
+        ownerships: [],
+      });
+
+      const result = await service.getMe('user-enc-1');
+      expect(result.iin).toBe('******0567');
+    });
+
+    it('возвращает null для iin, если он не указан у пользователя', async () => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-no-iin',
+        phone: '+77015556678',
+        firstName: 'Айдар',
+        lastName: 'Смагулов',
+        iin: null,
+        role: UserRole.RESIDENT_OWNER,
+        ownerships: [],
+      });
+
+      const result = await service.getMe('user-no-iin');
+      expect(result.iin).toBeNull();
     });
 
     it('должен выбрасывать UnauthorizedException AUTH.USER_NOT_FOUND, если пользователь не найден', async () => {

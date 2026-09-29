@@ -2,6 +2,7 @@ import { PrismaClient, UserRole, UnitType, OwnershipType, RequestCategory, Reque
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { generateAccountNumber } from '../src/modules/finance/personal-account.helper';
+import { encryptPii, hashIin } from '../src/common/crypto/pii-crypto.helper';
 
 const prisma = new PrismaClient();
 
@@ -135,7 +136,8 @@ async function main() {
       passwordHash: defaultPasswordHash,
       firstName: 'Алихан',
       lastName: 'Бокейханов',
-      iin: '850101300111',
+      iin: encryptPii('850101300111'),
+      iinHash: hashIin('850101300111'),
       role: UserRole.HOA_ADMIN,
       tenantId: tenant.id,
       isVerified: true,
@@ -149,7 +151,8 @@ async function main() {
       passwordHash: defaultPasswordHash,
       firstName: 'Нурсултан',
       lastName: 'Касымов',
-      iin: '880315350222',
+      iin: encryptPii('880315350222'),
+      iinHash: hashIin('880315350222'),
       role: UserRole.HOA_CHAIRMAN,
       tenantId: tenant.id,
       isVerified: true,
@@ -188,7 +191,8 @@ async function main() {
       passwordHash: defaultPasswordHash,
       firstName: 'Арман',
       lastName: 'Жумабаев',
-      iin: '920620300444',
+      iin: encryptPii('920620300444'),
+      iinHash: hashIin('920620300444'),
       role: UserRole.RESIDENT_OWNER,
       tenantId: tenant.id,
       isVerified: true,
@@ -203,7 +207,8 @@ async function main() {
       passwordHash: defaultPasswordHash,
       firstName: 'Динара',
       lastName: 'Ахметова',
-      iin: '940812400555',
+      iin: encryptPii('940812400555'),
+      iinHash: hashIin('940812400555'),
       role: UserRole.RESIDENT_OWNER,
       tenantId: tenant.id,
       isVerified: true,

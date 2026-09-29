@@ -5,6 +5,7 @@ import { NotFoundException, BadRequestException, ForbiddenException } from '@nes
 import { UserRole, OwnershipType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { encryptPii, hashIin } from '../../common/crypto/pii-crypto.helper';
 
 describe('PropertiesService (Поиск ЖК, структура объектов и реестр жильцов)', () => {
   let service: PropertiesService;
@@ -238,6 +239,39 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
           }),
         );
       });
+
+      it('расшифровывает зашифрованный ИИН (v1:...) для персонала в реестре жильцов', async () => {
+        const encryptedIin = encryptPii('900101300123');
+        prismaMock.user.findMany.mockResolvedValue([
+          {
+            ...sampleResident,
+            iin: encryptedIin,
+          },
+        ]);
+
+        const res = await service.getConfirmedResidents('tenant-1');
+        expect(res[0].iin).toBe('900101300123');
+      });
+
+      it('добавляет фильтр по iinHash при поиске по 12-значному ИИН', async () => {
+        prismaMock.user.findMany.mockResolvedValue([sampleResident]);
+
+        await service.getConfirmedResidents('tenant-1', '900101300123');
+
+        expect(prismaMock.user.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              AND: [
+                {
+                  OR: expect.arrayContaining([
+                    { iinHash: hashIin('900101300123') },
+                  ]),
+                },
+              ],
+            }),
+          }),
+        );
+      });
     });
 
     describe('getResidentDetail', () => {
@@ -247,6 +281,17 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
         const res = await service.getResidentDetail('tenant-1', 'res-1');
         expect(res.id).toBe('res-1');
         expect(res.ownerships).toHaveLength(1);
+      });
+
+      it('расшифровывает зашифрованный ИИН в детальной карточке жильца для персонала', async () => {
+        const encryptedIin = encryptPii('900101300123');
+        prismaMock.user.findUnique.mockResolvedValue({
+          ...sampleResident,
+          iin: encryptedIin,
+        });
+
+        const res = await service.getResidentDetail('tenant-1', 'res-1');
+        expect(res.iin).toBe('900101300123');
       });
 
       it('должен выбрасывать NotFoundException, если жилец не найден', async () => {
@@ -1250,6 +1295,41 @@ describe('PropertiesService (Поиск ЖК, структура объекто�
       const lines = content.split('\r\n');
 
       expect(lines).toHaveLength(1);
+    });
+
+    it('экспортирует расшифрованный ИИН в CSV при наличии зашифрованного ИИН в БД', async () => {
+      const encryptedIin = encryptPii('900101300123');
+      const mockResident = {
+        id: 'user-1',
+        lastName: 'Иванов',
+        firstName: 'Иван',
+        phone: '+77011112233',
+        email: 'ivan@example.com',
+        iin: encryptedIin,
+        isActive: true,
+        ownerships: [
+          {
+            id: 'own-1',
+            ownershipType: OwnershipType.OWNER,
+            sharePercent: 100.0,
+            isVerified: true,
+            verifiedAt: new Date('2026-05-10T10:00:00.000Z'),
+            unit: {
+              unitNumber: '101',
+              area: 65.5,
+              building: { blockName: 'Блок А' },
+            },
+          },
+        ],
+      };
+
+      prismaMock.user.findMany.mockResolvedValue([mockResident]);
+
+      const { buffer } = await service.exportConfirmedResidentsCsv('tenant-1');
+      const content = buffer.toString('utf-8');
+
+      expect(content).toContain('900101300123');
+      expect(content).not.toContain('v1:');
     });
   });
 

@@ -87,6 +87,38 @@ describe('AuditLogService (Журнал аудита действий персо
         }),
       ).resolves.not.toThrow();
     });
+
+    it('должен автоматически маскировать ИИН в metadata перед сохранением в БД', async () => {
+      prismaMock.auditLog.create.mockResolvedValue({ id: 'log-3' });
+
+      await service.log({
+        tenantId: 'tenant-1',
+        actorId: 'staff-1',
+        action: 'RESIDENT_VERIFIED',
+        targetType: 'User',
+        targetId: 'user-1',
+        metadata: {
+          iin: '900101300123',
+          residentIin: '850101300111',
+          comment: 'Верифицирован по правоустанавливающим документам',
+        },
+      });
+
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          tenantId: 'tenant-1',
+          actorId: 'staff-1',
+          action: 'RESIDENT_VERIFIED',
+          targetType: 'User',
+          targetId: 'user-1',
+          metadata: {
+            iin: '******0123',
+            residentIin: '******0111',
+            comment: 'Верифицирован по правоустанавливающим документам',
+          },
+        },
+      });
+    });
   });
 
   describe('getAuditLogs (Tenant isolation & filtering)', () => {

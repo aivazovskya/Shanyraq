@@ -5,8 +5,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
+import { validatePiiCryptoConfig } from './common/crypto/pii-crypto.helper';
 
 async function bootstrap() {
+  // Fail-fast проверка обязательных ключей шифрования ПДн (AES-256-GCM)
+  validatePiiCryptoConfig();
+
   const app = await NestFactory.create(AppModule);
 
   // Security Headers

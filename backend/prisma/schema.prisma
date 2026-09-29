@@ -169,7 +169,8 @@ model User {
   passwordHash     String?
   firstName        String
   lastName         String
-  iin              String?           // ИИН жителя для юридической идентификации в РК
+  iin              String?           // Зашифрованный ИИН жителя (v1:iv:tag:ciphertext, AES-256-GCM)
+  iinHash          String?           // HMAC-SHA256 хеш ИИН для детерминированного поиска и валидации уникальности
   role             UserRole          @default(RESIDENT_OWNER)
   tenantId         String?
   isActive         Boolean           @default(true)
@@ -214,6 +215,7 @@ model User {
   recordedExpenses        Expense[]          @relation("RecordedExpenses")
   voidedExpenses          Expense[]          @relation("VoidedExpenses")
 
+  @@index([iinHash])
   @@map("users")
 }
 
