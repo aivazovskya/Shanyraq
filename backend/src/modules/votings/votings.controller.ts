@@ -13,6 +13,7 @@ import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { RATE_LIMITS } from '../../common/constants/rate-limit.constants';
+import { FailClosedThrottle } from '../../common/decorators/fail-closed-throttle.decorator';
 
 const VOTINGS_ACCESS_ERRORS: TenantAccessErrorCodes = {
   authRequired: {
@@ -64,6 +65,7 @@ export class VotingsController {
   }
 
   @Post('vote')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.VOTING_CAST_VOTE.LIMIT, ttl: RATE_LIMITS.VOTING_CAST_VOTE.TTL } })
   @Roles(UserRole.RESIDENT_OWNER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
   @ApiOperation({ summary: 'Проголосовать по вопросу повестки с весом полезной площади и SMS-OTP' })

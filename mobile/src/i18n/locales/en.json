@@ -418,7 +418,6 @@
     "transparencySafeTitle": "Transparency and Data Privacy",
     "transparencySafeNotice": "This report is generated automatically from HOA records. Residents' personal data and apartment numbers are protected and never displayed in the aggregate report."
   },
-
   "meters": {
     "title": "Meter Readings",
     "emptyTitle": "No meters found",
@@ -603,7 +602,8 @@
       "INVALID_TOKEN_TYPE": "Invalid token type. Refresh token cannot be used to authorize requests",
       "LOGIN_LOCKED": "Too many failed login attempts. Please try again in {{waitMinutes}} min.",
       "RATE_LIMITED": "Too many requests. Please try again later.",
-      "PHONE_RATE_LIMITED": "SMS request limit exceeded for this phone number. Please wait 10 minutes."
+      "PHONE_RATE_LIMITED": "SMS request limit exceeded for this phone number. Please wait 10 minutes.",
+      "SERVICE_UNAVAILABLE": "Service is temporarily unavailable. Please try again later."
     },
     "VOTINGS": {
       "TENANT_ID_REQUIRED": "Residential complex ID is required",
@@ -806,6 +806,9 @@
       "MIN_VALUE": "The «{{field}}» value is less than the minimum allowed",
       "MAX_VALUE": "The «{{field}}» value exceeds the maximum allowed",
       "INVALID_FIELD": "Invalid value for field «{{field}}»"
+    },
+    "COMMON": {
+      "RATE_LIMITED": "Too many requests. Please try again later."
     }
   },
   "staff": {

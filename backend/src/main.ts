@@ -8,20 +8,25 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import { validatePiiCryptoConfig } from './common/crypto/pii-crypto.helper';
 
+export function parseTrustProxy(envValue?: string): number {
+  const val = (envValue ?? '0').trim();
+  if (!/^\d+$/.test(val)) {
+    throw new Error(
+      `Invalid TRUST_PROXY configuration: "${envValue}". Must be a non-negative integer representing the number of proxy hops (e.g. 0 in development, 1 in production behind a reverse proxy). Boolean or non-numeric values are not permitted.`,
+    );
+  }
+  return parseInt(val, 10);
+}
+
 async function bootstrap() {
   // Fail-fast проверка обязательных ключей шифрования ПДн (AES-256-GCM)
   validatePiiCryptoConfig();
-
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Настройка Trust Proxy (Express)
   // 0 (по умолчанию в dev) — отключено, защищает от подделки X-Forwarded-For
   // 1 (в production за Nginx/ALB) — доверяет 1 хопу прокси для точного определения req.ip
-  const trustProxyEnv = process.env.TRUST_PROXY ?? '0';
-  const trustProxyHops = parseInt(trustProxyEnv, 10);
-  const trustProxy = !isNaN(trustProxyHops)
-    ? trustProxyHops
-    : trustProxyEnv.toLowerCase() === 'true';
+  const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
   app.set('trust proxy', trustProxy);
 
   // Security Headers
@@ -89,4 +94,6 @@ async function bootstrap() {
   console.log(`=============================================================\n`);
 }
 
-bootstrap();
+if (process.env.NODE_ENV !== 'test') {
+  bootstrap();
+}

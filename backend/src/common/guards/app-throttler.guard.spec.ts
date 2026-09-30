@@ -1,15 +1,20 @@
 import { ExecutionContext, HttpStatus, HttpException } from '@nestjs/common';
 import { AppThrottlerGuard } from './app-throttler.guard';
 import { ThrottlerStorage } from '@nestjs/throttler';
+import { FAIL_CLOSED_THROTTLE_KEY } from '../decorators/fail-closed-throttle.decorator';
 
 describe('AppThrottlerGuard', () => {
   let guard: AppThrottlerGuard;
   let mockStorage: jest.Mocked<ThrottlerStorage>;
+  let mockReflector: {
+    getAllAndOverride: jest.Mock;
+  };
 
   class MockAuthController {}
   class MockVotingsController {}
+  class MockGeneralController {}
 
-  const createMockContext = (controllerClass: any) => {
+  const createMockContext = (controllerClass: any, handlerFn: any = () => {}) => {
     const headers: Record<string, any> = {};
     const req = {
       ip: '192.168.1.1',
@@ -28,7 +33,7 @@ describe('AppThrottlerGuard', () => {
 
     const context = {
       getClass: () => controllerClass,
-      getHandler: () => () => {},
+      getHandler: () => handlerFn,
       switchToHttp: () => ({
         getRequest: () => req,
         getResponse: () => res,
@@ -43,13 +48,40 @@ describe('AppThrottlerGuard', () => {
       increment: jest.fn(),
     } as any;
 
+    mockReflector = {
+      getAllAndOverride: jest.fn(),
+    };
+
     guard = new AppThrottlerGuard(
       {
         throttlers: [{ name: 'default', ttl: 60000, limit: 60 }],
       } as any,
       mockStorage,
-      {} as any,
+      mockReflector as any,
     );
+  });
+
+  describe('generateKey', () => {
+    it('should append :failclosed if FailClosedThrottle metadata is present', () => {
+      mockReflector.getAllAndOverride.mockImplementation((key) => {
+        if (key === FAIL_CLOSED_THROTTLE_KEY) return true;
+        return undefined;
+      });
+
+      const { context } = createMockContext(MockAuthController);
+      const generated = (guard as any).generateKey(context, '192.168.1.1', 'default');
+
+      expect(generated).toMatch(/:failclosed$/);
+    });
+
+    it('should NOT append :failclosed if FailClosedThrottle metadata is absent', () => {
+      mockReflector.getAllAndOverride.mockImplementation(() => undefined);
+
+      const { context } = createMockContext(MockGeneralController);
+      const generated = (guard as any).generateKey(context, '192.168.1.1', 'default');
+
+      expect(generated).not.toMatch(/:failclosed$/);
+    });
   });
 
   describe('throwThrottlingException', () => {
@@ -126,7 +158,6 @@ describe('AppThrottlerGuard', () => {
         };
 
         try {
-          // Calling protected method directly
           await (guard as any).throwThrottlingException(context, limitDetail);
           fail('Should have thrown an exception');
         } catch (err: any) {
@@ -142,6 +173,30 @@ describe('AppThrottlerGuard', () => {
           expect(res.setHeader).toHaveBeenCalledWith('Retry-After', 45);
         }
       });
+    });
+
+    it('should return COMMON.RATE_LIMITED for non-auth, non-voting controllers', async () => {
+      const { context } = createMockContext(MockGeneralController);
+      const limitDetail = {
+        limit: 60,
+        ttl: 60000,
+        key: 'test',
+        tracker: '192.168.1.1',
+        totalHits: 61,
+        timeToExpire: 30,
+        isBlocked: true,
+        timeToBlockExpire: 30,
+      };
+
+      try {
+        await (guard as any).throwThrottlingException(context, limitDetail);
+        fail('Should have thrown an exception');
+      } catch (err: any) {
+        expect(err.getResponse()).toMatchObject({
+          statusCode: 429,
+          code: 'COMMON.RATE_LIMITED',
+        });
+      }
     });
 
     it('should use timeToExpire if timeToBlockExpire is 0', async () => {

@@ -59,7 +59,11 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
     blockDuration: number,
     throttlerName: string,
   ): Promise<ThrottlerStorageRecord> {
-    const redisKey = `ratelimit:${key}`;
+    const isSensitive = this.isSensitiveKey(key, throttlerName);
+    const cleanKey = key.endsWith(':failclosed')
+      ? key.slice(0, -':failclosed'.length)
+      : key;
+    const redisKey = `ratelimit:${cleanKey}`;
 
     try {
       const client = this.redisService.getClient();
@@ -85,11 +89,9 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
         throw err;
       }
 
-      const isSensitive = this.isSensitiveKey(key, throttlerName);
-
       if (isSensitive) {
         this.logger.error(
-          `[FAIL-CLOSED] Сбой Redis при проверке чувствительного лимита (${key}): ${err.message}`,
+          `[FAIL-CLOSED] Сбой Redis при проверке чувствительного лимита (${cleanKey}): ${err.message}`,
         );
         throw new ServiceUnavailableException({
           code: 'AUTH.SERVICE_UNAVAILABLE',
@@ -98,7 +100,7 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
       }
 
       this.logger.warn(
-        `[FAIL-OPEN] Сбой Redis при проверке глобального лимита (${key}): ${err.message}. Запрос пропущен.`,
+        `[FAIL-OPEN] Сбой Redis при проверке глобального лимита (${cleanKey}): ${err.message}. Запрос пропущен.`,
       );
 
       // Fail-open для глобального нечувствительного лимита
@@ -113,25 +115,13 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
 
   /**
    * Определяет, является ли проверяемый эндпоинт чувствительным:
-   * Эндпоинты аутентификации (OTP, пароли, PIN, refresh) и голосований являются чувствительными.
+   * Только при наличии явного флага/суффикса :failclosed (от декоратора @FailClosedThrottle)
+   * или throttlerName === 'failclosed'. Никакой подстроковой эвристики.
    */
-  public isSensitiveKey(key: string, throttlerName: string): boolean {
-    if (throttlerName && throttlerName !== 'default') {
+  public isSensitiveKey(key: string, throttlerName?: string): boolean {
+    if (throttlerName === 'failclosed') {
       return true;
     }
-
-    const lowerKey = key.toLowerCase();
-    const sensitiveTokens = [
-      'auth',
-      'otp',
-      'login',
-      'password',
-      'pin',
-      'refresh',
-      'voting',
-      'vote',
-    ];
-
-    return sensitiveTokens.some((token) => lowerKey.includes(token));
+    return key.endsWith(':failclosed');
   }
 }

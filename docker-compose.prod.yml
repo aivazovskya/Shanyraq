@@ -134,12 +134,13 @@ services:
         max-file: "3"
 
   go2rtc:
-    image: alexxit/go2rtc:latest
+    image: alexxit/go2rtc:v1.9.4
     container_name: shanyraq-go2rtc-prod
     restart: unless-stopped
+    environment:
+      GO2RTC_API_USER: ${GO2RTC_API_USER:-shanyraq_streamer}
+      GO2RTC_API_PASSWORD: ${GO2RTC_API_PASSWORD:?GO2RTC_API_PASSWORD is required}
     ports:
-      - "1984:1984" # API / Web UI
-      - "8554:8554" # RTSP
       - "8555:8555" # WebRTC
     volumes:
       - ./infra/go2rtc.yaml:/config/go2rtc.yaml:ro

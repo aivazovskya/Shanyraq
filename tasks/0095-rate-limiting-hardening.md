@@ -19,15 +19,17 @@
    - *Обоснование*:
      1. Отсутствие внешних зависимостей исключает риск версионных конфликтов с `@nestjs/throttler` v6.5.0 и `ioredis`.
      2. Полный контроль над поведением при сбоях Redis: реализация строгого требования ТЗ:
-        - **Fail-open** для глобального лимита нечувствительных эндпоинтов (логирование предупреждения, запрос пропускается).
-        - **Fail-closed** (HTTP 503 `AUTH.SERVICE_UNAVAILABLE`) для чувствительных эндпоинтов аутентификации и голосований.
+        - **Fail-open** для обычных эндпоинтов (логирование предупреждения, запрос пропускается).
+        - **Fail-closed** (HTTP 503 `AUTH.SERVICE_UNAVAILABLE`) для чувствительных эндпоинтов, помеченных декоратором `@FailClosedThrottle()`.
+        - Никакой ненадежной эвристики по подстрокам ('pin', 'vote'): чувствительность определяется строго наличием декоратора `@FailClosedThrottle()` (на всех 10 auth-эндпоинтах и `votings/vote`).
      3. Атомарное инкрементирование и блокировка через Redis Lua-скрипт за 1 сетевой round-trip.
-2. **Поддержка `trust proxy`**:
-   - В `main.ts` включается `app.set('trust proxy', trustProxy)`, где значение берется из переменной окружения `TRUST_PROXY`.
+2. **Поддержка `trust proxy` с валидацией целых чисел**:
+   - В `main.ts` включается `app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY))`.
+   - Значение валидируется строго как неотрицательное целое число (`^\d+$`). Нечисловые значения и `'true'`/`'false'` вызывают fail-fast ошибку при старте приложения.
    - Значение по умолчанию: `0` (в dev-режиме, игнорирует заголовки `X-Forwarded-For` для защиты от IP-spoofing).
    - В production-окружении (`docker-compose.prod.yml`): `1` (число доверенных прокси-хопов, например Nginx / ALB, корректно извлекает реальный IP клиента).
 3. **Строгие лимиты по IP (константы в `rate-limit.constants.ts`)**:
-   - `POST auth/request-otp`: 3 req / 60s
+   - `POST auth/request-otp`: 10 req / 60s
    - `POST auth/verify-otp`: 5 req / 60s
    - `POST auth/login-password`: 5 req / 60s
    - `POST auth/set-initial-password`: 3 req / 60s
@@ -50,7 +52,8 @@
      - Для общих лимитов auth: `{ statusCode: 429, code: "AUTH.RATE_LIMITED", message: "Слишком много запросов. Пожалуйста, повторите позже." }`.
      - Для голосований: `{ statusCode: 429, code: "VOTINGS.RATE_LIMITED", message: "Слишком много попыток голосования. Пожалуйста, повторите позже." }`.
      - Для лимита по номеру: `{ statusCode: 429, code: "AUTH.PHONE_RATE_LIMITED", message: "Превышен лимит запросов SMS для этого номера. Пожалуйста, повторите через 10 минут." }`.
-   - Полный паритет переводов в `errors.AUTH` и `errors.VOTINGS` для всех 3 локалей (`ru`, `kk`, `en`) в `mobile` и `frontend-web`.
+     - Для остальных модулей (дефолт): `{ statusCode: 429, code: "COMMON.RATE_LIMITED", message: "Слишком много запросов. Пожалуйста, повторите позже." }`.
+   - Полный паритет переводов в `errors.AUTH`, `errors.VOTINGS` и `errors.COMMON` для всех 3 локалей (`ru`, `kk`, `en`) в `mobile` и `frontend-web`.
 6. **Health-эндпоинты**:
    - Остаются под `@SkipThrottle()`.
 

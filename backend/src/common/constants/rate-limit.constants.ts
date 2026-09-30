@@ -4,7 +4,7 @@ export const RATE_LIMITS = {
     TTL: 60000, // 60s in ms
   },
   AUTH_REQUEST_OTP: {
-    LIMIT: 3,
+    LIMIT: 10,
     TTL: 60000, // 60s in ms
   },
   AUTH_VERIFY_OTP: {

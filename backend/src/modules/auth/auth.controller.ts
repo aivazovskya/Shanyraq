@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RATE_LIMITS } from '../../common/constants/rate-limit.constants';
 import { PhoneOtpRateLimitGuard } from '../../common/guards/phone-otp-rate-limit.guard';
+import { FailClosedThrottle } from '../../common/decorators/fail-closed-throttle.decorator';
 
 @ApiTags('Auth (Аутентификация)')
 @Controller('auth')
@@ -15,6 +16,7 @@ export class AuthController {
 
   @Post('request-otp')
   @UseGuards(PhoneOtpRateLimitGuard)
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_REQUEST_OTP.LIMIT, ttl: RATE_LIMITS.AUTH_REQUEST_OTP.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Запросить 6-значный SMS-код для входа жильца (лимит: 1 раз в 60 сек)' })
@@ -24,6 +26,7 @@ export class AuthController {
   }
 
   @Post('verify-otp')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_VERIFY_OTP.LIMIT, ttl: RATE_LIMITS.AUTH_VERIFY_OTP.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Подтвердить SMS-код и получить пару токенов (access + refresh)' })
@@ -33,6 +36,7 @@ export class AuthController {
   }
 
   @Post('login-password')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_LOGIN_PASSWORD.LIMIT, ttl: RATE_LIMITS.AUTH_LOGIN_PASSWORD.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Вход по паролю (для УК, председателя ОСИ, диспетчера, охраны)' })
@@ -42,6 +46,7 @@ export class AuthController {
   }
 
   @Post('set-initial-password')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_SET_INITIAL_PASSWORD.LIMIT, ttl: RATE_LIMITS.AUTH_SET_INITIAL_PASSWORD.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Установить постоянный пароль по одноразовому токену смены пароля' })
@@ -51,6 +56,7 @@ export class AuthController {
   }
 
   @Post('staff/forgot-password')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_STAFF_FORGOT_PASSWORD.LIMIT, ttl: RATE_LIMITS.AUTH_STAFF_FORGOT_PASSWORD.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Запросить SMS-код для восстановления пароля сотрудника' })
@@ -60,6 +66,7 @@ export class AuthController {
   }
 
   @Post('staff/reset-password')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_STAFF_RESET_PASSWORD.LIMIT, ttl: RATE_LIMITS.AUTH_STAFF_RESET_PASSWORD.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Сбросить пароль сотрудника по SMS-коду (без выдачи токенов)' })
@@ -69,6 +76,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_REFRESH.LIMIT, ttl: RATE_LIMITS.AUTH_REFRESH.TTL } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Обновить access-токен с помощью refresh-токена' })
@@ -106,6 +114,7 @@ export class AuthController {
 
   @Post('pin/set')
   @UseGuards(JwtAuthGuard)
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_PIN_SET.LIMIT, ttl: RATE_LIMITS.AUTH_PIN_SET.TTL } })
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
@@ -117,6 +126,7 @@ export class AuthController {
 
   @Post('pin/reset-request')
   @UseGuards(JwtAuthGuard)
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_PIN_RESET_REQUEST.LIMIT, ttl: RATE_LIMITS.AUTH_PIN_RESET_REQUEST.TTL } })
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
@@ -128,6 +138,7 @@ export class AuthController {
 
   @Post('pin/reset-confirm')
   @UseGuards(JwtAuthGuard)
+  @FailClosedThrottle()
   @Throttle({ default: { limit: RATE_LIMITS.AUTH_PIN_RESET_CONFIRM.LIMIT, ttl: RATE_LIMITS.AUTH_PIN_RESET_CONFIRM.TTL } })
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)

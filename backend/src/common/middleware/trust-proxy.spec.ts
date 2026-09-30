@@ -1,30 +1,27 @@
 import express = require('express');
 import request = require('supertest');
 
-export function parseTrustProxyConfig(envValue?: string): number | boolean {
-  const trustProxyEnv = envValue ?? '0';
-  const trustProxyHops = parseInt(trustProxyEnv, 10);
-  return !isNaN(trustProxyHops)
-    ? trustProxyHops
-    : trustProxyEnv.toLowerCase() === 'true';
-}
+import { parseTrustProxy } from '../../main';
 
 describe('Trust Proxy Configuration', () => {
-  describe('parseTrustProxyConfig', () => {
+  describe('parseTrustProxy', () => {
     it('should default to 0 when envValue is undefined', () => {
-      expect(parseTrustProxyConfig(undefined)).toBe(0);
+      expect(parseTrustProxy(undefined)).toBe(0);
     });
 
-    it('should parse numeric string values correctly', () => {
-      expect(parseTrustProxyConfig('0')).toBe(0);
-      expect(parseTrustProxyConfig('1')).toBe(1);
-      expect(parseTrustProxyConfig('2')).toBe(2);
+    it('should parse non-negative integer string values correctly', () => {
+      expect(parseTrustProxy('0')).toBe(0);
+      expect(parseTrustProxy('1')).toBe(1);
+      expect(parseTrustProxy('2')).toBe(2);
+      expect(parseTrustProxy(' 3 ')).toBe(3);
     });
 
-    it('should parse boolean string values correctly', () => {
-      expect(parseTrustProxyConfig('true')).toBe(true);
-      expect(parseTrustProxyConfig('TRUE')).toBe(true);
-      expect(parseTrustProxyConfig('false')).toBe(false);
+    it('should throw an error on startup for boolean or non-numeric values', () => {
+      expect(() => parseTrustProxy('true')).toThrow(/Invalid TRUST_PROXY configuration/);
+      expect(() => parseTrustProxy('false')).toThrow(/Invalid TRUST_PROXY configuration/);
+      expect(() => parseTrustProxy('abc')).toThrow(/Invalid TRUST_PROXY configuration/);
+      expect(() => parseTrustProxy('-1')).toThrow(/Invalid TRUST_PROXY configuration/);
+      expect(() => parseTrustProxy('1.5')).toThrow(/Invalid TRUST_PROXY configuration/);
     });
   });
 

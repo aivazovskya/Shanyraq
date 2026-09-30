@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       POSTGRES_USER: shanyraq_admin
-      POSTGRES_PASSWORD: shanyraq_secure_password_2026
+      POSTGRES_PASSWORD: shanyraq_ci_isolated_secret_2026
       POSTGRES_DB: shanyraq_test
       POSTGRES_SHADOW_DB: shanyraq_shadow
 
@@ -21,7 +21,7 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_USER: shanyraq_admin
-          POSTGRES_PASSWORD: shanyraq_secure_password_2026
+          POSTGRES_PASSWORD: shanyraq_ci_isolated_secret_2026
           POSTGRES_DB: shanyraq_test
         ports:
           - 5432:5432
