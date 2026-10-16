@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
   Optional,
+  ConflictException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,7 +19,7 @@ import {
 } from './dto/sos.dto';
 import { assertUserBelongsToTenant } from '../../common/guards/tenant.guard';
 import { buildCsv } from '../../common/csv/csv.helper';
-import { AuditLogService } from '../audit-log/audit-log.service';
+import { sanitizeAuditMetadata } from '../../common/crypto/pii-crypto.helper';
 
 @Injectable()
 export class SosService {
@@ -27,7 +28,6 @@ export class SosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-    private readonly auditLogService: AuditLogService,
     @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
@@ -89,6 +89,7 @@ export class SosService {
         status: SosAlertStatus.ACTIVE,
       },
       include: {
+        acceptedBy: { select: { id: true, firstName: true, lastName: true } },
         unit: {
           include: { building: true },
         },
@@ -113,6 +114,7 @@ export class SosService {
         status: SosAlertStatus.ACTIVE,
       },
       include: {
+        acceptedBy: { select: { id: true, firstName: true, lastName: true } },
         unit: {
           include: { building: true },
         },
@@ -199,6 +201,7 @@ export class SosService {
             phone: true,
           },
         },
+        acceptedBy: { select: { id: true, firstName: true, lastName: true } },
         resolvedBy: {
           select: {
             id: true,
@@ -367,6 +370,7 @@ export class SosService {
             phone: true,
           },
         },
+        acceptedBy: { select: { id: true, firstName: true, lastName: true } },
         resolvedBy: {
           select: {
             id: true,
@@ -450,104 +454,76 @@ export class SosService {
    * Доступно: SECURITY, DISPATCHER, HOA_ADMIN, SUPERADMIN.
    * Председатель ОСИ (HOA_CHAIRMAN) исключен — только просмотр.
    */
+  private async getProcessableAlert(alertId: string, user: any) {
+    if (user?.role === UserRole.HOA_CHAIRMAN) throw new ForbiddenException({ code: 'SOS.CHAIRMAN_VIEW_ONLY', message: 'Доступ только к просмотру' });
+    if (![UserRole.SECURITY, UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN].includes(user?.role)) {
+      throw new ForbiddenException({ code: 'SOS.PROCESS_FORBIDDEN', message: 'Недостаточно прав для обработки SOS' });
+    }
+    const alert = await this.prisma.sosAlert.findUnique({ where: { id: alertId }, include: this.staffAlertInclude });
+    if (!alert) throw new NotFoundException({ code: 'SOS.ALERT_NOT_FOUND', message: 'Вызов SOS не найден' });
+    assertUserBelongsToTenant(user, alert.tenantId, { code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN', message: 'Вы не можете обрабатывать вызовы другого ЖК' });
+    if (alert.status !== SosAlertStatus.ACTIVE) throw new BadRequestException({ code: 'SOS.ALREADY_PROCESSED', message: 'Вызов уже обработан' });
+    if (alert.acceptedById && alert.acceptedById !== user.id) throw new ConflictException({ code: 'SOS.TAKEN_BY_OTHER', message: 'Вызов уже принят другим сотрудником' });
+    return alert;
+  }
+
+  private readonly staffAlertInclude = {
+    unit: { include: { building: true } },
+    triggeredBy: { select: { id: true, firstName: true, lastName: true, phone: true } },
+    acceptedBy: { select: { id: true, firstName: true, lastName: true } },
+    resolvedBy: { select: { id: true, firstName: true, lastName: true } },
+  };
+
+  private emitUpdated(alert: any) {
+    try { this.eventEmitter?.emit('sos.alert.updated', { alert, tenantId: alert.tenantId }); }
+    catch (error) { this.logger.warn('Failed to emit SOS update'); }
+  }
+
+  async accept(alertId: string, user: any) {
+    const alert = await this.getProcessableAlert(alertId, user);
+    if (alert.acceptedById === user.id) return this.prisma.sosAlert.findUnique({ where: { id: alertId }, include: this.staffAlertInclude });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.sosAlert.updateMany({
+        where: { id: alertId, tenantId: alert.tenantId, status: SosAlertStatus.ACTIVE, acceptedById: null },
+        data: { acceptedById: user.id, acceptedAt: new Date() },
+      });
+      if (result.count !== 1) throw new ConflictException({ code: 'SOS.UPDATE_CONFLICT', message: 'Вызов изменён. Обновите список' });
+      await tx.auditLog.create({ data: { tenantId: alert.tenantId, actorId: user.id, action: 'SOS_ACCEPTED', targetType: 'SosAlert', targetId: alertId } });
+      return tx.sosAlert.findUnique({ where: { id: alertId }, include: this.staffAlertInclude });
+    });
+    this.emitUpdated(updated);
+    return updated;
+  }
+
   async resolve(alertId: string, user: any, dto: ResolveSosDto) {
-    if (user.role === UserRole.HOA_CHAIRMAN) {
-      throw new ForbiddenException({
-        code: 'SOS.CHAIRMAN_VIEW_ONLY',
-        message: 'Председатель ОСИ имеет доступ только к просмотру сигналов SOS',
+    const alert = await this.getProcessableAlert(alertId, user);
+    if (![SosAlertStatus.RESOLVED, SosAlertStatus.FALSE_ALARM].includes(dto.status as any)) throw new BadRequestException({ code: 'SOS.INVALID_RESOLUTION', message: 'Выберите результат обработки' });
+    const note = dto.note?.trim() || null;
+    if (note && note.length > 1600) throw new BadRequestException({ code: 'SOS.NOTE_TOO_LONG', message: 'Максимум 1600 символов' });
+    const resolvedAt = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.sosAlert.updateMany({
+        where: { id: alertId, tenantId: alert.tenantId, status: SosAlertStatus.ACTIVE, acceptedById: alert.acceptedById ?? null },
+        data: { status: dto.status, resolvedById: user.id, resolvedAt, resolutionNote: note,
+          // Existing mobile clients may resolve directly; acceptance is recorded at closure.
+          acceptedById: user.id, acceptedAt: alert.acceptedAt ?? resolvedAt },
       });
-    }
-
-    const alert = await this.prisma.sosAlert.findUnique({
-      where: { id: alertId },
+      if (result.count !== 1) throw new ConflictException({ code: 'SOS.UPDATE_CONFLICT', message: 'Вызов изменён. Обновите список' });
+      await tx.shiftHandoverNote.create({ data: {
+        tenantId: alert.tenantId, authorId: user.id,
+        content: ['SOS ' + alertId, dto.status === SosAlertStatus.RESOLVED ? 'Помощь оказана' : 'Ложная тревога',
+          alert.unit ? 'Помещение: ' + [alert.unit.building?.blockName, alert.unit.unitNumber].filter(Boolean).join(', ') : null,
+          alert.triggeredBy ? 'Житель: ' + [alert.triggeredBy.firstName, alert.triggeredBy.lastName].filter(Boolean).join(' ') : null,
+          'Вызов: ' + alert.createdAt.toISOString(), 'Завершён: ' + resolvedAt.toISOString(), note || 'Комментарий не указан'].filter(Boolean).join('\n'),
+      } });
+      await tx.auditLog.create({ data: {
+        tenantId: alert.tenantId, actorId: user.id, action: 'SOS_RESOLVED', targetType: 'SosAlert', targetId: alertId,
+        metadata: sanitizeAuditMetadata({ status: dto.status, resolutionNote: note }),
+      } });
+      return tx.sosAlert.findUnique({ where: { id: alertId }, include: this.staffAlertInclude });
     });
-
-    if (!alert) {
-      throw new NotFoundException({
-        code: 'SOS.ALERT_NOT_FOUND',
-        message: 'Вызов SOS не найден',
-      });
-    }
-
-    assertUserBelongsToTenant(user, alert.tenantId, {
-      code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN',
-      message: 'Вы не можете обрабатывать вызовы другого ЖК',
-    });
-
-    const allowedRoles = [
-      UserRole.SECURITY,
-      UserRole.DISPATCHER,
-      UserRole.HOA_ADMIN,
-      UserRole.SUPERADMIN,
-    ];
-
-    if (!allowedRoles.includes(user.role)) {
-      throw new ForbiddenException({
-        code: 'SOS.PROCESS_FORBIDDEN',
-        message: 'Недостаточно прав для обработки сигнала SOS',
-      });
-    }
-
-    if (alert.status !== SosAlertStatus.ACTIVE) {
-      throw new BadRequestException({
-        code: 'SOS.ALREADY_PROCESSED',
-        message: 'Данный вызов SOS уже был обработан ранее',
-      });
-    }
-
-    const updatedAlert = await this.prisma.sosAlert.update({
-      where: { id: alertId },
-      data: {
-        status: dto.status,
-        resolvedById: user.id,
-        resolvedAt: new Date(),
-        resolutionNote: dto.note?.trim() || null,
-      },
-      include: {
-        unit: {
-          include: { building: true },
-        },
-        triggeredBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-          },
-        },
-        resolvedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
-
-    // Real-time событие для WebSocket шлюза
-    try {
-      this.eventEmitter?.emit('sos.alert.updated', {
-        alert: updatedAlert,
-        tenantId: alert.tenantId,
-      });
-    } catch (e) {
-      this.logger.warn(`Failed to emit sos.alert.updated event: ${e}`);
-    }
-
-    await this.auditLogService.log({
-      tenantId: alert.tenantId,
-      actorId: user.id,
-      action: 'SOS_RESOLVED',
-      targetType: 'SosAlert',
-      targetId: alertId,
-      metadata: {
-        status: dto.status,
-        resolutionNote: dto.note?.trim() || null,
-      },
-    });
-
-    return updatedAlert;
+    this.emitUpdated(updated);
+    return updated;
   }
 
   /**
@@ -567,6 +543,7 @@ export class SosService {
         unit: {
           include: { building: true },
         },
+        acceptedBy: { select: { id: true, firstName: true, lastName: true } },
         resolvedBy: {
           select: {
             id: true,

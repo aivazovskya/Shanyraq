@@ -305,14 +305,14 @@ export default function LoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 shadow-sm border border-slate-200 sm:rounded-2xl sm:px-10">
           {error && (
-            <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+            <div role="alert" className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+            <div role="status" className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{successMessage}</span>
             </div>
@@ -329,11 +329,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="newPassword" className="block text-sm font-medium text-slate-700">
                   {t('auth.newPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="newPassword" autoComplete="new-password"
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -346,11 +346,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700">
                   {t('auth.confirmPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="confirmPassword" autoComplete="new-password"
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -398,11 +398,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="resetPhone" className="block text-sm font-medium text-slate-700">
                   {t('auth.staffPhoneLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="resetPhone"
                     type="text"
                     value={resetPhone}
                     onChange={(e) => setResetPhone(e.target.value)}
@@ -449,11 +449,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="resetCode" className="block text-sm font-medium text-slate-700">
                   {t('auth.smsCodeLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="resetCode" autoComplete="one-time-code" inputMode="numeric"
                     type="text"
                     value={resetCode}
                     onChange={(e) => setResetCode(e.target.value)}
@@ -466,11 +466,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="resetNewPassword" className="block text-sm font-medium text-slate-700">
                   {t('auth.newPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="resetNewPassword" autoComplete="new-password"
                     type="password"
                     value={resetNewPassword}
                     onChange={(e) => setResetNewPassword(e.target.value)}
@@ -483,11 +483,11 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="resetConfirmPassword" className="block text-sm font-medium text-slate-700">
                   {t('auth.confirmPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="resetConfirmPassword" autoComplete="new-password"
                     type="password"
                     value={resetConfirmPassword}
                     onChange={(e) => setResetConfirmPassword(e.target.value)}
@@ -527,11 +527,11 @@ export default function LoginPage() {
           ) : (
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label htmlFor="login" className="block text-sm font-medium text-slate-700">
                   {t('auth.loginLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="login" autoComplete="username"
                     type="text"
                     value={login}
                     onChange={(e) => setLogin(e.target.value)}
@@ -544,7 +544,7 @@ export default function LoginPage() {
 
               <div>
                 <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-700">
                     {t('auth.passwordLabel')}
                   </label>
                   <button
@@ -561,7 +561,7 @@ export default function LoginPage() {
                   </button>
                 </div>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input
+                  <input id="password" autoComplete="current-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

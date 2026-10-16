@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ServiceRequestsService } from './service-requests.service';
 import { CreateServiceRequestDto, UpdateRequestStatusDto, AddCommentDto, RateRequestDto } from './dto/service-requests.dto';
@@ -43,6 +44,23 @@ export class ServiceRequestsController {
   @ApiOperation({ summary: 'Детальная информация о заявке, включая историю переписки' })
   async getRequestById(@Param('id') id: string, @CurrentUser() user: any) {
     return this.serviceRequestsService.getRequestById(id, user);
+  }
+
+  @Get(':id/assignees')
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Активные сотрудники ЖК, которым можно назначить заявку' })
+  async getAssignees(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.serviceRequestsService.getAssignees(id, user);
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  @ApiOperation({ summary: 'Прочитать приватное вложение после проверки доступа к заявке' })
+  async getAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string,
+    @CurrentUser() user: any, @Res({ passthrough: true }) res: Response) {
+    const file = await this.serviceRequestsService.getAttachmentFile(id, attachmentId, user);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return new StreamableFile(file.stream, { type: file.contentType, disposition: 'inline' });
   }
 
   @Patch(':id/status')

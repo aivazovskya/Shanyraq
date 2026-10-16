@@ -418,7 +418,7 @@ export default function ShiftHandoverPage() {
                       </div>
 
                       {/* Note Content */}
-                      <p className="text-sm text-slate-800 whitespace-pre-line leading-relaxed pl-10">
+                      <p className="text-sm text-slate-800 break-words whitespace-pre-line leading-relaxed pl-10">
                         {note.content}
                       </p>
 

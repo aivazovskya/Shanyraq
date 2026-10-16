@@ -47,6 +47,10 @@ export function GlobalSearch() {
     accounts: [],
   });
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenants, setTenants] = useState<{ id: string; name: string }[]>([]);
+  const [needsScope, setNeedsScope] = useState(false);
+  const [error, setError] = useState(false);
+  const requestId = useRef(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,14 +64,18 @@ export function GlobalSearch() {
     if (session.user.tenantId) {
       setTenantId(session.user.tenantId);
     } else if (session.user.role === 'SUPERADMIN') {
-      apiRequest<{ id: string }[]>('/properties/tenants')
+      setNeedsScope(true);
+      apiRequest<{ id: string; name: string }[]>('/properties/tenants')
         .then((tenants) => {
-          if (tenants && tenants.length > 0) {
-            setTenantId(tenants[0].id);
-          }
+          setTenants(tenants || []);
         })
-        .catch(() => {});
+        .catch(() => setError(true));
     }
+  }, []);
+
+  useEffect(() => () => {
+    requestId.current++;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
   }, []);
 
   // Click outside to close dropdown
@@ -88,6 +96,7 @@ export function GlobalSearch() {
 
   const executeSearch = useCallback(
     async (searchQuery: string) => {
+      const id = ++requestId.current;
       const trimmed = searchQuery.trim();
       if (trimmed.length < 2 || !tenantId) {
         setResults({ residents: [], requests: [], accounts: [] });
@@ -96,17 +105,21 @@ export function GlobalSearch() {
       }
 
       setLoading(true);
+      setError(false);
       try {
         const data = await apiRequest<SearchResponse>(
           `/search/tenants/${tenantId}?q=${encodeURIComponent(trimmed)}`,
         );
-        if (data) {
+        if (data && id === requestId.current) {
           setResults(data);
         }
       } catch {
-        setResults({ residents: [], requests: [], accounts: [] });
+        if (id === requestId.current) {
+          setResults({ residents: [], requests: [], accounts: [] });
+          setError(true);
+        }
       } finally {
-        setLoading(false);
+        if (id === requestId.current) setLoading(false);
       }
     },
     [tenantId],
@@ -115,6 +128,7 @@ export function GlobalSearch() {
   // Debounced input change (300ms)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
+    requestId.current++;
     setQuery(val);
 
     if (debounceTimerRef.current) {
@@ -134,6 +148,9 @@ export function GlobalSearch() {
   };
 
   const handleClear = () => {
+    requestId.current++;
+    setLoading(false);
+    setError(false);
     setQuery('');
     setResults({ residents: [], requests: [], accounts: [] });
     setIsOpen(false);
@@ -157,12 +174,24 @@ export function GlobalSearch() {
   const isQueryValid = query.trim().length >= 2;
 
   return (
-    <div ref={containerRef} className="relative w-64 md:w-80">
+    <div ref={containerRef} className="relative w-full" onKeyDown={(event) => { if (event.key === 'Escape') { setIsOpen(false); inputRef.current?.focus(); } }}>
+      {needsScope && <select aria-label={t('shell.searchScope')} value={tenantId || ''}
+        className="mb-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+        onChange={(event) => { requestId.current++; if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); setTenantId(event.target.value || null); setQuery(''); setResults({ residents: [], requests: [], accounts: [] }); setIsOpen(false); setLoading(false); setError(false); }}>
+        <option value="">{t('shell.searchScope')}</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
+      </select>}
+      {needsScope && !tenantId && error && <div role="alert" className="mb-2 text-xs text-red-700"><p>{t('shell.searchError')}</p><button onClick={() => {
+        setError(false);
+        apiRequest<{ id: string; name: string }[]>('/properties/tenants').then((items) => setTenants(items || [])).catch(() => setError(true));
+      }} className="mt-1 underline">{t('common.refresh')}</button></div>}
       <div className="relative flex items-center">
         <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
+          aria-label={t('globalSearch.placeholder')}
+          aria-expanded={isOpen && isQueryValid}
+          aria-controls="global-search-results"
           value={query}
           onChange={handleInputChange}
           onFocus={() => {
@@ -170,13 +199,15 @@ export function GlobalSearch() {
               setIsOpen(true);
             }
           }}
-          placeholder={t('globalSearch.placeholder')}
+          placeholder={needsScope && !tenantId ? t('shell.searchScope') : t('globalSearch.placeholder')}
+          disabled={needsScope && !tenantId}
           className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white text-xs text-slate-900 pl-9 pr-8 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all outline-none"
         />
         {loading ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600 absolute right-2.5" />
         ) : query ? (
           <button
+            aria-label={t('shell.clearSearch')}
             onClick={handleClear}
             className="absolute right-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
           >
@@ -187,12 +218,14 @@ export function GlobalSearch() {
 
       {/* Popover Dropdown */}
       {isOpen && isQueryValid && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden max-h-96 overflow-y-auto">
+        <div id="global-search-results" aria-live="polite" className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden max-h-96 overflow-y-auto">
           {loading ? (
             <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
               <span>{t('globalSearch.searching')}</span>
             </div>
+          ) : error ? (
+            <div className="p-4 text-sm text-slate-600"><p>{t('shell.searchError')}</p><button className="mt-2 font-semibold text-sky-700" onClick={() => executeSearch(query)}>{t('common.refresh')}</button></div>
           ) : !hasResults ? (
             <div className="p-4 text-center text-xs text-slate-500">
               {t('globalSearch.noResults')}

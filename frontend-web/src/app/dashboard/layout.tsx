@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
@@ -27,6 +27,8 @@ import {
   BarChart3,
   ShieldAlert,
   ClipboardList,
+  Menu,
+  X,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -44,6 +46,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { t, i18n } = useTranslation();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuDialog = useRef<HTMLDialogElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    const dialog = menuDialog.current;
+    if (!dialog) return;
+    if (!menuOpen) { dialog.close(); return; }
+    dialog.showModal();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const media = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (media.matches) setMenuOpen(false); };
+    media.addEventListener('change', closeOnDesktop);
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      media.removeEventListener('change', closeOnDesktop);
+      menuButton.current?.focus();
+    };
+  }, [menuOpen]);
 
   const navigation = [
     { name: t('navigation.dashboard'), href: '/dashboard', icon: LayoutDashboard },
@@ -115,117 +139,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const groups = [
+    { key: 'overview', paths: ['dashboard', 'analytics'] },
+    { key: 'residents', paths: ['requests', 'chat', 'residents', 'verifications', 'announcements', 'community-board', 'votings'] },
+    { key: 'building', paths: ['access', 'sos', 'shift-handover', 'meters', 'bookings'] },
+    { key: 'management', paths: ['finance', 'tenants', 'audit-log'] },
+  ];
+  const visibleNavigation = navigation.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
+  const activeItem = visibleNavigation.find((item) => item.href === '/dashboard' ? pathname === item.href : pathname.startsWith(item.href));
+  const sidebar = (
+    <div className="flex h-full flex-col bg-slate-950 text-white">
+      <div className="flex min-h-20 items-center gap-3 border-b border-white/10 px-5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500"><Building2 className="h-6 w-6" aria-hidden="true" /></div>
+        <div className="min-w-0 flex-1"><p className="text-lg font-bold tracking-tight">Shanyraq</p><p className="truncate text-xs text-slate-400" title={user?.tenantName || undefined}>{user?.tenantName || t('dashboard.defaultComplex')}</p></div>
+        <button onClick={() => setMenuOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 lg:hidden" aria-label={t('shell.closeMenu')}><X size={20} /></button>
+      </div>
+      <nav aria-label={t('shell.navigation')} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5">
+        {groups.map((group) => {
+          const items = group.paths.map((path) => visibleNavigation.find((item) => item.href === (path === 'dashboard' ? '/dashboard' : `/dashboard/${path}`))).filter((item): item is typeof navigation[number] => Boolean(item));
+          if (!items.length) return null;
+          return <div key={group.key}><p className="mb-2 px-3 text-xs font-semibold tracking-wide text-slate-500">{t(`shell.${group.key}`)}</p><div className="space-y-1">{items.map((item) => {
+            const Icon = item.icon;
+            const active = item === activeItem;
+            return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} aria-current={active ? 'page' : undefined}
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${active ? 'bg-sky-500/15 font-semibold text-sky-300 ring-1 ring-inset ring-sky-400/20' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span>{item.name}</span>
+            </Link>;
+          })}</div></div>;
+        })}
+      </nav>
+      <div className="flex items-center gap-3 border-t border-white/10 p-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold" aria-hidden="true">{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
+        <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user?.firstName} {user?.lastName}</p><p className="truncate text-xs text-slate-400">{getRoleLabel(user?.role)}</p></div>
+        <button onClick={handleLogout} title={t('dashboard.logoutTitle')} aria-label={t('dashboard.logoutTitle')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-white/5 hover:text-red-300"><LogOut size={18} /></button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-100 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col justify-between shrink-0">
-        <div>
-          {/* Brand header */}
-          <div className="h-16 flex items-center px-6 gap-3 border-b border-slate-800 bg-slate-950">
-            <div className="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center text-white font-bold">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-bold text-base tracking-wide text-white">Shanyraq</div>
-              <div className="text-[11px] text-sky-400 font-medium truncate max-w-[140px]">
-                {user?.tenantName || t('dashboard.defaultComplex')}
-              </div>
-            </div>
-          </div>
-
-          {/* Nav items */}
-          <nav className="p-4 space-y-1.5">
-            {navigation
-              .filter((item) => !item.roles || (user && item.roles.includes(user.role)))
-              .map((item) => {
-                const Icon = item.icon;
-                const isActive = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      isActive
-                        ? 'bg-sky-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.name}</span>
-                  </Link>
-                );
-              })}
-          </nav>
-        </div>
-
-        {/* User footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-medium text-white truncate max-w-[150px]">
-                {user ? `${user.firstName} ${user.lastName}` : t('roles.employee')}
-              </div>
-              <div className="text-xs text-slate-400">
-                {getRoleLabel(user?.role)}
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              title={t('dashboard.logoutTitle')}
-              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+    <div className="min-h-dvh bg-slate-50 lg:pl-[264px]">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:p-3 focus:text-slate-900">{t('shell.skipContent')}</a>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] lg:block">{sidebar}</aside>
+      <dialog ref={menuDialog} aria-label={t('shell.navigation')} onCancel={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)}
+        onClick={(event) => { if (event.target === event.currentTarget) setMenuOpen(false); }}
+        className="m-0 h-dvh max-h-none w-[min(320px,88vw)] max-w-none border-0 bg-slate-950 p-0 backdrop:bg-slate-950/50 lg:hidden">{sidebar}</dialog>
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3">
+          <button ref={menuButton} onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-label={t('shell.openMenu')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden"><Menu size={21} /></button>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs text-slate-500">{user?.tenantName || t('dashboard.defaultComplex')}</p><p className="truncate text-sm font-semibold text-slate-900">{activeItem?.name || t('navigation.dashboard')}</p></div>
+          <div className="order-last w-full lg:order-none lg:w-72 xl:w-96"><GlobalSearch /></div>
+          <NotificationBell />
+          <div className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 px-2">
+            <Globe className="hidden h-4 w-4 text-slate-400 sm:block" aria-hidden="true" />
+            <select value={currentLang} onChange={handleLanguageChange} aria-label={t('common.language')} className="max-w-24 bg-transparent py-2 text-xs font-medium text-slate-700 sm:max-w-none">
+              {SUPPORTED_LOCALES.map((code) => <option key={code} value={code}>{LANGUAGE_LABELS[code]}</option>)}
+            </select>
           </div>
         </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Top bar */}
-        <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-              {t('dashboard.systemOnline')}
-            </span>
-            <span className="text-xs text-slate-500">
-              {t('dashboard.complexAddressInfo')}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Global Quick-Search */}
-            <GlobalSearch />
-
-            <span className="hidden sm:inline-flex text-xs font-semibold px-2.5 py-1 bg-sky-50 text-sky-700 rounded-lg border border-sky-200">
-              {t('dashboard.standardBadge')}
-            </span>
-
-            {/* In-app Notification Center */}
-            <NotificationBell />
-
-            {/* Language Switcher Dropdown */}
-            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
-              <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              <select
-                value={currentLang}
-                onChange={handleLanguageChange}
-                className="bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer pr-1"
-                aria-label={t('common.language')}
-              >
-                {SUPPORTED_LOCALES.map((code) => (
-                  <option key={code} value={code}>
-                    {LANGUAGE_LABELS[code]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </header>
-
-        {/* Page body */}
-        <div className="p-8">{children}</div>
-      </main>
+      </header>
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1664px] min-w-0 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">{children}</main>
     </div>
   );
 }

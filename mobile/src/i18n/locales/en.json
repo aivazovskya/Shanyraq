@@ -1,4 +1,16 @@
 {
+  "photos": {
+  "limit": "Up to {{count}} photos, 15 MB each.",
+  "uploading": "Preparing and uploading photo…",
+  "tooLarge": "Choose a photo smaller than 15 MB.",
+  "library": "Choose from library",
+  "failed": "Could not upload the photo. Please retry.",
+  "settings": "Open settings",
+  "cameraPermission": "Allow camera access in settings or choose a photo from your library.",
+  "preview": "Photo {{count}}",
+  "pending": "Photo awaiting upload",
+  "camera": "Take photo"
+},
   "common": {
     "loading": "Loading...",
     "save": "Save",
@@ -175,7 +187,8 @@
     "redeemedSuccess": "Guest pass entry confirmed",
     "validUntil": "Valid until {{time}}",
     "shareTemplateTitle": "🏢 Pass for {{complex}}\nGuest: {{guest}}\n{{plateLine}}Entry/Gate Code: {{code}}\nValid until: {{time}}",
-    "liveCameraTitle": "Live Camera Stream",
+    "cameraPlaybackUnavailable": "Video playback is not yet available in the app.",
+    "liveCameraTitle": "Camera",
     "connectingStream": "Connecting...",
     "hlsStream": "HLS stream: {{name}}",
     "cameraUnavailableTitle": "Camera Unavailable",
@@ -704,6 +717,7 @@
       "ADMIN_ONLY_UPDATE": "Only administrators can update access points",
       "ACCESS_POINT_NOT_FOUND": "Access point not found",
       "ADMIN_ONLY_HEALTH_CHECK": "Only administrators can perform equipment health check",
+      "CONTROLLER_UNAVAILABLE": "The controller is unsupported or not configured. Opening is unavailable.",
       "HEALTH_CHECK_ISAPI_ONLY": "Health check via ISAPI protocol is only available for HIKVISION_ISAPI controllers",
       "ENDPOINT_URL_MISSING": "Access point endpointUrl (device IP address) is not specified",
       "CAMERA_NOT_FOUND": "Camera not found or deactivated",
@@ -730,6 +744,10 @@
       "UNIT_NOT_FOUND": "Unit/apartment not found"
     },
     "SOS": {
+      "TAKEN_BY_OTHER": "Another employee has accepted this call.",
+      "UPDATE_CONFLICT": "The call has changed. Refresh the list and check the responder.",
+      "INVALID_RESOLUTION": "Choose a resolution.",
+      "NOTE_TOO_LONG": "The note must be no longer than 1600 characters.",
       "AUTH_REQUIRED": "Authorization required",
       "TENANT_UNRESOLVED": "Could not determine user's residential complex for emergency call",
       "CHAIRMAN_VIEW_ONLY": "HOA chairman only has view access to SOS alerts",
@@ -769,6 +787,9 @@
       "REQUEST_NOT_FOUND": "Request not found",
       "CROSS_TENANT_VIEW_FORBIDDEN": "Access to request from another residential complex is forbidden",
       "FOREIGN_REQUEST_VIEW_FORBIDDEN": "Access to another user's request is forbidden",
+      "INVALID_ASSIGNEE": "Choose an active employee in this complex who can manage requests.",
+      "ASSIGNEE_REQUIRED": "Choose a responsible employee before assigning this request.",
+      "UPDATE_CONFLICT": "Another employee has changed this request. Refresh the details.",
       "STATUS_CHANGE_FORBIDDEN": "Insufficient permissions to change request status",
       "CROSS_TENANT_EDIT_FORBIDDEN": "Editing a request from another residential complex is forbidden",
       "CROSS_TENANT_COMMENT_FORBIDDEN": "Adding comments to requests of another residential complex is forbidden",
@@ -785,6 +806,7 @@
       "COMPLEX_NOT_FOUND": "Residential complex not found"
     },
     "UPLOADS": {
+      "FILE_NOT_FOUND": "Attachment unavailable. The file may have been removed or access denied.",
       "FILE_EMPTY": "File not provided or has zero size",
       "STORAGE_ERROR": "Error saving file to storage",
       "FILE_MISSING": "File not provided in the \"file\" field",

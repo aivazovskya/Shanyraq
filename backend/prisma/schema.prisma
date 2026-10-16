@@ -203,6 +203,7 @@ model User {
   bookingWaitlistEntries BookingWaitlistEntry[]
   sosAlertsTriggered SosAlert[]      @relation("SosTriggered")
   sosAlertsResolved  SosAlert[]      @relation("SosResolved")
+  sosAlertsAccepted  SosAlert[]      @relation("SosAccepted")
   listingsAuthored   CommunityListing[] @relation("ListingsAuthored")
   listingsRemoved    CommunityListing[] @relation("ListingsRemoved")
   announcementsAuthored Announcement[]  @relation("AnnouncementsAuthored")
@@ -731,6 +732,8 @@ model SosAlert {
   latitude       Float?
   longitude      Float?
   status         SosAlertStatus @default(ACTIVE)
+  acceptedById   String?
+  acceptedAt     DateTime?
   resolvedById   String?
   resolvedAt     DateTime?
   resolutionNote String?
@@ -740,6 +743,7 @@ model SosAlert {
   unit        Unit?  @relation(fields: [unitId], references: [id], onDelete: SetNull)
   triggeredBy User   @relation("SosTriggered", fields: [triggeredById], references: [id], onDelete: Cascade)
   resolvedBy  User?  @relation("SosResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
+  acceptedBy  User?  @relation("SosAccepted", fields: [acceptedById], references: [id], onDelete: SetNull)
 
   @@map("sos_alerts")
 }

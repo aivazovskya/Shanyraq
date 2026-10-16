@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody, ApiQuery } 
 import { UploadsService } from './uploads.service';
 import { PresignUploadDto, UploadCategory, ALLOWED_MIME_TYPES } from './dto/uploads.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Uploads (Загрузка медиа и документов в S3/MinIO)')
 @Controller('uploads')
@@ -58,6 +59,7 @@ export class UploadsController {
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Query('category') category?: UploadCategory,
+    @CurrentUser('id') uploaderId?: string,
   ) {
     if (!file) {
       throw new BadRequestException({
@@ -65,12 +67,12 @@ export class UploadsController {
         message: 'Файл не передан в поле "file"',
       });
     }
-    return this.uploadsService.uploadFile(file, category);
+    return this.uploadsService.uploadFile(file, category, uploaderId);
   }
 
   @Post('presign')
   @ApiOperation({ summary: 'Получить presigned URL для прямой клиентской загрузки в MinIO/S3' })
-  async getPresignedUrl(@Body() dto: PresignUploadDto) {
-    return this.uploadsService.getPresignedUploadUrl(dto.filename, dto.mimeType, dto.category);
+  async getPresignedUrl(@Body() dto: PresignUploadDto, @CurrentUser('id') uploaderId: string) {
+    return this.uploadsService.getPresignedUploadUrl(dto.filename, dto.mimeType, dto.category, uploaderId);
   }
 }

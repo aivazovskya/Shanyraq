@@ -1,3 +1,4 @@
+import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
@@ -24,8 +25,6 @@ import io, { Socket } from 'socket.io-client';
 import {
   ArrowLeft,
   Send,
-  Paperclip,
-  X,
   MessageSquare,
   ShieldCheck,
   Building2,
@@ -34,6 +33,7 @@ import {
 
 export const ChatScreen: React.FC = () => {
   const { t } = useTranslation();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const navigation = useNavigation<any>();
   const { user } = useAuth();
 
@@ -125,30 +125,11 @@ export const ChatScreen: React.FC = () => {
     }, [loadConversation]),
   );
 
-  const handleAttachPhoto = () => {
-    Alert.alert(
-      t('chat.attachPhotoTitle'),
-      t('chat.attachPhotoPrompt'),
-      [
-        {
-          text: t('chat.samplePhotoOption'),
-          onPress: () => {
-            const mockUrl = `https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80`;
-            setAttachedPhoto(mockUrl);
-          },
-        },
-        {
-          text: t('common.cancel'),
-          style: 'cancel',
-        },
-      ],
-    );
-  };
 
   const handleSendMessage = async () => {
     const textToSend = inputText.trim();
     if (!textToSend && !attachedPhoto) return;
-    if (sending) return;
+    if (sending || uploadingPhoto) return;
 
     setSending(true);
     try {
@@ -271,24 +252,11 @@ export const ChatScreen: React.FC = () => {
             />
           )}
 
-          {/* Attached Photo Preview Bar */}
-          {attachedPhoto && (
-            <View style={styles.photoPreviewBar}>
-              <Image source={{ uri: attachedPhoto }} style={styles.previewThumb} />
-              <Text style={styles.photoAttachedText} numberOfLines={1}>
-                {t('chat.photoAttached')}
-              </Text>
-              <TouchableOpacity onPress={() => setAttachedPhoto(null)} style={styles.removePhotoBtn}>
-                <X color={Colors.textMuted} size={18} />
-              </TouchableOpacity>
-            </View>
-          )}
-
+          <PhotoAttachments value={attachedPhoto ? [attachedPhoto] : []}
+            onChange={(urls) => setAttachedPhoto(urls[0] || null)} onBusyChange={setUploadingPhoto}
+            disabled={sending} maxPhotos={1} />
           {/* Input Row */}
           <View style={styles.inputContainer}>
-            <TouchableOpacity style={styles.attachBtn} onPress={handleAttachPhoto}>
-              <Paperclip color={Colors.textMuted} size={22} />
-            </TouchableOpacity>
 
             <TextInput
               style={styles.input}
@@ -303,10 +271,10 @@ export const ChatScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.sendBtn,
-                (!inputText.trim() && !attachedPhoto) || sending ? styles.sendBtnDisabled : null,
+                (!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto ? styles.sendBtnDisabled : null,
               ]}
               onPress={handleSendMessage}
-              disabled={(!inputText.trim() && !attachedPhoto) || sending}
+              disabled={(!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto}
             >
               {sending ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />

@@ -273,7 +273,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       tenantId: 'tenant-1',
       name: 'Шлагбаум Въезд',
       type: AccessPointType.BARRIER,
-      controllerType: 'PAL_ES',
+      controllerType: 'MOCK',
     };
 
     it('должен сохранять в аудит-лог истинную квартиру жителя из базы, а не поддельный unitId из запроса', async () => {
@@ -430,7 +430,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       tenantId: 'tenant-1',
       name: 'Шлагбаум Въезд',
       type: AccessPointType.BARRIER,
-      controllerType: 'PAL_ES',
+      controllerType: 'MOCK',
     };
 
     beforeEach(() => {
@@ -648,7 +648,7 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
         tenantId: 'tenant-1',
         name: 'Домофон Подъезд 1',
         type: AccessPointType.DOOR_INTERCOM,
-        controllerType: 'PAL_ES',
+        controllerType: 'MOCK',
         endpointUrl: 'http://192.168.1.101',
         isActive: true,
       });
@@ -682,14 +682,20 @@ describe('AccessControlService (Аудит безопасности СКУД, ID
       expect(capturedLog.status).toBe('SUCCESS');
     });
 
-    it('resolveAdapter должен выбирать HikvisionIsapiAdapter только для HIKVISION_ISAPI и MockBarrierAdapter для остальных', () => {
+    it('выбирает реальный Hikvision и только явно указанный MOCK в тестовой среде', () => {
       const adapterHik = (service as any).resolveAdapter('HIKVISION_ISAPI');
-      const adapterPal = (service as any).resolveAdapter('PAL_ES');
-      const adapterMqtt = (service as any).resolveAdapter('MQTT_RELAY');
+      const adapterMock = (service as any).resolveAdapter('MOCK');
 
       expect(adapterHik.constructor.name).toBe('HikvisionIsapiAdapter');
-      expect(adapterPal.constructor.name).toBe('MockBarrierAdapter');
-      expect(adapterMqtt.constructor.name).toBe('MockBarrierAdapter');
+      expect(adapterMock.constructor.name).toBe('MockBarrierAdapter');
+      for (const type of ['PAL_ES', 'MQTT_RELAY', 'UNKNOWN', null]) {
+        expect(() => (service as any).resolveAdapter(type)).toThrow(BadRequestException);
+      }
+    });
+
+    it.each(['production', 'staging', 'unknown'])('запрещает MOCK в среде %s', (environment) => {
+      configServiceMock.get.mockImplementation((key: string) => key === 'NODE_ENV' ? environment : undefined);
+      expect(() => (service as any).resolveAdapter('MOCK')).toThrow(BadRequestException);
     });
 
     it('HikvisionIsapiAdapter.triggerOpen должен выбрасывать BadRequestException, если учетные данные не настроены', async () => {

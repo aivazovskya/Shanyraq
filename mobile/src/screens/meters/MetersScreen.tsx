@@ -1,3 +1,4 @@
+import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -21,7 +22,6 @@ import {
   Flame,
   Zap,
   HelpCircle,
-  Camera,
   CheckCircle2,
   Clock,
   XCircle,
@@ -39,6 +39,7 @@ import { metersApi, MeterData, MeterReading, MeterType } from '../../api/meters'
 export const MetersScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { user } = useAuth();
 
   const verifiedOwnerships = (user?.ownerships || []).filter((o) => o.isVerified);
@@ -108,6 +109,7 @@ export const MetersScreen: React.FC = () => {
   };
 
   const openSubmitModal = (meter: MeterData) => {
+    setUploadingPhoto(false);
     setSelectedMeter(meter);
     const now = new Date();
     setInputMonth(now.getMonth() + 1);
@@ -118,14 +120,9 @@ export const MetersScreen: React.FC = () => {
     setIsSubmitModalOpen(true);
   };
 
-  const handleAttachPhoto = () => {
-    // Demonstration attachment photo simulating MinIO upload, matching CreateRequestScreen
-    const mockUrl = `http://localhost:9000/shanyraq-media/meter_${Date.now()}.jpg`;
-    setPhotoUrl(mockUrl);
-    setSubmitError(null);
-  };
 
   const handleSubmitReading = async () => {
+    if (uploadingPhoto || submitting) return;
     if (!selectedMeter) return;
 
     if (!inputValue.trim()) {
@@ -352,7 +349,7 @@ export const MetersScreen: React.FC = () => {
       )}
 
       {/* SUBMISSION MODAL */}
-      {selectedMeter && (
+      {selectedMeter && isSubmitModalOpen && (
         <Modal
           visible={isSubmitModalOpen}
           animationType="slide"
@@ -403,12 +400,7 @@ export const MetersScreen: React.FC = () => {
 
                 {/* Photo Attachment */}
                 <Text style={styles.fieldLabel}>{t('meters.photoLabel')}</Text>
-                <TouchableOpacity style={styles.photoUploadBox} onPress={handleAttachPhoto}>
-                  <Camera color={photoUrl ? Colors.primary : Colors.textMuted} size={28} />
-                  <Text style={[styles.photoUploadText, Boolean(photoUrl) && styles.photoUploadTextActive]}>
-                    {photoUrl ? t('meters.photoAttached') : t('meters.takeOrChoosePhoto')}
-                  </Text>
-                </TouchableOpacity>
+                <PhotoAttachments key={selectedMeter.id} value={photoUrl ? [photoUrl] : []} onChange={(urls) => setPhotoUrl(urls[0] || null)} onBusyChange={setUploadingPhoto} disabled={submitting} maxPhotos={1} />
 
                 {/* Error Banner */}
                 {submitError && (
@@ -423,6 +415,7 @@ export const MetersScreen: React.FC = () => {
                   title={t('meters.confirmSubmit')}
                   onPress={handleSubmitReading}
                   loading={submitting}
+            disabled={uploadingPhoto}
                   size="lg"
                   style={styles.modalSubmitBtn}
                 />

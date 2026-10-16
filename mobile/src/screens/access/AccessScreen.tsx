@@ -633,11 +633,8 @@ export const AccessScreen: React.FC = () => {
               <View style={styles.streamMockPlaceholder}>
                 <Video color="#FFFFFF" size={48} />
                 <Text style={styles.streamMockText}>
-                  {selectedStream
-                    ? t('access.hlsStream', { name: selectedStream.streamName })
-                    : t('access.connectingStream')}
+                  {t('access.cameraPlaybackUnavailable')}
                 </Text>
-                <Badge label="LIVE WebRTC / HLS" variant="danger" style={{ marginTop: 8 }} />
               </View>
             </View>
           </View>

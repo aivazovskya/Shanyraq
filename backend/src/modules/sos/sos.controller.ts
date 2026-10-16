@@ -106,6 +106,13 @@ export class SosController {
     res.end(buffer);
   }
 
+  @Patch(':id/accept')
+  @Roles(UserRole.SECURITY, UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Принять вызов SOS в работу' })
+  async accept(@Param('id') id: string, @Request() req: any) {
+    return this.sosService.accept(id, req.user);
+  }
+
   @Patch(':id/resolve')
   @Roles(
     UserRole.SECURITY,

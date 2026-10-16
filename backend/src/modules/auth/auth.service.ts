@@ -56,6 +56,14 @@ export class AuthService {
   }
 
   async requestOtp(dto: RequestOtpDto) {
+    // No SMS transport is implemented yet. Never claim delivery outside tests.
+    const environment = this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
+    if (environment !== 'test') {
+      throw new ServiceUnavailableException({
+        code: 'AUTH.SMS_SERVICE_UNAVAILABLE',
+        message: 'Сервис отправки SMS недоступен. Попробуйте позже.',
+      });
+    }
     const { phone } = dto;
     const now = Date.now();
 
@@ -126,8 +134,6 @@ export class AuthService {
         message: 'Сервис временно недоступен, попробуйте позже',
       });
     }
-
-    console.log(`[SECURE-SMS] 📨 SMS отправлен на ${phone}: "Код подтверждения Shanyraq: ${code}"`);
 
     return {
       success: true,

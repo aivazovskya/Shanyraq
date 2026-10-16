@@ -28,7 +28,6 @@ export interface IBarrierAdapter {
 @Injectable()
 export class MockBarrierAdapter implements IBarrierAdapter {
   async triggerOpen(endpointUrl: string, controllerType: string): Promise<{ success: boolean; latencyMs: number }> {
-    console.log(`[HARDWARE-RELAY] 🚧 Подача сигнала на реле шлагбаума: ${endpointUrl} (Протокол: ${controllerType})`);
     return { success: true, latencyMs: 180 };
   }
 }
@@ -284,7 +283,14 @@ export class AccessControlService {
     if (controllerType === 'HIKVISION_ISAPI') {
       return this.hikvisionAdapter;
     }
-    return this.mockAdapter;
+    const environment = this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
+    if (controllerType === 'MOCK' && ['development', 'test'].includes(environment)) {
+      return this.mockAdapter;
+    }
+    throw new BadRequestException({
+      code: 'ACCESS_CONTROL.CONTROLLER_UNAVAILABLE',
+      message: 'Контроллер не поддерживается или не настроен. Открытие недоступно.',
+    });
   }
 
   async getAccessPoints(tenantId: string, userRole: UserRole) {

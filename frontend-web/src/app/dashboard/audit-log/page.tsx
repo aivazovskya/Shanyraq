@@ -236,6 +236,7 @@ export default function AuditLogPage() {
             {t(`auditLog.actions.${action}`)}
           </span>
         );
+      case 'SOS_ACCEPTED':
       case 'SOS_RESOLVED':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
@@ -357,6 +358,7 @@ export default function AuditLogPage() {
             <option value="ACCESS_POINT_UPDATED">{t('auditLog.actions.ACCESS_POINT_UPDATED')}</option>
             <option value="GUEST_PASS_ISSUED">{t('auditLog.actions.GUEST_PASS_ISSUED')}</option>
             <option value="GUEST_PASS_REVOKED">{t('auditLog.actions.GUEST_PASS_REVOKED')}</option>
+            <option value="SOS_ACCEPTED">{t('auditLog.actions.SOS_ACCEPTED')}</option>
             <option value="SOS_RESOLVED">{t('auditLog.actions.SOS_RESOLVED')}</option>
           </select>
         </div>

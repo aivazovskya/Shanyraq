@@ -13,6 +13,7 @@ export const UploadsApi = {
     fileName: string,
     mimeType: string,
     category: 'media' | 'document' = 'media',
+    signal?: AbortSignal,
   ): Promise<UploadResult> {
     const formData = new FormData();
     formData.append('file', {
@@ -22,6 +23,8 @@ export const UploadsApi = {
     } as any);
 
     const res = await apiClient.post(`/uploads?category=${category}`, formData, {
+      signal,
+      timeout: 60000,
       headers: {
         'Content-Type': 'multipart/form-data',
       },

@@ -74,6 +74,17 @@ jobs:
         working-directory: backend
         run: npm run build
 
+      - name: Start isolated workflow acceptance services
+        run: docker compose -f backend/test/compose.dispatcher-e2e.yml up -d --wait --wait-timeout 90
+
+      - name: Test dispatcher and SOS flows with real PostgreSQL Redis and S3
+        working-directory: backend
+        run: npm run test:dispatcher:live
+
+      - name: Stop isolated acceptance services
+        if: always()
+        run: docker compose -f backend/test/compose.dispatcher-e2e.yml down --volumes
+
   frontend-build:
     name: Frontend Web Build Check
     runs-on: ubuntu-latest
@@ -92,6 +103,14 @@ jobs:
       - name: Install dependencies
         working-directory: frontend-web
         run: npm ci
+
+      - name: Test role dashboard permissions and SLA queues
+        working-directory: frontend-web
+        run: npm run test:dashboard
+
+      - name: Test request workflow
+        working-directory: frontend-web
+        run: npm run test:requests
 
       - name: Build Next.js Web Admin
         working-directory: frontend-web

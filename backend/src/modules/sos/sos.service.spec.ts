@@ -8,13 +8,11 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { UserRole, SosAlertStatus } from '@prisma/client';
-import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('SosService', () => {
   let service: SosService;
   let prismaMock: any;
   let notificationsServiceMock: any;
-  let auditLogServiceMock: any;
 
   const mockTenantId = 'tenant-1';
   const mockAlertId = 'alert-sos-100';
@@ -110,7 +108,10 @@ describe('SosService', () => {
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({count:1}),
       },
+      shiftHandoverNote: { create: jest.fn().mockResolvedValue({id:"note-1"}) },
+      auditLog: { create: jest.fn().mockResolvedValue({id:"audit-1"}) },
       unitOwnership: {
         findFirst: jest.fn(),
       },
@@ -122,12 +123,10 @@ describe('SosService', () => {
       },
     };
 
+    prismaMock.$transaction = jest.fn((fn) => fn(prismaMock));
+
     notificationsServiceMock = {
       sendToTenantRoles: jest.fn().mockResolvedValue({ sent: 3 }),
-    };
-
-    auditLogServiceMock = {
-      log: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -135,7 +134,6 @@ describe('SosService', () => {
         SosService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: NotificationsService, useValue: notificationsServiceMock },
-        { provide: AuditLogService, useValue: auditLogServiceMock },
       ],
     }).compile();
 
@@ -290,7 +288,7 @@ describe('SosService', () => {
   describe('resolve (Обработка сигнала SOS)', () => {
     it('охрана может успешно закрыть вызов как RESOLVED', async () => {
       prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
-      prismaMock.sosAlert.update.mockResolvedValue({
+      prismaMock.sosAlert.findUnique.mockResolvedValueOnce(mockAlert).mockResolvedValueOnce({
         ...mockAlert,
         status: SosAlertStatus.RESOLVED,
         resolvedById: securityUser.id,
@@ -304,9 +302,9 @@ describe('SosService', () => {
       });
 
       expect(res.status).toBe(SosAlertStatus.RESOLVED);
-      expect(prismaMock.sosAlert.update).toHaveBeenCalledWith(
+      expect(prismaMock.sosAlert.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: mockAlertId },
+          where: expect.objectContaining({ id: mockAlertId, status: SosAlertStatus.ACTIVE }),
           data: expect.objectContaining({
             status: SosAlertStatus.RESOLVED,
             resolvedById: securityUser.id,
@@ -314,22 +312,19 @@ describe('SosService', () => {
           }),
         }),
       );
-      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith({ data: {
         tenantId: mockTenantId,
         actorId: securityUser.id,
         action: 'SOS_RESOLVED',
         targetType: 'SosAlert',
         targetId: mockAlertId,
-        metadata: {
-          status: SosAlertStatus.RESOLVED,
-          resolutionNote: 'Помощь оказана',
-        },
-      });
+        metadata: {status:SosAlertStatus.RESOLVED,resolutionNote:'Помощь оказана'},
+      } });
     });
 
     it('диспетчер может закрыть вызов как FALSE_ALARM', async () => {
       prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
-      prismaMock.sosAlert.update.mockResolvedValue({
+      prismaMock.sosAlert.findUnique.mockResolvedValueOnce(mockAlert).mockResolvedValueOnce({
         ...mockAlert,
         status: SosAlertStatus.FALSE_ALARM,
         resolvedById: dispatcherUser.id,
@@ -341,21 +336,18 @@ describe('SosService', () => {
       });
 
       expect(res.status).toBe(SosAlertStatus.FALSE_ALARM);
-      expect(auditLogServiceMock.log).toHaveBeenCalledWith({
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith({ data: {
         tenantId: mockTenantId,
         actorId: dispatcherUser.id,
         action: 'SOS_RESOLVED',
         targetType: 'SosAlert',
         targetId: mockAlertId,
-        metadata: {
-          status: SosAlertStatus.FALSE_ALARM,
-          resolutionNote: 'Случайное нажатие ребенком',
-        },
-      });
+        metadata: {status:SosAlertStatus.FALSE_ALARM,resolutionNote:'Случайное нажатие ребенком'},
+      } });
     });
 
     it('председатель ОСИ (HOA_CHAIRMAN) НЕ может закрыть вызов (read-only)', async () => {
-      auditLogServiceMock.log.mockClear();
+      prismaMock.auditLog.create.mockClear();
       const promise = service.resolve(mockAlertId, hoaChairmanUser, {
         status: SosAlertStatus.RESOLVED,
       });
@@ -363,11 +355,11 @@ describe('SosService', () => {
       await expect(promise).rejects.toMatchObject({
         response: { code: 'SOS.CHAIRMAN_VIEW_ONLY' },
       });
-      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
     });
 
     it('персонал чужого ЖК не может закрыть вызов (BOLA)', async () => {
-      auditLogServiceMock.log.mockClear();
+      prismaMock.auditLog.create.mockClear();
       prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
 
       const promise = service.resolve(mockAlertId, staffOtherTenantUser, {
@@ -377,11 +369,11 @@ describe('SosService', () => {
       await expect(promise).rejects.toMatchObject({
         response: { code: 'SOS.CROSS_TENANT_PROCESS_FORBIDDEN' },
       });
-      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
     });
 
     it('нельзя закрыть уже обработанный вызов повторно', async () => {
-      auditLogServiceMock.log.mockClear();
+      prismaMock.auditLog.create.mockClear();
       prismaMock.sosAlert.findUnique.mockResolvedValue({
         ...mockAlert,
         status: SosAlertStatus.RESOLVED,
@@ -394,7 +386,46 @@ describe('SosService', () => {
       await expect(promise).rejects.toMatchObject({
         response: { code: 'SOS.ALREADY_PROCESSED' },
       });
-      expect(auditLogServiceMock.log).not.toHaveBeenCalled();
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('acceptance and atomic completion', () => {
+    it('accepts a call once and records the responder', async () => {
+      prismaMock.sosAlert.findUnique.mockResolvedValueOnce(mockAlert).mockResolvedValueOnce({...mockAlert,acceptedById:securityUser.id});
+      const result = await service.accept(mockAlertId,securityUser);
+      expect(result.acceptedById).toBe(securityUser.id);
+      expect(prismaMock.sosAlert.updateMany).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({acceptedById:null,status:'ACTIVE'})}));
+      expect(prismaMock.auditLog.create).toHaveBeenCalledWith({data:expect.objectContaining({action:'SOS_ACCEPTED'})});
+    });
+    it('rejects acceptance and completion by another employee', async () => {
+      prismaMock.sosAlert.findUnique.mockResolvedValue({...mockAlert,acceptedById:dispatcherUser.id});
+      await expect(service.accept(mockAlertId,securityUser)).rejects.toMatchObject({response:{code:'SOS.TAKEN_BY_OTHER'}});
+      await expect(service.resolve(mockAlertId,securityUser,{status:SosAlertStatus.RESOLVED})).rejects.toMatchObject({response:{code:'SOS.TAKEN_BY_OTHER'}});
+      expect(prismaMock.sosAlert.updateMany).not.toHaveBeenCalled();
+    });
+    it('does not create a journal entry after a concurrent update', async () => {
+      prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
+      prismaMock.sosAlert.updateMany.mockResolvedValue({count:0});
+      await expect(service.resolve(mockAlertId,securityUser,{status:SosAlertStatus.RESOLVED})).rejects.toMatchObject({response:{code:'SOS.UPDATE_CONFLICT'}});
+      expect(prismaMock.shiftHandoverNote.create).not.toHaveBeenCalled();
+    });
+    it('rejects ACTIVE as a resolution even outside DTO validation', async () => {
+      prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
+      await expect(service.resolve(mockAlertId,securityUser,{status:SosAlertStatus.ACTIVE})).rejects.toMatchObject({response:{code:'SOS.INVALID_RESOLUTION'}});
+      expect(prismaMock.sosAlert.updateMany).not.toHaveBeenCalled();
+    });
+    it('propagates journal failure from the transaction instead of reporting success', async () => {
+      prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
+      prismaMock.shiftHandoverNote.create.mockRejectedValue(new Error('storage failure'));
+      await expect(service.resolve(mockAlertId,securityUser,{status:SosAlertStatus.RESOLVED})).rejects.toThrow('storage failure');
+      expect(prismaMock.auditLog.create).not.toHaveBeenCalled();
+    });
+    it('creates one journal entry with the incident and result', async () => {
+      prismaMock.sosAlert.findUnique.mockResolvedValue(mockAlert);
+      await service.resolve(mockAlertId,securityUser,{status:SosAlertStatus.FALSE_ALARM,note:'Проверено на месте'});
+      expect(prismaMock.shiftHandoverNote.create).toHaveBeenCalledWith({data:expect.objectContaining({tenantId:mockTenantId,authorId:securityUser.id,content:expect.stringContaining('Проверено на месте')})});
+      expect(prismaMock.shiftHandoverNote.create).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -3,6 +3,7 @@ import { UploadsService } from './uploads.service';
 import { ConfigService } from '@nestjs/config';
 import { UploadCategory } from './dto/uploads.dto';
 import { BadRequestException } from '@nestjs/common';
+import { Readable } from 'stream';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 
 jest.mock('@aws-sdk/s3-presigned-post', () => ({
@@ -57,6 +58,46 @@ describe('UploadsService (MinIO / S3 Хранилище)', () => {
     });
   });
 
+  describe('private attachment reads', () => {
+    it('reads a validated object key only for its uploader', async () => {
+      const body = Readable.from(Buffer.from('test'));
+      const send = jest.fn().mockResolvedValue({ Body: body, ContentType: 'image/png', Metadata: { 'uploader-id': 'resident' } });
+      (service as any).s3Client.send = send;
+      const result = await service.openStoredFile('http://localhost:9000/shanyraq-media/123_0123456789abcdef.png', 'resident');
+      expect(result.stream).toBe(body);
+      expect(result.contentType).toBe('image/png');
+      expect(send.mock.calls[0][0].input).toEqual({ Bucket:'shanyraq-media', Key:'123_0123456789abcdef.png' });
+    });
+
+    it.each([
+      'https://foreign.example/shanyraq-media/123_0123456789abcdef.png',
+      'http://169.254.169.254/latest/meta-data/',
+      'file:///etc/passwd',
+      'http://localhost:9000/other-bucket/123_0123456789abcdef.png',
+      'http://user:password@localhost:9000/shanyraq-media/123_0123456789abcdef.png',
+      'http://localhost:9000/shanyraq-media/123_0123456789abcdef%2Fsecret.png',
+    ])('does not turn a stored URL into an arbitrary network request: %s', async (url) => {
+      (service as any).s3Client.send = jest.fn();
+      await expect(service.openStoredFile(url, 'resident')).rejects.toMatchObject({ response:{code:'UPLOADS.FILE_NOT_FOUND'} });
+      expect((service as any).s3Client.send).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, 'different-resident'])('rejects missing or foreign uploader metadata', async (owner) => {
+      const body = Readable.from(Buffer.from('test'));
+      (service as any).s3Client.send = jest.fn().mockResolvedValue({ Body: body, ContentType:'image/png',Metadata:owner ? {'uploader-id':owner} : {} });
+      await expect(service.openStoredFile('http://localhost:9000/shanyraq-media/123_0123456789abcdef.png', 'resident')).rejects.toMatchObject({ response:{code:'UPLOADS.FILE_NOT_FOUND'} });
+      expect(body.destroyed).toBe(true);
+    });
+
+    it('binds presigned upload metadata to the authenticated uploader', async () => {
+      await service.getPresignedUploadUrl('photo.png', 'image/png', UploadCategory.MEDIA, 'resident');
+      expect(createPresignedPost).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        Fields:expect.objectContaining({'x-amz-meta-uploader-id':'resident'}),
+        Conditions:expect.arrayContaining([['eq','$x-amz-meta-uploader-id','resident']]),
+      }));
+    });
+  });
+
   describe('S3 Configuration (Subtask B2)', () => {
     it('должен выбрасывать критическую ошибку при отсутствии S3_ACCESS_KEY или S3_SECRET_KEY', () => {
       const invalidConfigMock: any = {
@@ -74,6 +115,25 @@ describe('UploadsService (MinIO / S3 Хранилище)', () => {
   });
 
   describe('uploadFile', () => {
+    it('возвращает внешний URL без изменения внутреннего S3 endpoint', async () => {
+      const originalGet = configServiceMock.get.getMockImplementation();
+      configServiceMock.get.mockImplementation((key: string, fallback: any) =>
+        key === 'S3_PUBLIC_BASE_URL' ? 'https://media.example.test/' : originalGet(key, fallback),
+      );
+      const externalService = new UploadsService(configServiceMock);
+      const client = (externalService as any).s3Client;
+      client.send = jest.fn().mockResolvedValue({});
+      const endpoint = await client.config.endpoint();
+      expect(endpoint.hostname).toBe('localhost');
+      const result = await externalService.uploadFile({
+        originalname: 'photo.jpg',
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00]),
+        size: 11,
+        mimetype: 'image/jpeg',
+      } as Express.Multer.File, UploadCategory.MEDIA);
+      expect(result.url).toBe(`https://media.example.test/shanyraq-media/${result.key}`);
+    });
+
     it('должен выбрасывать BadRequestException при пустом файле', async () => {
       const promise = service.uploadFile(null as any);
       await expect(promise).rejects.toThrow(BadRequestException);

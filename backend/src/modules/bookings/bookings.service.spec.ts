@@ -306,6 +306,7 @@ describe('BookingsService', () => {
 
   describe('Создание бронирования (createBooking)', () => {
     beforeEach(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-09-30T00:00:00Z').getTime());
       prismaMock.bookableResource.findUnique.mockResolvedValue(mockResource);
       prismaMock.unitOwnership.findFirst.mockResolvedValue({
         id: 'own-1',
@@ -315,6 +316,8 @@ describe('BookingsService', () => {
         ownershipType: OwnershipType.OWNER,
       });
     });
+
+    afterEach(() => jest.restoreAllMocks());
 
     it('должен успешно создавать бронирование для верифицированного собственника (OWNER)', async () => {
       prismaMock.booking.findFirst.mockResolvedValue(null); // нет перекрытий

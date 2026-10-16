@@ -6,7 +6,9 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:dashboard": "node --test tests/dashboard-model.test.cjs",
+    "test:requests": "node --test tests/request-workflow.test.cjs"
   },
   "dependencies": {
     "clsx": "^2.1.0",

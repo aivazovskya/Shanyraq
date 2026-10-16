@@ -3,6 +3,8 @@ import {
   IsOptional,
   IsEnum,
   IsString,
+  IsIn,
+  MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { SosAlertStatus } from '@prisma/client';
@@ -25,7 +27,7 @@ export class ResolveSosDto {
     description: 'Статус завершения тревоги',
     example: SosAlertStatus.RESOLVED,
   })
-  @IsEnum(SosAlertStatus, {
+  @IsIn([SosAlertStatus.RESOLVED, SosAlertStatus.FALSE_ALARM], {
     message: 'status must be either RESOLVED or FALSE_ALARM',
   })
   status: SosAlertStatus;
@@ -33,6 +35,7 @@ export class ResolveSosDto {
   @ApiPropertyOptional({ description: 'Заметка персонала по инциденту', example: 'Охрана прибыла на место, помощь оказана' })
   @IsOptional()
   @IsString()
+  @MaxLength(1600)
   note?: string;
 }
 

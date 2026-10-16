@@ -1,3 +1,4 @@
+import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import React, { useState } from 'react';
 import {
   View,
@@ -21,12 +22,13 @@ import { getApiErrorMessage } from '../../api/client';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Colors } from '../../constants/colors';
-import { ArrowLeft, Camera, Check } from 'lucide-react-native';
+import { ArrowLeft, Check } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRequest'>;
 
 export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
   const { t } = useTranslation();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { user } = useAuth();
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
 
@@ -56,14 +58,9 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
     { key: 'EMERGENCY', label: t('requests.prioEmergency'), color: Colors.danger },
   ];
 
-  const handleAddSamplePhoto = () => {
-    // Demonstration attachment photo URL simulating MinIO upload
-    const mockUrl = `http://localhost:9000/shanyraq-media/sample_repair_${Date.now()}.jpg`;
-    setAttachments((prev) => [...prev, mockUrl]);
-    Alert.alert(t('requests.photoAttachedTitle'), t('requests.photoAttachedMsg'));
-  };
 
   const handleSubmit = async () => {
+    if (uploadingPhoto || submitting) return;
     if (!primaryUnitId) {
       Alert.alert(t('common.error'), t('requests.noUnitAttachedError'));
       return;
@@ -176,14 +173,7 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Attach Photo */}
         <Text style={styles.fieldLabel}>{t('requests.photosLabel')}</Text>
-        <TouchableOpacity style={styles.photoUploadBox} onPress={handleAddSamplePhoto}>
-          <Camera color={Colors.primary} size={28} />
-          <Text style={styles.photoUploadText}>
-            {attachments.length > 0
-              ? t('requests.photosCount', { count: attachments.length })
-              : t('requests.takeOrChoosePhoto')}
-          </Text>
-        </TouchableOpacity>
+        <PhotoAttachments value={attachments} onChange={setAttachments} onBusyChange={setUploadingPhoto} disabled={submitting} />
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -191,6 +181,7 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
           title={t('requests.submitToDispatcher')}
           onPress={handleSubmit}
           loading={submitting}
+            disabled={uploadingPhoto}
           size="lg"
           style={styles.submitBtn}
         />

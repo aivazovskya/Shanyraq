@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsEnum, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { IsNotEmpty, IsString, IsEnum, IsOptional, IsNumber, IsDateString, Min, Max } from 'class-validator';
 import { RequestCategory, RequestPriority, RequestStatus } from '@prisma/client';
 
 export class CreateServiceRequestDto {
@@ -32,6 +32,11 @@ export class CreateServiceRequestDto {
 }
 
 export class UpdateRequestStatusDto {
+  @ApiProperty({ required: false, description: 'updatedAt открытой карточки для защиты от потери чужих изменений' })
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @ApiProperty({ enum: RequestStatus })
   @IsEnum(RequestStatus)
   status: RequestStatus;
@@ -39,6 +44,7 @@ export class UpdateRequestStatusDto {
   @ApiProperty({ description: 'ID назначенного мастера/исполнителя', required: false })
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   assigneeId?: string;
 }
 

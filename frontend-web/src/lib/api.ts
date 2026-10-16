@@ -58,6 +58,7 @@ export function getAuthSession(): AuthSession {
 export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {},
+  parseResponse?: (response: Response) => Promise<T>,
 ): Promise<T> {
   const session = getStoredSession();
 
@@ -110,7 +111,11 @@ export async function apiRequest<T = any>(
     throw err;
   }
 
-  return response.json();
+  return parseResponse ? parseResponse(response) : response.json();
+}
+
+export function apiBlob(endpoint: string, signal?: AbortSignal): Promise<Blob> {
+  return apiRequest<Blob>(endpoint, { signal }, (response) => response.blob());
 }
 
 /**

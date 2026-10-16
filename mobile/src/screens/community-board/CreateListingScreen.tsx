@@ -1,3 +1,4 @@
+import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import React, { useState } from 'react';
 import {
   View,
@@ -8,14 +9,11 @@ import {
   SafeAreaView,
   TextInput,
   Alert,
-  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
-  Camera,
-  X,
   Tag,
   CheckCircle2,
 } from 'lucide-react-native';
@@ -31,6 +29,7 @@ import { getApiErrorMessage } from '../../api/client';
 export const CreateListingScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { user } = useAuth();
 
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -50,17 +49,10 @@ export const CreateListingScreen: React.FC = () => {
     { type: 'OTHER', label: t('communityBoard.typeOther') },
   ];
 
-  const handleAddSamplePhoto = () => {
-    // Demonstration attachment photo simulating MinIO upload, matching CreateRequestScreen
-    const mockUrl = `http://localhost:9000/shanyraq-media/listing_${Date.now()}.jpg`;
-    setPhotos((prev) => [...prev, mockUrl]);
-  };
 
-  const handleRemovePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
 
   const handleSubmit = async () => {
+    if (uploadingPhoto || submitting) return;
     if (!tenantId) {
       Alert.alert(t('common.error'), t('common.userNotAuthorizedOrLinked'));
       return;
@@ -195,24 +187,7 @@ export const CreateListingScreen: React.FC = () => {
 
         {/* Photos */}
         <Text style={styles.sectionLabel}>{t('communityBoard.photosLabel')}</Text>
-        <View style={styles.photosGrid}>
-          {photos.map((uri, idx) => (
-            <View key={idx} style={styles.photoThumbContainer}>
-              <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
-              <TouchableOpacity
-                style={styles.removePhotoBtn}
-                onPress={() => handleRemovePhoto(idx)}
-              >
-                <X size={12} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          ))}
-
-          <TouchableOpacity style={styles.addPhotoBtn} onPress={handleAddSamplePhoto}>
-            <Camera size={22} color={Colors.primary} />
-            <Text style={styles.addPhotoText}>{t('communityBoard.addPhotoAction')}</Text>
-          </TouchableOpacity>
-        </View>
+        <PhotoAttachments value={photos} onChange={setPhotos} onBusyChange={setUploadingPhoto} disabled={submitting} />
 
         {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
@@ -221,6 +196,7 @@ export const CreateListingScreen: React.FC = () => {
             title={t('communityBoard.publishAction')}
             onPress={handleSubmit}
             loading={submitting}
+            disabled={uploadingPhoto}
           />
         </View>
       </ScrollView>

@@ -114,6 +114,26 @@ describe('AuthService (Аудит безопасности авторизаци�
     });
   });
 
+  it.each(['production', 'development', 'staging'])('не имитирует отправку SMS в среде %s', async (environment) => {
+    const originalGet = configServiceMock.get.getMockImplementation();
+    configServiceMock.get.mockImplementation((key: string) => key === 'NODE_ENV' ? environment : originalGet(key));
+    await expect(service.requestOtp({ phone: '+77015550101' })).rejects.toMatchObject({
+      response: { code: 'AUTH.SMS_SERVICE_UNAVAILABLE' },
+    });
+    expect(redisMock.set).not.toHaveBeenCalled();
+  });
+
+  it('не записывает номер и OTP в console.log', async () => {
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const result = await service.requestOtp({ phone: '+77015550101' });
+      expect(result.devCode).toMatch(/^\d{6}$/);
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   describe('verifyOtp & Brute Force Protection', () => {
     it('должен блокировать номер на 10 минут после 3 неверных попыток ввода', async () => {
       // Инициализация OTP

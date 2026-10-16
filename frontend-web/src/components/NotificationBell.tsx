@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { Bell, CheckCheck, Loader2, ExternalLink, Settings, ChevronLeft } from 'lucide-react';
-import { apiRequest } from '@/lib/api';
+import { apiRequest, getApiErrorMessage } from '@/lib/api';
 
 export interface NotificationItem {
   id: string;
@@ -30,6 +30,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     CHAT: true,
@@ -66,15 +67,16 @@ export function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const items = await apiRequest<NotificationItem[]>('/notifications?take=20');
       setNotifications(items || []);
-    } catch {
-      // Ignore fetch errors
+    } catch (err) {
+      setLoadError(getApiErrorMessage(err, t));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchUnreadCount();
@@ -213,7 +215,7 @@ export function NotificationBell() {
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative" ref={containerRef} onKeyDown={(event) => { if (event.key === 'Escape') { setIsOpen(false); containerRef.current?.querySelector('button')?.focus(); } }}>
       {/* Bell Button */}
       <button
         onClick={() => {
@@ -222,7 +224,7 @@ export function NotificationBell() {
             setShowSettings(false);
           }
         }}
-        className="relative p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500"
+        className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500"
         aria-label={t('notifications.title')}
       >
         <Bell className="w-5 h-5" />
@@ -235,7 +237,7 @@ export function NotificationBell() {
 
       {/* Popover Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="fixed left-4 right-4 top-20 max-h-[75dvh] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50">
           {/* Panel Header */}
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             {showSettings ? (
@@ -355,6 +357,8 @@ export function NotificationBell() {
                 <div className="p-8 flex items-center justify-center text-slate-400">
                   <Loader2 className="w-5 h-5 animate-spin" />
                 </div>
+              ) : loadError ? (
+                <div role="alert" className="p-5 text-sm text-slate-600"><p>{loadError}</p><button onClick={fetchNotifications} className="mt-3 min-h-11 rounded-xl border border-slate-200 px-4 font-semibold text-sky-700">{t('common.refresh')}</button></div>
               ) : notifications.length === 0 ? (
                 <div className="p-8 text-center text-slate-400">
                   <Bell className="w-8 h-8 mx-auto mb-2 text-slate-300 opacity-60" />
@@ -366,6 +370,9 @@ export function NotificationBell() {
                   return (
                     <div
                       key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleItemClick(item); } }}
                       onClick={() => handleItemClick(item)}
                       className={`p-3.5 transition-colors cursor-pointer flex gap-3 items-start ${
                         !item.isRead ? 'bg-sky-50/60 hover:bg-sky-50' : 'hover:bg-slate-50'
