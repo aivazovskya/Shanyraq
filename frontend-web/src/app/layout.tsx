@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import LocaleSync from '@/components/LocaleSync';
 
 export const metadata: Metadata = {
   title: 'Shanyraq (Шаңырақ) — Панель управления ОСИ и УК',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <LocaleSync />
+        {children}
+      </body>
     </html>
   );
 }

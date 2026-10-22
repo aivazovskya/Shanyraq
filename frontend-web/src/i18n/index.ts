@@ -41,13 +41,15 @@ export function setStoredWebLocale(lang: SupportedLocale): void {
   }
 }
 
-// Initialize i18next instance
+// Initialize i18next instance.
+// Always start with 'ru' so the first client render matches the server HTML;
+// the stored locale is applied after hydration by <LocaleSync />.
 if (!i18n.isInitialized) {
   i18n
     .use(initReactI18next)
     .init({
       resources,
-      lng: typeof window !== 'undefined' ? getStoredWebLocale() : 'ru',
+      lng: 'ru',
       fallbackLng: 'ru',
       interpolation: {
         escapeValue: false,
