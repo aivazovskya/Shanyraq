@@ -23,6 +23,8 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { SearchModule } from './modules/search/search.module';
 import { ShiftHandoverModule } from './modules/shift-handover/shift-handover.module';
+import { ImportsModule } from './modules/imports/imports.module';
+import { BudgetModule } from './modules/budget/budget.module';
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -78,6 +80,8 @@ import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
     AuditLogModule,
     SearchModule,
     ShiftHandoverModule,
+    ImportsModule,
+    BudgetModule,
     EventEmitterModule.forRoot(),
     RealtimeModule,
     HealthModule,

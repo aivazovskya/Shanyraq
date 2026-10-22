@@ -1,4 +1,4 @@
-﻿import { buildCsv, escapeCsvField } from './csv.helper';
+import { buildCsv, escapeCsvField } from './csv.helper';
 
 describe('CSV Helper', () => {
   describe('escapeCsvField', () => {
@@ -12,6 +12,34 @@ describe('CSV Helper', () => {
       expect(escapeCsvField(12500)).toBe('12500');
       expect(escapeCsvField(0)).toBe('0');
       expect(escapeCsvField(-350.5)).toBe('-350.5');
+    });
+
+    it('должен нейтрализовать формульные инъекции Excel для строк, не трогая числа', () => {
+      // Строка с =cmd должна быть экранирована префиксом апострофа
+      expect(escapeCsvField('=cmd')).toBe("'=cmd");
+      expect(escapeCsvField('=HYPERLINK("http://evil.com")')).toBe('"\'=HYPERLINK(""http://evil.com"")"');
+
+      // Строка "-5" как текст должна быть нейтрализована
+      expect(escapeCsvField('-5')).toBe("'-5");
+
+      // Число -5 должно остаться числовой строкой без апострофа
+      expect(escapeCsvField(-5)).toBe('-5');
+
+      // Другие опасные формульные префиксы (+, @, \t, \r)
+      expect(escapeCsvField('+cmd|calc')).toBe("'+cmd|calc");
+      expect(escapeCsvField('+1+1')).toBe("'+1+1");
+      expect(escapeCsvField('@SUM(1,2)')).toBe('"\'@SUM(1,2)"');
+      expect(escapeCsvField('\tВкладка')).toBe("'\tВкладка");
+      expect(escapeCsvField('\rВозврат')).toBe('"\'\rВозврат"');
+    });
+
+    it('сохраняет телефонные номера формата E.164 и валютные суммы без искажений', () => {
+      // Телефонные номера вида +77011112233 не должны получать апостроф
+      expect(escapeCsvField('+77011112233')).toBe('+77011112233');
+      expect(escapeCsvField('+77022223344')).toBe('+77022223344');
+
+      // Валютные балансы вида -15000 ₸ сохраняются для отчетов выписок
+      expect(escapeCsvField('-15000 ₸')).toBe('-15000 ₸');
     });
 
     it('должен экранировать строки с запятыми', () => {

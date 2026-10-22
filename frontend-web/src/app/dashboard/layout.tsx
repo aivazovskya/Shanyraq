@@ -27,6 +27,7 @@ import {
   BarChart3,
   ShieldAlert,
   ClipboardList,
+  FileSpreadsheet,
   Menu,
   X,
 } from 'lucide-react';
@@ -79,6 +80,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: t('navigation.chat'), href: '/dashboard/chat', icon: MessageSquare, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER'] },
     { name: t('navigation.meters'), href: '/dashboard/meters', icon: Gauge, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
     { name: t('navigation.finance'), href: '/dashboard/finance', icon: CreditCard, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
+    { name: t('navigation.budget'), href: '/dashboard/finance/budget', icon: FileSpreadsheet, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
+    { name: t('navigation.audit'), href: '/dashboard/finance/audit', icon: BarChart3, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
     { name: t('navigation.bookings'), href: '/dashboard/bookings', icon: Calendar, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
     { name: t('navigation.sos'), href: '/dashboard/sos', icon: AlertTriangle, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'SECURITY', 'HOA_CHAIRMAN'] },
     { name: t('navigation.communityBoard'), href: '/dashboard/community-board', icon: ShoppingBag, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER'] },
@@ -143,7 +146,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { key: 'overview', paths: ['dashboard', 'analytics'] },
     { key: 'residents', paths: ['requests', 'chat', 'residents', 'verifications', 'announcements', 'community-board', 'votings'] },
     { key: 'building', paths: ['access', 'sos', 'shift-handover', 'meters', 'bookings'] },
-    { key: 'management', paths: ['finance', 'tenants', 'audit-log'] },
+    { key: 'management', paths: ['finance', 'finance/budget', 'finance/audit', 'tenants', 'audit-log'] },
   ];
   const visibleNavigation = navigation.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
   const activeItem = visibleNavigation.find((item) => item.href === '/dashboard' ? pathname === item.href : pathname.startsWith(item.href));

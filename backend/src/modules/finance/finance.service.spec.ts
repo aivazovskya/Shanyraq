@@ -14,6 +14,7 @@ import {
   PaymentMethod,
   MeterType,
   ReadingStatus,
+  ExpenseSource,
 } from '@prisma/client';
 import { generateAccountNumber, getOrCreatePersonalAccount } from './personal-account.helper';
 import { validationExceptionFactory } from '../../common/pipes/validation-exception.factory';
@@ -1314,7 +1315,7 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
           where: expect.objectContaining({
             tenantId,
             expenseDate: expect.any(Object),
-            category: { contains: 'Ремонт' },
+            category: { contains: 'Ремонт', mode: 'insensitive' },
           }),
           orderBy: { expenseDate: 'desc' },
           include: expect.any(Object),
@@ -1368,6 +1369,44 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         expect(content).toContain('Действителен');
         expect(content).toContain('Аннулирован');
         expect(content).toContain('Чек выписан ошибочно');
+      });
+
+      it('выводит колонки контрагента, номера документа, источника и партии импорта', async () => {
+        prismaMock.expense.findMany.mockResolvedValue([
+          {
+            id: 'exp-import-1',
+            tenantId,
+            category: 'Текущий ремонт',
+            description: 'Ремонт кровли',
+            amount: 150000,
+            expenseDate: new Date('2026-03-01T10:00:00Z'),
+            counterparty: 'ТОО СтройСервис',
+            documentNumber: 'АВР-105',
+            source: ExpenseSource.IMPORT_EXCEL,
+            importBatchId: 'batch-001',
+            importBatch: { id: 'batch-001', fileName: 'expenses_march.xlsx', kind: 'EXPENSES' },
+            isVoided: false,
+            voidedAt: null,
+            voidedById: null,
+            voidedReason: null,
+            recordedBy: { firstName: 'Айбек', lastName: 'Админ', role: UserRole.HOA_ADMIN },
+            voidedBy: null,
+          },
+        ]);
+
+        const res = await service.exportExpensesCsv(tenantId, hoaAdmin);
+        const content = res.buffer.toString('utf-8');
+
+        // Check header row contains all new columns
+        expect(content).toContain(
+          'Дата расхода,Категория,Описание,Сумма (₸),Контрагент,Номер документа,Источник,Партия импорта',
+        );
+
+        // Check data row contains values
+        expect(content).toContain('ТОО СтройСервис');
+        expect(content).toContain('АВР-105');
+        expect(content).toContain('IMPORT_EXCEL');
+        expect(content).toContain('expenses_march.xlsx (batch-001)');
       });
     });
   });

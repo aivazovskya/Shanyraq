@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsNumber, IsOptional, IsEnum, IsBoolean, IsInt, Min, Max, IsISO8601 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ChargeCalculationMethod, MeterType } from '@prisma/client';
+import { ChargeCalculationMethod, MeterType, ExpenseSource } from '@prisma/client';
 import { TariffBreakdownItem } from '../../analytics/dto/analytics.dto';
 
 export class CreateTariffDto {
@@ -100,6 +100,47 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ example: 'ТОО СтройСервис' })
+  @IsOptional()
+  @IsString()
+  counterparty?: string;
+
+  @ApiPropertyOptional({ example: 'АВР-104' })
+  @IsOptional()
+  @IsString()
+  documentNumber?: string;
+
+  @ApiPropertyOptional({ enum: ExpenseSource, default: ExpenseSource.MANUAL })
+  @IsOptional()
+  @IsEnum(ExpenseSource)
+  source?: ExpenseSource;
+
+  @ApiPropertyOptional({ example: 'uuid-партии-импорта' })
+  @IsOptional()
+  @IsString()
+  importBatchId?: string;
+
+  @ApiPropertyOptional({ example: 3 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  periodMonth?: number;
+
+  @ApiPropertyOptional({ example: 2026 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  periodYear?: number;
+
+  @ApiPropertyOptional({ example: 'https://storage.../receipt.pdf' })
+  @IsOptional()
+  @IsString()
+  attachmentUrl?: string;
 }
 
 export class VoidExpenseDto {
@@ -124,6 +165,32 @@ export class GetExpensesQueryDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @ApiPropertyOptional({ example: 'uuid-партии-импорта' })
+  @IsOptional()
+  @IsString()
+  importBatchId?: string;
+
+  @ApiPropertyOptional({ enum: ExpenseSource })
+  @IsOptional()
+  @IsEnum(ExpenseSource)
+  source?: ExpenseSource;
+
+  @ApiPropertyOptional({ example: 3 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  periodMonth?: number;
+
+  @ApiPropertyOptional({ example: 2026 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  periodYear?: number;
 }
 
 export class TransparencyReportQueryDto {

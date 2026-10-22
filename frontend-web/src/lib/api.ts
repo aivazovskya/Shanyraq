@@ -75,6 +75,10 @@ export async function apiRequest<T = any>(
     Authorization: `Bearer ${session.token}`,
   };
 
+  if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,

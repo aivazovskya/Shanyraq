@@ -12,6 +12,7 @@ import {
   PaymentMethod,
   MeterType,
   ReadingStatus,
+  ExpenseSource,
 } from '@prisma/client';
 import {
   assertUserBelongsToTenant,
@@ -976,23 +977,41 @@ export class FinanceService {
       });
     }
 
+    const data: any = {
+      tenantId,
+      category,
+      amount: dto.amount,
+      expenseDate,
+      description: dto.description?.trim() || null,
+      recordedById: user.id!,
+    };
+
+    if (dto.counterparty !== undefined) data.counterparty = dto.counterparty?.trim() || null;
+    if (dto.documentNumber !== undefined) data.documentNumber = dto.documentNumber?.trim() || null;
+    if (dto.source !== undefined) data.source = dto.source;
+    if (dto.importBatchId !== undefined) data.importBatchId = dto.importBatchId;
+    if (dto.periodMonth !== undefined) data.periodMonth = dto.periodMonth;
+    if (dto.periodYear !== undefined) data.periodYear = dto.periodYear;
+    if (dto.attachmentUrl !== undefined) data.attachmentUrl = dto.attachmentUrl?.trim() || null;
+
+    const include: any = {
+      recordedBy: {
+        select: { id: true, firstName: true, lastName: true, role: true },
+      },
+      voidedBy: {
+        select: { id: true, firstName: true, lastName: true, role: true },
+      },
+    };
+
+    if (dto.importBatchId) {
+      include.importBatch = {
+        select: { id: true, fileName: true, kind: true },
+      };
+    }
+
     const expense = await this.prisma.expense.create({
-      data: {
-        tenantId,
-        category,
-        amount: dto.amount,
-        expenseDate,
-        description: dto.description?.trim() || null,
-        recordedById: user.id!,
-      },
-      include: {
-        recordedBy: {
-          select: { id: true, firstName: true, lastName: true, role: true },
-        },
-        voidedBy: {
-          select: { id: true, firstName: true, lastName: true, role: true },
-        },
-      },
+      data,
+      include,
     });
 
     await this.auditLogService.log({
@@ -1124,7 +1143,24 @@ export class FinanceService {
     if (query?.category?.trim()) {
       where.category = {
         contains: query.category.trim(),
+        mode: 'insensitive',
       };
+    }
+
+    if (query?.importBatchId) {
+      where.importBatchId = query.importBatchId;
+    }
+
+    if (query?.source) {
+      where.source = query.source;
+    }
+
+    if (query?.periodMonth) {
+      where.periodMonth = Number(query.periodMonth);
+    }
+
+    if (query?.periodYear) {
+      where.periodYear = Number(query.periodYear);
     }
 
     return this.prisma.expense.findMany({
@@ -1136,6 +1172,9 @@ export class FinanceService {
         },
         voidedBy: {
           select: { id: true, firstName: true, lastName: true, role: true },
+        },
+        importBatch: {
+          select: { id: true, fileName: true, kind: true },
         },
       },
     });
@@ -1154,6 +1193,10 @@ export class FinanceService {
         'Категория',
         'Описание',
         'Сумма (₸)',
+        'Контрагент',
+        'Номер документа',
+        'Источник',
+        'Партия импорта',
         'Кто записал',
         'Роль',
         'Статус',
@@ -1170,12 +1213,19 @@ export class FinanceService {
       const voidBy = exp.voidedBy
         ? `${exp.voidedBy.firstName || ''} ${exp.voidedBy.lastName || ''}`.trim() || exp.voidedBy.role
         : '—';
+      const batchInfo = exp.importBatch
+        ? `${exp.importBatch.fileName} (${exp.importBatch.id})`
+        : exp.importBatchId || '—';
 
       rows.push([
         exp.expenseDate.toISOString().slice(0, 10),
         exp.category,
         exp.description || '—',
         exp.amount,
+        exp.counterparty || '—',
+        exp.documentNumber || '—',
+        exp.source || 'MANUAL',
+        batchInfo,
         rec,
         exp.recordedBy?.role || '—',
         exp.isVoided ? 'Аннулирован' : 'Действителен',

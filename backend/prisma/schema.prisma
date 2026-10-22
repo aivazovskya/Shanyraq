@@ -110,6 +110,8 @@ model Tenant {
   auditLogs         AuditLog[]
   shiftHandoverNotes ShiftHandoverNote[]
   expenses          Expense[]
+  importBatches     ImportBatch[]
+  budgetLines       BudgetLine[]
 
   @@map("tenants")
 }
@@ -215,6 +217,9 @@ model User {
   shiftHandoverNotesAuthored ShiftHandoverNote[]
   recordedExpenses        Expense[]          @relation("RecordedExpenses")
   voidedExpenses          Expense[]          @relation("VoidedExpenses")
+  createdImportBatches    ImportBatch[]      @relation("CreatedImportBatches")
+  voidedImportBatches     ImportBatch[]      @relation("VoidedImportBatches")
+  createdBudgetLines      BudgetLine[]       @relation("CreatedBudgetLines")
 
   @@map("users")
 }
@@ -518,6 +523,28 @@ enum PaymentMethod {
   MANUAL     // recorded by staff — cash, bank transfer, anything off-platform
 }
 
+enum ImportKind {
+  EXPENSES
+  ONEC_PAYROLL
+  UK_DETAIL
+  ALSECO
+  BANK_STATEMENT
+  BUDGET
+}
+
+enum ImportStatus {
+  PREVIEW
+  APPLIED
+  VOIDED
+}
+
+enum ExpenseSource {
+  MANUAL
+  IMPORT_EXCEL
+  IMPORT_1C
+  IMPORT_UK
+}
+
 model TariffItem {
   id                String                   @id @default(uuid())
   tenantId          String
@@ -583,24 +610,82 @@ model Payment {
 }
 
 model Expense {
-  id           String    @id @default(uuid())
+  id             String        @id @default(uuid())
+  tenantId       String
+  category       String        // "Ремонт", "Зарплата персонала", "Коммунальные услуги" и т.д. — полностью определяется УК, как TariffItem.name
+  description    String?
+  amount         Float
+  expenseDate    DateTime      // дата фактической траты, не дата ввода в систему
+  recordedById   String
+  isVoided       Boolean       @default(false)
+  voidedAt       DateTime?
+  voidedById     String?
+  voidedReason   String?
+  createdAt      DateTime      @default(now())
+  counterparty   String?
+  documentNumber String?
+  source         ExpenseSource @default(MANUAL)
+  importBatchId  String?
+  periodMonth    Int?
+  periodYear     Int?
+  attachmentUrl  String?
+
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recordedBy     User          @relation("RecordedExpenses", fields: [recordedById], references: [id], onDelete: Restrict)
+  voidedBy       User?         @relation("VoidedExpenses", fields: [voidedById], references: [id], onDelete: SetNull)
+  importBatch    ImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([importBatchId])
+  @@map("expenses")
+}
+
+model ImportBatch {
+  id           String       @id @default(uuid())
   tenantId     String
-  category     String    // "Ремонт", "Зарплата персонала", "Коммунальные услуги" и т.д. — полностью определяется УК, как TariffItem.name
-  description  String?
-  amount       Float
-  expenseDate  DateTime  // дата фактической траты, не дата ввода в систему
-  recordedById String
-  isVoided     Boolean   @default(false)
+  kind         ImportKind
+  fileName     String
+  fileUrl      String?
+  status       ImportStatus @default(PREVIEW)
+  rowsTotal    Int          @default(0)
+  rowsApplied  Int          @default(0)
+  rowsSkipped  Int          @default(0)
+  createdById  String
+  createdAt    DateTime     @default(now())
   voidedAt     DateTime?
   voidedById   String?
   voidedReason String?
-  createdAt    DateTime  @default(now())
 
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  recordedBy   User      @relation("RecordedExpenses", fields: [recordedById], references: [id], onDelete: Restrict)
-  voidedBy     User?     @relation("VoidedExpenses", fields: [voidedById], references: [id], onDelete: SetNull)
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CreatedImportBatches", fields: [createdById], references: [id], onDelete: Restrict)
+  voidedBy     User?        @relation("VoidedImportBatches", fields: [voidedById], references: [id], onDelete: SetNull)
+  expenses     Expense[]
+  budgetLines  BudgetLine[]
 
-  @@map("expenses")
+  @@index([tenantId, createdAt])
+  @@map("import_batches")
+}
+
+model BudgetLine {
+  id            String       @id @default(uuid())
+  tenantId      String
+  year          Int
+  month         Int          // 1-12
+  category      String
+  plannedAmount Float
+  note          String?
+  importBatchId String?
+  createdById   String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy     User         @relation("CreatedBudgetLines", fields: [createdById], references: [id], onDelete: Restrict)
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, year, month, category])
+  @@index([tenantId, year])
+  @@index([importBatchId])
+  @@map("budget_lines")
 }
 
 // -------------------------------------------------------------

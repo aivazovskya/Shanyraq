@@ -46,6 +46,7 @@
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "exceljs": "^4.4.0",
     "file-type": "^16.5.4",
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
