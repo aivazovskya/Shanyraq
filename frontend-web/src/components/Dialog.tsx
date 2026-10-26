@@ -3,7 +3,7 @@
 import { useEffect, useRef, ReactNode } from 'react';
 
 /** Native modality supplies focus containment and makes the background inert. */
-export function Dialog({ children, labelledBy, onClose }: { children: ReactNode; labelledBy: string; onClose: () => void }) {
+export function Dialog({ children, labelledBy, onClose, wide = false }: { children: ReactNode; labelledBy: string; onClose: () => void; wide?: boolean }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -22,7 +22,7 @@ export function Dialog({ children, labelledBy, onClose }: { children: ReactNode;
 
   return <dialog ref={dialogRef} aria-labelledby={labelledBy}
     onCancel={(event) => { event.preventDefault(); close.current(); }}
-    className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-950/50">
+    className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] ${wide ? 'max-w-3xl' : 'max-w-2xl'} overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 shadow-2xl backdrop:bg-slate-950/50`}>
     {children}
   </dialog>;
 }

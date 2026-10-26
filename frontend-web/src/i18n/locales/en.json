@@ -1,4 +1,11 @@
 {
+  "uiReview": {
+  "videoUnavailable": "Video playback is not connected in this panel yet. Registered cameras are listed below; stream availability is not checked.",
+  "cameraConfigured": "Registered",
+  "cameraDisabled": "Disabled",
+  "endpointConfigured": "Controller address configured",
+  "endpointMissing": "Controller address not configured"
+},
   "uiPolish": {
     "invalidDates": "The start date must be on or before the end date.",
     "alertsUnavailable": "Call status could not be loaded. Refresh the list before continuing.",

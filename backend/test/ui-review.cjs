@@ -38,6 +38,7 @@ async function main() {
   const tenant=await prisma.tenant.create({data:{name:'Тестовый ЖК «Шаңырақ Парк»',address:'Синтетический адрес для проверки интерфейса'}});
   const building=await prisma.building.create({data:{tenantId:tenant.id,blockName:'Корпус А · подъезд 2'}});
   const unit=await prisma.unit.create({data:{buildingId:building.id,unitNumber:'128',area:72}});
+  await prisma.personalAccount.create({data:{unitId:unit.id,accountNumber:'UI-'+suffix,balance:0}});
   const password=crypto.randomBytes(15).toString('base64url');
   const passwordHash=await bcrypt.hash(password,10);
   const createUser=(role,name,lastName)=>prisma.user.create({data:{phone:'+7'+crypto.randomInt(1000000000,9999999999),email:'ui-'+role.toLowerCase()+'-'+suffix+'@example.test',firstName:name,lastName,passwordHash,tenantId:tenant.id,role,isActive:true,isVerified:true}});

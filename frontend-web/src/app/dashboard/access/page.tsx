@@ -25,7 +25,8 @@ import {
   Calendar,
   Ticket,
 } from 'lucide-react';
-import { apiRequest, apiDownload, getStoredSession } from '@/lib/api';
+import { Dialog } from '@/components/Dialog';
+import { apiRequest, apiDownload, getStoredSession, getApiErrorMessage } from '@/lib/api';
 
 interface AccessPointItem {
   id: string;
@@ -95,6 +96,8 @@ export default function AccessPage() {
 
   const [points, setPoints] = useState<AccessPointItem[]>([]);
   const [loadingPoints, setLoadingPoints] = useState(true);
+  const [pointsError, setPointsError] = useState<string | null>(null);
+  const [logsError, setLogsError] = useState<string | null>(null);
   const [openingPointId, setOpeningPointId] = useState<string | null>(null);
   const [lastOpened, setLastOpened] = useState<{ [key: string]: string }>({});
 
@@ -135,15 +138,16 @@ export default function AccessPage() {
       return;
     }
     setLoadingPoints(true);
+    setPointsError(null);
     try {
       const data = await apiRequest<AccessPointItem[]>(`/access/tenant/${tenantId}/points`);
       setPoints(data);
     } catch (err: any) {
-      console.warn('Failed to load points:', err);
+      setPointsError(getApiErrorMessage(err, t));
     } finally {
       setLoadingPoints(false);
     }
-  }, [tenantId]);
+  }, [tenantId, t]);
 
   const fetchLogs = useCallback(async () => {
     if (!tenantId || !canViewLogs) {
@@ -151,15 +155,16 @@ export default function AccessPage() {
       return;
     }
     setLoadingLogs(true);
+    setLogsError(null);
     try {
       const data = await apiRequest<AccessLogItem[]>(`/access/tenant/${tenantId}/logs`);
       setLogs(data);
     } catch (err: any) {
-      console.warn('Failed to load access logs:', err);
+      setLogsError(getApiErrorMessage(err, t));
     } finally {
       setLoadingLogs(false);
     }
-  }, [tenantId, canViewLogs]);
+  }, [tenantId, canViewLogs, t]);
 
   useEffect(() => {
     fetchPoints();
@@ -294,16 +299,16 @@ export default function AccessPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('access.title')}</h1>
           <p className="text-sm text-slate-500">{t('access.subtitle')}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={fetchPoints}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
+            className="min-h-11 justify-center px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
           >
             <RefreshCw className={`w-4 h-4 ${loadingPoints ? 'animate-spin text-slate-400' : ''}`} />
             {t('access.refreshBtn')}
@@ -312,7 +317,7 @@ export default function AccessPage() {
           {canViewGuestPasses && (
             <Link
               href="/dashboard/access/guest-passes"
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm"
+              className="min-h-11 justify-center px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm"
             >
               <Ticket className="w-4 h-4 text-slate-500" />
               {t('access.guestPassHistoryBtn')}
@@ -325,7 +330,7 @@ export default function AccessPage() {
                 setFormError(null);
                 setIsModalOpen(true);
               }}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition active:scale-95"
+              className="min-h-11 justify-center px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-2 shadow-sm transition active:scale-95"
             >
               <Plus className="w-4 h-4" />
               {t('access.addPointBtn')}
@@ -334,6 +339,7 @@ export default function AccessPage() {
         </div>
       </div>
 
+      {pointsError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{pointsError}</p><button className="mt-2 min-h-11 font-semibold underline" onClick={fetchPoints}>{t('common.refresh')}</button></div>}
       {actionSuccess && (
         <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
           <Check className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -356,7 +362,7 @@ export default function AccessPage() {
             {t('access.noPoints')}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4">
             {intercoms.map((point) => {
               const isChecking = healthChecking[point.id];
               const health = healthResults[point.id];
@@ -379,7 +385,7 @@ export default function AccessPage() {
 
                     <h3 className="text-base font-bold text-slate-900 mt-2">{point.name}</h3>
                     <p className="text-xs text-slate-500 mt-1 font-mono break-all">
-                      {point.endpointUrl || 'local://relay'}
+                      {point.endpointUrl ? t('uiReview.endpointConfigured') : t('uiReview.endpointMissing')}
                     </p>
 
                     {/* Health Check Status */}
@@ -470,7 +476,7 @@ export default function AccessPage() {
             {t('access.noPoints')}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4">
             {barriers.map((point) => (
               <div
                 key={point.id}
@@ -487,7 +493,7 @@ export default function AccessPage() {
                   </div>
                   <h3 className="text-base font-bold text-slate-900 mt-2">{point.name}</h3>
                   <p className="text-xs text-slate-500 mt-1 font-mono break-all">
-                    {point.endpointUrl || 'local://relay'}
+                    {point.endpointUrl ? t('uiReview.endpointConfigured') : t('uiReview.endpointMissing')}
                   </p>
                 </div>
 
@@ -528,28 +534,13 @@ export default function AccessPage() {
           <h2 className="text-lg font-bold text-slate-900">{t('access.camerasSection')}</h2>
         </div>
 
-        <div className="bg-slate-950 rounded-2xl p-4 shadow-sm text-white flex flex-col justify-between">
-          <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-800">
-            <div className="flex items-center gap-2 font-medium">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-              <span>{t('access.camera1Name')}</span>
-            </div>
-            <span className="text-slate-400 font-mono">{t('access.camera1Codec')}</span>
-          </div>
-
-          <div className="h-44 my-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center text-slate-500">
-            <Video className="w-10 h-10 text-slate-600 mb-2" />
-            <div className="text-xs font-medium text-slate-400">{t('access.liveStreamText')}</div>
-            <div className="text-[11px] text-slate-600">{t('access.liveStreamGateway')}</div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800">
-            <span>{t('access.lprActive')}</span>
-            <span className="text-emerald-400 font-semibold">{t('access.systemNormal')}</span>
-          </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-sm leading-relaxed text-slate-600">{t('uiReview.videoUnavailable')}</p>
+          {cameras.length === 0 ? <p className="mt-4 text-sm text-slate-500">{t('access.noPoints')}</p> : <ul className="mt-4 divide-y divide-slate-100">{cameras.map((camera) => <li key={camera.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><span className="break-words text-sm font-semibold text-slate-800">{camera.name}</span><span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{t(camera.isActive ? 'uiReview.cameraConfigured' : 'uiReview.cameraDisabled')}</span></li>)}</ul>}
         </div>
       </div>
 
+      {logsError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{logsError}</p><button className="mt-2 min-h-11 font-semibold underline" onClick={fetchLogs}>{t('common.refresh')}</button></div>}
       {/* Access Logs Table & Export Section (Visible to SECURITY, HOA_ADMIN, SUPERADMIN) */}
       {canViewLogs && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
@@ -563,21 +554,21 @@ export default function AccessPage() {
 
             {/* Date Filters & CSV Download Button */}
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 text-xs text-slate-600 bg-white px-3 py-1.5 rounded-xl border border-slate-200">
+              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 text-xs text-slate-600 bg-white px-3 py-2 rounded-xl border border-slate-200">
                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span>{t('access.dateFrom')}</span>
                 <input
-                  type="date"
+                  type="date" aria-label={t('access.dateFrom')} max={logTo || undefined}
                   value={logFrom}
                   onChange={(e) => setLogFrom(e.target.value)}
-                  className="bg-transparent text-slate-800 text-xs focus:outline-none"
+                  className="min-h-11 min-w-0 max-w-full bg-transparent text-slate-800 text-sm"
                 />
                 <span>{t('access.dateTo')}</span>
                 <input
-                  type="date"
+                  type="date" aria-label={t('access.dateTo')} min={logFrom || undefined}
                   value={logTo}
                   onChange={(e) => setLogTo(e.target.value)}
-                  className="bg-transparent text-slate-800 text-xs focus:outline-none"
+                  className="min-h-11 min-w-0 max-w-full bg-transparent text-slate-800 text-sm"
                 />
               </div>
 
@@ -700,13 +691,13 @@ export default function AccessPage() {
 
       {/* Registration Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <Dialog labelledBy="access-point-title" onClose={() => { if (!isSubmitting) setIsModalOpen(false); }}>
+          <div className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">{t('access.modalTitle')}</h3>
+              <h3 id="access-point-title" className="text-base font-bold text-slate-900">{t('access.modalTitle')}</h3>
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                onClick={() => setIsModalOpen(false)} disabled={isSubmitting} aria-label={t('common.cancel')}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -721,12 +712,12 @@ export default function AccessPage() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="access-formName">
                   {t('access.nameLabel')} *
                 </label>
                 <input
                   type="text"
-                  value={formName}
+                  id="access-formName" value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder={t('access.namePlaceholder')}
                   required
@@ -735,11 +726,11 @@ export default function AccessPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="access-formType">
                   {t('access.typeLabel')} *
                 </label>
                 <select
-                  value={formType}
+                  id="access-formType" value={formType}
                   onChange={(e) => {
                     const newType = e.target.value as any;
                     setFormType(newType);
@@ -761,12 +752,12 @@ export default function AccessPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="access-formControllerType">
                   {t('access.controllerTypeLabel')} *
                 </label>
                 <input
                   type="text"
-                  value={formControllerType}
+                  id="access-formControllerType" value={formControllerType}
                   onChange={(e) => setFormControllerType(e.target.value)}
                   placeholder="HIKVISION_ISAPI / PAL_ES / MQTT_RELAY"
                   required
@@ -775,12 +766,12 @@ export default function AccessPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1" htmlFor="access-formEndpointUrl">
                   {t('access.endpointUrlLabel')}
                 </label>
                 <input
                   type="text"
-                  value={formEndpointUrl}
+                  id="access-formEndpointUrl" value={formEndpointUrl}
                   onChange={(e) => setFormEndpointUrl(e.target.value)}
                   placeholder={t('access.endpointUrlPlaceholder')}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
@@ -789,12 +780,12 @@ export default function AccessPage() {
 
               {formType === 'CAMERA' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="access-formRtspUrl" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('access.rtspStreamUrlLabel')}
                   </label>
                   <input
                     type="text"
-                    value={formRtspUrl}
+                    id="access-formRtspUrl" value={formRtspUrl}
                     onChange={(e) => setFormRtspUrl(e.target.value)}
                     placeholder="rtsp://admin:pass@192.168.1.150:554/ch1"
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
@@ -828,7 +819,7 @@ export default function AccessPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

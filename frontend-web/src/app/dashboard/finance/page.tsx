@@ -1,5 +1,6 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -310,14 +311,14 @@ export default function FinancePage() {
     .reduce((sum, a) => sum + Math.abs(a.balance), 0);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="min-w-0 space-y-6">
       <Suspense fallback={null}>
         <SearchParamsReader onQuery={setSearchQuery} />
       </Suspense>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm">
               <CreditCard className="w-6 h-6" />
             </div>
@@ -330,11 +331,11 @@ export default function FinancePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           {canViewExpenses && (
             <Link
               href="/dashboard/finance/expenses"
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
+              className="flex min-h-11 justify-center items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
             >
               <Receipt className="w-4 h-4 text-slate-500" />
               <span>{t('finance.expensesBtn')}</span>
@@ -345,7 +346,7 @@ export default function FinancePage() {
             <>
               <Link
                 href="/dashboard/finance/tariffs"
-                className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
+                className="flex min-h-11 justify-center items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
               >
                 <SlidersHorizontal className="w-4 h-4 text-slate-500" />
                 <span>{t('finance.tariffsBtn')}</span>
@@ -353,7 +354,7 @@ export default function FinancePage() {
 
               <button
                 onClick={() => setIsGenerateModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+                className="flex min-h-11 justify-center items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
               >
                 <Calendar className="w-4 h-4" />
                 <span>{t('finance.generateChargesBtn')}</span>
@@ -364,61 +365,63 @@ export default function FinancePage() {
           <button
             onClick={loadAccounts}
             disabled={loading}
-            className="p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
+            aria-label={t('common.refresh')}
+            className="flex min-h-11 items-center justify-center gap-2 px-3 text-sm font-medium text-slate-600 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('common.refresh')}
           </button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">
               {t('finance.totalAccounts')}
             </p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">{accounts.length}</p>
+            <p className="break-words text-2xl font-bold tabular-nums text-slate-900 mt-1">{accounts.length}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+          <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
             <Building className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">
               {t('finance.accountsInDebt')}
             </p>
-            <p className="text-2xl font-bold text-rose-600 mt-1">{inDebtCount}</p>
+            <p className="break-words text-2xl font-bold tabular-nums text-rose-600 mt-1">{inDebtCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+          <div className="w-10 h-10 shrink-0 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
             <ArrowDownLeft className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">
               {t('finance.accountsInCredit')}
             </p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">{inCreditCount}</p>
+            <p className="break-words text-2xl font-bold tabular-nums text-emerald-600 mt-1">{inCreditCount}</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-10 h-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <ArrowUpRight className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-500">
               {t('finance.totalDebt')}
             </p>
-            <p className="text-2xl font-bold text-slate-900 mt-1">
+            <p className="break-words text-2xl font-bold tabular-nums text-slate-900 mt-1">
               {totalDebtSum.toLocaleString()} ₸
             </p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <div className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
             <Coins className="w-5 h-5" />
           </div>
         </div>
@@ -458,6 +461,7 @@ export default function FinancePage() {
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
+              aria-label={t('finance.searchPlaceholder')}
               placeholder={t('finance.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -623,16 +627,16 @@ export default function FinancePage() {
 
       {/* ACCOUNT DETAIL MODAL / DRAWER */}
       {selectedAccount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+        <Dialog wide labelledBy="finance-account-title" onClose={() => { setSelectedAccount(null); }}>
           <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-wrap items-start justify-between gap-3 bg-slate-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-xl bg-sky-600 text-white flex items-center justify-center font-bold text-base shadow-sm">
                   <CreditCard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 id="finance-account-title" className="text-lg font-bold text-slate-900">
                     {t('finance.modalAccountTitle', {
                       accountNumber: selectedAccount.accountNumber,
                     })}
@@ -810,7 +814,7 @@ export default function FinancePage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div className="p-4 px-6 border-t border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -841,21 +845,21 @@ export default function FinancePage() {
               </div>
               <button
                 onClick={() => setSelectedAccount(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
+                className="min-h-11 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
               >
                 {t('finance.closeBtn')}
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* GENERATE CHARGES MODAL */}
       {isGenerateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <Dialog labelledBy="finance-generate-title" onClose={() => { !isGenerating && setIsGenerateModalOpen(false); }}>
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 id="finance-generate-title" className="text-lg font-bold text-slate-900">
                 {t('finance.generateModalTitle')}
               </h3>
               <p className="text-xs text-slate-500 mt-1">{t('finance.generateModalDesc')}</p>
@@ -864,11 +868,11 @@ export default function FinancePage() {
             <form onSubmit={handleGenerateCharges} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="finance-generateMonth">
                     {t('finance.monthLabel')}
                   </label>
                   <select
-                    value={generateMonth}
+                    id="finance-generateMonth" value={generateMonth}
                     onChange={(e) => setGenerateMonth(Number(e.target.value))}
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
@@ -888,11 +892,11 @@ export default function FinancePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="finance-generateYear">
                     {t('finance.yearLabel')}
                   </label>
                   <select
-                    value={generateYear}
+                    id="finance-generateYear" value={generateYear}
                     onChange={(e) => setGenerateYear(Number(e.target.value))}
                     className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
@@ -905,19 +909,19 @@ export default function FinancePage() {
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="pt-4 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsGenerateModalOpen(false)}
                   disabled={isGenerating}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                  className="min-h-11 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
                 >
                   {t('finance.cancelBtn')}
                 </button>
                 <button
                   type="submit"
                   disabled={isGenerating}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="min-h-11 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   {isGenerating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{t('finance.confirmGenerateBtn')}</span>
@@ -925,15 +929,15 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* RECORD PAYMENT MODAL */}
       {paymentTargetAccount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <Dialog labelledBy="finance-payment-title" onClose={() => { !isSubmittingPayment && setPaymentTargetAccount(null); }}>
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 id="finance-payment-title" className="text-lg font-bold text-slate-900">
                 {t('finance.paymentModalTitle', {
                   accountNumber: paymentTargetAccount.accountNumber,
                 })}
@@ -946,7 +950,7 @@ export default function FinancePage() {
 
             <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="finance-paymentAmount">
                   {t('finance.paymentAmountLabel')}
                 </label>
                 <input
@@ -955,38 +959,38 @@ export default function FinancePage() {
                   min="1"
                   required
                   placeholder="5000"
-                  value={paymentAmount}
+                  id="finance-paymentAmount" value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5" htmlFor="finance-paymentNote">
                   {t('finance.paymentNoteLabel')}
                 </label>
                 <input
                   type="text"
                   placeholder="Касса ОСИ, наличные"
-                  value={paymentNote}
+                  id="finance-paymentNote" value={paymentNote}
                   onChange={(e) => setPaymentNote(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="pt-4 flex flex-wrap items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setPaymentTargetAccount(null)}
                   disabled={isSubmittingPayment}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                  className="min-h-11 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
                 >
                   {t('finance.cancelBtn')}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingPayment}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="min-h-11 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   {isSubmittingPayment && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{t('finance.confirmPaymentBtn')}</span>
@@ -994,7 +998,7 @@ export default function FinancePage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );
