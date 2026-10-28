@@ -19,6 +19,7 @@ import { VotingsApi, MeetingItem } from '../../api/votings';
 import { ServiceRequestsApi, ServiceRequestItem } from '../../api/service-requests';
 import { AnnouncementsApi, AnnouncementItem } from '../../api/announcements';
 import { NotificationsApi } from '../../api/notifications';
+import { financeApi, PersonalAccountData } from '../../api/finance';
 import { sosApi } from '../../api/sos';
 import { SosHoldButton } from '../../components/sos/SosHoldButton';
 import { Card } from '../../components/ui/Card';
@@ -63,6 +64,9 @@ export const DashboardScreen: React.FC = () => {
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
+  const [accounts, setAccounts] = useState<PersonalAccountData[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState(false);
 
   const fetchUnreadNotifs = useCallback(async () => {
     try {
@@ -104,15 +108,24 @@ export const DashboardScreen: React.FC = () => {
 
     try {
       setFetchError(false);
-      const [votingsRes, requestsRes, announcementsRes] = await Promise.allSettled([
+      setAccountsLoading(true);
+      const [votingsRes, requestsRes, announcementsRes, accountsRes] = await Promise.allSettled([
         VotingsApi.getMeetings(tenantId),
         ServiceRequestsApi.getRequests(),
         AnnouncementsApi.getAnnouncements(tenantId),
+        financeApi.getMyAccounts(),
       ]);
 
       if (votingsRes.status === 'fulfilled') setVotings(votingsRes.value);
       if (requestsRes.status === 'fulfilled') setRequests(requestsRes.value);
       if (announcementsRes.status === 'fulfilled') setAnnouncements(announcementsRes.value);
+      if (accountsRes.status === 'fulfilled') {
+        setAccounts(accountsRes.value || []);
+        setAccountsError(false);
+      } else {
+        setAccountsError(true);
+      }
+      setAccountsLoading(false);
     } catch (e) {
       console.warn('Dashboard fetch error:', e);
       setFetchError(true);
@@ -266,11 +279,22 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Hero Card: Personal Account Balance with LinearGradient & CountUp */}
         <AnimatedEntrance index={1}>
+          {(() => {
+            const selectedAccount = accounts.find((a) => a.unit?.id === primaryOwnership?.unitId) || accounts[0];
+            const totalBalance = selectedAccount ? selectedAccount.balance : accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+            const hasAccounts = accounts.length > 0;
+            return (
           <TouchableOpacity
             activeOpacity={0.92}
             onPress={() => navigation.navigate('FinanceAccount')}
             accessibilityRole="button"
-            accessibilityLabel={`${t('dashboard.balanceCardTitle')}: 12 450 ₸`}
+            accessibilityLabel={
+              accountsLoading
+                ? `${t('dashboard.balanceCardTitle')}: ${t('common.loading')}`
+                : accountsError || !hasAccounts
+                ? `${t('dashboard.balanceCardTitle')}: —`
+                : `${t('dashboard.balanceCardTitle')}: ${totalBalance.toLocaleString()} ₸`
+            }
           >
             <LinearGradient
               colors={
@@ -293,11 +317,17 @@ export const DashboardScreen: React.FC = () => {
               </View>
 
               <View style={styles.heroBalanceWrap}>
-                <CountUp
-                  value={12450}
-                  currency="₸"
-                  style={styles.heroBalanceText}
-                />
+                {accountsLoading ? (
+                  <Skeleton width={140} height={36} borderRadius={8} />
+                ) : accountsError || !hasAccounts ? (
+                  <Text style={styles.heroBalanceText}>—</Text>
+                ) : (
+                  <CountUp
+                    value={totalBalance}
+                    currency="₸"
+                    style={styles.heroBalanceText}
+                  />
+                )}
               </View>
 
               <View style={styles.heroFooter}>
@@ -318,6 +348,8 @@ export const DashboardScreen: React.FC = () => {
               </View>
             </LinearGradient>
           </TouchableOpacity>
+            );
+          })()}
         </AnimatedEntrance>
 
         {/* Urgent Announcement Alert if any */}

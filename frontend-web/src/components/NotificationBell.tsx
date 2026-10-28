@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { Bell, CheckCheck, Loader2, ExternalLink, Settings, ChevronLeft } from 'lucide-react';
-import { apiRequest, getApiErrorMessage } from '@/lib/api';
+import { apiRequest, getApiErrorMessage, getStoredSession } from '@/lib/api';
+import { isResidentRole } from '@/lib/role-routing';
 
 export interface NotificationItem {
   id: string;
@@ -164,6 +165,18 @@ export function NotificationBell() {
   const getTargetRoute = (data?: Record<string, any> | null): string | null => {
     if (!data) return null;
     const type = data.type || '';
+    const session = getStoredSession();
+    const isResident = isResidentRole(session?.user?.role);
+
+    if (isResident) {
+      if (type.includes('SOS') || data.alertId) return '/cabinet/sos';
+      if (type.includes('CHAT') || data.conversationId) return '/cabinet/chat';
+      if (type.includes('REQUEST') || data.requestId) return '/cabinet/requests';
+      if (type.includes('VOTING') || data.meetingId) return '/cabinet/voting';
+      if (type.includes('FINANCE') || data.accountId) return '/cabinet/finance';
+      if (type.includes('ANNOUNCEMENT') || data.announcementId) return '/cabinet/announcements';
+      return '/cabinet/notifications';
+    }
 
     if (type.includes('SOS') || data.alertId) return '/dashboard/sos';
     if (type.includes('CHAT') || data.conversationId) return '/dashboard/chat';

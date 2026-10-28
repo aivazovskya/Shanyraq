@@ -32,6 +32,7 @@ import {
   X,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
+import { isResidentRole } from '@/lib/role-routing';
 import { NotificationBell } from '@/components/NotificationBell';
 import { GlobalSearch } from '@/components/GlobalSearch';
 
@@ -51,7 +52,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const menuDialog = useRef<HTMLDialogElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    setMenuOpen(false);
+    if (typeof window !== 'undefined') {
+      (window as any).__navigate = (href: string) => router.push(href);
+    }
+  }, [pathname, router]);
   useEffect(() => {
     const dialog = menuDialog.current;
     if (!dialog) return;
@@ -96,6 +102,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const session = getStoredSession();
     if (!session || !session.token || !session.user) {
       router.push('/');
+    } else if (isResidentRole(session.user.role)) {
+      router.replace('/cabinet');
     } else {
       setUser(session.user);
       setIsCheckingAuth(false);
