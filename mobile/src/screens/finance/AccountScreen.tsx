@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
+  Share,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CreditCard,
   Calendar,
@@ -17,21 +19,35 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ChevronLeft,
+  ChevronRight,
   Info,
-  Building,
   Home,
-  AlertCircle,
   Gauge,
   FileText,
+  Share2,
+  CheckCircle2,
 } from 'lucide-react-native';
-import { Colors } from '../../constants/colors';
-import { LoadingState } from '../../components/common/LoadingState';
-import { financeApi, PersonalAccountData } from '../../api/finance';
+import { useTheme } from '../../theme/ThemeContext';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Button,
+  SegmentedControl,
+  SkeletonList,
+  EmptyState,
+  ErrorState,
+  CountUp,
+  AnimatedEntrance,
+} from '../../components/ui';
+import { financeApi, PersonalAccountData, ChargeItem, PaymentItem } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
 
 export const AccountScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const [accounts, setAccounts] = useState<PersonalAccountData[]>([]);
@@ -45,7 +61,7 @@ export const AccountScreen: React.FC = () => {
     try {
       setError(null);
       const data = await financeApi.getMyAccounts();
-      setAccounts(data);
+      setAccounts(data || []);
     } catch (err: any) {
       setError(err?.response?.data?.message || err.message || t('finance.loadError'));
     } finally {
@@ -60,58 +76,124 @@ export const AccountScreen: React.FC = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     loadAccounts();
   };
 
-  if (loading) {
-    return <LoadingState message={t('common.loading')} />;
-  }
-
   const currentAccount = accounts[selectedAccountIndex] || null;
 
+  // Group charges by period (Year-Month)
+  const groupedCharges = useMemo(() => {
+    if (!currentAccount?.charges || currentAccount.charges.length === 0) return [];
+
+    const map = new Map<string, { periodKey: string; month: number; year: number; charges: ChargeItem[]; total: number }>();
+
+    for (const c of currentAccount.charges) {
+      const key = `${c.periodYear}-${String(c.periodMonth).padStart(2, '0')}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          periodKey: key,
+          month: c.periodMonth,
+          year: c.periodYear,
+          charges: [],
+          total: 0,
+        });
+      }
+      const entry = map.get(key)!;
+      entry.charges.push(c);
+      entry.total += c.amount;
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+  }, [currentAccount?.charges]);
+
+  const handleShareReceipt = async () => {
+    if (!currentAccount) return;
+    safeHaptic.selection();
+    try {
+      const message = `${t('finance.receiptDownload')}: ${currentAccount.accountNumber}\n` +
+        `${t('common.unitShort')} ${currentAccount.unit.unitNumber} • ${currentAccount.unit.building.blockName}\n` +
+        `${t('finance.currentBalance')}: ${currentAccount.balance >= 0 ? '+' : ''}${currentAccount.balance.toLocaleString()} ₸\n` +
+        `${t('finance.receiptOfflineNotice')}`;
+
+      await Share.share({
+        message,
+        title: t('finance.receiptDownload'),
+      });
+    } catch (err) {
+      // User cancelled or share dismissed
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Top Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 4,
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.goBack();
+          }}
+          accessibilityRole="button"
           accessibilityLabel={t('common.back', 'Назад')}
         >
-          <ChevronLeft color="#0F172A" size={24} />
+          <ChevronLeft color={theme.colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('finance.title')}</Text>
-        <View style={styles.headerRightPlaceholder} />
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {t('finance.title')}
+        </Text>
+        <TouchableOpacity
+          style={styles.headerRightBtn}
+          onPress={handleShareReceipt}
+          disabled={!currentAccount}
+          accessibilityRole="button"
+          accessibilityLabel={t('finance.shareReceipt')}
+        >
+          <Share2 color={currentAccount ? theme.colors.primary : 'transparent'} size={20} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: Math.max(insets.bottom, 24) + 32 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
       >
-        {error ? (
-          <View style={styles.emptyContainer}>
-            <View style={[styles.emptyIconCircle, { backgroundColor: '#FEE2E2' }]}>
-              <AlertCircle color={Colors.danger} size={32} />
-            </View>
-            <Text style={styles.emptyTitle}>{t('common.error')}</Text>
-            <Text style={styles.emptyDesc}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadAccounts}>
-              <Text style={styles.retryButtonText}>{t('common.refresh')}</Text>
-            </TouchableOpacity>
+        {loading ? (
+          <View style={styles.skeletonWrap}>
+            <SkeletonList count={3} />
           </View>
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadAccounts} />
         ) : !currentAccount ? (
-          // Empty State for non-owners or residents without verified ownership
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconCircle}>
-              <CreditCard color={Colors.textMuted} size={36} />
-            </View>
-            <Text style={styles.emptyTitle}>{t('finance.emptyTitle')}</Text>
-            <Text style={styles.emptyDesc}>{t('finance.emptyDesc')}</Text>
-          </View>
+          <EmptyState
+            title={t('finance.emptyTitle')}
+            description={t('finance.emptyDesc')}
+            actionTitle={t('common.refresh')}
+            onActionPress={loadAccounts}
+          />
         ) : (
-          <>
-            {/* Account Selector if multiple units owned */}
+          <AnimatedEntrance>
+            {/* Multi-unit account selector pills */}
             {accounts.length > 1 && (
               <ScrollView
                 horizontal
@@ -126,18 +208,30 @@ export const AccountScreen: React.FC = () => {
                       key={acc.id}
                       style={[
                         styles.accountPill,
-                        isSelected && styles.accountPillSelected,
+                        {
+                          backgroundColor: isSelected ? theme.colors.primary : theme.colors.surface,
+                          borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                        },
                       ]}
-                      onPress={() => setSelectedAccountIndex(index)}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        setSelectedAccountIndex(index);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityLabel={`${t('common.unitShort')} ${acc.unit.unitNumber}`}
                     >
                       <Home
-                        color={isSelected ? '#FFFFFF' : Colors.textMuted}
+                        color={isSelected ? theme.colors.onPrimary : theme.colors.textMuted}
                         size={14}
                       />
                       <Text
                         style={[
                           styles.accountPillText,
-                          isSelected && styles.accountPillTextSelected,
+                          {
+                            color: isSelected ? theme.colors.onPrimary : theme.colors.text,
+                            fontWeight: isSelected ? '700' : '600',
+                          },
                         ]}
                       >
                         {t('common.unitShort')} {acc.unit.unitNumber}
@@ -148,262 +242,407 @@ export const AccountScreen: React.FC = () => {
               </ScrollView>
             )}
 
-            {/* Main Balance Card */}
-            <View
+            {/* Hero Balance Card */}
+            <Card
               style={[
-                styles.balanceCard,
-                currentAccount.balance < 0
-                  ? styles.balanceCardDebt
-                  : currentAccount.balance > 0
-                  ? styles.balanceCardCredit
-                  : styles.balanceCardZero,
+                styles.heroCard,
+                {
+                  backgroundColor:
+                    currentAccount.balance < 0
+                      ? theme.colors.dangerBg
+                      : currentAccount.balance > 0
+                      ? theme.colors.successBg
+                      : theme.colors.surface,
+                  borderColor:
+                    currentAccount.balance < 0
+                      ? theme.colors.dangerBorder
+                      : currentAccount.balance > 0
+                      ? theme.colors.successBorder
+                      : theme.colors.border,
+                },
               ]}
             >
-              <View style={styles.balanceHeader}>
-                <View style={styles.balanceHeaderLeft}>
-                  <Text style={styles.accountNumberLabel}>
+              <View style={styles.heroHeader}>
+                <View style={styles.heroHeaderLeft}>
+                  <Text style={[styles.accountNumberLabel, { color: theme.colors.textMuted }]}>
                     {t('finance.accountNumber', { number: currentAccount.accountNumber })}
                   </Text>
-                  <Text style={styles.unitInfoText}>
+                  <Text style={[styles.unitInfoText, { color: theme.colors.text }]}>
                     {t('common.unitShort')} {currentAccount.unit.unitNumber} •{' '}
                     {currentAccount.unit.building.blockName} • {currentAccount.unit.area}{' '}
                     {t('common.sqm')}
                   </Text>
                 </View>
 
-                <View style={styles.balanceIconCircle}>
+                <View
+                  style={[
+                    styles.heroIconCircle,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
                   {currentAccount.balance < 0 ? (
-                    <ArrowDownLeft color={Colors.danger} size={20} />
+                    <ArrowDownLeft color={theme.colors.danger} size={22} />
                   ) : currentAccount.balance > 0 ? (
-                    <ArrowUpRight color={Colors.primary} size={20} />
+                    <ArrowUpRight color={theme.colors.success} size={22} />
                   ) : (
-                    <CreditCard color={Colors.textMuted} size={20} />
+                    <CheckCircle2 color={theme.colors.primary} size={22} />
                   )}
                 </View>
               </View>
 
-              <View style={styles.balanceValueContainer}>
-                <Text style={styles.balanceStatusText}>
-                  {currentAccount.balance < 0
-                    ? t('finance.statusDebt')
-                    : currentAccount.balance > 0
-                    ? t('finance.statusCredit')
-                    : t('finance.statusZero')}
-                </Text>
-                <Text
-                  style={[
-                    styles.balanceAmountText,
+              <View style={styles.heroBalanceBody}>
+                <Badge
+                  label={
                     currentAccount.balance < 0
-                      ? styles.textDebt
+                      ? t('finance.statusDebt')
                       : currentAccount.balance > 0
-                      ? styles.textCredit
-                      : styles.textZero,
-                  ]}
-                >
-                  {currentAccount.balance < 0
-                    ? `-${Math.abs(currentAccount.balance).toLocaleString()} ₸`
-                    : currentAccount.balance > 0
-                    ? `+${currentAccount.balance.toLocaleString()} ₸`
-                    : '0 ₸'}
-                </Text>
+                      ? t('finance.statusCredit')
+                      : t('finance.statusZero')
+                  }
+                  variant={
+                    currentAccount.balance < 0
+                      ? 'danger'
+                      : currentAccount.balance > 0
+                      ? 'success'
+                      : 'neutral'
+                  }
+                  size="md"
+                  style={styles.heroBadge}
+                />
+
+                <View style={styles.countUpRow}>
+                  <Text
+                    style={[
+                      styles.heroSignText,
+                      {
+                        color:
+                          currentAccount.balance < 0
+                            ? theme.colors.danger
+                            : currentAccount.balance > 0
+                            ? theme.colors.success
+                            : theme.colors.text,
+                      },
+                    ]}
+                  >
+                    {currentAccount.balance < 0 ? '−' : currentAccount.balance > 0 ? '+' : ''}
+                  </Text>
+                  <CountUp
+                    value={Math.abs(currentAccount.balance)}
+                    duration={800}
+                    style={{
+                      fontSize: 32,
+                      fontWeight: '800',
+                      letterSpacing: -0.5,
+                      color:
+                        currentAccount.balance < 0
+                          ? theme.colors.danger
+                          : currentAccount.balance > 0
+                          ? theme.colors.success
+                          : theme.colors.text,
+                    }}
+                  />
+                </View>
               </View>
-            </View>
+            </Card>
 
             {/* Offline Payment Notice */}
-            <View style={styles.noticeBox}>
-              <Info color={Colors.info} size={18} style={styles.noticeIcon} />
-              <Text style={styles.noticeText}>{t('finance.offlineNotice')}</Text>
+            <View
+              style={[
+                styles.noticeBox,
+                {
+                  backgroundColor: theme.colors.infoBg,
+                  borderColor: theme.colors.infoBorder,
+                },
+              ]}
+            >
+              <Info color={theme.colors.info} size={18} style={styles.noticeIcon} />
+              <Text style={[styles.noticeText, { color: theme.colors.text }]}>
+                {t('finance.offlineNotice')}
+              </Text>
             </View>
 
-            {/* Meter Readings Action Button */}
-            <TouchableOpacity
-              style={styles.metersActionButton}
-              onPress={() => (navigation as any).navigate('Meters')}
-            >
-              <View style={styles.metersActionContent}>
-                <View style={styles.metersActionIconWrap}>
-                  <Gauge color={Colors.primary} size={18} />
-                </View>
-                <Text style={styles.metersActionText}>{t('finance.metersQuickLink')}</Text>
-              </View>
-              <ChevronLeft color={Colors.textMuted} size={18} style={{ transform: [{ rotate: '180deg' }] }} />
-            </TouchableOpacity>
-
-            {/* Financial Transparency Report Action Button */}
-            <TouchableOpacity
-              style={styles.transparencyActionButton}
-              onPress={() =>
-                (navigation as any).navigate('TransparencyReport', {
-                  tenantId:
-                    (currentAccount?.unit?.building as any)?.tenantId ||
-                    user?.ownerships?.find((o) => o.isVerified)?.unit?.building?.tenantId,
-                })
-              }
-            >
-              <View style={styles.metersActionContent}>
-                <View style={[styles.metersActionIconWrap, { backgroundColor: '#F0FDF4' }]}>
-                  <FileText color="#16A34A" size={18} />
-                </View>
-                <View style={styles.transparencyTextContainer}>
-                  <Text style={styles.metersActionText}>
-                    {t('finance.transparencyQuickLink', 'Отчет о прозрачности финансов')}
-                  </Text>
-                  <Text style={styles.transparencySubText}>
-                    {t('finance.transparencyQuickLinkSub', 'Доходы, расходы и сальдо дома')}
-                  </Text>
-                </View>
-              </View>
-              <ChevronLeft color={Colors.textMuted} size={18} style={{ transform: [{ rotate: '180deg' }] }} />
-            </TouchableOpacity>
-
-
-            {/* Tabs: Charges vs Payments */}
-            <View style={styles.tabContainer}>
+            {/* Quick Actions Grid */}
+            <View style={styles.quickActionsContainer}>
               <TouchableOpacity
-                style={[styles.tabButton, activeTab === 'charges' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('charges')}
+                style={[
+                  styles.quickActionCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  safeHaptic.selection();
+                  navigation.navigate('Meters');
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('finance.metersQuickLink')}
               >
-                <Calendar
-                  color={activeTab === 'charges' ? Colors.primary : Colors.textMuted}
-                  size={16}
-                />
-                <Text
+                <View
                   style={[
-                    styles.tabButtonText,
-                    activeTab === 'charges' && styles.tabButtonTextActive,
+                    styles.quickActionIconWrap,
+                    { backgroundColor: theme.colors.primaryBg },
                   ]}
                 >
-                  {t('finance.tabCharges')} ({currentAccount.charges?.length || 0})
-                </Text>
+                  <Gauge color={theme.colors.primary} size={20} />
+                </View>
+                <View style={styles.quickActionTextWrap}>
+                  <Text style={[styles.quickActionTitle, { color: theme.colors.text }]}>
+                    {t('finance.metersQuickLink')}
+                  </Text>
+                  <Text style={[styles.quickActionSub, { color: theme.colors.textMuted }]}>
+                    {t('meters.title')}
+                  </Text>
+                </View>
+                <ChevronRight color={theme.colors.textMuted} size={18} />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.tabButton, activeTab === 'payments' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('payments')}
+                style={[
+                  styles.quickActionCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  safeHaptic.selection();
+                  navigation.navigate('TransparencyReport', {
+                    tenantId:
+                      (currentAccount?.unit?.building as any)?.tenantId ||
+                      user?.ownerships?.find((o) => o.isVerified)?.unit?.building?.tenantId,
+                  });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t('finance.transparencyQuickLink')}
               >
-                <Coins
-                  color={activeTab === 'payments' ? Colors.primary : Colors.textMuted}
-                  size={16}
-                />
-                <Text
+                <View
                   style={[
-                    styles.tabButtonText,
-                    activeTab === 'payments' && styles.tabButtonTextActive,
+                    styles.quickActionIconWrap,
+                    { backgroundColor: theme.colors.successBg },
                   ]}
                 >
-                  {t('finance.tabPayments')} ({currentAccount.payments?.length || 0})
-                </Text>
+                  <FileText color={theme.colors.success} size={20} />
+                </View>
+                <View style={styles.quickActionTextWrap}>
+                  <Text style={[styles.quickActionTitle, { color: theme.colors.text }]}>
+                    {t('finance.transparencyQuickLink')}
+                  </Text>
+                  <Text style={[styles.quickActionSub, { color: theme.colors.textMuted }]}>
+                    {t('finance.transparencyQuickLinkSub')}
+                  </Text>
+                </View>
+                <ChevronRight color={theme.colors.textMuted} size={18} />
               </TouchableOpacity>
             </View>
 
-            {/* Tab Content: Charges */}
+            {/* Segmented Control: Charges vs Payments */}
+            <View style={styles.segmentWrap}>
+              <SegmentedControl
+                options={[
+                  {
+                    value: 'charges',
+                    label: `${t('finance.tabCharges')} (${currentAccount.charges?.length || 0})`,
+                    icon: <Calendar color={theme.colors.textMuted} size={15} />,
+                  },
+                  {
+                    value: 'payments',
+                    label: `${t('finance.tabPayments')} (${currentAccount.payments?.length || 0})`,
+                    icon: <Coins color={theme.colors.textMuted} size={15} />,
+                  },
+                ]}
+                value={activeTab}
+                onChange={(val) => {
+                  safeHaptic.selection();
+                  setActiveTab(val as 'charges' | 'payments');
+                }}
+              />
+            </View>
+
+            {/* Tab 1: Charges grouped by period */}
             {activeTab === 'charges' && (
-              <View style={styles.listSection}>
-                {!currentAccount.charges || currentAccount.charges.length === 0 ? (
-                  <View style={styles.emptyTabContainer}>
-                    <Text style={styles.emptyTabText}>{t('finance.noCharges')}</Text>
-                  </View>
+              <View style={styles.tabContentWrap}>
+                {groupedCharges.length === 0 ? (
+                  <EmptyState
+                    title={t('finance.noCharges')}
+                    description={t('finance.receiptOfflineNotice')}
+                  />
                 ) : (
-                  currentAccount.charges.map((charge) => (
-                    <View key={charge.id} style={styles.itemRow}>
-                      <View style={styles.itemLeft}>
-                        <Text style={styles.itemTitle}>{charge.tariffItem?.name || '—'}</Text>
-                        <Text style={styles.itemSubtitle}>
-                          {t('finance.period')}: {String(charge.periodMonth).padStart(2, '0')}.
-                          {charge.periodYear} •{' '}
-                          {new Date(charge.createdAt).toLocaleDateString(
-                            i18n.language === 'kk'
-                              ? 'kk-KZ'
-                              : i18n.language === 'en'
-                              ? 'en-US'
-                              : 'ru-RU',
-                          )}
+                  groupedCharges.map((group) => (
+                    <Card
+                      key={group.periodKey}
+                      style={[
+                        styles.periodGroupCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.periodGroupHeader,
+                          {
+                            borderBottomColor: theme.colors.border,
+                            backgroundColor: theme.colors.surfaceSubtle,
+                          },
+                        ]}
+                      >
+                        <View style={styles.periodGroupTitleRow}>
+                          <Calendar color={theme.colors.primary} size={16} />
+                          <Text style={[styles.periodGroupTitle, { color: theme.colors.text }]}>
+                            {t(`common.months.${group.month}`, {
+                              defaultValue: new Date(group.year, group.month - 1, 1).toLocaleString('ru', { month: 'long' }),
+                            })}{' '}
+                            {group.year}
+                          </Text>
+                        </View>
+                        <Text style={[styles.periodGroupTotal, { color: theme.colors.text }]}>
+                          {group.total.toLocaleString()} ₸
                         </Text>
                       </View>
-                      <Text style={styles.itemChargeAmount}>
-                        {charge.amount.toLocaleString()} ₸
-                      </Text>
-                    </View>
+
+                      {group.charges.map((charge, cIdx) => (
+                        <View
+                          key={charge.id}
+                          style={[
+                            styles.chargeRow,
+                            cIdx < group.charges.length - 1 && {
+                              borderBottomWidth: 1,
+                              borderBottomColor: theme.colors.border,
+                            },
+                          ]}
+                        >
+                          <View style={styles.chargeLeft}>
+                            <Text style={[styles.chargeTitle, { color: theme.colors.text }]}>
+                              {charge.tariffItem?.name || '—'}
+                            </Text>
+                            <Text style={[styles.chargeSubtitle, { color: theme.colors.textMuted }]}>
+                              {new Date(charge.createdAt).toLocaleDateString(
+                                i18n.language === 'kk'
+                                  ? 'kk-KZ'
+                                  : i18n.language === 'en'
+                                  ? 'en-US'
+                                  : 'ru-RU',
+                              )}
+                            </Text>
+                          </View>
+                          <Text style={[styles.chargeAmount, { color: theme.colors.text }]}>
+                            {charge.amount.toLocaleString()} ₸
+                          </Text>
+                        </View>
+                      ))}
+                    </Card>
                   ))
                 )}
               </View>
             )}
 
-            {/* Tab Content: Payments */}
+            {/* Tab 2: Payments */}
             {activeTab === 'payments' && (
-              <View style={styles.listSection}>
+              <View style={styles.tabContentWrap}>
                 {!currentAccount.payments || currentAccount.payments.length === 0 ? (
-                  <View style={styles.emptyTabContainer}>
-                    <Text style={styles.emptyTabText}>{t('finance.noPayments')}</Text>
-                  </View>
+                  <EmptyState
+                    title={t('finance.noPayments')}
+                    description={t('finance.offlineNotice')}
+                  />
                 ) : (
-                  currentAccount.payments.map((payment) => (
-                    <View key={payment.id} style={styles.itemRow}>
-                      <View style={styles.itemLeft}>
-                        <Text style={styles.itemTitle}>
-                          {new Date(payment.paidAt).toLocaleDateString(
-                            i18n.language === 'kk'
-                              ? 'kk-KZ'
-                              : i18n.language === 'en'
-                              ? 'en-US'
-                              : 'ru-RU',
-                          )}
-                        </Text>
-                        <Text style={styles.itemSubtitle}>
-                          {payment.note || t('finance.methodManual', 'Касса ОСИ / перевод')}
+                  <Card
+                    style={[
+                      styles.paymentsCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    {currentAccount.payments.map((payment, pIdx) => (
+                      <View
+                        key={payment.id}
+                        style={[
+                          styles.paymentRow,
+                          pIdx < currentAccount.payments.length - 1 && {
+                            borderBottomWidth: 1,
+                            borderBottomColor: theme.colors.border,
+                          },
+                        ]}
+                      >
+                        <View style={styles.paymentLeft}>
+                          <Text style={[styles.paymentTitle, { color: theme.colors.text }]}>
+                            {new Date(payment.paidAt).toLocaleDateString(
+                              i18n.language === 'kk'
+                                ? 'kk-KZ'
+                                : i18n.language === 'en'
+                                ? 'en-US'
+                                : 'ru-RU',
+                            )}
+                          </Text>
+                          <Text style={[styles.paymentSubtitle, { color: theme.colors.textMuted }]}>
+                            {payment.note || t('finance.methodManual', 'Касса ОСИ / перевод')}
+                          </Text>
+                        </View>
+                        <Text style={[styles.paymentAmount, { color: theme.colors.success }]}>
+                          +{payment.amount.toLocaleString()} ₸
                         </Text>
                       </View>
-                      <Text style={styles.itemPaymentAmount}>
-                        +{payment.amount.toLocaleString()} ₸
-                      </Text>
-                    </View>
-                  ))
+                    ))}
+                  </Card>
                 )}
               </View>
             )}
-          </>
+          </AnimatedEntrance>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     padding: 6,
-    marginLeft: -6,
+    marginLeft: -4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    letterSpacing: -0.2,
   },
-  headerRightPlaceholder: {
-    width: 32,
+  headerRightBtn: {
+    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  container: {
+  scrollArea: {
     flex: 1,
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 40,
+  },
+  skeletonWrap: {
+    paddingTop: 12,
   },
   accountSelector: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   accountSelectorContent: {
     gap: 8,
@@ -412,292 +651,201 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  accountPillSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    minHeight: 44,
   },
   accountPillText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
   },
-  accountPillTextSelected: {
-    color: '#FFFFFF',
-  },
-  balanceCard: {
+  heroCard: {
     borderRadius: 20,
     padding: 20,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  balanceCardDebt: {
-    backgroundColor: '#FFF1F2',
-    borderColor: '#FECDD3',
-  },
-  balanceCardCredit: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  balanceCardZero: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
-  },
-  balanceHeader: {
+  heroHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  balanceHeaderLeft: {
+  heroHeaderLeft: {
     flex: 1,
+    marginRight: 10,
   },
   accountNumberLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   unitInfoText: {
     fontSize: 13,
-    color: '#334155',
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 3,
   },
-  balanceIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+  heroIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
-  balanceValueContainer: {
+  heroBalanceBody: {
     marginTop: 4,
   },
-  balanceStatusText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 4,
+  heroBadge: {
+    marginBottom: 8,
+    alignSelf: 'flex-start',
   },
-  balanceAmountText: {
-    fontSize: 30,
+  countUpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroSignText: {
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  textDebt: {
-    color: '#E11D48',
-  },
-  textCredit: {
-    color: Colors.primary,
-  },
-  textZero: {
-    color: '#334155',
+    marginRight: 2,
   },
   noticeBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
     borderRadius: 14,
-    padding: 12,
-    marginBottom: 20,
-    gap: 10,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
   },
   noticeIcon: {
     marginTop: 2,
   },
   noticeText: {
     flex: 1,
-    fontSize: 12,
-    color: '#1E40AF',
-    lineHeight: 17,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 9,
-  },
-  tabButtonActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  tabButtonText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
+    lineHeight: 18,
   },
-  tabButtonTextActive: {
-    color: '#0F172A',
+  quickActionsContainer: {
+    gap: 10,
+    marginBottom: 20,
   },
-  listSection: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    overflow: 'hidden',
-  },
-  itemRow: {
+  quickActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    minHeight: 52,
+  },
+  quickActionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  quickActionTextWrap: {
+    flex: 1,
+    marginRight: 8,
+  },
+  quickActionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  quickActionSub: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  segmentWrap: {
+    marginBottom: 16,
+  },
+  tabContentWrap: {
+    gap: 12,
+  },
+  periodGroupCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    padding: 0,
+    marginBottom: 12,
+  },
+  periodGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
-  itemLeft: {
+  periodGroupTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  periodGroupTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  periodGroupTotal: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  chargeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  chargeLeft: {
     flex: 1,
     marginRight: 12,
   },
-  itemTitle: {
+  chargeTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
   },
-  itemSubtitle: {
+  chargeSubtitle: {
     fontSize: 12,
-    color: '#64748B',
     marginTop: 3,
   },
-  itemChargeAmount: {
+  chargeAmount: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
   },
-  itemPaymentAmount: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.primary,
+  paymentsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 0,
+    overflow: 'hidden',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  emptyIconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#E2E8F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptyDesc: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 20,
-    maxWidth: 300,
-  },
-  retryButton: {
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  emptyTabContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTabText: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontStyle: 'italic',
-  },
-  metersActionButton: {
+  paymentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 14,
-    marginVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  metersActionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  metersActionIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  metersActionText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  transparencyActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
-  },
-  transparencyTextContainer: {
+  paymentLeft: {
     flex: 1,
+    marginRight: 12,
   },
-  transparencySubText: {
+  paymentTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paymentSubtitle: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
+    marginTop: 3,
+  },
+  paymentAmount: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
-

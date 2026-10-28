@@ -43,6 +43,8 @@ export const Input: React.FC<InputProps> = ({
   disabled = false,
   onFocus,
   onBlur,
+  onChangeText,
+  placeholder,
   ...rest
 }) => {
   const { theme } = useTheme();
@@ -50,7 +52,9 @@ export const Input: React.FC<InputProps> = ({
   const inputRef = useRef<any>(null);
 
   const [isFocused, setIsFocused] = useState(false);
-  const hasValue = Boolean(value && value.length > 0);
+  const [internalValue, setInternalValue] = useState(rest.defaultValue ? String(rest.defaultValue) : '');
+  const currentValue = value !== undefined ? value : internalValue;
+  const hasValue = Boolean(currentValue !== null && currentValue !== undefined && String(currentValue).length > 0);
 
   const floatProgress = useSharedValue(hasValue ? 1 : 0);
 
@@ -73,14 +77,27 @@ export const Input: React.FC<InputProps> = ({
     if (onBlur) onBlur(e);
   };
 
+  const handleChangeText = (text: string) => {
+    if (value === undefined) {
+      setInternalValue(text);
+    }
+    if (onChangeText) {
+      onChangeText(text);
+    }
+  };
+
   const labelAnimatedStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(floatProgress.value, [0, 1], [0, -14]);
+    const translateY = interpolate(
+      floatProgress.value,
+      [0, 1],
+      [0, rest.multiline ? -8 : -13],
+    );
     const scale = interpolate(floatProgress.value, [0, 1], [1, 0.78]);
 
     return {
       transform: [{ translateY }, { scale }],
     };
-  }, [floatProgress]);
+  }, [floatProgress, rest.multiline]);
 
   const getBorderColor = () => {
     if (error) return theme.colors.danger;
@@ -88,17 +105,20 @@ export const Input: React.FC<InputProps> = ({
     return theme.colors.border;
   };
 
+  // When field is empty and not focused, placeholder is hidden so floating label acts as placeholder
+  const showPlaceholder = isFocused || !label;
+  const effectivePlaceholder = showPlaceholder ? placeholder : '';
+
   return (
     <View style={[styles.wrapper, containerStyle]}>
       <Pressable
         onPress={() => inputRef.current?.focus()}
         style={[
           styles.inputContainer,
+          rest.multiline && styles.inputContainerMultiline,
           {
             backgroundColor: disabled
-              ? theme.isDark
-                ? '#1E293B'
-                : '#F1F5F9'
+              ? theme.colors.surfaceSubtle
               : theme.colors.surface,
             borderColor: getBorderColor(),
             borderWidth: isFocused ? 2 : 1,
@@ -106,37 +126,59 @@ export const Input: React.FC<InputProps> = ({
           },
         ]}
       >
-        {Boolean(leftIcon) && <View style={styles.leftSlot}>{leftIcon}</View>}
+        {Boolean(leftIcon) && (
+          <View style={[styles.leftSlot, rest.multiline && styles.leftSlotMultiline]}>
+            {leftIcon}
+          </View>
+        )}
 
-        <View style={styles.inputInnerWrap}>
-          <Animated.Text
-            style={[
-              styles.floatingLabel,
-              {
-                color: error
-                  ? theme.colors.danger
-                  : isFocused
-                  ? theme.colors.borderFocus
-                  : theme.colors.textMuted,
-              },
-              labelAnimatedStyle,
-            ]}
-            pointerEvents="none"
-          >
-            {label}
-          </Animated.Text>
+        <View style={[styles.inputInnerWrap, rest.multiline && styles.inputInnerWrapMultiline]}>
+          {Boolean(label) && (
+            <Animated.Text
+              style={[
+                styles.floatingLabel,
+                rest.multiline && styles.floatingLabelMultiline,
+                {
+                  color: error
+                    ? theme.colors.danger
+                    : isFocused
+                    ? theme.colors.borderFocus
+                    : theme.colors.textMuted,
+                },
+                labelAnimatedStyle,
+              ]}
+              pointerEvents="none"
+            >
+              {label}
+            </Animated.Text>
+          )}
 
           <TextInput
             ref={inputRef}
+            {...rest}
             value={value}
+            defaultValue={rest.defaultValue}
             editable={!disabled}
             onFocus={handleFocus}
             onBlur={handleBlur}
+            onChangeText={handleChangeText}
+            placeholder={effectivePlaceholder}
+            placeholderTextColor={theme.colors.textLight}
+            accessibilityLabel={label || placeholder || rest.accessibilityLabel}
+            aria-label={label || placeholder || rest.accessibilityLabel}
             style={[
               styles.textInput,
+              rest.multiline && styles.textInputMultiline,
+              inputStyle,
               {
                 color: theme.colors.text,
-                paddingTop: hasValue || isFocused ? 14 : 0,
+                paddingTop: rest.multiline
+                  ? hasValue || isFocused
+                    ? 22
+                    : 6
+                  : hasValue || isFocused
+                  ? 14
+                  : 0,
               },
               Platform.OS === 'web'
                 ? ({
@@ -144,15 +186,15 @@ export const Input: React.FC<InputProps> = ({
                     outlineWidth: 0,
                   } as any)
                 : null,
-              inputStyle,
             ]}
-            placeholderTextColor={theme.colors.textLight}
-            accessibilityLabel={label}
-            {...rest}
           />
         </View>
 
-        {Boolean(rightIcon) && <View style={styles.rightSlot}>{rightIcon}</View>}
+        {Boolean(rightIcon) && (
+          <View style={[styles.rightSlot, rest.multiline && styles.rightSlotMultiline]}>
+            {rightIcon}
+          </View>
+        )}
       </Pressable>
 
       {Boolean(error) ? (
@@ -178,10 +220,18 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingHorizontal: 14,
   },
+  inputContainerMultiline: {
+    alignItems: 'flex-start',
+    minHeight: 100,
+    paddingVertical: 10,
+  },
   leftSlot: {
     marginRight: 10,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  leftSlotMultiline: {
+    marginTop: 6,
   },
   inputInnerWrap: {
     flex: 1,
@@ -189,12 +239,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
+  inputInnerWrapMultiline: {
+    justifyContent: 'flex-start',
+    minHeight: 80,
+  },
   floatingLabel: {
     position: 'absolute',
     left: 0,
     fontSize: 15,
     fontWeight: '500',
     transformOrigin: 'left center',
+  },
+  floatingLabelMultiline: {
+    top: 10,
   },
   textInput: {
     flex: 1,
@@ -208,10 +265,17 @@ const styles = StyleSheet.create({
         } as any)
       : {}),
   },
+  textInputMultiline: {
+    textAlignVertical: 'top',
+    paddingBottom: 8,
+  },
   rightSlot: {
     marginLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  rightSlotMultiline: {
+    marginTop: 6,
   },
   messageRow: {
     flexDirection: 'row',

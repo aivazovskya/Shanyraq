@@ -310,7 +310,8 @@
     "voteSuccessTitle": "Vote recorded legally!",
     "voteSuccessMsg": "Your vote was signed with a digital signature.\nSignature hash: {{hash}}...",
     "devSmsTitle": "Vote confirmation SMS code",
-    "devSmsBody": "Code: {{code}}"
+    "devSmsBody": "Code: {{code}}",
+    "digitalSignatureNotice": "Vote is certified with a one-time SMS code in accordance with the RK Law on Housing Relations"
   },
   "requests": {
     "serviceDesk": "Service Desk",
@@ -487,7 +488,13 @@
     "transparencyByCategorySub": "Actual HOA/management expenses for the month",
     "transparencyNoExpenses": "No expenses recorded this month",
     "transparencySafeTitle": "Transparency and Data Privacy",
-    "transparencySafeNotice": "This report is generated automatically from HOA records. Residents' personal data and apartment numbers are protected and never displayed in the aggregate report."
+    "transparencySafeNotice": "This report is generated automatically from HOA records. Residents' personal data and apartment numbers are protected and never displayed in the aggregate report.",
+    "receiptDownload": "Receipt",
+    "chargesGroupTitle": "Accruals by period",
+    "shareReceipt": "Share receipt",
+    "receiptOfflineNotice": "Receipt is generated automatically at the beginning of each billing month",
+    "shareOfAccruals": "{{percent}}% of accruals",
+    "shareOfExpenses": "{{percent}}% of all expenses"
   },
   "meters": {
     "title": "Meter Readings",
@@ -524,7 +531,11 @@
     "historyTitle": "Reading History",
     "periodFormat": "{{month}}.{{year}}",
     "unitElectricity": "kWh",
-    "unitWater": "m³"
+    "unitWater": "m³",
+    "consumptionLabel": "Period consumption",
+    "historyHide": "Hide history",
+    "historyShow": "Readings history",
+    "previousVerified": "Previous: {{value}}"
   },
   "bookings": {
     "title": "Common Spaces",
@@ -564,7 +575,11 @@
     "waitlistLeaveBtn": "Leave Waitlist",
     "waitlistLeaveConfirm": "Are you sure you want to leave the waitlist for this slot?",
     "waitlistLeaveSuccess": "You have left the waitlist",
-    "waitlistSlotLabel": "Waitlisted for slot"
+    "waitlistSlotLabel": "Waitlisted for slot",
+    "selectSlot": "Select time",
+    "conflictNotice": "Selected interval conflicts with an occupied slot",
+    "availableToday": "Available all day",
+    "timeMustBeFuture": "Start time must be in the future"
   },
   "sos": {
     "buttonTitle": "EMERGENCY CALL (SOS)",
@@ -633,7 +648,10 @@
     "descValidation": "Please specify a description (at least 5 characters)",
     "priceValidation": "Please specify a valid price amount",
     "createSuccessMessage": "Listing successfully published to the community board",
-    "publishAction": "Publish Listing"
+    "publishAction": "Publish Listing",
+    "searchPlaceholder": "Search listings...",
+    "noSearchResultsTitle": "Nothing found",
+    "noSearchResultsSub": "Try changing your search query or category filter"
   },
   "chat": {
     "screenTitle": "Dispatcher Chat",

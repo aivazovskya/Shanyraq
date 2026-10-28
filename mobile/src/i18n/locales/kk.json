@@ -310,7 +310,8 @@
     "voteSuccessTitle": "Дауыс заңды түрде тіркелді!",
     "voteSuccessMsg": "Сіздің даусыңыз цифрлық қолтаңбамен сәтті бекітілді.\nҚолтаңба хэші: {{hash}}...",
     "devSmsTitle": "Дауыс беруді растау SMS-коды",
-    "devSmsBody": "Код: {{code}}"
+    "devSmsBody": "Код: {{code}}",
+    "digitalSignatureNotice": "Дауыс ҚР «Тұрғын үй қатынастары туралы» Заңына сәйкес бір реттік SMS-кодпен расталады"
   },
   "requests": {
     "serviceDesk": "Өтінімдер мен қызметтер",
@@ -487,7 +488,13 @@
     "transparencyByCategorySub": "ПТШ/БК айлық нақты шығындары",
     "transparencyNoExpenses": "Осы айда шығыстар тіркелмеген",
     "transparencySafeTitle": "Ашықтық және деректерді қорғау",
-    "transparencySafeNotice": "Есеп ПТШ деректері негізінде автоматты түрде жасалады. Тұрғындардың жеке деректері мен пәтер нөмірлері қорғалған және көпшілік есепте көрсетілмейді."
+    "transparencySafeNotice": "Есеп ПТШ деректері негізінде автоматты түрде жасалады. Тұрғындардың жеке деректері мен пәтер нөмірлері қорғалған және көпшілік есепте көрсетілмейді.",
+    "receiptDownload": "Түбіртек",
+    "chargesGroupTitle": "Кезеңдер бойынша есептеулер",
+    "shareReceipt": "Түбіртекпен бөлісу",
+    "receiptOfflineNotice": "Түбіртек әр есептік айдың басында автоматты түрде жасалады",
+    "shareOfAccruals": "есептеулердің {{percent}}%",
+    "shareOfExpenses": "барлық шығындардың {{percent}}%"
   },
   "meters": {
     "title": "Есептегіштер көрсеткіші",
@@ -524,7 +531,11 @@
     "historyTitle": "Көрсеткіштер тарихы",
     "periodFormat": "{{month}}.{{year}}",
     "unitElectricity": "кВт⋅сағ",
-    "unitWater": "м³"
+    "unitWater": "м³",
+    "consumptionLabel": "Кезеңдегі шығын",
+    "historyHide": "Тарихты жасыру",
+    "historyShow": "Көрсеткіштер тарихы",
+    "previousVerified": "Алдыңғы: {{value}}"
   },
   "bookings": {
     "title": "Ортақ кеңістіктер",
@@ -564,7 +575,11 @@
     "waitlistLeaveBtn": "Кезектен шығу",
     "waitlistLeaveConfirm": "Бұл уақыт үшін күту парағынан шыққыңыз келетініне сенімдісіз бе?",
     "waitlistLeaveSuccess": "Сіз күту парағынан шықтыңыз",
-    "waitlistSlotLabel": "Слот кезегінде"
+    "waitlistSlotLabel": "Слот кезегінде",
+    "selectSlot": "Уақытты таңдаңыз",
+    "conflictNotice": "Таңдалған аралық бос емес уақытпен сәйкес келеді",
+    "availableToday": "Күні бойы бос",
+    "timeMustBeFuture": "Басталу уақыты болашақта болуы керек"
   },
   "sos": {
     "buttonTitle": "ШҰҒЫЛ ШАҚЫРУ (SOS)",
@@ -633,7 +648,10 @@
     "descValidation": "Сипаттамасын көрсетіңіз (кемінде 5 таңба)",
     "priceValidation": "Дұрыс баға сомасын көрсетіңіз",
     "createSuccessMessage": "Хабарландыру ТК тақтасында сәтті жарияланды",
-    "publishAction": "Хабарландыруды жариялау"
+    "publishAction": "Хабарландыруды жариялау",
+    "searchPlaceholder": "Хабарландырулар бойынша іздеу...",
+    "noSearchResultsTitle": "Ештеңе табылмады",
+    "noSearchResultsSub": "Іздеу сұрауын немесе санат сүзгісін өзгертіп көріңіз"
   },
   "chat": {
     "screenTitle": "Диспетчермен чат",

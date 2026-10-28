@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,30 +6,37 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
-  Modal,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
+  ChevronLeft,
   Calendar,
   Clock,
+  Layers,
+  AlertCircle,
   CheckCircle2,
   XCircle,
-  AlertCircle,
-  X,
-  Plus,
-  Layers,
 } from 'lucide-react-native';
-import { Colors } from '../../constants/colors';
-import { useAuth } from '../../context/AuthContext';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
+import { useTheme } from '../../theme/ThemeContext';
+import * as Haptics from 'expo-haptics';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Button,
+  SegmentedControl,
+  BottomSheet,
+  Input,
+  SkeletonList,
+  EmptyState,
+  ErrorState,
+  AnimatedEntrance,
+} from '../../components/ui';
 import {
   BookingsApi,
   BookableResource,
@@ -38,10 +45,13 @@ import {
   WaitlistEntry,
 } from '../../api/bookings';
 import { getApiErrorMessage } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 export const BookingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -54,6 +64,7 @@ export const BookingsScreen: React.FC = () => {
   const [myWaitlist, setMyWaitlist] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Booking modal state
   const [selectedResource, setSelectedResource] = useState<BookableResource | null>(null);
@@ -70,23 +81,24 @@ export const BookingsScreen: React.FC = () => {
       setLoading(false);
       return;
     }
-    setLoading(true);
     try {
+      setError(null);
       const [resData, myData, waitlistData] = await Promise.all([
         BookingsApi.getResources(tenantId),
         BookingsApi.getMyBookings(),
         BookingsApi.getMyWaitlist(),
       ]);
-      setResources(resData);
-      setMyBookings(myData);
-      setMyWaitlist(waitlistData);
-    } catch (err) {
+      setResources(resData || []);
+      setMyBookings(myData || []);
+      setMyWaitlist(waitlistData || []);
+    } catch (err: any) {
       console.warn('Failed to load bookings data:', err);
+      setError(err?.response?.data?.message || err.message || t('common.error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantId]);
+  }, [tenantId, t]);
 
   useEffect(() => {
     fetchData();
@@ -94,6 +106,7 @@ export const BookingsScreen: React.FC = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     fetchData();
   };
 
@@ -111,7 +124,7 @@ export const BookingsScreen: React.FC = () => {
         startOfDay.toISOString(),
         endOfDay.toISOString(),
       );
-      setBusySlots(slots);
+      setBusySlots(slots || []);
     } catch (err) {
       console.warn('Failed to load availability:', err);
     } finally {
@@ -124,12 +137,14 @@ export const BookingsScreen: React.FC = () => {
       Alert.alert(t('common.error'), t('bookings.unverifiedNotice'));
       return;
     }
+    safeHaptic.selection();
     const today = new Date();
     setSelectedResource(resource);
     setSelectedDate(today);
-    setTimeStart(resource.operatingHoursStart || '10:00');
-    // Calculate default end time: start + 2 hours
-    const startHour = parseInt((resource.operatingHoursStart || '10:00').split(':')[0], 10);
+
+    const startStr = resource.operatingHoursStart || '10:00';
+    setTimeStart(startStr);
+    const startHour = parseInt(startStr.split(':')[0], 10) || 10;
     const endHour = Math.min(startHour + 2, 22);
     setTimeEnd(`${String(endHour).padStart(2, '0')}:00`);
     setNote('');
@@ -137,6 +152,7 @@ export const BookingsScreen: React.FC = () => {
   };
 
   const handleDateSelect = (date: Date) => {
+    safeHaptic.selection();
     setSelectedDate(date);
     if (selectedResource) {
       fetchAvailability(selectedResource.id, date);
@@ -161,7 +177,7 @@ export const BookingsScreen: React.FC = () => {
     endDate.setHours(endH, endM, 0, 0);
 
     if (startDate.getTime() <= Date.now()) {
-      Alert.alert(t('common.error'), t('bookings.timeStart') + ' (в будущем)');
+      Alert.alert(t('common.error'), t('bookings.timeMustBeFuture'));
       return;
     }
 
@@ -178,12 +194,14 @@ export const BookingsScreen: React.FC = () => {
         note: note.trim() || undefined,
       });
 
+      safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
       setSelectedResource(null);
       Alert.alert(t('common.success'), t('bookings.bookingSuccess'));
       setActiveTab('MY');
       fetchData();
     } catch (err: any) {
       if (err?.response?.data?.code === 'BOOKINGS.SLOT_CONFLICT') {
+        safeHaptic.notification(Haptics.NotificationFeedbackType.Warning);
         Alert.alert(
           t('bookings.slotFullTitle'),
           t('bookings.waitlistJoinPrompt'),
@@ -198,6 +216,7 @@ export const BookingsScreen: React.FC = () => {
                     startTime: startDate.toISOString(),
                     endTime: endDate.toISOString(),
                   });
+                  safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
                   setSelectedResource(null);
                   Alert.alert(t('common.success'), t('bookings.waitlistJoinSuccess'));
                   setActiveTab('WAITLIST');
@@ -212,6 +231,7 @@ export const BookingsScreen: React.FC = () => {
           ],
         );
       } else {
+        safeHaptic.notification(Haptics.NotificationFeedbackType.Error);
         Alert.alert(t('common.error'), getApiErrorMessage(err));
       }
     } finally {
@@ -220,46 +240,64 @@ export const BookingsScreen: React.FC = () => {
   };
 
   const handleLeaveWaitlist = (id: string) => {
+    safeHaptic.selection();
+    const doLeave = async () => {
+      try {
+        await BookingsApi.leaveWaitlist(id);
+        safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(t('common.success'), t('bookings.waitlistLeaveSuccess'));
+        fetchData();
+      } catch (err: any) {
+        Alert.alert(t('common.error'), getApiErrorMessage(err));
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      doLeave();
+      return;
+    }
+
     Alert.alert(
       t('bookings.waitlistLeaveBtn'),
       t('bookings.waitlistLeaveConfirm'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: t('common.confirm'),
+          text: t('common.confirm', 'Подтвердить'),
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await BookingsApi.leaveWaitlist(id);
-              Alert.alert(t('common.success'), t('bookings.waitlistLeaveSuccess'));
-              fetchData();
-            } catch (err: any) {
-              Alert.alert(t('common.error'), getApiErrorMessage(err));
-            }
-          },
+          onPress: doLeave,
         },
       ],
     );
   };
 
   const handleCancelBooking = (bookingId: string) => {
+    safeHaptic.selection();
+    const doCancel = async () => {
+      try {
+        await BookingsApi.cancelBooking(bookingId);
+        safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(t('common.success'), t('bookings.cancelSuccess'));
+        fetchData();
+      } catch (err: any) {
+        Alert.alert(t('common.error'), getApiErrorMessage(err));
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      doCancel();
+      return;
+    }
+
     Alert.alert(
       t('bookings.cancelBookingBtn'),
-      t('bookings.cancelSuccess') + '?',
+      `${t('bookings.cancelSuccess')}?`,
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: t('common.confirm'),
+          text: t('common.confirm', 'Подтвердить'),
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await BookingsApi.cancelBooking(bookingId);
-              Alert.alert(t('common.success'), t('bookings.cancelSuccess'));
-              fetchData();
-            } catch (err: any) {
-              Alert.alert(t('common.error'), getApiErrorMessage(err));
-            }
-          },
+          onPress: doCancel,
         },
       ],
     );
@@ -295,389 +333,507 @@ export const BookingsScreen: React.FC = () => {
   };
 
   // Next 7 days generator
-  const days = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    return d;
-  });
-
-  if (loading) {
-    return <LoadingState message={t('common.loading')} />;
-  }
+  const days = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Top Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 4,
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
           style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.goBack();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Назад')}
         >
-          <ArrowLeft color={Colors.text} size={24} />
+          <ChevronLeft color={theme.colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('bookings.title')}</Text>
-        <View style={{ width: 24 }} />
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {t('bookings.title')}
+        </Text>
+        <View style={styles.headerRightPlaceholder} />
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'SPACES' && styles.activeTab]}
-          onPress={() => setActiveTab('SPACES')}
-        >
-          <Text style={[styles.tabText, activeTab === 'SPACES' && styles.activeTabText]}>
-            {t('bookings.tabSpaces')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'MY' && styles.activeTab]}
-          onPress={() => setActiveTab('MY')}
-        >
-          <Text style={[styles.tabText, activeTab === 'MY' && styles.activeTabText]}>
-            {t('bookings.tabMy')} ({myBookings.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'WAITLIST' && styles.activeTab]}
-          onPress={() => setActiveTab('WAITLIST')}
-        >
-          <View style={styles.tabContentRow}>
-            <Layers
-              size={15}
-              color={activeTab === 'WAITLIST' ? Colors.primary : Colors.textMuted}
-            />
-            <Text style={[styles.tabText, activeTab === 'WAITLIST' && styles.activeTabText]}>
-              {t('bookings.tabWaitlist')} ({myWaitlist.length})
-            </Text>
-          </View>
-        </TouchableOpacity>
+      <View style={styles.tabsWrapper}>
+        <SegmentedControl
+          options={[
+            { value: 'SPACES', label: t('bookings.tabSpaces') },
+            { value: 'MY', label: `${t('bookings.tabMy')} (${myBookings.length})` },
+            {
+              value: 'WAITLIST',
+              label: `${t('bookings.tabWaitlist')} (${myWaitlist.length})`,
+              icon: <Layers size={14} color={theme.colors.textMuted} />,
+            },
+          ]}
+          value={activeTab}
+          onChange={(v) => {
+            safeHaptic.selection();
+            setActiveTab(v as 'SPACES' | 'MY' | 'WAITLIST');
+          }}
+        />
       </View>
 
+      {/* Unverified resident warning banner */}
+      {!isVerified && (
+        <View
+          style={[
+            styles.unverifiedBanner,
+            {
+              backgroundColor: theme.colors.warningBg,
+              borderColor: theme.colors.warningBorder,
+            },
+          ]}
+        >
+          <AlertCircle color={theme.colors.warning} size={18} />
+          <Text style={[styles.unverifiedText, { color: theme.colors.text }]}>
+            {t('bookings.unverifiedNotice')}
+          </Text>
+        </View>
+      )}
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: Math.max(insets.bottom, 24) + 32 }]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
         }
       >
-        {activeTab === 'SPACES' ? (
-          resources.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Text style={styles.emptyText}>{t('bookings.emptySpaces')}</Text>
-            </Card>
-          ) : (
-            resources.map((res) => (
-              <Card key={res.id} style={styles.resourceCard}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardTitleContainer}>
-                    <Text style={styles.resourceName}>{res.name}</Text>
-                    <Badge label={getTypeLabel(res.type)} variant="info" />
-                  </View>
-                </View>
+        {loading ? (
+          <View style={styles.skeletonWrap}>
+            <SkeletonList count={3} />
+          </View>
+        ) : error ? (
+          <ErrorState message={error} onRetry={fetchData} />
+        ) : (
+          <AnimatedEntrance>
+            {activeTab === 'SPACES' ? (
+              resources.length === 0 ? (
+                <EmptyState
+                  title={t('bookings.emptySpaces')}
+                  description={t('bookings.unverifiedNotice')}
+                />
+              ) : (
+                resources.map((res) => (
+                  <Card
+                    key={res.id}
+                    style={[
+                      styles.resourceCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardTitleWrap}>
+                        <Text style={[styles.resourceName, { color: theme.colors.text }]}>
+                          {res.name}
+                        </Text>
+                        <Badge label={getTypeLabel(res.type)} variant="info" size="sm" />
+                      </View>
+                    </View>
 
-                {res.description && (
-                  <Text style={styles.resourceDescription}>{res.description}</Text>
-                )}
-
-                <View style={styles.metaRow}>
-                  {res.operatingHoursStart && res.operatingHoursEnd && (
-                    <View style={styles.metaItem}>
-                      <Clock size={14} color={Colors.textMuted} />
-                      <Text style={styles.metaText}>
-                        {t('bookings.operatingHours', {
-                          start: res.operatingHoursStart,
-                          end: res.operatingHoursEnd,
-                        })}
+                    {Boolean(res.description) && (
+                      <Text style={[styles.resourceDescription, { color: theme.colors.textMuted }]}>
+                        {res.description}
                       </Text>
+                    )}
+
+                    <View style={styles.metaRow}>
+                      {res.operatingHoursStart && res.operatingHoursEnd && (
+                        <View style={styles.metaItem}>
+                          <Clock size={14} color={theme.colors.textMuted} />
+                          <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>
+                            {t('bookings.operatingHours', {
+                              start: res.operatingHoursStart,
+                              end: res.operatingHoursEnd,
+                            })}
+                          </Text>
+                        </View>
+                      )}
+                      {res.maxDurationMinutes && (
+                        <View style={styles.metaItem}>
+                          <Calendar size={14} color={theme.colors.textMuted} />
+                          <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>
+                            {t('bookings.maxDuration', { minutes: res.maxDurationMinutes })}
+                          </Text>
+                        </View>
+                      )}
                     </View>
-                  )}
-                  {res.maxDurationMinutes && (
-                    <View style={styles.metaItem}>
-                      <Calendar size={14} color={Colors.textMuted} />
-                      <Text style={styles.metaText}>
-                        {t('bookings.maxDuration', { minutes: res.maxDurationMinutes })}
-                      </Text>
-                    </View>
-                  )}
-                </View>
 
-                <View style={styles.cardFooter}>
-                  <Button
-                    title={t('bookings.bookBtn')}
-                    onPress={() => handleOpenBookingModal(res)}
-                    size="sm"
-                  />
-                </View>
-              </Card>
-            ))
-          )
-        ) : activeTab === 'MY' ? (
-          myBookings.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Text style={styles.emptyText}>{t('bookings.emptyMy')}</Text>
-            </Card>
-          ) : (
-            myBookings.map((b) => {
-              const isFuture = new Date(b.startTime).getTime() > Date.now();
-              const isConfirmed = b.status === 'CONFIRMED';
-
-              return (
-                <Card key={b.id} style={styles.bookingCard}>
-                  <View style={styles.cardHeader}>
-                    <View>
-                      <Text style={styles.resourceName}>{b.resource?.name || '—'}</Text>
-                      <Text style={styles.bookingDate}>{formatDateLabel(b.startTime)}</Text>
-                    </View>
-                    <Badge
-                      label={isConfirmed ? t('bookings.statusConfirmed') : t('bookings.statusCancelled')}
-                      variant={isConfirmed ? 'success' : 'default'}
-                    />
-                  </View>
-
-                  <View style={styles.metaItem}>
-                    <Clock size={14} color={Colors.textMuted} />
-                    <Text style={styles.metaText}>
-                      {formatSlotTime(b.startTime)} — {formatSlotTime(b.endTime)}
-                    </Text>
-                  </View>
-
-                  {b.note && <Text style={styles.bookingNote}>«{b.note}»</Text>}
-
-                  {isConfirmed && isFuture && (
-                    <View style={styles.cancelBtnWrapper}>
+                    <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
                       <Button
-                        title={t('bookings.cancelBookingBtn')}
-                        variant="outline"
+                        title={t('bookings.bookBtn')}
+                        onPress={() => handleOpenBookingModal(res)}
+                        variant="primary"
                         size="sm"
-                        onPress={() => handleCancelBooking(b.id)}
                       />
                     </View>
-                  )}
-                </Card>
-              );
-            })
-          )
-        ) : (
-          myWaitlist.length === 0 ? (
-            <Card style={styles.emptyCard}>
-              <Text style={styles.emptyText}>{t('bookings.emptyWaitlist')}</Text>
-            </Card>
-          ) : (
-            myWaitlist.map((entry) => (
-              <Card key={entry.id} style={styles.bookingCard}>
-                <View style={styles.cardHeader}>
-                  <View>
-                    <Text style={styles.resourceName}>{entry.resource?.name || '—'}</Text>
-                    <Text style={styles.bookingDate}>{formatDateLabel(entry.startTime)}</Text>
-                  </View>
-                  <Badge
-                    label={t('bookings.tabWaitlist')}
-                    variant="warning"
-                  />
-                </View>
+                  </Card>
+                ))
+              )
+            ) : activeTab === 'MY' ? (
+              myBookings.length === 0 ? (
+                <EmptyState
+                  title={t('bookings.emptyMy')}
+                  description={t('bookings.tabSpaces')}
+                  actionTitle={t('bookings.tabSpaces')}
+                  onActionPress={() => setActiveTab('SPACES')}
+                />
+              ) : (
+                myBookings.map((b) => {
+                  const isFuture = new Date(b.startTime).getTime() > Date.now();
+                  const isConfirmed = b.status === 'CONFIRMED';
 
-                <View style={styles.metaItem}>
-                  <Clock size={14} color={Colors.textMuted} />
-                  <Text style={styles.metaText}>
-                    {formatSlotTime(entry.startTime)} — {formatSlotTime(entry.endTime)}
-                  </Text>
-                </View>
+                  return (
+                    <Card
+                      key={b.id}
+                      style={[
+                        styles.bookingCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.cardHeader}>
+                        <View style={styles.cardTitleWrap}>
+                          <Text style={[styles.resourceName, { color: theme.colors.text }]}>
+                            {b.resource?.name || '—'}
+                          </Text>
+                          <Text style={[styles.bookingDate, { color: theme.colors.textMuted }]}>
+                            {formatDateLabel(b.startTime)}
+                          </Text>
+                        </View>
+                        <Badge
+                          label={
+                            isConfirmed
+                              ? t('bookings.statusConfirmed')
+                              : t('bookings.statusCancelled')
+                          }
+                          variant={isConfirmed ? 'success' : 'neutral'}
+                          size="sm"
+                        />
+                      </View>
 
-                <View style={styles.cancelBtnWrapper}>
-                  <Button
-                    title={t('bookings.waitlistLeaveBtn')}
-                    variant="outline"
-                    size="sm"
-                    onPress={() => handleLeaveWaitlist(entry.id)}
-                  />
-                </View>
-              </Card>
-            ))
-          )
+                      <View style={styles.metaItem}>
+                        <Clock size={14} color={theme.colors.textMuted} />
+                        <Text style={[styles.metaText, { color: theme.colors.text }]}>
+                          {formatSlotTime(b.startTime)} — {formatSlotTime(b.endTime)}
+                        </Text>
+                      </View>
+
+                      {Boolean(b.note) && (
+                        <Text style={[styles.bookingNote, { color: theme.colors.textMuted }]}>
+                          «{b.note}»
+                        </Text>
+                      )}
+
+                      {isConfirmed && isFuture && (
+                        <View style={[styles.cancelBtnWrapper, { borderTopColor: theme.colors.border }]}>
+                          <Button
+                            title={t('bookings.cancelBookingBtn')}
+                            variant="secondary"
+                            size="sm"
+                            onPress={() => handleCancelBooking(b.id)}
+                          />
+                        </View>
+                      )}
+                    </Card>
+                  );
+                })
+              )
+            ) : (
+              myWaitlist.length === 0 ? (
+                <EmptyState
+                  title={t('bookings.emptyWaitlist')}
+                  description={t('bookings.tabSpaces')}
+                />
+              ) : (
+                myWaitlist.map((entry) => (
+                  <Card
+                    key={entry.id}
+                    style={[
+                      styles.bookingCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardTitleWrap}>
+                        <Text style={[styles.resourceName, { color: theme.colors.text }]}>
+                          {entry.resource?.name || '—'}
+                        </Text>
+                        <Text style={[styles.bookingDate, { color: theme.colors.textMuted }]}>
+                          {formatDateLabel(entry.startTime)}
+                        </Text>
+                      </View>
+                      <Badge
+                        label={t('bookings.tabWaitlist')}
+                        variant="warning"
+                        size="sm"
+                      />
+                    </View>
+
+                    <View style={styles.metaItem}>
+                      <Clock size={14} color={theme.colors.textMuted} />
+                      <Text style={[styles.metaText, { color: theme.colors.text }]}>
+                        {formatSlotTime(entry.startTime)} — {formatSlotTime(entry.endTime)}
+                      </Text>
+                    </View>
+
+                    <View style={[styles.cancelBtnWrapper, { borderTopColor: theme.colors.border }]}>
+                      <Button
+                        title={t('bookings.waitlistLeaveBtn')}
+                        variant="secondary"
+                        size="sm"
+                        onPress={() => handleLeaveWaitlist(entry.id)}
+                      />
+                    </View>
+                  </Card>
+                ))
+              )
+            )}
+          </AnimatedEntrance>
         )}
       </ScrollView>
 
-      {/* Booking Modal */}
+      {/* Booking BottomSheet */}
       {selectedResource && (
-        <Modal
-          visible={!!selectedResource}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setSelectedResource(null)}
+        <BottomSheet
+          visible={Boolean(selectedResource)}
+          onClose={() => setSelectedResource(null)}
+          title={t('bookings.bookingModalTitle', { name: selectedResource.name })}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {t('bookings.bookingModalTitle', { name: selectedResource.name })}
+          <ScrollView
+            contentContainerStyle={styles.sheetScroll}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Date Picker (Horizontal 7 Days) */}
+            <Text style={[styles.sheetSectionLabel, { color: theme.colors.text }]}>
+              {t('bookings.selectDate')}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.daysScroll}
+            >
+              {days.map((d, index) => {
+                const isSelected =
+                  d.getDate() === selectedDate.getDate() &&
+                  d.getMonth() === selectedDate.getMonth();
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.dayItem,
+                      {
+                        backgroundColor: isSelected ? theme.colors.primary : theme.colors.surface,
+                        borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                      },
+                    ]}
+                    onPress={() => handleDateSelect(d)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={d.toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}
+                  >
+                    <Text
+                      style={[
+                        styles.dayWeekday,
+                        { color: isSelected ? theme.colors.onPrimary : theme.colors.textMuted },
+                      ]}
+                    >
+                      {d.toLocaleDateString(i18n.language, { weekday: 'short' })}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.dayNumber,
+                        { color: isSelected ? theme.colors.onPrimary : theme.colors.text },
+                      ]}
+                    >
+                      {d.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Busy Slots Indicator Box */}
+            <View
+              style={[
+                styles.busySlotsContainer,
+                {
+                  backgroundColor: theme.colors.surfaceSubtle,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.busySlotsHeading, { color: theme.colors.textMuted }]}>
+                {t('bookings.busySlotsTitle')}
+              </Text>
+              {loadingSlots ? (
+                <Text style={[styles.metaText, { color: theme.colors.textMuted }]}>
+                  {t('common.loading')}
                 </Text>
-                <TouchableOpacity onPress={() => setSelectedResource(null)}>
-                  <X color={Colors.text} size={22} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={styles.modalScroll}>
-                {/* Date Picker (Horizontal Days) */}
-                <Text style={styles.inputLabel}>{t('bookings.selectDate')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.daysScroll}>
-                  {days.map((d, index) => {
-                    const isSelected =
-                      d.getDate() === selectedDate.getDate() &&
-                      d.getMonth() === selectedDate.getMonth();
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        style={[styles.dayItem, isSelected && styles.dayItemSelected]}
-                        onPress={() => handleDateSelect(d)}
-                      >
-                        <Text style={[styles.dayWeekday, isSelected && styles.dayTextSelected]}>
-                          {d.toLocaleDateString(i18n.language, { weekday: 'short' })}
-                        </Text>
-                        <Text style={[styles.dayNumber, isSelected && styles.dayTextSelected]}>
-                          {d.getDate()}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-
-                {/* Busy Slots Indicator */}
-                <View style={styles.busySlotsContainer}>
-                  <Text style={styles.busySlotsHeading}>{t('bookings.busySlotsTitle')}</Text>
-                  {loadingSlots ? (
-                    <Text style={styles.metaText}>{t('common.loading')}</Text>
-                  ) : busySlots.length === 0 ? (
-                    <Text style={styles.noBusyText}>{t('bookings.noBusySlots')}</Text>
-                  ) : (
-                    <View style={styles.slotsRow}>
-                      {busySlots.map((s, idx) => (
-                        <View key={idx} style={styles.busySlotChip}>
-                          <Text style={styles.busySlotText}>
-                            {formatSlotTime(s.startTime)} - {formatSlotTime(s.endTime)}
-                          </Text>
-                        </View>
-                      ))}
+              ) : busySlots.length === 0 ? (
+                <View style={styles.availableRow}>
+                  <CheckCircle2 color={theme.colors.success} size={15} />
+                  <Text style={[styles.noBusyText, { color: theme.colors.success }]}>
+                    {t('bookings.availableToday')}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.slotsRow}>
+                  {busySlots.map((s, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.busySlotChip,
+                        {
+                          backgroundColor: theme.colors.dangerBg,
+                          borderColor: theme.colors.dangerBorder,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.busySlotText, { color: theme.colors.danger }]}>
+                        {formatSlotTime(s.startTime)} - {formatSlotTime(s.endTime)}
+                      </Text>
                     </View>
-                  )}
+                  ))}
                 </View>
+              )}
+            </View>
 
-                {/* Time inputs */}
-                <View style={styles.timeInputsRow}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={styles.inputLabel}>{t('bookings.timeStart')}</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={timeStart}
-                      onChangeText={setTimeStart}
-                      placeholder="10:00"
-                    />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 8 }}>
-                    <Text style={styles.inputLabel}>{t('bookings.timeEnd')}</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={timeEnd}
-                      onChangeText={setTimeEnd}
-                      placeholder="12:00"
-                    />
-                  </View>
-                </View>
-
-                {/* Note */}
-                <Text style={styles.inputLabel}>{t('bookings.noteLabel')}</Text>
-                <TextInput
-                  style={[styles.textInput, { height: 60 }]}
-                  value={note}
-                  onChangeText={setNote}
-                  placeholder={t('bookings.notePlaceholder')}
-                  multiline
+            {/* Time inputs */}
+            <View style={styles.timeInputsRow}>
+              <View style={styles.timeInputWrap}>
+                <Input
+                  label={t('bookings.timeStart')}
+                  value={timeStart}
+                  onChangeText={setTimeStart}
+                  placeholder="10:00"
                 />
-              </ScrollView>
-
-              <View style={styles.modalFooter}>
-                <Button
-                  title={t('bookings.confirmBookingBtn')}
-                  onPress={handleConfirmBooking}
-                  loading={submitting}
+              </View>
+              <View style={styles.timeInputWrap}>
+                <Input
+                  label={t('bookings.timeEnd')}
+                  value={timeEnd}
+                  onChangeText={setTimeEnd}
+                  placeholder="12:00"
                 />
               </View>
             </View>
-          </View>
-        </Modal>
+
+            {/* Note input */}
+            <Input
+              label={t('bookings.noteLabel')}
+              value={note}
+              onChangeText={setNote}
+              placeholder={t('bookings.notePlaceholder')}
+            />
+
+            {/* Confirm booking button */}
+            <Button
+              title={t('bookings.confirmBookingBtn')}
+              onPress={handleConfirmBooking}
+              loading={submitting}
+              size="lg"
+              style={styles.sheetSubmitBtn}
+            />
+          </ScrollView>
+        </BottomSheet>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.surface,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   backButton: {
-    padding: 4,
+    padding: 6,
+    marginLeft: -4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    letterSpacing: -0.2,
   },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
+  headerRightPlaceholder: {
+    width: 44,
+  },
+  tabsWrapper: {
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  tab: {
-    flex: 1,
     paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
   },
-  activeTab: {
-    borderBottomColor: Colors.primary,
-  },
-  tabContentRow: {
+  unverifiedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.textMuted,
+  unverifiedText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
   },
-  activeTabText: {
-    color: Colors.primary,
-    fontWeight: '700',
+  scrollArea: {
+    flex: 1,
   },
-  scrollContent: {
+  contentContainer: {
     padding: 16,
+    gap: 12,
   },
-  emptyCard: {
-    padding: 24,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.textMuted,
+  skeletonWrap: {
+    paddingTop: 12,
   },
   resourceCard: {
-    marginBottom: 12,
+    borderRadius: 18,
     padding: 16,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -685,148 +841,115 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 8,
   },
-  cardTitleContainer: {
+  cardTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+    flex: 1,
+    marginRight: 8,
   },
   resourceName: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.text,
   },
   resourceDescription: {
     fontSize: 13,
-    color: Colors.textMuted,
     marginBottom: 10,
     lineHeight: 18,
   },
   metaRow: {
     flexDirection: 'row',
-    gap: 16,
+    flexWrap: 'wrap',
+    gap: 14,
     marginBottom: 12,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     marginTop: 4,
   },
   metaText: {
     fontSize: 12,
-    color: Colors.textMuted,
   },
   cardFooter: {
     alignItems: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
     paddingTop: 10,
+    marginTop: 4,
   },
   bookingCard: {
-    marginBottom: 12,
+    borderRadius: 18,
     padding: 16,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   bookingDate: {
     fontSize: 13,
-    color: Colors.textMuted,
     marginTop: 2,
   },
   bookingNote: {
     fontSize: 12,
-    color: Colors.text,
     fontStyle: 'italic',
     marginTop: 6,
   },
   cancelBtnWrapper: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
     paddingTop: 10,
     alignItems: 'flex-end',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+  sheetScroll: {
+    paddingBottom: 24,
   },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '85%',
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 16,
+  sheetSectionLabel: {
+    fontSize: 13,
     fontWeight: '700',
-    color: Colors.text,
-    flex: 1,
-    marginRight: 10,
-  },
-  modalScroll: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 6,
-    marginTop: 10,
+    marginBottom: 8,
   },
   daysScroll: {
-    flexDirection: 'row',
-    marginBottom: 12,
+    gap: 8,
+    paddingBottom: 8,
   },
   dayItem: {
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: 'center',
-    marginRight: 8,
-    backgroundColor: Colors.surface,
-  },
-  dayItemSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    minWidth: 54,
+    minHeight: 56,
   },
   dayWeekday: {
     fontSize: 11,
-    color: Colors.textMuted,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   dayNumber: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: Colors.text,
     marginTop: 2,
   },
-  dayTextSelected: {
-    color: Colors.surface,
-  },
   busySlotsContainer: {
-    backgroundColor: Colors.background,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
     padding: 12,
-    marginVertical: 8,
+    marginVertical: 12,
   },
   busySlotsHeading: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.text,
     marginBottom: 6,
   },
+  availableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   noBusyText: {
-    fontSize: 12,
-    color: Colors.success,
+    fontSize: 13,
+    fontWeight: '600',
   },
   slotsRow: {
     flexDirection: 'row',
@@ -834,29 +957,24 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   busySlotChip: {
-    backgroundColor: '#FEE2E2',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   busySlotText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#B91C1C',
+    fontFamily: 'monospace',
   },
   timeInputsRow: {
     flexDirection: 'row',
+    gap: 12,
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: Colors.text,
+  timeInputWrap: {
+    flex: 1,
   },
-  modalFooter: {
-    paddingTop: 8,
+  sheetSubmitBtn: {
+    marginTop: 8,
   },
 });

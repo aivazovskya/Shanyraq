@@ -1,11 +1,13 @@
-﻿import { apiClient } from './client';
+import { apiClient } from './client';
 
 export type VoteChoice = 'FOR' | 'AGAINST' | 'ABSTAIN';
 
 export interface AgendaItem {
   id: string;
-  orderNum: number;
-  title: string;
+  orderNum?: number;
+  orderIndex?: number;
+  title?: string;
+  question?: string;
   description?: string;
   decisionType: 'SIMPLE_MAJORITY' | 'QUALIFIED_MAJORITY';
   votesSummary?: {
@@ -18,9 +20,11 @@ export interface AgendaItem {
   };
   myVote?: {
     choice: VoteChoice;
-    votedAt: string;
+    votedAt?: string;
+    createdAt?: string;
     areaWeight: number;
-    signatureHash: string;
+    signatureHash?: string;
+    voteHash?: string;
   } | null;
 }
 
@@ -60,7 +64,7 @@ export const VotingsApi = {
     return res.data;
   },
 
-  async castVote(dto: CastVoteDto): Promise<{ success: boolean; signatureHash: string; message: string }> {
+  async castVote(dto: CastVoteDto): Promise<{ success: boolean; signatureHash?: string; voteHash?: string; message?: string }> {
     const res = await apiClient.post('/votings/vote', dto);
     return res.data;
   },

@@ -310,7 +310,8 @@
     "voteSuccessTitle": "Голос юридически зафиксирован!",
     "voteSuccessMsg": "Ваш голос успешно подписан цифровой подписью.\nХэш подписи: {{hash}}...",
     "devSmsTitle": "SMS-код подтверждения голоса",
-    "devSmsBody": "Код: {{code}}"
+    "devSmsBody": "Код: {{code}}",
+    "digitalSignatureNotice": "Голос заверяется одноразовым SMS-кодом в соответствии с Законом РК «О жилищных отношениях»"
   },
   "requests": {
     "serviceDesk": "Заявки и услуги",
@@ -487,7 +488,13 @@
     "transparencyByCategorySub": "Фактические траты ОСИ/УК за месяц",
     "transparencyNoExpenses": "Расходов в этом месяце не зарегистрировано",
     "transparencySafeTitle": "Прозрачность и защита данных",
-    "transparencySafeNotice": "Отчет формируется автоматически на основе данных ОСИ. Персональные данные жителей и номера квартир защищены и не отображаются в публичном отчете."
+    "transparencySafeNotice": "Отчет формируется автоматически на основе данных ОСИ. Персональные данные жителей и номера квартир защищены и не отображаются в публичном отчете.",
+    "receiptDownload": "Квитанция",
+    "chargesGroupTitle": "Начисления по периодам",
+    "shareReceipt": "Поделиться квитанцией",
+    "receiptOfflineNotice": "Квитанция формируется автоматически в начале каждого расчетного месяца",
+    "shareOfAccruals": "{{percent}}% от начислений",
+    "shareOfExpenses": "{{percent}}% от всех расходов"
   },
   "meters": {
     "title": "Показания счётчиков",
@@ -524,7 +531,11 @@
     "historyTitle": "История показаний",
     "periodFormat": "{{month}}.{{year}}",
     "unitElectricity": "кВт⋅ч",
-    "unitWater": "м³"
+    "unitWater": "м³",
+    "consumptionLabel": "Расход за период",
+    "historyHide": "Скрыть историю",
+    "historyShow": "История показаний",
+    "previousVerified": "Предыдущее: {{value}}"
   },
   "bookings": {
     "title": "Общие пространства",
@@ -564,7 +575,11 @@
     "waitlistLeaveBtn": "Покинуть очередь",
     "waitlistLeaveConfirm": "Вы уверены, что хотите покинуть лист ожидания для этого слота?",
     "waitlistLeaveSuccess": "Вы покинули лист ожидания",
-    "waitlistSlotLabel": "В очереди на слот"
+    "waitlistSlotLabel": "В очереди на слот",
+    "selectSlot": "Выберите время",
+    "conflictNotice": "Выбранный интервал пересекается с занятым слотом",
+    "availableToday": "Свободно на весь день",
+    "timeMustBeFuture": "Время начала должно быть в будущем"
   },
   "sos": {
     "buttonTitle": "ЭКСТРЕННЫЙ ВЫЗОВ (SOS)",
@@ -633,7 +648,10 @@
     "descValidation": "Укажите описание (не менее 5 символов)",
     "priceValidation": "Укажите корректную сумму цены",
     "createSuccessMessage": "Объявление успешно опубликовано на доске ЖК",
-    "publishAction": "Опубликовать объявление"
+    "publishAction": "Опубликовать объявление",
+    "searchPlaceholder": "Поиск по объявлениям...",
+    "noSearchResultsTitle": "Ничего не найдено",
+    "noSearchResultsSub": "Попробуйте изменить поисковый запрос или фильтр категории"
   },
   "chat": {
     "screenTitle": "Чат с диспетчером",

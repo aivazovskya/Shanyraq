@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,32 +6,41 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
-  Alert,
   Linking,
   Image,
+  Alert,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
+  ChevronLeft,
   ShoppingBag,
   Plus,
   Phone,
   Clock,
-  CheckCircle2,
-  XCircle,
   AlertCircle,
   Tag,
   User as UserIcon,
-  Image as ImageIcon,
+  Search,
+  X,
+  XCircle,
 } from 'lucide-react-native';
-import { Colors } from '../../constants/colors';
-import { useAuth } from '../../context/AuthContext';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
+import { useTheme } from '../../theme/ThemeContext';
+import * as Haptics from 'expo-haptics';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Button,
+  SegmentedControl,
+  SkeletonList,
+  EmptyState,
+  ErrorState,
+  AnimatedEntrance,
+} from '../../components/ui';
 import {
   CommunityBoardApi,
   CommunityListing,
@@ -39,10 +48,13 @@ import {
   ListingStatus,
 } from '../../api/community-board';
 import { getApiErrorMessage } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 
 export const CommunityBoardScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -51,10 +63,12 @@ export const CommunityBoardScreen: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'FEED' | 'MY'>('FEED');
   const [selectedType, setSelectedType] = useState<ListingType | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
   const [feedListings, setFeedListings] = useState<CommunityListing[]>([]);
   const [myListings, setMyListings] = useState<CommunityListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -64,6 +78,7 @@ export const CommunityBoardScreen: React.FC = () => {
     }
 
     try {
+      setError(null);
       if (activeTab === 'FEED') {
         const typeParam = selectedType === 'ALL' ? undefined : selectedType;
         const data = await CommunityBoardApi.getListings(tenantId, typeParam);
@@ -74,11 +89,12 @@ export const CommunityBoardScreen: React.FC = () => {
       }
     } catch (e: any) {
       console.warn('Failed to load listings:', e);
+      setError(e?.response?.data?.message || e.message || t('common.error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantId, activeTab, selectedType]);
+  }, [tenantId, activeTab, selectedType, t]);
 
   useEffect(() => {
     setLoading(true);
@@ -87,10 +103,12 @@ export const CommunityBoardScreen: React.FC = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     loadData();
   };
 
   const handleCall = (phone?: string) => {
+    safeHaptic.selection();
     if (!phone) {
       Alert.alert(t('common.error'), t('communityBoard.phoneNotAvailable'));
       return;
@@ -99,6 +117,28 @@ export const CommunityBoardScreen: React.FC = () => {
   };
 
   const handleCloseListing = (item: CommunityListing) => {
+    safeHaptic.selection();
+    const doClose = async () => {
+      setActionInProgress(item.id);
+      try {
+        await CommunityBoardApi.updateListing(item.id, {
+          status: 'CLOSED',
+        });
+        safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(t('common.success'), t('communityBoard.closeSuccess'));
+        loadData();
+      } catch (e: any) {
+        Alert.alert(t('common.error'), getApiErrorMessage(e));
+      } finally {
+        setActionInProgress(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      doClose();
+      return;
+    }
+
     Alert.alert(
       t('communityBoard.closeConfirmTitle'),
       t('communityBoard.closeConfirmMessage', { title: item.title }),
@@ -107,20 +147,7 @@ export const CommunityBoardScreen: React.FC = () => {
         {
           text: t('communityBoard.closeAction'),
           style: 'destructive',
-          onPress: async () => {
-            setActionInProgress(item.id);
-            try {
-              await CommunityBoardApi.updateListing(item.id, {
-                status: 'CLOSED',
-              });
-              Alert.alert(t('common.success'), t('communityBoard.closeSuccess'));
-              loadData();
-            } catch (e: any) {
-              Alert.alert(t('common.error'), getApiErrorMessage(e));
-            } finally {
-              setActionInProgress(null);
-            }
-          },
+          onPress: doClose,
         },
       ],
     );
@@ -140,81 +167,198 @@ export const CommunityBoardScreen: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: ListingStatus) => {
-    switch (status) {
-      case 'ACTIVE':
-        return <Badge label={t('communityBoard.statusActive')} variant="success" />;
-      case 'CLOSED':
-        return <Badge label={t('communityBoard.statusClosed')} variant="default" />;
-      case 'REMOVED':
-        return <Badge label={t('communityBoard.statusRemoved')} variant="danger" />;
-      case 'ARCHIVED':
-        return <Badge label={t('communityBoard.statusArchived')} variant="info" />;
+  const getTypeBadgeVariant = (type: ListingType) => {
+    switch (type) {
+      case 'SELL':
+        return 'primary';
+      case 'RENT':
+        return 'info';
+      case 'GIVE_AWAY':
+        return 'success';
+      case 'OTHER':
+      default:
+        return 'neutral';
     }
   };
 
+  const getStatusBadge = (status: ListingStatus) => {
+    switch (status) {
+      case 'ACTIVE':
+        return <Badge label={t('communityBoard.statusActive')} variant="success" size="sm" />;
+      case 'CLOSED':
+        return <Badge label={t('communityBoard.statusClosed')} variant="neutral" size="sm" />;
+      case 'REMOVED':
+        return <Badge label={t('communityBoard.statusRemoved')} variant="danger" size="sm" />;
+      case 'ARCHIVED':
+        return <Badge label={t('communityBoard.statusArchived')} variant="info" size="sm" />;
+    }
+  };
+
+  // Filter listings by search query
+  const filteredFeedListings = useMemo(() => {
+    if (!searchQuery.trim()) return feedListings;
+    const query = searchQuery.toLowerCase().trim();
+    return feedListings.filter(
+      (item) =>
+        item.title.toLowerCase().includes(query) ||
+        item.description.toLowerCase().includes(query),
+    );
+  }, [feedListings, searchQuery]);
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ArrowLeft size={22} color={Colors.text} />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Top Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 4,
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.goBack();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Назад')}
+        >
+          <ChevronLeft color={theme.colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('communityBoard.screenTitle')}</Text>
-        {isVerified && (
-          <TouchableOpacity
-            style={styles.createBtn}
-            onPress={() => (navigation as any).navigate('CreateListing')}
-          >
-            <Plus size={18} color="#FFFFFF" />
-            <Text style={styles.createBtnText}>{t('communityBoard.postAction')}</Text>
-          </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {t('communityBoard.screenTitle')}
+        </Text>
+        {isVerified ? (
+          <Button
+            title={t('communityBoard.postAction')}
+            onPress={() => {
+              safeHaptic.selection();
+              navigation.navigate('CreateListing');
+            }}
+            variant="primary"
+            size="sm"
+            leftIcon={<Plus color={theme.colors.onPrimary} size={15} />}
+          />
+        ) : (
+          <View style={styles.headerRightPlaceholder} />
         )}
       </View>
 
-      {/* Verification Warning if unverified */}
+      {/* Unverified resident warning banner */}
       {!isVerified && (
-        <View style={styles.unverifiedBanner}>
-          <AlertCircle size={20} color={Colors.warning} />
-          <Text style={styles.unverifiedText}>
+        <View
+          style={[
+            styles.unverifiedBanner,
+            {
+              backgroundColor: theme.colors.warningBg,
+              borderColor: theme.colors.warningBorder,
+            },
+          ]}
+        >
+          <AlertCircle color={theme.colors.warning} size={18} />
+          <Text style={[styles.unverifiedText, { color: theme.colors.text }]}>
             {t('communityBoard.unverifiedResidentNotice')}
           </Text>
         </View>
       )}
 
-      {/* Tab Selector */}
+      {/* Tabs */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'FEED' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('FEED')}
-        >
-          <Text style={[styles.tabText, activeTab === 'FEED' && styles.tabTextActive]}>
-            {t('communityBoard.tabFeed')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'MY' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('MY')}
-        >
-          <Text style={[styles.tabText, activeTab === 'MY' && styles.tabTextActive]}>
-            {t('communityBoard.tabMyListings')}
-          </Text>
-        </TouchableOpacity>
+        <SegmentedControl
+          options={[
+            { value: 'FEED', label: t('communityBoard.tabFeed') },
+            {
+              value: 'MY',
+              label: `${t('communityBoard.tabMyListings')} (${myListings.length})`,
+            },
+          ]}
+          value={activeTab}
+          onChange={(v) => {
+            safeHaptic.selection();
+            setActiveTab(v as 'FEED' | 'MY');
+          }}
+        />
       </View>
 
-      {/* Categories Filter (Only on Feed tab) */}
+      {/* Search Input Bar (only on Feed tab) */}
+      {activeTab === 'FEED' && (
+        <View style={styles.searchBarWrapper}>
+          <View
+            style={[
+              styles.searchBar,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Search color={theme.colors.textMuted} size={18} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder={t('communityBoard.searchPlaceholder')}
+              placeholderTextColor={theme.colors.textLight}
+              accessibilityLabel={t('communityBoard.searchPlaceholder')}
+            />
+            {Boolean(searchQuery) && (
+              <TouchableOpacity
+                onPress={() => {
+                  safeHaptic.selection();
+                  setSearchQuery('');
+                }}
+                style={styles.searchClearBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.clear', 'Очистить')}
+              >
+                <X color={theme.colors.textMuted} size={16} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Category Filter Chips (only on Feed tab) */}
       {activeTab === 'FEED' && (
         <View style={styles.filterScrollView}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
             {(['ALL', 'SELL', 'RENT', 'GIVE_AWAY', 'OTHER'] as const).map((cat) => {
               const isActive = selectedType === cat;
               return (
                 <TouchableOpacity
                   key={cat}
-                  style={[styles.filterChip, isActive && styles.filterChipActive]}
-                  onPress={() => setSelectedType(cat)}
+                  style={[
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? theme.colors.primary : theme.colors.surface,
+                      borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    safeHaptic.selection();
+                    setSelectedType(cat);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                  accessibilityLabel={cat === 'ALL' ? t('communityBoard.filterAllTypes') : getTypeLabel(cat)}
                 >
-                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      {
+                        color: isActive ? theme.colors.onPrimary : theme.colors.textMuted,
+                        fontWeight: isActive ? '700' : '600',
+                      },
+                    ]}
+                  >
                     {cat === 'ALL' ? t('communityBoard.filterAllTypes') : getTypeLabel(cat)}
                   </Text>
                 </TouchableOpacity>
@@ -224,58 +368,213 @@ export const CommunityBoardScreen: React.FC = () => {
         </View>
       )}
 
-      {loading ? (
-        <LoadingState message={t('common.loading')} />
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.primary]}
-              tintColor={Colors.primary}
-            />
-          }
-        >
-          {activeTab === 'FEED' ? (
-            feedListings.length === 0 ? (
-              <Card style={styles.emptyCard}>
-                <ShoppingBag size={48} color={Colors.textMuted} style={styles.emptyIcon} />
-                <Text style={styles.emptyTitle}>{t('communityBoard.noListingsTitle')}</Text>
-                <Text style={styles.emptySub}>{t('communityBoard.noListingsSub')}</Text>
-              </Card>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: Math.max(insets.bottom, 24) + 32 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
+        {loading ? (
+          <View style={styles.skeletonWrap}>
+            <SkeletonList count={3} />
+          </View>
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadData} />
+        ) : (
+          <AnimatedEntrance>
+            {activeTab === 'FEED' ? (
+              filteredFeedListings.length === 0 ? (
+                <EmptyState
+                  title={
+                    searchQuery
+                      ? t('communityBoard.noSearchResultsTitle')
+                      : t('communityBoard.noListingsTitle')
+                  }
+                  description={
+                    searchQuery
+                      ? t('communityBoard.noSearchResultsSub')
+                      : t('communityBoard.noListingsSub')
+                  }
+                  actionTitle={isVerified ? t('communityBoard.postAction') : undefined}
+                  onActionPress={isVerified ? () => navigation.navigate('CreateListing') : undefined}
+                />
+              ) : (
+                filteredFeedListings.map((item) => {
+                  const authorName = item.author
+                    ? `${item.author.firstName} ${item.author.lastName}`.trim()
+                    : t('communityBoard.authorUnknown');
+                  const hasPhotos = item.photoUrls && item.photoUrls.length > 0;
+
+                  return (
+                    <Card
+                      key={item.id}
+                      style={[
+                        styles.listingCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      {/* Photo preview banner */}
+                      {hasPhotos ? (
+                        <Image
+                          source={{ uri: item.photoUrls[0] }}
+                          style={styles.cardImage}
+                          resizeMode="cover"
+                        />
+                      ) : null}
+
+                      <View style={styles.cardBody}>
+                        {/* Header Row: Category Badge + Date */}
+                        <View style={styles.cardHeaderRow}>
+                          <Badge
+                            label={getTypeLabel(item.type)}
+                            variant={getTypeBadgeVariant(item.type)}
+                            size="sm"
+                          />
+                          <View style={styles.dateMetaRow}>
+                            <Clock size={12} color={theme.colors.textMuted} />
+                            <Text style={[styles.cardDate, { color: theme.colors.textMuted }]}>
+                              {new Date(item.createdAt).toLocaleDateString(i18n.language)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Title */}
+                        <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                          {item.title}
+                        </Text>
+
+                        {/* Price */}
+                        <Text
+                          style={[
+                            styles.cardPrice,
+                            {
+                              color:
+                                item.type === 'GIVE_AWAY'
+                                  ? theme.colors.success
+                                  : theme.colors.primary,
+                            },
+                          ]}
+                        >
+                          {item.type === 'GIVE_AWAY'
+                            ? t('communityBoard.typeGiveAway')
+                            : item.price != null
+                            ? `${item.price.toLocaleString(i18n.language)} ₸`
+                            : t('communityBoard.priceNegotiable')}
+                        </Text>
+
+                        {/* Description */}
+                        <Text
+                          style={[styles.cardDesc, { color: theme.colors.textMuted }]}
+                          numberOfLines={3}
+                        >
+                          {item.description}
+                        </Text>
+
+                        {/* Author info & Call action */}
+                        <View
+                          style={[
+                            styles.authorRow,
+                            { borderTopColor: theme.colors.border },
+                          ]}
+                        >
+                          <View style={styles.authorInfo}>
+                            <View
+                              style={[
+                                styles.authorAvatar,
+                                { backgroundColor: theme.colors.surfaceSubtle },
+                              ]}
+                            >
+                              <UserIcon size={14} color={theme.colors.textMuted} />
+                            </View>
+                            <Text
+                              style={[styles.authorName, { color: theme.colors.text }]}
+                              numberOfLines={1}
+                            >
+                              {authorName}
+                            </Text>
+                          </View>
+
+                          {item.author?.phone ? (
+                            <TouchableOpacity
+                              style={[
+                                styles.callButton,
+                                {
+                                  backgroundColor: theme.colors.primaryBg,
+                                  borderColor: theme.colors.primary,
+                                },
+                              ]}
+                              onPress={() => handleCall(item.author?.phone)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${t('communityBoard.callAction')} ${authorName}`}
+                            >
+                              <Phone size={14} color={theme.colors.primary} />
+                              <Text
+                                style={[styles.callButtonText, { color: theme.colors.primary }]}
+                              >
+                                {t('communityBoard.callAction')}
+                              </Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      </View>
+                    </Card>
+                  );
+                })
+              )
             ) : (
-              feedListings.map((item) => {
-                const authorName = item.author
-                  ? `${item.author.firstName} ${item.author.lastName}`.trim()
-                  : t('communityBoard.authorUnknown');
-                const hasPhotos = item.photoUrls && item.photoUrls.length > 0;
-
-                return (
-                  <Card key={item.id} style={styles.listingCard}>
-                    {hasPhotos ? (
-                      <Image
-                        source={{ uri: item.photoUrls[0] }}
-                        style={styles.cardImage}
-                        resizeMode="cover"
-                      />
-                    ) : null}
-
+              myListings.length === 0 ? (
+                <EmptyState
+                  title={t('communityBoard.noMyListingsTitle')}
+                  description={t('communityBoard.noMyListingsSub')}
+                  actionTitle={isVerified ? t('communityBoard.postAction') : undefined}
+                  onActionPress={isVerified ? () => navigation.navigate('CreateListing') : undefined}
+                />
+              ) : (
+                myListings.map((item) => (
+                  <Card
+                    key={item.id}
+                    style={[
+                      styles.listingCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
                     <View style={styles.cardBody}>
                       <View style={styles.cardHeaderRow}>
-                        <View style={styles.typeBadgeContainer}>
-                          <Tag size={12} color={Colors.primary} />
-                          <Text style={styles.typeBadgeText}>{getTypeLabel(item.type)}</Text>
-                        </View>
-                        <Text style={styles.cardDate}>
-                          {new Date(item.createdAt).toLocaleDateString(i18n.language)}
-                        </Text>
+                        <Badge
+                          label={getTypeLabel(item.type)}
+                          variant={getTypeBadgeVariant(item.type)}
+                          size="sm"
+                        />
+                        {getStatusBadge(item.status)}
                       </View>
 
-                      <Text style={styles.cardTitle}>{item.title}</Text>
+                      <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                        {item.title}
+                      </Text>
 
-                      <Text style={styles.cardPrice}>
+                      <Text
+                        style={[
+                          styles.cardPrice,
+                          {
+                            color:
+                              item.type === 'GIVE_AWAY'
+                                ? theme.colors.success
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
                         {item.type === 'GIVE_AWAY'
                           ? t('communityBoard.typeGiveAway')
                           : item.price != null
@@ -283,178 +582,131 @@ export const CommunityBoardScreen: React.FC = () => {
                           : t('communityBoard.priceNegotiable')}
                       </Text>
 
-                      <Text style={styles.cardDesc} numberOfLines={3}>
+                      <Text
+                        style={[styles.cardDesc, { color: theme.colors.textMuted }]}
+                        numberOfLines={2}
+                      >
                         {item.description}
                       </Text>
 
-                      <View style={styles.authorRow}>
-                        <View style={styles.authorInfo}>
-                          <UserIcon size={14} color={Colors.textMuted} />
-                          <Text style={styles.authorName}>{authorName}</Text>
+                      {item.status === 'REMOVED' && item.removedReason ? (
+                        <View
+                          style={[
+                            styles.removedNotice,
+                            {
+                              backgroundColor: theme.colors.dangerBg,
+                              borderColor: theme.colors.dangerBorder,
+                            },
+                          ]}
+                        >
+                          <XCircle size={14} color={theme.colors.danger} />
+                          <Text style={[styles.removedNoticeText, { color: theme.colors.danger }]}>
+                            {t('communityBoard.removedReasonLabel')}: «{item.removedReason}»
+                          </Text>
                         </View>
+                      ) : null}
 
-                        {item.author?.phone ? (
-                          <TouchableOpacity
-                            style={styles.callButton}
-                            onPress={() => handleCall(item.author?.phone)}
-                          >
-                            <Phone size={14} color="#FFFFFF" />
-                            <Text style={styles.callButtonText}>{t('communityBoard.callAction')}</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
+                      {item.status === 'ACTIVE' && (
+                        <View
+                          style={[
+                            styles.cardActionsRow,
+                            { borderTopColor: theme.colors.border },
+                          ]}
+                        >
+                          <Button
+                            title={t('communityBoard.closeAction')}
+                            variant="secondary"
+                            size="sm"
+                            loading={actionInProgress === item.id}
+                            onPress={() => handleCloseListing(item)}
+                          />
+                        </View>
+                      )}
                     </View>
                   </Card>
-                );
-              })
-            )
-          ) : (
-            myListings.length === 0 ? (
-              <Card style={styles.emptyCard}>
-                <ShoppingBag size={48} color={Colors.textMuted} style={styles.emptyIcon} />
-                <Text style={styles.emptyTitle}>{t('communityBoard.noMyListingsTitle')}</Text>
-                <Text style={styles.emptySub}>{t('communityBoard.noMyListingsSub')}</Text>
-              </Card>
-            ) : (
-              myListings.map((item) => (
-                <Card key={item.id} style={styles.listingCard}>
-                  <View style={styles.cardBody}>
-                    <View style={styles.cardHeaderRow}>
-                      <View style={styles.typeBadgeContainer}>
-                        <Text style={styles.typeBadgeText}>{getTypeLabel(item.type)}</Text>
-                      </View>
-                      {getStatusBadge(item.status)}
-                    </View>
-
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-
-                    <Text style={styles.cardPrice}>
-                      {item.type === 'GIVE_AWAY'
-                        ? t('communityBoard.typeGiveAway')
-                        : item.price != null
-                        ? `${item.price.toLocaleString(i18n.language)} ₸`
-                        : t('communityBoard.priceNegotiable')}
-                    </Text>
-
-                    <Text style={styles.cardDesc} numberOfLines={2}>
-                      {item.description}
-                    </Text>
-
-                    {item.status === 'REMOVED' && item.removedReason ? (
-                      <View style={styles.removedNotice}>
-                        <XCircle size={14} color={Colors.danger} />
-                        <Text style={styles.removedNoticeText}>
-                          {t('communityBoard.removedReasonLabel')}: «{item.removedReason}»
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    {item.status === 'ACTIVE' && (
-                      <View style={styles.cardActionsRow}>
-                        <Button
-                          title={t('communityBoard.closeAction')}
-                          variant="outline"
-                          size="sm"
-                          loading={actionInProgress === item.id}
-                          onPress={() => handleCloseListing(item)}
-                        />
-                      </View>
-                    )}
-                  </View>
-                </Card>
-              ))
-            )
-          )}
-        </ScrollView>
-      )}
-    </SafeAreaView>
+                ))
+              )
+            )}
+          </AnimatedEntrance>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.card,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  backBtn: {
-    padding: 4,
+  backButton: {
+    padding: 6,
+    marginLeft: -4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    letterSpacing: -0.2,
   },
-  createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  createBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+  headerRightPlaceholder: {
+    width: 44,
   },
   unverifiedBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     gap: 10,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 6,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   unverifiedText: {
     flex: 1,
     fontSize: 12,
-    color: '#92400E',
     lineHeight: 16,
   },
   tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.card,
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  tabButton: {
-    flex: 1,
     paddingVertical: 10,
+  },
+  searchBarWrapper: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  searchBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 44,
   },
-  tabButtonActive: {
-    borderBottomColor: Colors.primary,
+  searchIcon: {
+    marginRight: 8,
   },
-  tabText: {
+  searchInput: {
+    flex: 1,
     fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textMuted,
+    height: '100%',
   },
-  tabTextActive: {
-    color: Colors.primary,
-    fontWeight: '700',
+  searchClearBtn: {
+    padding: 4,
   },
   filterScrollView: {
-    backgroundColor: Colors.card,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    marginBottom: 10,
   },
   filterRow: {
     paddingHorizontal: 16,
@@ -462,155 +714,125 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
   },
-  filterChipTextActive: {
-    color: '#FFFFFF',
+  scrollArea: {
+    flex: 1,
   },
-  scrollContent: {
+  contentContainer: {
     padding: 16,
-    paddingBottom: 40,
+    gap: 14,
+  },
+  skeletonWrap: {
+    paddingTop: 12,
   },
   listingCard: {
-    marginBottom: 14,
-    padding: 0,
+    borderRadius: 18,
     overflow: 'hidden',
+    padding: 0,
+    borderWidth: 1,
+    marginBottom: 2,
   },
   cardImage: {
     width: '100%',
     height: 180,
-    backgroundColor: Colors.border,
   },
   cardBody: {
-    padding: 14,
+    padding: 16,
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  typeBadgeContainer: {
+  dateMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
     gap: 4,
   },
-  typeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
   cardDate: {
-    fontSize: 11,
-    color: Colors.textMuted,
+    fontSize: 12,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: Colors.text,
     marginBottom: 4,
+    lineHeight: 22,
   },
   cardPrice: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
-    color: Colors.primary,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   cardDesc: {
     fontSize: 13,
-    color: Colors.textMuted,
     lineHeight: 18,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   authorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   authorInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  authorAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   authorName: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.text,
   },
   callButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.success,
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    minHeight: 38,
   },
   callButtonText: {
-    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
   removedNotice: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    padding: 8,
-    borderRadius: 6,
     gap: 6,
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
     marginTop: 8,
   },
   removedNoticeText: {
-    flex: 1,
     fontSize: 12,
-    color: Colors.danger,
-    fontStyle: 'italic',
+    flex: 1,
   },
   cardActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 10,
-    paddingTop: 8,
+    alignItems: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  emptyCard: {
-    padding: 32,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  emptyIcon: {
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  emptySub: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
+    paddingTop: 10,
+    marginTop: 8,
   },
 });

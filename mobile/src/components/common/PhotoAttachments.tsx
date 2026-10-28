@@ -1,8 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Text, View, StyleSheet } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  Text,
+  View,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useTranslation } from 'react-i18next';
+import { AlertCircle } from 'lucide-react-native';
 import { UploadsApi } from '../../api/uploads';
 import { getApiErrorMessage } from '../../api/client';
 import { Button } from './Button';
@@ -17,7 +26,13 @@ interface Props {
 }
 
 /** Only completed uploads become form values; failed uploads can be retried. */
-export function PhotoAttachments({ value, onChange, onBusyChange, disabled = false, maxPhotos = 5 }: Props) {
+export function PhotoAttachments({
+  value,
+  onChange,
+  onBusyChange,
+  disabled = false,
+  maxPhotos = 5,
+}: Props) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [busy, setBusy] = useState(false);
@@ -41,25 +56,39 @@ export function PhotoAttachments({ value, onChange, onBusyChange, disabled = fal
 
   const upload = async (uri: string) => {
     abort.current = new AbortController();
-    const result = await UploadsApi.uploadFile(uri, `photo-${Date.now()}.jpg`, 'image/jpeg', 'media', abort.current.signal);
+    setError(null);
+    const result = await UploadsApi.uploadFile(
+      uri,
+      `photo-${Date.now()}.jpg`,
+      'image/jpeg',
+      'media',
+      abort.current.signal,
+    );
     if (!active.current) return;
     setPreviews((previous) => ({ ...previous, [result.url]: uri }));
     onChange([...values.current, result.url]);
     setPendingUri(null);
+    setError(null);
   };
 
   const run = async (source: 'camera' | 'library' | 'retry') => {
-    if (locked.current || disabled || value.length >= maxPhotos) return;
+    if (locked.current || disabled) return;
+    if (source !== 'retry' && value.length >= maxPhotos) return;
+
     locked.current = true;
     setBusy(true);
     onBusyChange(true);
     setError(null);
     setPermissionDenied(false);
+
     try {
       if (source === 'retry') {
-        if (pendingUri) await upload(pendingUri);
+        if (pendingUri) {
+          await upload(pendingUri);
+        }
         return;
       }
+
       if (source === 'camera') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!active.current) return;
@@ -69,38 +98,52 @@ export function PhotoAttachments({ value, onChange, onBusyChange, disabled = fal
           return;
         }
       }
-      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 1, allowsMultipleSelection: false };
-      const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync(options)
-        : await ImagePicker.launchImageLibraryAsync(options);
+
+      const options: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ['images'],
+        quality: 1,
+        allowsMultipleSelection: false,
+      };
+
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync(options)
+          : await ImagePicker.launchImageLibraryAsync(options);
+
       if (!active.current || result.canceled) return;
       const asset = result.assets[0];
-      setPendingUri(null);
+
       if (asset.fileSize && asset.fileSize > 15 * 1024 * 1024) {
         setError(t('photos.tooLarge'));
         return;
       }
-      // Normalize HEIC/other camera formats to the JPEG accepted by the API.
-      const context = ImageManipulator.manipulate(asset.uri);
-      if (Math.max(asset.width, asset.height) > 2048) {
-        context.resize(asset.width >= asset.height ? { width: 2048 } : { height: 2048 });
-      }
-      let uri: string;
-      try {
-        const image = await context.renderAsync();
-        try {
-          uri = (await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 })).uri;
-        } finally {
-          image.release();
+
+      // Normalize HEIC/other camera formats to JPEG on native
+      let uri = asset.uri;
+      if (Platform.OS !== 'web') {
+        const context = ImageManipulator.manipulate(asset.uri);
+        if (Math.max(asset.width, asset.height) > 2048) {
+          context.resize(asset.width >= asset.height ? { width: 2048 } : { height: 2048 });
         }
-      } finally {
-        context.release();
+        try {
+          const image = await context.renderAsync();
+          try {
+            uri = (await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 })).uri;
+          } finally {
+            image.release();
+          }
+        } finally {
+          context.release();
+        }
       }
+
       if (!active.current) return;
       setPendingUri(uri);
       await upload(uri);
-    } catch (err) {
-      if (active.current) setError(getApiErrorMessage(err) || t('photos.failed'));
+    } catch (err: any) {
+      if (active.current) {
+        setError(getApiErrorMessage(err) || t('photos.failed'));
+      }
     } finally {
       locked.current = false;
       if (active.current) {
@@ -110,29 +153,126 @@ export function PhotoAttachments({ value, onChange, onBusyChange, disabled = fal
     }
   };
 
+  const handleCancelPending = () => {
+    setPendingUri(null);
+    setError(null);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.row}>
         {value.map((url, index) => (
           <View key={url} style={styles.photo}>
-            <Image source={{ uri: previews[url] || url }} style={styles.thumbnail} accessibilityLabel={t('photos.preview', { count: index + 1 })} />
-            <Button title={t('common.delete')} variant="outline" size="sm" disabled={busy || disabled}
-              onPress={() => onChange(value.filter((item) => item !== url))} />
+            <Image
+              source={{ uri: previews[url] || url }}
+              style={styles.thumbnail}
+              accessibilityLabel={t('photos.preview', { count: index + 1 })}
+            />
+            <Button
+              title={t('common.delete')}
+              variant="outline"
+              size="sm"
+              disabled={busy || disabled}
+              onPress={() => onChange(value.filter((item) => item !== url))}
+            />
           </View>
         ))}
       </View>
-      {pendingUri && <Image source={{ uri: pendingUri }} style={styles.thumbnail} accessibilityLabel={t('photos.pending')} />}
-      {value.length < maxPhotos && (
-        <View style={styles.row}>
-          <Button title={t('photos.camera')} variant="outline" disabled={busy || disabled} onPress={() => run('camera')} />
-          <Button title={t('photos.library')} variant="outline" disabled={busy || disabled} onPress={() => run('library')} />
+
+      {/* Pending upload / Error display */}
+      {pendingUri && (
+        <View
+          style={[
+            styles.pendingBox,
+            {
+              backgroundColor: theme.colors.surfaceSubtle,
+              borderColor: error ? theme.colors.dangerBorder : theme.colors.border,
+            },
+          ]}
+        >
+          <Image
+            source={{ uri: pendingUri }}
+            style={[
+              styles.thumbnail,
+              error ? { borderColor: theme.colors.danger, borderWidth: 2 } : { opacity: 0.7 },
+            ]}
+            accessibilityLabel={t('photos.pending')}
+          />
+          <View style={styles.pendingInfo}>
+            {busy && (
+              <View style={styles.statusRow}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={[styles.statusText, { color: theme.colors.text }]} accessibilityLiveRegion="polite">
+                  {t('photos.uploading')}
+                </Text>
+              </View>
+            )}
+            {error && (
+              <View style={styles.errorSection}>
+                <View style={styles.errorRow}>
+                  <AlertCircle size={14} color={theme.colors.danger} />
+                  <Text
+                    style={[styles.error, { color: theme.colors.danger }]}
+                    accessibilityLiveRegion="polite"
+                  >
+                    {error}
+                  </Text>
+                </View>
+                {!busy && (
+                  <View style={styles.pendingBtnRow}>
+                    <Button
+                      title={t('common.retry')}
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onPress={() => run('retry')}
+                    />
+                    <Button
+                      title={t('common.delete')}
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onPress={handleCancelPending}
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
         </View>
       )}
-      {busy && <View style={styles.row}><ActivityIndicator color={theme.colors.primary} /><Text style={{ color: theme.colors.text }} accessibilityLiveRegion="polite">{t('photos.uploading')}</Text></View>}
-      {error && <Text style={[styles.error, { color: theme.colors.danger }]} accessibilityLiveRegion="polite">{error}</Text>}
-      {pendingUri && !busy && <Button title={t('common.retry')} variant="secondary" disabled={disabled} onPress={() => run('retry')} />}
-      {permissionDenied && <Button title={t('photos.settings')} variant="outline" onPress={() => { Linking.openSettings().catch(() => setError(t('photos.cameraPermission'))); }} />}
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>{t('photos.limit', { count: maxPhotos })}</Text>
+
+      {/* Upload actions if limit not reached */}
+      {value.length < maxPhotos && !pendingUri && (
+        <View style={styles.row}>
+          <Button
+            title={t('photos.camera')}
+            variant="outline"
+            disabled={busy || disabled}
+            onPress={() => run('camera')}
+          />
+          <Button
+            title={t('photos.library')}
+            variant="outline"
+            disabled={busy || disabled}
+            onPress={() => run('library')}
+          />
+        </View>
+      )}
+
+      {permissionDenied && (
+        <Button
+          title={t('photos.settings')}
+          variant="outline"
+          onPress={() => {
+            Linking.openSettings().catch(() => setError(t('photos.cameraPermission')));
+          }}
+        />
+      )}
+
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
+        {t('photos.limit', { count: maxPhotos })}
+      </Text>
     </View>
   );
 }
@@ -142,6 +282,41 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   photo: { gap: 6 },
   thumbnail: { width: 88, height: 88, borderRadius: 10 },
-  error: { fontSize: 14 },
+  pendingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  pendingInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  errorSection: {
+    gap: 6,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  pendingBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  error: { fontSize: 13, fontWeight: '500' },
   hint: { fontSize: 12 },
 });

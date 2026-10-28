@@ -1,28 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
-import { VotingsApi, MeetingItem } from '../../api/votings';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Colors } from '../../constants/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Vote, ChevronRight, CheckCircle2, Clock } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeContext';
 import { useTabBarInset } from '../../hooks/useTabBarInset';
-import { Vote, ChevronRight, CheckCircle2 } from 'lucide-react-native';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  SegmentedControl,
+  SkeletonList,
+  EmptyState,
+  ErrorState,
+  AnimatedEntrance,
+} from '../../components/ui';
+import { VotingsApi, MeetingItem } from '../../api/votings';
+import { useAuth } from '../../context/AuthContext';
 
 export const VotingsListScreen: React.FC = () => {
-  const tabBarInset = useTabBarInset(24);
-  const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
+  const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset(24);
   const { user } = useAuth();
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
 
@@ -30,32 +39,37 @@ export const VotingsListScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchMeetings = async () => {
+  const fetchMeetings = useCallback(async () => {
     if (!tenantId) {
       setLoading(false);
       return;
     }
-
     try {
+      setError(null);
       const data = await VotingsApi.getMeetings(tenantId);
-      setMeetings(data);
-    } catch (e) {
+      setMeetings(data || []);
+    } catch (e: any) {
       console.warn('Failed to load meetings:', e);
+      setError(e?.response?.data?.message || e.message || t('common.error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [tenantId, t]);
 
   useEffect(() => {
     fetchMeetings();
-  }, [tenantId]);
+  }, [fetchMeetings]);
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     fetchMeetings();
   };
+
+  const activeCount = meetings.filter((m) => m.status === 'ACTIVE').length;
 
   const filteredMeetings = meetings.filter((m) => {
     if (filter === 'ACTIVE') return m.status === 'ACTIVE';
@@ -63,225 +77,262 @@ export const VotingsListScreen: React.FC = () => {
     return true;
   });
 
-  if (loading) {
-    return <LoadingState message={t('votings.loadingMeetings')} />;
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('votings.title')}</Text>
-        <Text style={styles.subtitle}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Top Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 4,
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          {t('votings.title')}
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
           {t('votings.subtitle')}
         </Text>
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'ALL' && styles.tabActive]}
-          onPress={() => setFilter('ALL')}
-        >
-          <Text style={[styles.tabText, filter === 'ALL' && styles.tabTextActive]}>
-            {t('votings.tabAll', { count: meetings.length })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'ACTIVE' && styles.tabActive]}
-          onPress={() => setFilter('ACTIVE')}
-        >
-          <Text style={[styles.tabText, filter === 'ACTIVE' && styles.tabTextActive]}>
-            {t('votings.tabActive', { count: meetings.filter((m) => m.status === 'ACTIVE').length })}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'COMPLETED' && styles.tabActive]}
-          onPress={() => setFilter('COMPLETED')}
-        >
-          <Text style={[styles.tabText, filter === 'COMPLETED' && styles.tabTextActive]}>
-            {t('votings.tabCompleted')}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.filterWrap}>
+        <SegmentedControl
+          options={[
+            { value: 'ALL', label: t('votings.tabAll', { count: meetings.length }) },
+            { value: 'ACTIVE', label: t('votings.tabActive', { count: activeCount }) },
+            { value: 'COMPLETED', label: t('votings.tabCompleted') },
+          ]}
+          value={filter}
+          onChange={(val) => {
+            safeHaptic.selection();
+            setFilter(val as 'ALL' | 'ACTIVE' | 'COMPLETED');
+          }}
+        />
       </View>
 
-      <FlatList
-        data={filteredMeetings}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary]}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Vote color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>{t('votings.emptyMeetingsTitle')}</Text>
-            <Text style={styles.emptySubtitle}>
-              {t('votings.emptyMeetingsSubtitle')}
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const isActive = item.status === 'ACTIVE';
-          return (
-            <Card
-              style={styles.meetingCard}
-              onPress={() => navigation.navigate('VotingDetails', { meetingId: item.id })}
-            >
-              <View style={styles.cardHeader}>
-                <Badge
-                  label={isActive ? t('votings.votingStatusActive') : t('votings.votingStatusCompleted')}
-                  variant={isActive ? 'success' : 'default'}
-                />
-                <Text style={styles.dateText}>
-                  {t('votings.untilDate', { date: new Date(item.endDate).toLocaleDateString(i18n.language) })}
-                </Text>
-              </View>
+      {loading ? (
+        <View style={styles.skeletonWrap}>
+          <SkeletonList count={3} />
+        </View>
+      ) : error ? (
+        <ErrorState message={error} onRetry={fetchMeetings} />
+      ) : (
+        <FlatList
+          data={filteredMeetings}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              title={t('votings.emptyMeetingsTitle')}
+              description={t('votings.emptyMeetingsSubtitle')}
+              actionTitle={t('common.refresh')}
+              onActionPress={fetchMeetings}
+            />
+          }
+          renderItem={({ item }) => {
+            const isActive = item.status === 'ACTIVE';
+            return (
+              <Card
+                style={[
+                  styles.meetingCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  safeHaptic.selection();
+                  navigation.navigate('VotingDetails', { meetingId: item.id });
+                }}
+                accessibilityLabel={item.title}
+              >
+                <View style={styles.cardHeader}>
+                  <Badge
+                    label={
+                      isActive
+                        ? t('votings.votingStatusActive')
+                        : t('votings.votingStatusCompleted')
+                    }
+                    variant={isActive ? 'success' : 'neutral'}
+                    size="sm"
+                  />
+                  <View style={styles.dateRow}>
+                    <Clock size={12} color={theme.colors.textMuted} />
+                    <Text style={[styles.dateText, { color: theme.colors.textMuted }]}>
+                      {t('votings.untilDate', {
+                        date: new Date(item.endDate).toLocaleDateString(i18n.language),
+                      })}
+                    </Text>
+                  </View>
+                </View>
 
-              <Text style={styles.meetingTitle}>{item.title}</Text>
-              {item.description ? (
-                <Text style={styles.meetingDesc} numberOfLines={2}>
-                  {item.description}
+                <Text style={[styles.meetingTitle, { color: theme.colors.text }]}>
+                  {item.title}
                 </Text>
-              ) : null}
+                {Boolean(item.description) && (
+                  <Text
+                    style={[styles.meetingDesc, { color: theme.colors.textMuted }]}
+                    numberOfLines={2}
+                  >
+                    {item.description}
+                  </Text>
+                )}
 
-              {/* Quorum indicator */}
-              <View style={styles.quorumSection}>
-                <View style={styles.quorumBar}>
+                {/* Quorum indicator box */}
+                <View
+                  style={[
+                    styles.quorumSection,
+                    {
+                      backgroundColor: theme.colors.surfaceSubtle,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
                   <View
                     style={[
-                      styles.quorumFill,
-                      { width: `${Math.min(item.quorumPercent || 0, 100)}%` },
-                      item.isQuorumReached && styles.quorumReached,
+                      styles.quorumBar,
+                      { backgroundColor: theme.colors.border },
                     ]}
-                  />
+                  >
+                    <View
+                      style={[
+                        styles.quorumFill,
+                        {
+                          width: `${Math.min(item.quorumPercent || 0, 100)}%`,
+                          backgroundColor: item.isQuorumReached
+                            ? theme.colors.primary
+                            : theme.colors.warning,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.quorumMeta}>
+                    <Text style={[styles.quorumText, { color: theme.colors.text }]}>
+                      {t('votings.quorumMeta', {
+                        current: item.quorumPercent?.toFixed(1) || 0,
+                        required: '50.0',
+                      })}
+                    </Text>
+                    {item.isQuorumReached ? (
+                      <View style={styles.quorumBadge}>
+                        <CheckCircle2 color={theme.colors.primary} size={14} />
+                        <Text
+                          style={[
+                            styles.quorumBadgeText,
+                            { color: theme.colors.primary },
+                          ]}
+                        >
+                          {t('votings.quorumReached')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
-                <View style={styles.quorumMeta}>
-                  <Text style={styles.quorumText}>
-                    {t('votings.quorumMeta', { current: item.quorumPercent?.toFixed(1) || 0, required: '50.0' })}
-                  </Text>
-                  {item.isQuorumReached ? (
-                    <View style={styles.quorumBadge}>
-                      <CheckCircle2 color="#059669" size={14} />
-                      <Text style={styles.quorumBadgeText}>{t('votings.quorumReached')}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
 
-              <View style={styles.cardFooter}>
-                <Text style={styles.itemsCount}>
-                  {t('votings.agendaCount', { count: item.agendaItems?.length || 0 })}
-                </Text>
-                <ChevronRight color={Colors.primary} size={20} />
-              </View>
-            </Card>
-          );
-        }}
-      />
-    </SafeAreaView>
+                {/* Footer with chevron */}
+                <View style={[styles.cardFooter, { borderTopColor: theme.colors.border }]}>
+                  <Text style={[styles.itemsCount, { color: theme.colors.textMuted }]}>
+                    {t('votings.agendaCount', { count: item.agendaItems?.length || 0 })}
+                  </Text>
+                  <ChevronRight color={theme.colors.primary} size={18} />
+                </View>
+              </Card>
+            );
+          }}
+        />
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.textMuted,
     marginTop: 4,
     lineHeight: 18,
   },
-  tabsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 10,
-    gap: 8,
+  filterWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  tab: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  tabActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
+  skeletonWrap: {
+    padding: 16,
   },
   listContent: {
     padding: 16,
-    paddingBottom: 32,
+    gap: 12,
   },
   meetingCard: {
-    marginBottom: 12,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   dateText: {
     fontSize: 12,
-    color: Colors.textMuted,
   },
   meetingTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.text,
     marginBottom: 6,
+    lineHeight: 22,
   },
   meetingDesc: {
     fontSize: 13,
-    color: Colors.textMuted,
     lineHeight: 18,
     marginBottom: 12,
   },
   quorumSection: {
-    backgroundColor: Colors.background,
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
     marginBottom: 12,
   },
   quorumBar: {
-    height: 6,
-    backgroundColor: Colors.border,
-    borderRadius: 3,
+    height: 7,
+    borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   quorumFill: {
     height: '100%',
-    backgroundColor: Colors.warning,
-  },
-  quorumReached: {
-    backgroundColor: Colors.primary,
+    borderRadius: 4,
   },
   quorumMeta: {
     flexDirection: 'row',
@@ -291,7 +342,6 @@ const styles = StyleSheet.create({
   quorumText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.text,
   },
   quorumBadge: {
     flexDirection: 'row',
@@ -301,37 +351,16 @@ const styles = StyleSheet.create({
   quorumBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#059669',
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   itemsCount: {
     fontSize: 13,
-    color: Colors.textMuted,
     fontWeight: '500',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
   },
 });

@@ -1,5 +1,4 @@
-import { PhotoAttachments } from '../../components/common/PhotoAttachments';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,16 +6,17 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
-  Modal,
-  Alert,
   TextInput,
-  Image,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
+  ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Gauge,
   Droplets,
   Flame,
@@ -26,20 +26,32 @@ import {
   Clock,
   XCircle,
   Home,
-  X,
   AlertCircle,
+  TrendingUp,
+  History,
 } from 'lucide-react-native';
-import { Colors } from '../../constants/colors';
-import { useAuth } from '../../context/AuthContext';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
+import { useTheme } from '../../theme/ThemeContext';
+import * as Haptics from 'expo-haptics';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Button,
+  BottomSheet,
+  SkeletonList,
+  EmptyState,
+  ErrorState,
+  AnimatedEntrance,
+} from '../../components/ui';
+import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import { metersApi, MeterData, MeterReading, MeterType } from '../../api/meters';
+import { useAuth } from '../../context/AuthContext';
 
 export const MetersScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { t } = useTranslation();
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const verifiedOwnerships = (user?.ownerships || []).filter((o) => o.isVerified);
@@ -53,13 +65,17 @@ export const MetersScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Submit Modal State
+  // Expanded history for each meter
+  const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
+
+  // Submit BottomSheet State
   const [selectedMeter, setSelectedMeter] = useState<MeterData | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [inputMonth, setInputMonth] = useState(new Date().getMonth() + 1);
   const [inputYear, setInputYear] = useState(new Date().getFullYear());
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -73,7 +89,7 @@ export const MetersScreen: React.FC = () => {
     try {
       setError(null);
       const data = await metersApi.getUnitMeters(activeUnitId);
-      setMeters(data);
+      setMeters(data || []);
     } catch (err: any) {
       setError(err?.response?.data?.message || err.message || t('meters.loadError'));
     } finally {
@@ -88,15 +104,21 @@ export const MetersScreen: React.FC = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     loadMeters();
   };
 
-  const getLatestReading = (meter: MeterData): MeterReading | null => {
-    if (!meter.readings || meter.readings.length === 0) return null;
+  const getSortedReadings = (meter: MeterData): MeterReading[] => {
+    if (!meter.readings || meter.readings.length === 0) return [];
     return [...meter.readings].sort((a, b) => {
       if (a.periodYear !== b.periodYear) return b.periodYear - a.periodYear;
       return b.periodMonth - a.periodMonth;
-    })[0];
+    });
+  };
+
+  const getLatestReading = (meter: MeterData): MeterReading | null => {
+    const sorted = getSortedReadings(meter);
+    return sorted.length > 0 ? sorted[0] : null;
   };
 
   const getLastVerifiedReading = (meter: MeterData): MeterReading | null => {
@@ -108,18 +130,42 @@ export const MetersScreen: React.FC = () => {
     })[0];
   };
 
+  const toggleHistory = (meterId: string) => {
+    safeHaptic.selection();
+    setExpandedHistory((prev) => ({
+      ...prev,
+      [meterId]: !prev[meterId],
+    }));
+  };
+
   const openSubmitModal = (meter: MeterData) => {
+    safeHaptic.selection();
     setUploadingPhoto(false);
     setSelectedMeter(meter);
     const now = new Date();
-    setInputMonth(now.getMonth() + 1);
-    setInputYear(now.getFullYear());
+    let m = now.getMonth() + 1;
+    let y = now.getFullYear();
+    const latest = meter.readings && meter.readings[0];
+    if (latest && latest.periodMonth === m && latest.periodYear === y && latest.status !== 'REJECTED') {
+      m = m + 1;
+      if (m > 12) {
+        m = 1;
+        y = y + 1;
+      }
+    }
+    setInputMonth(m);
+    setInputYear(y);
     setInputValue('');
     setPhotoUrl(null);
     setSubmitError(null);
     setIsSubmitModalOpen(true);
   };
 
+  const closeSubmitModal = () => {
+    safeHaptic.selection();
+    setIsSubmitModalOpen(false);
+    setSelectedMeter(null);
+  };
 
   const handleSubmitReading = async () => {
     if (uploadingPhoto || submitting) return;
@@ -130,7 +176,7 @@ export const MetersScreen: React.FC = () => {
       return;
     }
 
-    const numVal = parseFloat(inputValue);
+    const numVal = parseFloat(inputValue.replace(',', '.'));
     if (isNaN(numVal) || numVal < 0) {
       setSubmitError(t('meters.validationEmptyError'));
       return;
@@ -160,7 +206,9 @@ export const MetersScreen: React.FC = () => {
         year: inputYear,
       });
 
+      safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
       setIsSubmitModalOpen(false);
+      setSelectedMeter(null);
       Alert.alert(t('meters.submitSuccessTitle'), t('meters.submitSuccessMsg'));
       await loadMeters();
     } catch (err: any) {
@@ -173,13 +221,26 @@ export const MetersScreen: React.FC = () => {
   const getMeterTypeIcon = (type: MeterType) => {
     switch (type) {
       case 'COLD_WATER':
-        return <Droplets color={Colors.primary} size={22} />;
+        return <Droplets color={theme.colors.primary} size={22} />;
       case 'HOT_WATER':
-        return <Flame color={Colors.danger} size={22} />;
+        return <Flame color={theme.colors.danger} size={22} />;
       case 'ELECTRICITY':
-        return <Zap color={Colors.warning} size={22} />;
+        return <Zap color={theme.colors.warning} size={22} />;
       default:
-        return <HelpCircle color={Colors.textMuted} size={22} />;
+        return <HelpCircle color={theme.colors.info} size={22} />;
+    }
+  };
+
+  const getMeterTypeBg = (type: MeterType) => {
+    switch (type) {
+      case 'COLD_WATER':
+        return theme.colors.primaryBg;
+      case 'HOT_WATER':
+        return theme.colors.dangerBg;
+      case 'ELECTRICITY':
+        return theme.colors.warningBg;
+      default:
+        return theme.colors.infoBg;
     }
   };
 
@@ -196,31 +257,89 @@ export const MetersScreen: React.FC = () => {
     }
   };
 
+  const getMeterUnit = (type: MeterType) => {
+    return type === 'ELECTRICITY' ? t('meters.unitElectricity') : t('meters.unitWater');
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Header */}
-      <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ArrowLeft color={Colors.text} size={24} />
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 4,
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.goBack();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Назад')}
+        >
+          <ChevronLeft color={theme.colors.text} size={24} />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>{t('meters.title')}</Text>
-        <View style={{ width: 24 }} />
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          {t('meters.title')}
+        </Text>
+        <View style={styles.headerRightPlaceholder} />
       </View>
 
-      {/* Unit Selector (if multiple apartments) */}
+      {/* Unit Selector if multiple apartments */}
       {verifiedOwnerships.length > 1 && (
-        <View style={styles.unitSelectorContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitPillsRow}>
+        <View
+          style={[
+            styles.unitSelectorContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              borderBottomColor: theme.colors.border,
+            },
+          ]}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.unitPillsRow}
+          >
             {verifiedOwnerships.map((o, idx) => {
               const isSelected = selectedUnitIndex === idx;
               return (
                 <TouchableOpacity
                   key={o.id}
-                  style={[styles.unitPill, isSelected && styles.unitPillSelected]}
-                  onPress={() => setSelectedUnitIndex(idx)}
+                  style={[
+                    styles.unitPill,
+                    {
+                      backgroundColor: isSelected ? theme.colors.primary : theme.colors.surfaceSubtle,
+                      borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    safeHaptic.selection();
+                    setSelectedUnitIndex(idx);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={`${t('common.unitShort')} ${o.unit.unitNumber}`}
                 >
-                  <Home color={isSelected ? '#FFFFFF' : Colors.textMuted} size={14} />
-                  <Text style={[styles.unitPillText, isSelected && styles.unitPillTextSelected]}>
+                  <Home
+                    color={isSelected ? theme.colors.onPrimary : theme.colors.textMuted}
+                    size={14}
+                  />
+                  <Text
+                    style={[
+                      styles.unitPillText,
+                      {
+                        color: isSelected ? theme.colors.onPrimary : theme.colors.text,
+                        fontWeight: isSelected ? '700' : '600',
+                      },
+                    ]}
+                  >
                     {t('common.unitShort')} {o.unit.unitNumber}
                   </Text>
                 </TouchableOpacity>
@@ -230,232 +349,442 @@ export const MetersScreen: React.FC = () => {
         </View>
       )}
 
-      {loading ? (
-        <LoadingState message={t('common.loading')} />
-      ) : error ? (
-        <View style={styles.centered}>
-          <AlertCircle color={Colors.danger} size={48} />
-          <Text style={styles.errorText}>{error}</Text>
-          <Button title={t('common.retry')} onPress={loadMeters} style={{ marginTop: 16 }} />
-        </View>
-      ) : meters.length === 0 ? (
-        <ScrollView
-          contentContainerStyle={styles.emptyContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
-        >
-          <View style={styles.emptyIconCircle}>
-            <Gauge color={Colors.textMuted} size={40} />
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: Math.max(insets.bottom, 24) + 32 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
+        }
+      >
+        {loading ? (
+          <View style={styles.skeletonWrap}>
+            <SkeletonList count={3} />
           </View>
-          <Text style={styles.emptyTitle}>{t('meters.emptyTitle')}</Text>
-          <Text style={styles.emptySubtitle}>{t('meters.emptyDesc')}</Text>
-        </ScrollView>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
-        >
-          {meters.map((meter) => {
-            const latest = getLatestReading(meter);
-            const isRejected = latest?.status === 'REJECTED';
-            const isPending = latest?.status === 'PENDING';
-            const isVerified = latest?.status === 'VERIFIED';
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadMeters} />
+        ) : meters.length === 0 ? (
+          <EmptyState
+            title={t('meters.emptyTitle')}
+            description={t('meters.emptyDesc')}
+            actionTitle={t('common.refresh')}
+            onActionPress={loadMeters}
+          />
+        ) : (
+          <AnimatedEntrance>
+            {meters.map((meter) => {
+              const latest = getLatestReading(meter);
+              const sorted = getSortedReadings(meter);
+              const isRejected = latest?.status === 'REJECTED';
+              const isPending = latest?.status === 'PENDING';
+              const isVerified = latest?.status === 'VERIFIED';
+              const isHistoryOpen = Boolean(expandedHistory[meter.id]);
 
-            return (
-              <Card key={meter.id} style={styles.meterCard}>
-                {/* Card Header */}
-                <View style={styles.meterHeader}>
-                  <View style={styles.meterIconContainer}>{getMeterTypeIcon(meter.type)}</View>
-                  <View style={styles.meterInfo}>
-                    <Text style={styles.meterName}>{getMeterTypeName(meter.type)}</Text>
-                    <Text style={styles.meterSerial}>
-                      {meter.serialNumber
-                        ? t('meters.serialNumber', { number: meter.serialNumber })
-                        : t('meters.initialReading', { value: meter.initialValue })}
-                    </Text>
+              // Calculate consumption delta against previous verified or initial reading
+              let consumptionDelta: number | null = null;
+              if (latest) {
+                const prevReading = sorted.find(
+                  (r) => r.id !== latest.id && (r.status === 'VERIFIED' || r.status === 'PENDING'),
+                );
+                const prevVal = prevReading ? prevReading.value : meter.initialValue;
+                if (latest.value >= prevVal) {
+                  consumptionDelta = latest.value - prevVal;
+                }
+              }
+
+              return (
+                <Card
+                  key={meter.id}
+                  style={[
+                    styles.meterCard,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  {/* Meter Card Header */}
+                  <View style={styles.meterHeader}>
+                    <View
+                      style={[
+                        styles.meterIconWrap,
+                        {
+                          backgroundColor: getMeterTypeBg(meter.type),
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      {getMeterTypeIcon(meter.type)}
+                    </View>
+                    <View style={styles.meterInfo}>
+                      <Text style={[styles.meterName, { color: theme.colors.text }]}>
+                        {getMeterTypeName(meter.type)}
+                      </Text>
+                      <Text style={[styles.meterSerial, { color: theme.colors.textMuted }]}>
+                        {meter.serialNumber
+                          ? t('meters.serialNumber', { number: meter.serialNumber })
+                          : t('meters.initialReading', { value: meter.initialValue })}
+                      </Text>
+                    </View>
+                    <Badge
+                      label={
+                        isVerified
+                          ? t('meters.statusVerified')
+                          : isPending
+                          ? t('meters.statusPending')
+                          : isRejected
+                          ? t('meters.statusRejected')
+                          : t('meters.noReadingsYet')
+                      }
+                      variant={
+                        isVerified
+                          ? 'success'
+                          : isPending
+                          ? 'warning'
+                          : isRejected
+                          ? 'danger'
+                          : 'neutral'
+                      }
+                      size="sm"
+                    />
                   </View>
-                </View>
 
-                {/* Latest Reading Info */}
-                <View style={styles.readingSection}>
-                  {latest ? (
-                    <View style={styles.readingBox}>
-                      <View style={styles.readingHeader}>
-                        <Text style={styles.readingPeriod}>
-                          {t('meters.periodFormat', {
-                            month: String(latest.periodMonth).padStart(2, '0'),
-                            year: latest.periodYear,
-                          })}
-                        </Text>
-                        <View style={styles.statusBadge}>
-                          {isPending ? (
-                            <View style={[styles.badge, styles.badgePending]}>
-                              <Clock color="#D97706" size={12} />
-                              <Text style={styles.badgeTextPending}>{t('meters.statusPending')}</Text>
-                            </View>
-                          ) : isVerified ? (
-                            <View style={[styles.badge, styles.badgeVerified]}>
-                              <CheckCircle2 color="#059669" size={12} />
-                              <Text style={styles.badgeTextVerified}>{t('meters.statusVerified')}</Text>
-                            </View>
-                          ) : (
-                            <View style={[styles.badge, styles.badgeRejected]}>
-                              <XCircle color="#DC2626" size={12} />
-                              <Text style={styles.badgeTextRejected}>{t('meters.statusRejected')}</Text>
+                  {/* Reading Display Box */}
+                  <View
+                    style={[
+                      styles.readingBox,
+                      {
+                        backgroundColor: theme.colors.surfaceSubtle,
+                        borderColor: theme.colors.border,
+                      },
+                    ]}
+                  >
+                    {latest ? (
+                      <>
+                        <View style={styles.readingTopRow}>
+                          <Text style={[styles.readingPeriodText, { color: theme.colors.textMuted }]}>
+                            {t('meters.periodFormat', {
+                              month: String(latest.periodMonth).padStart(2, '0'),
+                              year: latest.periodYear,
+                            })}
+                          </Text>
+                          {consumptionDelta !== null && (
+                            <View style={styles.consumptionBadge}>
+                              <TrendingUp color={theme.colors.primary} size={13} />
+                              <Text
+                                style={[styles.consumptionText, { color: theme.colors.primary }]}
+                              >
+                                +{consumptionDelta.toLocaleString()} {getMeterUnit(meter.type)}
+                              </Text>
                             </View>
                           )}
                         </View>
-                      </View>
 
-                      <Text style={styles.readingValueText}>
-                        {latest.value.toLocaleString()}{' '}
-                        <Text style={styles.readingUnit}>
-                          {meter.type === 'ELECTRICITY'
-                            ? t('meters.unitElectricity')
-                            : t('meters.unitWater')}
-                        </Text>
-                      </Text>
-
-                      {isRejected && latest.reviewNote && (
-                        <View style={styles.rejectionBox}>
-                          <Text style={styles.rejectionNote}>
-                            {t('meters.rejectionReason', { note: latest.reviewNote })}
+                        <View style={styles.readingValueRow}>
+                          <Text style={[styles.readingValueNum, { color: theme.colors.text }]}>
+                            {latest.value.toLocaleString()}
                           </Text>
+                          <Text style={[styles.readingUnitText, { color: theme.colors.textMuted }]}>
+                            {getMeterUnit(meter.type)}
+                          </Text>
+                        </View>
+
+                        {isRejected && latest.reviewNote && (
+                          <View
+                            style={[
+                              styles.rejectionBox,
+                              {
+                                backgroundColor: theme.colors.dangerBg,
+                                borderColor: theme.colors.dangerBorder,
+                              },
+                            ]}
+                          >
+                            <AlertCircle color={theme.colors.danger} size={15} />
+                            <Text style={[styles.rejectionText, { color: theme.colors.danger }]}>
+                              {t('meters.rejectionReason', { note: latest.reviewNote })}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    ) : (
+                      <View style={styles.noReadingsWrap}>
+                        <Text style={[styles.noReadingsTitle, { color: theme.colors.text }]}>
+                          {t('meters.noReadingsYet')}
+                        </Text>
+                        <Text style={[styles.noReadingsSub, { color: theme.colors.textMuted }]}>
+                          {t('meters.initialReading', { value: meter.initialValue })}{' '}
+                          {getMeterUnit(meter.type)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Past readings history toggle */}
+                  {sorted.length > 1 && (
+                    <View style={styles.historySection}>
+                      <TouchableOpacity
+                        style={styles.historyToggleBtn}
+                        onPress={() => toggleHistory(meter.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={isHistoryOpen ? t('meters.historyHide') : t('meters.historyShow')}
+                      >
+                        <View style={styles.historyToggleLeft}>
+                          <History color={theme.colors.textMuted} size={14} />
+                          <Text style={[styles.historyToggleText, { color: theme.colors.textMuted }]}>
+                            {isHistoryOpen ? t('meters.historyHide') : t('meters.historyShow')} ({sorted.length})
+                          </Text>
+                        </View>
+                        {isHistoryOpen ? (
+                          <ChevronUp color={theme.colors.textMuted} size={16} />
+                        ) : (
+                          <ChevronDown color={theme.colors.textMuted} size={16} />
+                        )}
+                      </TouchableOpacity>
+
+                      {isHistoryOpen && (
+                        <View
+                          style={[
+                            styles.historyList,
+                            {
+                              borderTopColor: theme.colors.border,
+                            },
+                          ]}
+                        >
+                          {sorted.map((r, rIdx) => (
+                            <View
+                              key={r.id || `r-${rIdx}`}
+                              style={[
+                                styles.historyRow,
+                                rIdx < sorted.length - 1 && {
+                                  borderBottomWidth: 1,
+                                  borderBottomColor: theme.colors.border,
+                                },
+                              ]}
+                            >
+                              <Text style={[styles.historyPeriod, { color: theme.colors.textMuted }]}>
+                                {String(r.periodMonth).padStart(2, '0')}.{r.periodYear}
+                              </Text>
+                              <Text style={[styles.historyVal, { color: theme.colors.text }]}>
+                                {r.value.toLocaleString()} {getMeterUnit(meter.type)}
+                              </Text>
+                              <Badge
+                                label={
+                                  r.status === 'VERIFIED'
+                                    ? t('meters.statusVerified')
+                                    : r.status === 'PENDING'
+                                    ? t('meters.statusPending')
+                                    : t('meters.statusRejected')
+                                }
+                                variant={
+                                  r.status === 'VERIFIED'
+                                    ? 'success'
+                                    : r.status === 'PENDING'
+                                    ? 'warning'
+                                    : 'danger'
+                                }
+                                size="sm"
+                              />
+                            </View>
+                          ))}
                         </View>
                       )}
                     </View>
-                  ) : (
-                    <View style={styles.noReadingsBox}>
-                      <Text style={styles.noReadingsText}>{t('meters.noReadingsYet')}</Text>
-                      <Text style={styles.initialValueText}>
-                        {t('meters.initialReading', { value: meter.initialValue })}
-                      </Text>
-                    </View>
                   )}
-                </View>
 
-                {/* Action Button */}
-                <TouchableOpacity
-                  style={[styles.submitButton, isRejected && styles.resubmitButton]}
-                  onPress={() => openSubmitModal(meter)}
-                >
-                  <Text style={styles.submitButtonText}>
-                    {isRejected ? t('meters.resubmitBtn') : t('meters.submitBtn')}
-                  </Text>
-                </TouchableOpacity>
-              </Card>
-            );
-          })}
-        </ScrollView>
-      )}
+                  {/* Submit Button */}
+                  <Button
+                    title={isRejected ? t('meters.resubmitBtn') : t('meters.submitBtn')}
+                    variant={isRejected ? 'destructive' : 'primary'}
+                    onPress={() => openSubmitModal(meter)}
+                    size="md"
+                    style={styles.cardSubmitBtn}
+                  />
+                </Card>
+              );
+            })}
+          </AnimatedEntrance>
+        )}
+      </ScrollView>
 
-      {/* SUBMISSION MODAL */}
-      {selectedMeter && isSubmitModalOpen && (
-        <Modal
+      {/* SUBMISSION BOTTOMSHEET */}
+      {selectedMeter && (
+        <BottomSheet
           visible={isSubmitModalOpen}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setIsSubmitModalOpen(false)}
+          onClose={closeSubmitModal}
+          title={t('meters.modalTitle')}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalSheet}>
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>{t('meters.modalTitle')}</Text>
-                  <Text style={styles.modalSub}>{getMeterTypeName(selectedMeter.type)}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={() => setIsSubmitModalOpen(false)}
-                >
-                  <X color={Colors.textMuted} size={20} />
-                </TouchableOpacity>
+          <ScrollView
+            contentContainerStyle={styles.sheetScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Meter and Period Badge */}
+            <View style={styles.sheetHeaderInfo}>
+              <View
+                style={[
+                  styles.sheetIconWrap,
+                  { backgroundColor: getMeterTypeBg(selectedMeter.type) },
+                ]}
+              >
+                {getMeterTypeIcon(selectedMeter.type)}
               </View>
+              <View style={styles.sheetHeaderText}>
+                <Text style={[styles.sheetMeterName, { color: theme.colors.text }]}>
+                  {getMeterTypeName(selectedMeter.type)}
+                </Text>
+                <Text style={[styles.sheetPeriodText, { color: theme.colors.textMuted }]}>
+                  {t('meters.periodLabel')}:{' '}
+                  {t('meters.periodFormat', {
+                    month: String(inputMonth).padStart(2, '0'),
+                    year: inputYear,
+                  })}
+                </Text>
+              </View>
+            </View>
 
-              <ScrollView contentContainerStyle={styles.modalScrollContent}>
-                {/* Period Display */}
-                <Text style={styles.fieldLabel}>{t('meters.periodLabel')}</Text>
-                <View style={styles.periodRow}>
-                  <Text style={styles.periodText}>
-                    {t('meters.periodFormat', {
-                      month: String(inputMonth).padStart(2, '0'),
-                      year: inputYear,
-                    })}
+            {/* Previous verified reference */}
+            {(() => {
+              const lastVerified = getLastVerifiedReading(selectedMeter);
+              const minVal = lastVerified ? lastVerified.value : selectedMeter.initialValue;
+              return (
+                <View
+                  style={[
+                    styles.referenceBox,
+                    {
+                      backgroundColor: theme.colors.surfaceSubtle,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.referenceLabel, { color: theme.colors.textMuted }]}>
+                    {t('meters.previousVerified', { value: minVal })} {getMeterUnit(selectedMeter.type)}
                   </Text>
                 </View>
+              );
+            })()}
 
-                {/* Numeric Value Input */}
-                <Text style={styles.fieldLabel}>{t('meters.inputLabel')}</Text>
-                <TextInput
-                  style={styles.numericInput}
-                  keyboardType="decimal-pad"
-                  placeholder={t('meters.inputPlaceholder')}
-                  placeholderTextColor={Colors.textMuted}
-                  value={inputValue}
-                  onChangeText={(val) => {
-                    setInputValue(val);
-                    setSubmitError(null);
-                  }}
-                />
-
-                {/* Photo Attachment */}
-                <Text style={styles.fieldLabel}>{t('meters.photoLabel')}</Text>
-                <PhotoAttachments key={selectedMeter.id} value={photoUrl ? [photoUrl] : []} onChange={(urls) => setPhotoUrl(urls[0] || null)} onBusyChange={setUploadingPhoto} disabled={submitting} maxPhotos={1} />
-
-                {/* Error Banner */}
-                {submitError && (
-                  <View style={styles.submitErrorBox}>
-                    <AlertCircle color="#DC2626" size={16} />
-                    <Text style={styles.submitErrorText}>{submitError}</Text>
-                  </View>
-                )}
-
-                {/* Submit Button */}
-                <Button
-                  title={t('meters.confirmSubmit')}
-                  onPress={handleSubmitReading}
-                  loading={submitting}
-            disabled={uploadingPhoto}
-                  size="lg"
-                  style={styles.modalSubmitBtn}
-                />
-              </ScrollView>
+            {/* Large Digital Input */}
+            <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
+              {t('meters.inputLabel')}
+            </Text>
+            <View
+              style={[
+                styles.digitalInputWrap,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: submitError ? theme.colors.danger : theme.colors.border,
+                },
+              ]}
+            >
+              <TextInput
+                style={[
+                  styles.digitalInput,
+                  {
+                    color: theme.colors.text,
+                  },
+                  Platform.OS === 'web'
+                    ? ({ outlineStyle: 'none', outlineWidth: 0 } as any)
+                    : null,
+                ]}
+                keyboardType="decimal-pad"
+                placeholder={t('meters.inputPlaceholder')}
+                placeholderTextColor={theme.colors.textLight}
+                value={inputValue}
+                onChangeText={(val) => {
+                  setInputValue(val);
+                  setSubmitError(null);
+                }}
+                accessibilityLabel={t('meters.inputLabel')}
+              />
+              <Text style={[styles.digitalUnit, { color: theme.colors.textMuted }]}>
+                {getMeterUnit(selectedMeter.type)}
+              </Text>
             </View>
-          </View>
-        </Modal>
+
+            {/* Photo Attachment Section */}
+            <Text style={[styles.inputLabel, { color: theme.colors.text, marginTop: 14 }]}>
+              {t('meters.photoLabel')}
+            </Text>
+            <PhotoAttachments
+              key={selectedMeter.id}
+              value={photoUrl ? [photoUrl] : []}
+              onChange={(urls) => {
+                setPhotoUrl(urls[0] || null);
+                setSubmitError(null);
+              }}
+              onBusyChange={setUploadingPhoto}
+              disabled={submitting}
+              maxPhotos={1}
+            />
+
+            {/* Error Message */}
+            {submitError && (
+              <View
+                style={[
+                  styles.submitErrorBox,
+                  {
+                    backgroundColor: theme.colors.dangerBg,
+                    borderColor: theme.colors.dangerBorder,
+                  },
+                ]}
+              >
+                <AlertCircle color={theme.colors.danger} size={16} />
+                <Text style={[styles.submitErrorText, { color: theme.colors.danger }]}>
+                  {submitError}
+                </Text>
+              </View>
+            )}
+
+            {/* Confirm Submit Button */}
+            <Button
+              title={t('meters.confirmSubmit')}
+              onPress={handleSubmitReading}
+              loading={submitting}
+              disabled={uploadingPhoto}
+              size="lg"
+              style={styles.modalSubmitBtn}
+            />
+          </ScrollView>
+        </BottomSheet>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  topNav: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  backBtn: {
-    padding: 4,
+  backButton: {
+    padding: 6,
+    marginLeft: -4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  navTitle: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  headerRightPlaceholder: {
+    width: 44,
   },
   unitSelectorContainer: {
-    backgroundColor: '#FFFFFF',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   unitPillsRow: {
     paddingHorizontal: 16,
@@ -465,318 +794,240 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  unitPillSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    minHeight: 44,
   },
   unitPillText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
   },
-  unitPillTextSelected: {
-    color: '#FFFFFF',
+  scrollArea: {
+    flex: 1,
   },
-  scrollContent: {
+  contentContainer: {
     padding: 16,
     gap: 16,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  errorText: {
-    fontSize: 14,
-    color: Colors.danger,
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
+  skeletonWrap: {
+    paddingTop: 12,
   },
   meterCard: {
+    borderRadius: 18,
     padding: 16,
-    borderRadius: 16,
+    borderWidth: 1,
   },
   meterHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  meterIconContainer: {
+  meterIconWrap: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   meterInfo: {
     flex: 1,
+    marginRight: 8,
   },
   meterName: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.text,
   },
   meterSerial: {
     fontSize: 12,
-    color: Colors.textMuted,
     marginTop: 2,
     fontFamily: 'monospace',
   },
-  readingSection: {
-    marginBottom: 14,
-  },
   readingBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: 12,
   },
-  readingHeader: {
+  readingTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  readingPeriod: {
+  readingPeriodText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textMuted,
   },
-  statusBadge: {},
-  badge: {
+  consumptionBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
   },
-  badgePending: {
-    backgroundColor: '#FEF3C7',
-  },
-  badgeTextPending: {
-    fontSize: 11,
+  consumptionText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#B45309',
   },
-  badgeVerified: {
-    backgroundColor: '#ECFDF5',
+  readingValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
   },
-  badgeTextVerified: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  badgeRejected: {
-    backgroundColor: '#FEE2E2',
-  },
-  badgeTextRejected: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  readingValueText: {
-    fontSize: 22,
+  readingValueNum: {
+    fontSize: 28,
     fontWeight: '800',
     fontFamily: 'monospace',
-    color: Colors.text,
+    letterSpacing: -0.5,
   },
-  readingUnit: {
+  readingUnitText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textMuted,
   },
   rejectionBox: {
-    marginTop: 8,
-    backgroundColor: '#FEF2F2',
-    padding: 8,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FECACA',
   },
-  rejectionNote: {
+  rejectionText: {
+    flex: 1,
     fontSize: 12,
-    color: '#DC2626',
+    lineHeight: 16,
   },
-  noReadingsBox: {
-    padding: 12,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  noReadingsWrap: {
+    paddingVertical: 8,
   },
-  noReadingsText: {
-    fontSize: 13,
+  noReadingsTitle: {
+    fontSize: 14,
     fontWeight: '600',
-    color: Colors.textMuted,
   },
-  initialValueText: {
+  noReadingsSub: {
     fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
     fontFamily: 'monospace',
   },
-  submitButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  historySection: {
+    marginBottom: 12,
   },
-  resubmitButton: {
-    backgroundColor: '#DC2626',
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '85%',
-  },
-  modalHeader: {
+  historyToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingVertical: 8,
+    minHeight: 44,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  modalSub: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalScrollContent: {
-    padding: 20,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  periodRow: {
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  periodText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  numericInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 20,
-    fontWeight: '700',
-    fontFamily: 'monospace',
-    color: Colors.text,
-    backgroundColor: '#FFFFFF',
-  },
-  photoUploadBox: {
+  historyToggleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: Colors.border,
-    backgroundColor: '#F8FAFC',
+    gap: 6,
   },
-  photoUploadText: {
-    fontSize: 14,
+  historyToggleText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: Colors.textMuted,
   },
-  photoUploadTextActive: {
-    color: Colors.primary,
+  historyList: {
+    borderTopWidth: 1,
+    paddingTop: 8,
+    marginTop: 4,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  historyPeriod: {
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: 'monospace',
+  },
+  historyVal: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  cardSubmitBtn: {
+    marginTop: 4,
+  },
+  sheetScrollContent: {
+    paddingBottom: 20,
+  },
+  sheetHeaderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 12,
+  },
+  sheetIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetHeaderText: {
+    flex: 1,
+  },
+  sheetMeterName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  sheetPeriodText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  referenceBox: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  referenceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  digitalInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    minHeight: 56,
+  },
+  digitalInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+    paddingVertical: 10,
+  },
+  digitalUnit: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   submitErrorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 14,
+    marginTop: 12,
     padding: 12,
-    backgroundColor: '#FEF2F2',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FECACA',
   },
   submitErrorText: {
     flex: 1,
-    fontSize: 12,
-    color: '#DC2626',
-    fontWeight: '500',
+    fontSize: 13,
   },
   modalSubmitBtn: {
     marginTop: 20,
