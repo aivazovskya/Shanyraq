@@ -1,27 +1,29 @@
-﻿export const Colors = {
-  primary: '#059669',       // Emerald 600
-  primaryDark: '#047857',   // Emerald 700
-  primaryLight: '#D1FAE5',  // Emerald 100
-  primaryBg: '#ECFDF5',     // Emerald 50
+import { lightColors } from '../theme/tokens';
 
-  background: '#F9FAFB',    // Gray 50
-  surface: '#FFFFFF',
-  card: '#FFFFFF',
-  border: '#E5E7EB',        // Gray 200
-  borderDark: '#D1D5DB',    // Gray 300
+export const Colors = {
+  primary: lightColors.primary,             // #059669
+  primaryDark: lightColors.primaryDark,     // #047857
+  primaryLight: lightColors.primaryLight,   // #D1FAE5
+  primaryBg: lightColors.primaryBg,         // #ECFDF5
 
-  text: '#111827',          // Gray 900
-  textMuted: '#6B7280',     // Gray 500
-  textLight: '#9CA3AF',     // Gray 400
+  background: lightColors.background,       // #F8FAFC
+  surface: lightColors.surface,             // #FFFFFF
+  card: lightColors.card,                   // #FFFFFF
+  border: lightColors.border,               // #E2E8F0
+  borderDark: '#D1D5DB',
 
-  success: '#10B981',       // Emerald 500
-  successBg: '#DEF7EC',
-  warning: '#F59E0B',       // Amber 500
-  warningBg: '#FEF3C7',
-  danger: '#EF4444',        // Red 500
-  dangerBg: '#FEE2E2',
-  info: '#3B82F6',          // Blue 500
-  infoBg: '#DBEAFE',
+  text: lightColors.text,                   // #0F172A
+  textMuted: lightColors.textMuted,         // #475569
+  textLight: lightColors.textLight,         // #94A3B8
+
+  success: lightColors.success,             // #10B981
+  successBg: lightColors.successBg,
+  warning: lightColors.warning,             // #D97706
+  warningBg: lightColors.warningBg,
+  danger: lightColors.danger,               // #DC2626
+  dangerBg: lightColors.dangerBg,
+  info: lightColors.info,                   // #2563EB
+  infoBg: lightColors.infoBg,
 
   barrierActive: '#10B981',
   barrierProgress: '#047857',

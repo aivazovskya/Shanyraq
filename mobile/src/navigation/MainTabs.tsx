@@ -7,7 +7,7 @@ import { VotingsListScreen } from '../screens/votings/VotingsListScreen';
 import { AccessScreen } from '../screens/access/AccessScreen';
 import { RequestsListScreen } from '../screens/requests/RequestsListScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
-import { Colors } from '../constants/colors';
+import { FloatingTabBar } from '../components/ui/FloatingTabBar';
 import { Home, Vote, ShieldCheck, Wrench, User } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
@@ -17,21 +17,9 @@ export const MainTabs: React.FC = () => {
 
   return (
     <Tab.Navigator
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-        },
       }}
     >
       <Tab.Screen

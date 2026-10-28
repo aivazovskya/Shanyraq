@@ -3,51 +3,64 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   TouchableOpacity,
   Switch,
 } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
 import { AuthApi } from '../../api/auth';
 import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
 import { CommunityBoardApi } from '../../api/community-board';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
-import { Button } from '../../components/common/Button';
-import { Colors } from '../../constants/colors';
 import { changeAppLanguage, SupportedLocale } from '../../i18n';
+import { ThemeMode } from '../../storage/theme-storage';
+import { Card } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Avatar } from '../../components/ui/Avatar';
+import { ListItem } from '../../components/ui/ListItem';
+import { Divider } from '../../components/ui/Divider';
+import { BottomSheet } from '../../components/ui/BottomSheet';
+import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
+import { safeHaptic } from '../../lib/haptics';
 import {
-  User,
   Phone,
   PhoneOff,
   Home,
   ShieldCheck,
   LogOut,
-  PlusCircle,
   Bell,
   KeyRound,
-  ChevronRight,
   Globe,
+  Palette,
+  Check,
+  Plus,
   MessageSquare,
   Wrench,
   CreditCard,
+  Sun,
+  Moon,
+  Smartphone,
 } from 'lucide-react-native';
 
-const LANGUAGES: { code: SupportedLocale; label: string }[] = [
-  { code: 'kk', label: 'Қазақша' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'en', label: 'English' },
+const LANGUAGES: { code: SupportedLocale; label: string; nativeName: string }[] = [
+  { code: 'kk', label: 'Қазақша', nativeName: 'Қазақ тілі' },
+  { code: 'ru', label: 'Русский', nativeName: 'Русский язык' },
+  { code: 'en', label: 'English', nativeName: 'English (US)' },
 ];
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const { user, logout, refreshProfile } = useAuth();
+  const { theme, mode, setThemeMode } = useTheme();
   const { t, i18n } = useTranslation();
+
   const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
   const [hidePhoneInListings, setHidePhoneInListings] = useState<boolean>(
     user?.hidePhoneInListings ?? false,
@@ -58,6 +71,9 @@ export const ProfileScreen: React.FC = () => {
     ANNOUNCEMENT: true,
     FINANCE: true,
   });
+
+  const [themeSheetVisible, setThemeSheetVisible] = useState(false);
+  const [langSheetVisible, setLangSheetVisible] = useState(false);
 
   useEffect(() => {
     if (user?.hidePhoneInListings !== undefined) {
@@ -80,6 +96,7 @@ export const ProfileScreen: React.FC = () => {
   }, [isFocused]);
 
   const handleTogglePreference = async (key: keyof NotificationPreferences, value: boolean) => {
+    safeHaptic.selection();
     setPreferences((prev) => ({ ...prev, [key]: value }));
     try {
       const updated = await NotificationsApi.updatePreferences({ [key]: value });
@@ -93,6 +110,7 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleTogglePhoneVisibility = async (value: boolean) => {
+    safeHaptic.selection();
     setHidePhoneInListings(value);
     try {
       const res = await CommunityBoardApi.updatePhoneVisibility(value);
@@ -107,6 +125,7 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleConfirmLogout = () => {
+    safeHaptic.selection();
     Alert.alert(
       t('profile.logoutDialogTitle'),
       t('profile.logoutDialogMessage'),
@@ -117,296 +136,467 @@ export const ProfileScreen: React.FC = () => {
     );
   };
 
-  const handleLanguageChange = async (lang: SupportedLocale) => {
-    await changeAppLanguage(lang);
-  };
-
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLocale) || 'ru';
 
+  const getThemeModeLabel = (m: ThemeMode) => {
+    switch (m) {
+      case 'light': return t('profile.themeLight');
+      case 'dark': return t('profile.themeDark');
+      case 'system':
+      default: return t('profile.themeSystem');
+    }
+  };
+
+  const getLanguageLabel = (code: string) => {
+    const found = LANGUAGES.find((l) => l.code === code);
+    return found ? found.label : (LANGUAGES[1]?.label || 'RU');
+  };
+
+  const userName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || t('dashboard.defaultResident');
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('profile.title')}</Text>
-        </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 16) + 12,
+            paddingBottom: Math.max(insets.bottom, 24) + 90, // safe clearance over floating tab bar
+          },
+        ]}
+      >
+        {/* Title */}
+        <AnimatedEntrance index={0}>
+          <Text style={[styles.pageTitle, { color: theme.colors.text }]}>
+            {t('profile.title')}
+          </Text>
+        </AnimatedEntrance>
 
         {/* User Card */}
-        <Card style={styles.userCard}>
-          <View style={styles.userRow}>
-            <View style={styles.avatarCircle}>
-              <User color="#FFFFFF" size={36} />
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>
-                {user?.firstName} {user?.lastName}
-              </Text>
-              <View style={styles.phoneRow}>
-                <Phone color={Colors.textMuted} size={14} />
-                <Text style={styles.userPhone}>{user?.phone}</Text>
-              </View>
-            </View>
-          </View>
-        </Card>
-
-        {/* Language Selection */}
-        <Text style={styles.sectionHeading}>{t('profile.languageSection')}</Text>
-        <Card style={styles.languageCard}>
-          <View style={styles.languageRow}>
-            <View style={styles.languageIconWrap}>
-              <Globe color={Colors.primary} size={20} />
-            </View>
-            <View style={styles.languageButtons}>
-              {LANGUAGES.map((lang) => {
-                const isSelected = currentLang === lang.code;
-                return (
-                  <TouchableOpacity
-                    key={lang.code}
-                    onPress={() => handleLanguageChange(lang.code)}
-                    style={[
-                      styles.langBtn,
-                      isSelected && styles.langBtnActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.langBtnText,
-                        isSelected && styles.langBtnTextActive,
-                      ]}
-                    >
-                      {lang.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </Card>
-
-        {/* Housing Units (Ownerships) */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>
-            {t('profile.myProperties', { count: user?.ownerships?.length || 0 })}
-          </Text>
-          <Button
-            title={t('profile.addProperty')}
-            onPress={() => navigation.navigate('ClaimUnit')}
-            variant="outline"
-            size="sm"
-          />
-        </View>
-
-        {user?.ownerships && user.ownerships.length > 0 ? (
-          user.ownerships.map((o) => (
-            <Card key={o.id} style={styles.propertyCard}>
-              <View style={styles.propertyHeader}>
-                <View style={styles.propertyTitleRow}>
-                  <Home color={Colors.primary} size={20} />
-                  <Text style={styles.propertyTitle}>
-                    {t('profile.unitPrefix')} {o.unit?.unitNumber}
+        <AnimatedEntrance index={1}>
+          <Card style={styles.userCard}>
+            <View style={styles.userRow}>
+              <Avatar name={userName} size="xl" />
+              <View style={styles.userInfo}>
+                <Text style={[styles.userName, { color: theme.colors.text }]} numberOfLines={1}>
+                  {userName}
+                </Text>
+                <View style={styles.phoneRow}>
+                  <Phone color={theme.colors.textMuted} size={14} />
+                  <Text style={[styles.userPhone, { color: theme.colors.textMuted }]}>
+                    {user?.phone}
                   </Text>
                 </View>
-                <Badge
-                  label={o.isVerified ? t('profile.verified') : t('profile.pending')}
-                  variant={o.isVerified ? 'success' : 'warning'}
-                />
+                <View style={styles.userBadgeRow}>
+                  <Badge
+                    label={user?.role === 'RESIDENT' ? t('profile.tenantRole') : user?.role || t('profile.ownerRole')}
+                    variant="primary"
+                    size="sm"
+                  />
+                </View>
               </View>
-
-              <Text style={styles.complexName}>
-                {user.tenant?.name || t('profile.defaultComplex')} • {o.unit?.building?.blockName || t('profile.defaultBlock')}
-              </Text>
-
-              <View style={styles.propertyMeta}>
-                <Text style={styles.metaLabel}>
-                  {t('profile.roleLabel')}{' '}
-                  <Text style={styles.metaValue}>
-                    {o.ownershipType === 'OWNER' ? t('profile.ownerRole') : t('profile.tenantRole')}
-                  </Text>
-                </Text>
-                <Text style={styles.metaLabel}>
-                  {t('profile.areaLabel')}{' '}
-                  <Text style={styles.metaValue}>{o.unit?.area} м²</Text>
-                </Text>
-                <Text style={styles.metaLabel}>
-                  {t('profile.shareLabel')}{' '}
-                  <Text style={styles.metaValue}>{o.sharePercent}%</Text>
-                </Text>
-              </View>
-            </Card>
-          ))
-        ) : (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{t('profile.noProperties')}</Text>
+            </View>
           </Card>
-        )}
+        </AnimatedEntrance>
 
-        {/* Security & System Info */}
-        <Text style={styles.sectionHeading}>{t('profile.securitySection')}</Text>
-        <Card style={styles.settingsCard}>
-          {/* 1. Chat notifications */}
-          <View style={styles.settingItem}>
-            <MessageSquare color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefChatTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefChatSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.CHAT}
-              onValueChange={(val) => handleTogglePreference('CHAT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+        {/* Section: Appearance */}
+        <AnimatedEntrance index={2}>
+          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+            {t('profile.appearanceSection')}
+          </Text>
+          <Card style={styles.groupedCard}>
+            <ListItem
+              title={t('profile.themeTitle')}
+              subtitle={getThemeModeLabel(mode)}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.primaryBg }]}>
+                  <Palette color={theme.colors.primary} size={20} />
+                </View>
+              }
+              onPress={() => setThemeSheetVisible(true)}
+              showChevron={true}
             />
+            <Divider />
+            <ListItem
+              title={t('profile.languageSection')}
+              subtitle={getLanguageLabel(currentLang)}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.infoBg }]}>
+                  <Globe color={theme.colors.info} size={20} />
+                </View>
+              }
+              onPress={() => setLangSheetVisible(true)}
+              showChevron={true}
+            />
+          </Card>
+        </AnimatedEntrance>
+
+        {/* Section: Properties */}
+        <AnimatedEntrance index={3}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              {t('profile.myProperties', { count: user?.ownerships?.length || 0 })}
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ClaimUnit')}
+              style={styles.addPropertyBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t('profile.addProperty')}
+            >
+              <Plus size={16} color={theme.colors.primary} />
+              <Text style={[styles.addPropertyText, { color: theme.colors.primary }]}>
+                {t('profile.addProperty')}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.separator} />
+          {user?.ownerships && user.ownerships.length > 0 ? (
+            user.ownerships.map((o) => (
+              <Card key={o.id} style={styles.propertyCard}>
+                <View style={styles.propertyHeader}>
+                  <View style={styles.propertyTitleRow}>
+                    <Home color={theme.colors.primary} size={20} />
+                    <Text style={[styles.propertyTitle, { color: theme.colors.text }]}>
+                      {t('profile.unitPrefix')} {o.unit?.unitNumber}
+                    </Text>
+                  </View>
+                  <Badge
+                    label={o.isVerified ? t('profile.verified') : t('profile.pending')}
+                    variant={o.isVerified ? 'success' : 'warning'}
+                    size="sm"
+                  />
+                </View>
 
-          {/* 2. Service request notifications */}
-          <View style={styles.settingItem}>
-            <Wrench color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefRequestTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefRequestSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.SERVICE_REQUEST}
-              onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+                <Text style={[styles.complexName, { color: theme.colors.textMuted }]}>
+                  {user.tenant?.name || t('profile.defaultComplex')} • {o.unit?.building?.blockName || t('profile.defaultBlock')}
+                </Text>
+
+                <View style={[styles.propertyMeta, { borderTopColor: theme.colors.border }]}>
+                  <Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>
+                    {t('profile.roleLabel')}{' '}
+                    <Text style={[styles.metaValue, { color: theme.colors.text }]}>
+                      {o.ownershipType === 'OWNER' ? t('profile.ownerRole') : t('profile.tenantRole')}
+                    </Text>
+                  </Text>
+                  <Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>
+                    {t('profile.areaLabel')}{' '}
+                    <Text style={[styles.metaValue, { color: theme.colors.text }]}>{o.unit?.area} m²</Text>
+                  </Text>
+                  <Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>
+                    {t('profile.shareLabel')}{' '}
+                    <Text style={[styles.metaValue, { color: theme.colors.text }]}>{o.sharePercent}%</Text>
+                  </Text>
+                </View>
+              </Card>
+            ))
+          ) : (
+            <Card style={styles.emptyCard}>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
+                {t('profile.noProperties')}
+              </Text>
+            </Card>
+          )}
+        </AnimatedEntrance>
+
+        {/* Section: Notifications */}
+        <AnimatedEntrance index={4}>
+          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+            {t('profile.pushSection')}
+          </Text>
+          <Card style={styles.groupedCard}>
+            {/* 1. Chat */}
+            <ListItem
+              title={t('profile.prefChatTitle')}
+              subtitle={t('profile.prefChatSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.primaryBg }]}>
+                  <MessageSquare color={theme.colors.primary} size={20} />
+                </View>
+              }
+              rightElement={
+                <Switch
+                  value={preferences.CHAT}
+                  onValueChange={(val) => handleTogglePreference('CHAT', val)}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              }
             />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 3. Announcement notifications */}
-          <View style={styles.settingItem}>
-            <Bell color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefAnnouncementTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefAnnouncementSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.ANNOUNCEMENT}
-              onValueChange={(val) => handleTogglePreference('ANNOUNCEMENT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+            <Divider />
+            {/* 2. Requests */}
+            <ListItem
+              title={t('profile.prefRequestTitle')}
+              subtitle={t('profile.prefRequestSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.warningBg }]}>
+                  <Wrench color={theme.colors.warning} size={20} />
+                </View>
+              }
+              rightElement={
+                <Switch
+                  value={preferences.SERVICE_REQUEST}
+                  onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              }
             />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 4. Finance notifications */}
-          <View style={styles.settingItem}>
-            <CreditCard color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefFinanceTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefFinanceSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.FINANCE}
-              onValueChange={(val) => handleTogglePreference('FINANCE', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+            <Divider />
+            {/* 3. Announcements */}
+            <ListItem
+              title={t('profile.prefAnnouncementTitle')}
+              subtitle={t('profile.prefAnnouncementSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.infoBg }]}>
+                  <Bell color={theme.colors.info} size={20} />
+                </View>
+              }
+              rightElement={
+                <Switch
+                  value={preferences.ANNOUNCEMENT}
+                  onValueChange={(val) => handleTogglePreference('ANNOUNCEMENT', val)}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              }
             />
-          </View>
-
-          <View style={styles.separator} />
-
-          <View style={styles.settingItem}>
-            <ShieldCheck color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.signatureTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.signatureSub')}</Text>
-            </View>
-            <Badge label={t('common.enabled')} variant="info" />
-          </View>
-
-          <View style={styles.separator} />
-
-          <TouchableOpacity
-            style={styles.settingItem}
-            onPress={() => navigation.navigate('PinSetup')}
-            activeOpacity={0.7}
-          >
-            <KeyRound color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.pinTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.pinSub')}</Text>
-            </View>
-            <Badge
-              label={isPinSet === true ? t('common.configured') : isPinSet === false ? t('common.notConfigured') : '...'}
-              variant={isPinSet ? 'success' : 'warning'}
+            <Divider />
+            {/* 4. Finance */}
+            <ListItem
+              title={t('profile.prefFinanceTitle')}
+              subtitle={t('profile.prefFinanceSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.primaryBg }]}>
+                  <CreditCard color={theme.colors.primary} size={20} />
+                </View>
+              }
+              rightElement={
+                <Switch
+                  value={preferences.FINANCE}
+                  onValueChange={(val) => handleTogglePreference('FINANCE', val)}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              }
             />
-            <ChevronRight color={Colors.textMuted} size={18} />
-          </TouchableOpacity>
-        </Card>
+          </Card>
+        </AnimatedEntrance>
 
-        {/* Community Board Privacy */}
-        <Text style={styles.sectionHeading}>{t('profile.privacySection')}</Text>
-        <Card style={styles.settingsCard}>
-          <View style={styles.settingItem}>
-            <PhoneOff color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.hidePhoneTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.hidePhoneSub')}</Text>
-            </View>
-            <Switch
-              value={hidePhoneInListings}
-              onValueChange={handleTogglePhoneVisibility}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+        {/* Section: Security & Privacy */}
+        <AnimatedEntrance index={5}>
+          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+            {t('profile.securitySection')}
+          </Text>
+          <Card style={styles.groupedCard}>
+            <ListItem
+              title={t('profile.signatureTitle')}
+              subtitle={t('profile.signatureSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.primaryBg }]}>
+                  <ShieldCheck color={theme.colors.primary} size={20} />
+                </View>
+              }
+              rightElement={<Badge label={t('common.enabled')} variant="success" size="sm" />}
             />
-          </View>
-        </Card>
+            <Divider />
+            <ListItem
+              title={t('profile.pinTitle')}
+              subtitle={t('profile.pinSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.warningBg }]}>
+                  <KeyRound color={theme.colors.warning} size={20} />
+                </View>
+              }
+              rightElement={
+                <Badge
+                  label={
+                    isPinSet === true
+                      ? t('common.configured')
+                      : isPinSet === false
+                      ? t('common.notConfigured')
+                      : '...'
+                  }
+                  variant={isPinSet ? 'success' : 'warning'}
+                  size="sm"
+                />
+              }
+              onPress={() => navigation.navigate('PinSetup')}
+              showChevron={true}
+            />
+            <Divider />
+            <ListItem
+              title={t('profile.hidePhoneTitle')}
+              subtitle={t('profile.hidePhoneSub')}
+              leftIcon={
+                <View style={[styles.itemIconCircle, { backgroundColor: theme.colors.surfaceSubtle }]}>
+                  <PhoneOff color={theme.colors.textMuted} size={20} />
+                </View>
+              }
+              rightElement={
+                <Switch
+                  value={hidePhoneInListings}
+                  onValueChange={handleTogglePhoneVisibility}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              }
+            />
+          </Card>
+        </AnimatedEntrance>
 
         {/* Logout Button */}
-        <Button
-          title={t('profile.logoutButton')}
-          onPress={handleConfirmLogout}
-          variant="danger"
-          size="lg"
-          icon={<LogOut color="#FFFFFF" size={20} />}
-          style={styles.logoutButton}
-        />
+        <AnimatedEntrance index={6}>
+          <Button
+            title={t('profile.logoutButton')}
+            onPress={handleConfirmLogout}
+            variant="destructive"
+            size="lg"
+            leftIcon={<LogOut color="#FFFFFF" size={20} />}
+            style={styles.logoutButton}
+          />
 
-        <Text style={styles.versionText}>{t('profile.appVersion')}</Text>
+          <Text style={[styles.versionText, { color: theme.colors.textLight }]}>
+            {t('profile.appVersion')}
+          </Text>
+        </AnimatedEntrance>
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Theme Selection BottomSheet */}
+      <BottomSheet
+        visible={themeSheetVisible}
+        onClose={() => setThemeSheetVisible(false)}
+        title={t('profile.themeTitle')}
+      >
+        <View style={styles.sheetContent}>
+          <TouchableOpacity
+            style={[
+              styles.sheetOption,
+              mode === 'system' && { backgroundColor: theme.colors.primaryBg },
+            ]}
+            onPress={async () => {
+              await setThemeMode('system');
+              setThemeSheetVisible(false);
+            }}
+          >
+            <View style={styles.sheetOptionLeft}>
+              <Smartphone size={22} color={theme.colors.text} />
+              <View>
+                <Text style={[styles.sheetOptionTitle, { color: theme.colors.text }]}>
+                  {t('profile.themeSystem')}
+                </Text>
+                <Text style={[styles.sheetOptionSub, { color: theme.colors.textMuted }]}>
+                  {t('profile.themeSub')}
+                </Text>
+              </View>
+            </View>
+            {mode === 'system' && <Check size={20} color={theme.colors.primary} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.sheetOption,
+              mode === 'light' && { backgroundColor: theme.colors.primaryBg },
+            ]}
+            onPress={async () => {
+              await setThemeMode('light');
+              setThemeSheetVisible(false);
+            }}
+          >
+            <View style={styles.sheetOptionLeft}>
+              <Sun size={22} color="#D97706" />
+              <Text style={[styles.sheetOptionTitle, { color: theme.colors.text }]}>
+                {t('profile.themeLight')}
+              </Text>
+            </View>
+            {mode === 'light' && <Check size={20} color={theme.colors.primary} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.sheetOption,
+              mode === 'dark' && { backgroundColor: theme.colors.primaryBg },
+            ]}
+            onPress={async () => {
+              await setThemeMode('dark');
+              setThemeSheetVisible(false);
+            }}
+          >
+            <View style={styles.sheetOptionLeft}>
+              <Moon size={22} color="#60A5FA" />
+              <Text style={[styles.sheetOptionTitle, { color: theme.colors.text }]}>
+                {t('profile.themeDark')}
+              </Text>
+            </View>
+            {mode === 'dark' && <Check size={20} color={theme.colors.primary} />}
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
+
+      {/* Language Selection BottomSheet */}
+      <BottomSheet
+        visible={langSheetVisible}
+        onClose={() => setLangSheetVisible(false)}
+        title={t('profile.languageSection')}
+      >
+        <View style={styles.sheetContent}>
+          {LANGUAGES.map((lang) => {
+            const isSelected = currentLang === lang.code;
+            return (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  styles.sheetOption,
+                  isSelected && { backgroundColor: theme.colors.primaryBg },
+                ]}
+                onPress={async () => {
+                  safeHaptic.selection();
+                  await changeAppLanguage(lang.code);
+                  setLangSheetVisible(false);
+                }}
+              >
+                <View style={styles.sheetOptionLeft}>
+                  <Globe size={22} color={isSelected ? theme.colors.primary : theme.colors.text} />
+                  <View>
+                    <Text style={[styles.sheetOptionTitle, { color: theme.colors.text }]}>
+                      {lang.label}
+                    </Text>
+                    <Text style={[styles.sheetOptionSub, { color: theme.colors.textMuted }]}>
+                      {lang.nativeName}
+                    </Text>
+                  </View>
+                </View>
+                {isSelected && <Check size={20} color={theme.colors.primary} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BottomSheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
   },
-  header: {
-    marginBottom: 16,
-    marginTop: 4,
-  },
-  title: {
-    fontSize: 26,
+  pageTitle: {
+    fontSize: 28,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.5,
+    marginBottom: 16,
   },
   userCard: {
-    marginBottom: 16,
-    padding: 20,
+    marginBottom: 20,
+    padding: 18,
+    borderRadius: 22,
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-  },
-  avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   userInfo: {
     flex: 1,
@@ -414,7 +604,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.3,
   },
   phoneRow: {
     flexDirection: 'row',
@@ -423,25 +613,55 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   userPhone: {
-    fontSize: 14,
-    color: Colors.textMuted,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  userBadgeRow: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
   },
   sectionHeading: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 12,
-    marginTop: 16,
+    letterSpacing: -0.2,
+    marginBottom: 10,
+    marginTop: 8,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
     marginBottom: 10,
+    marginTop: 8,
+  },
+  addPropertyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  addPropertyText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  groupedCard: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  itemIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   propertyCard: {
-    marginBottom: 10,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 18,
   },
   propertyHeader: {
     flexDirection: 'row',
@@ -455,115 +675,67 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   propertyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: Colors.text,
   },
   complexName: {
     fontSize: 13,
-    color: Colors.textMuted,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   propertyMeta: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   metaLabel: {
     fontSize: 12,
-    color: Colors.textMuted,
   },
   metaValue: {
     fontWeight: '700',
-    color: Colors.text,
-  },
-  settingsCard: {
-    marginBottom: 24,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 6,
-  },
-  settingTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  settingSub: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 10,
-  },
-  logoutButton: {
-    marginTop: 8,
-  },
-  versionText: {
-    fontSize: 12,
-    color: Colors.textLight,
-    textAlign: 'center',
-    marginTop: 20,
   },
   emptyCard: {
-    padding: 16,
+    padding: 20,
     alignItems: 'center',
+    marginBottom: 16,
   },
   emptyText: {
     fontSize: 13,
-    color: Colors.textMuted,
   },
-  languageCard: {
-    padding: 14,
-    marginBottom: 10,
+  logoutButton: {
+    marginTop: 12,
   },
-  languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  languageIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E0F2FE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  languageButtons: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  langBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  langBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  langBtnText: {
+  versionText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: Colors.text,
+    textAlign: 'center',
+    marginTop: 18,
+    marginBottom: 8,
   },
-  langBtnTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+  sheetContent: {
+    paddingBottom: 8,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginBottom: 6,
+    minHeight: 52,
+  },
+  sheetOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+  },
+  sheetOptionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  sheetOptionSub: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });

@@ -1,24 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { AuthStackParamList } from '../../navigation/types';
 import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
-import { Colors } from '../../constants/colors';
-import { KeyRound, ArrowLeft } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeContext';
+import { useToast } from '../../context/ToastContext';
+import { safeHaptic } from '../../lib/haptics';
+import { Button } from '../../components/ui/Button';
+import { OtpInput } from '../../components/ui/OtpInput';
+import { ProgressRing } from '../../components/ui/ProgressRing';
+import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
+import { KeyRound, ArrowLeft, RotateCcw } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'OtpVerify'>;
 
@@ -26,12 +30,16 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
   const { phone } = route.params;
   const { login } = useAuth();
   const { t } = useTranslation();
+  const { theme } = useTheme();
+  const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(60);
+  const [shakeTrigger, setShakeTrigger] = useState(0);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
@@ -43,27 +51,35 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  const handleVerify = async () => {
-    if (code.length !== 6) {
-      setError(t('auth.otpValidation'));
-      return;
-    }
+  const handleVerify = useCallback(
+    async (codeToVerify?: string) => {
+      const targetCode = codeToVerify || code;
+      if (targetCode.length !== 6) {
+        setError(t('auth.otpValidation'));
+        setShakeTrigger((prev) => prev + 1);
+        safeHaptic.notification();
+        return;
+      }
 
-    setLoading(true);
-    setError('');
+      setLoading(true);
+      setError('');
 
-    try {
-      const authData = await AuthApi.verifyOtp(phone, code);
-      // Login context updates tokens and state
-      await login(authData);
-      // Navigation is automatically handled reactively by RootNavigator!
-    } catch (err: any) {
-      const msg = getApiErrorMessage(err);
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        const authData = await AuthApi.verifyOtp(phone, targetCode);
+        safeHaptic.notification();
+        await login(authData);
+        // RootNavigator handles redirection automatically
+      } catch (err: any) {
+        const msg = getApiErrorMessage(err);
+        setError(msg);
+        setShakeTrigger((prev) => prev + 1);
+        safeHaptic.notification();
+      } finally {
+        setLoading(false);
+      }
+    },
+    [code, phone, login, t],
+  );
 
   const handleResend = async () => {
     if (countdown > 0 || resending) return;
@@ -74,8 +90,16 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
     try {
       const res = await AuthApi.requestOtp(phone);
       setCountdown(60);
+      safeHaptic.selection();
+
       if (res.devCode) {
-        Alert.alert(t('auth.testSmsTitle'), t('auth.testSmsBody', { code: res.devCode }));
+        showToast({
+          type: 'info',
+          title: t('auth.testSmsTitle'),
+          message: t('auth.testSmsBody', { code: res.devCode }),
+          code: res.devCode,
+          duration: 12000,
+        });
       }
     } catch (err: any) {
       setError(getApiErrorMessage(err));
@@ -84,158 +108,260 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
+  const ringProgress = countdown / 60;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardView}
+        style={styles.flex}
       >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+        {/* Top Back Navigation Bar */}
+        <View
+          style={[
+            styles.navBar,
+            {
+              paddingTop: Math.max(insets.top, 16),
+            },
+          ]}
         >
-          <ArrowLeft color={Colors.text} size={24} />
-          <Text style={styles.backText}>{t('auth.changeNumber')}</Text>
-        </TouchableOpacity>
-
-        <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <KeyRound color="#FFFFFF" size={32} />
-          </View>
-          <Text style={styles.title}>{t('auth.otpTitle')}</Text>
-          <Text style={styles.subtitle}>
-            {t('auth.otpSubtitle')}{'\n'}
-            <Text style={styles.phoneHighlight}>{phone}</Text>
-          </Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel={t('auth.changeNumber')}
+          >
+            <ArrowLeft color={theme.colors.text} size={22} />
+            <Text style={[styles.backText, { color: theme.colors.text }]}>
+              {t('auth.changeNumber')}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.form}>
-          <Input
-            label={t('auth.otpLabel')}
-            value={code}
-            onChangeText={(val) => {
-              setError('');
-              setCode(val.replace(/\D/g, '').slice(0, 6));
-            }}
-            keyboardType="number-pad"
-            maxLength={6}
-            placeholder="000000"
-            error={error}
-            helper={t('auth.otpHelper')}
-            style={styles.otpInput}
-          />
-
-          <Button
-            title={t('auth.loginButton')}
-            onPress={handleVerify}
-            loading={loading}
-            size="lg"
-            style={styles.button}
-          />
-
-          <View style={styles.resendContainer}>
-            {countdown > 0 ? (
-              <Text style={styles.timerText}>
-                {t('auth.resendTimer', { count: countdown })}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: Math.max(insets.bottom, 24) + 20,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Icon & Title */}
+          <AnimatedEntrance index={0} style={styles.header}>
+            <View
+              style={[
+                styles.iconWrap,
+                {
+                  backgroundColor: theme.colors.primary,
+                  ...theme.shadows.lg,
+                },
+              ]}
+            >
+              <KeyRound color={theme.colors.onPrimary} size={34} strokeWidth={2.2} />
+            </View>
+            <Text style={[styles.title, { color: theme.colors.text }]}>
+              {t('auth.otpTitle')}
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
+              {t('auth.otpSubtitle')}{'\n'}
+              <Text style={[styles.phoneHighlight, { color: theme.colors.primary }]}>
+                {phone}
               </Text>
-            ) : (
-              <TouchableOpacity onPress={handleResend} disabled={resending}>
-                <Text style={styles.resendText}>
-                  {resending ? t('auth.resending') : t('auth.resendButton')}
+            </Text>
+          </AnimatedEntrance>
+
+          {/* Form Card */}
+          <AnimatedEntrance index={1} style={styles.formContainer}>
+            <View
+              style={[
+                styles.formCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  ...theme.shadows.md,
+                },
+              ]}
+            >
+              <Text style={[styles.otpInputLabel, { color: theme.colors.textMuted }]}>
+                {t('auth.otpLabel')}
+              </Text>
+
+              <OtpInput
+                value={code}
+                onChange={(val) => {
+                  setError('');
+                  setCode(val);
+                }}
+                onComplete={(completedCode) => {
+                  handleVerify(completedCode);
+                }}
+                error={error}
+                shakeTrigger={shakeTrigger}
+                length={6}
+                autoFocus={true}
+              />
+
+              {Boolean(error) && (
+                <Text style={[styles.errorText, { color: theme.colors.danger }]}>
+                  {error}
                 </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+              )}
+
+              <Button
+                title={t('auth.loginButton')}
+                onPress={() => handleVerify()}
+                loading={loading}
+                disabled={code.length !== 6 || loading}
+                size="lg"
+                style={styles.verifyButton}
+              />
+
+              {/* Resend Section with Progress Ring */}
+              <View style={styles.resendSection}>
+                {countdown > 0 ? (
+                  <View style={styles.countdownRow}>
+                    <ProgressRing
+                      progress={ringProgress}
+                      size={44}
+                      strokeWidth={3.5}
+                      label={countdown}
+                    />
+                    <Text style={[styles.timerText, { color: theme.colors.textMuted }]}>
+                      {t('auth.resendTimer', { count: countdown })}
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleResend}
+                    disabled={resending}
+                    style={styles.resendButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('auth.resendButton')}
+                  >
+                    <RotateCcw size={16} color={theme.colors.primary} />
+                    <Text style={[styles.resendText, { color: theme.colors.primary }]}>
+                      {resending ? t('auth.resending') : t('auth.resendButton')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </AnimatedEntrance>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  keyboardView: {
+  flex: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+  },
+  navBar: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   backButton: {
-    position: 'absolute',
-    top: 20,
-    left: 24,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: 44,
+    minWidth: 44,
+    alignSelf: 'flex-start',
   },
   backText: {
     fontSize: 15,
-    color: Colors.text,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.5,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   phoneHighlight: {
     fontWeight: '700',
-    color: Colors.text,
   },
-  form: {
-    backgroundColor: Colors.surface,
+  formContainer: {
+    width: '100%',
+  },
+  formCard: {
+    borderRadius: 24,
     padding: 24,
-    borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  otpInput: {
-    textAlign: 'center',
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 8,
-  },
-  button: {
-    marginTop: 8,
-  },
-  resendContainer: {
     alignItems: 'center',
-    marginTop: 20,
+  },
+  otpInputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  verifyButton: {
+    width: '100%',
+    marginTop: 12,
+  },
+  resendSection: {
+    alignItems: 'center',
+    marginTop: 22,
+    width: '100%',
+  },
+  countdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   timerText: {
     fontSize: 13,
-    color: Colors.textMuted,
+    fontWeight: '500',
+  },
+  resendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
   },
   resendText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
+    fontWeight: '700',
   },
 });

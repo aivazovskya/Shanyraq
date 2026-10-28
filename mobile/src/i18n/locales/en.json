@@ -1,16 +1,16 @@
 {
   "photos": {
-  "limit": "Up to {{count}} photos, 15 MB each.",
-  "uploading": "Preparing and uploading photo…",
-  "tooLarge": "Choose a photo smaller than 15 MB.",
-  "library": "Choose from library",
-  "failed": "Could not upload the photo. Please retry.",
-  "settings": "Open settings",
-  "cameraPermission": "Allow camera access in settings or choose a photo from your library.",
-  "preview": "Photo {{count}}",
-  "pending": "Photo awaiting upload",
-  "camera": "Take photo"
-},
+    "limit": "Up to {{count}} photos, 15 MB each.",
+    "uploading": "Preparing and uploading photo…",
+    "tooLarge": "Choose a photo smaller than 15 MB.",
+    "library": "Choose from library",
+    "failed": "Could not upload the photo. Please retry.",
+    "settings": "Open settings",
+    "cameraPermission": "Allow camera access in settings or choose a photo from your library.",
+    "preview": "Photo {{count}}",
+    "pending": "Photo awaiting upload",
+    "camera": "Take photo"
+  },
   "common": {
     "loading": "Loading...",
     "save": "Save",
@@ -32,7 +32,8 @@
     "appName": "Shanyraq",
     "all": "All",
     "unitShort": "apt.",
-    "sqm": "m²"
+    "sqm": "m²",
+    "kazakhAlphabet": "Kazakh alphabet: Ә І Ң Ғ Ү Ұ Қ Ө Һ"
   },
   "navigation": {
     "home": "Home",
@@ -60,7 +61,8 @@
     "loginButton": "Log In",
     "resendTimer": "Resend code in {{count}}s",
     "resendButton": "Resend SMS code",
-    "resending": "Sending..."
+    "resending": "Sending...",
+    "tooManyRequests": "Too many requests. Please try again in {{seconds}}s."
   },
   "profile": {
     "title": "Resident Profile",
@@ -101,7 +103,13 @@
     "privacySection": "Privacy",
     "hidePhoneTitle": "Hide phone on community board",
     "hidePhoneSub": "Hides your phone from other residents in listings (dispatcher and HOA can still view it)",
-    "appVersion": "App version 1.0.0 (Build 2026)"
+    "appVersion": "App version 1.0.0 (Build 2026)",
+    "appearanceSection": "Appearance",
+    "themeTitle": "Theme",
+    "themeSub": "Light, dark or system",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark"
   },
   "onboarding": {
     "pendingTitle": "Request Under Review",
@@ -386,7 +394,13 @@
     "communityBoardCardTitle": "Community Board",
     "communityBoardCardSub": "Buy, sell, rent, and trade with neighbors",
     "chatCardTitle": "Dispatcher Chat",
-    "chatCardSub": "Contact property management team"
+    "chatCardSub": "Contact property management team",
+    "balanceCardTitle": "Account balance",
+    "payAction": "Pay",
+    "billsAction": "Receipt",
+    "metersAction": "Meters",
+    "bookingsAction": "Bookings",
+    "boardAction": "Board"
   },
   "finance": {
     "title": "Personal Account",

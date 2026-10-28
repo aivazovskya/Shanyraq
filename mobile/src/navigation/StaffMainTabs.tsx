@@ -8,7 +8,7 @@ import { StaffChatInboxScreen } from '../screens/staff/StaffChatInboxScreen';
 import { StaffRequestsListScreen } from '../screens/staff/StaffRequestsListScreen';
 import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
 import { useAuth, canAccessChat, canAccessRequests } from '../context/AuthContext';
-import { Colors } from '../constants/colors';
+import { FloatingTabBar } from '../components/ui/FloatingTabBar';
 import { Building2, AlertTriangle, MessageSquare, ClipboardList, User } from 'lucide-react-native';
 
 const Tab = createBottomTabNavigator<StaffTabsParamList>();
@@ -22,21 +22,9 @@ export const StaffMainTabs: React.FC = () => {
 
   return (
     <Tab.Navigator
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-        },
       }}
     >
       <Tab.Screen

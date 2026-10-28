@@ -3,50 +3,62 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
 import { ServiceRequestsApi, ServiceRequestItem } from '../../api/service-requests';
 import { AnnouncementsApi, AnnouncementItem } from '../../api/announcements';
 import { NotificationsApi } from '../../api/notifications';
 import { sosApi } from '../../api/sos';
 import { SosHoldButton } from '../../components/sos/SosHoldButton';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
-import { Colors } from '../../constants/colors';
+import { Card } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { CountUp } from '../../components/ui/CountUp';
+import { SectionHeader } from '../../components/ui/SectionHeader';
+import { Skeleton, SkeletonCard } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
 import {
-  Building2,
-  Vote,
-  Wrench,
   Bell,
   ShieldCheck,
   UserPlus,
+  Wrench,
   ChevronRight,
   AlertTriangle,
   CreditCard,
   Gauge,
   Calendar,
   ShoppingBag,
-  MessageSquare,
+  ArrowUpRight,
+  FileText,
+  Clock,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const primaryOwnership = user?.ownerships?.[0];
   const tenantId = user?.tenantId || (primaryOwnership as any)?.unit?.building?.tenantId;
 
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+
   const [votings, setVotings] = useState<MeetingItem[]>([]);
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
@@ -65,23 +77,33 @@ export const DashboardScreen: React.FC = () => {
     }, [fetchUnreadNotifs])
   );
 
-  const getRequestStatusLabel = (status: string) => {
+  const getRequestStatusProps = (status: string): { label: string; variant: import('../../components/ui/Badge').BadgeVariant } => {
     switch (status) {
-      case 'PENDING': return t('requests.statusPending');
-      case 'ASSIGNED': return t('requests.statusAssigned');
-      case 'IN_PROGRESS': return t('requests.statusInProgress');
-      case 'RESOLVED': return t('requests.statusResolved');
-      case 'REJECTED': return t('requests.statusRejected');
-      case 'CLOSED': return t('requests.statusClosed');
-      default: return status;
+      case 'PENDING':
+        return { label: t('requests.statusPending'), variant: 'warning' };
+      case 'ASSIGNED':
+        return { label: t('requests.statusAssigned'), variant: 'info' };
+      case 'IN_PROGRESS':
+        return { label: t('requests.statusInProgress'), variant: 'primary' };
+      case 'RESOLVED':
+        return { label: t('requests.statusResolved'), variant: 'success' };
+      case 'REJECTED':
+        return { label: t('requests.statusRejected'), variant: 'danger' };
+      case 'CLOSED':
+        return { label: t('requests.statusClosed'), variant: 'neutral' };
+      default:
+        return { label: status, variant: 'neutral' };
     }
   };
 
   const fetchDashboardData = useCallback(async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      setInitialLoading(false);
+      return;
+    }
 
     try {
-      // Execute 3 parallel requests according to technical specification
+      setFetchError(false);
       const [votingsRes, requestsRes, announcementsRes] = await Promise.allSettled([
         VotingsApi.getMeetings(tenantId),
         ServiceRequestsApi.getRequests(),
@@ -93,6 +115,9 @@ export const DashboardScreen: React.FC = () => {
       if (announcementsRes.status === 'fulfilled') setAnnouncements(announcementsRes.value);
     } catch (e) {
       console.warn('Dashboard fetch error:', e);
+      setFetchError(true);
+    } finally {
+      setInitialLoading(false);
     }
   }, [tenantId]);
 
@@ -117,7 +142,6 @@ export const DashboardScreen: React.FC = () => {
     let coords: { latitude?: number; longitude?: number } = {};
 
     try {
-      // Best-effort GPS capture with 3s timeout
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const locPromise = Location.getCurrentPositionAsync({
@@ -135,7 +159,7 @@ export const DashboardScreen: React.FC = () => {
         }
       }
     } catch (e) {
-      console.warn('GPS location capture skipped/failed:', e);
+      console.warn('GPS capture skipped:', e);
     }
 
     try {
@@ -161,36 +185,68 @@ export const DashboardScreen: React.FC = () => {
     }
   };
 
+  // Localized date string
+  const todayFormatted = (() => {
+    try {
+      const d = new Date();
+      const str = d.toLocaleDateString(i18n.language === 'en' ? 'en-US' : i18n.language === 'kk' ? 'kk-KZ' : 'ru-RU', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'long',
+      });
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    } catch {
+      return '';
+    }
+  })();
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingBottom: Math.max(insets.bottom, 24) + 90, // safe clearance over floating tab bar
+          },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
           />
         }
       >
-        {/* Header Profile Summary */}
-        <View style={styles.header}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.greeting}>
+        {/* Top Header Profile Summary */}
+        <AnimatedEntrance index={0} style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.dateText, { color: theme.colors.textMuted }]}>
+              {todayFormatted}
+            </Text>
+            <Text style={[styles.greeting, { color: theme.colors.text }]}>
               {t('dashboard.welcome', { name: user?.firstName || t('dashboard.defaultResident') })}
             </Text>
-            <Text style={styles.apartmentInfo}>
+            <Text style={[styles.apartmentInfo, { color: theme.colors.textMuted }]}>
               {user?.tenant?.name || t('dashboard.defaultComplex')} • {t('dashboard.unitFormat', { unit: primaryOwnership?.unit?.unitNumber || '—' })}
             </Text>
           </View>
-          <View style={styles.headerRightActions}>
+
+          <View style={styles.headerRight}>
             <TouchableOpacity
               onPress={() => navigation.navigate('Notifications')}
-              style={styles.notificationButton}
+              style={[
+                styles.notifBtn,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              accessibilityRole="button"
               accessibilityLabel={t('notifications.title')}
             >
-              <Bell size={22} color={Colors.text} />
+              <Bell size={22} color={theme.colors.text} />
               {unreadNotifsCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>
@@ -199,307 +255,429 @@ export const DashboardScreen: React.FC = () => {
                 </View>
               )}
             </TouchableOpacity>
-            <View style={styles.statusBadge}>
-              <Badge
-                label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
-                variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
-              />
-            </View>
-          </View>
-        </View>
 
-        {/* Urgent Announcement Alert */}
-        {urgentAnnouncement && (
-          <Card style={styles.urgentCard} onPress={() => navigation.navigate('Announcements')}>
-            <View style={styles.urgentRow}>
-              <AlertTriangle color="#DC2626" size={24} />
-              <View style={styles.urgentTextContainer}>
-                <Text style={styles.urgentTitle}>{urgentAnnouncement.title}</Text>
-                <Text style={styles.urgentContent} numberOfLines={2}>
-                  {urgentAnnouncement.content}
-                </Text>
+            <Badge
+              label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
+              variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
+              size="sm"
+            />
+          </View>
+        </AnimatedEntrance>
+
+        {/* Hero Card: Personal Account Balance with LinearGradient & CountUp */}
+        <AnimatedEntrance index={1}>
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={() => navigation.navigate('FinanceAccount')}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('dashboard.balanceCardTitle')}: 12 450 ₸`}
+          >
+            <LinearGradient
+              colors={
+                theme.isDark
+                  ? ['#047857', '#065F46', '#022C22']
+                  : ['#059669', '#047857', '#065F46']
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.heroCard, theme.shadows.lg]}
+            >
+              <View style={styles.heroTopRow}>
+                <View style={styles.heroBadgeRow}>
+                  <CreditCard size={18} color="#D1FAE5" />
+                  <Text style={styles.heroCardSubtitle}>{t('dashboard.balanceCardTitle')}</Text>
+                </View>
+                <View style={styles.heroActionArrow}>
+                  <ArrowUpRight size={18} color="#FFFFFF" />
+                </View>
               </View>
-            </View>
-          </Card>
+
+              <View style={styles.heroBalanceWrap}>
+                <CountUp
+                  value={12450}
+                  currency="₸"
+                  style={styles.heroBalanceText}
+                />
+              </View>
+
+              <View style={styles.heroFooter}>
+                <TouchableOpacity
+                  style={styles.heroChip}
+                  onPress={() => navigation.navigate('FinanceAccount')}
+                >
+                  <Text style={styles.heroChipText}>{t('dashboard.payAction')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.heroChipSecondary}
+                  onPress={() => navigation.navigate('TransparencyReport')}
+                >
+                  <FileText size={14} color="#D1FAE5" />
+                  <Text style={styles.heroChipSecondaryText}>{t('dashboard.billsAction')}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </AnimatedEntrance>
+
+        {/* Urgent Announcement Alert if any */}
+        {urgentAnnouncement && (
+          <AnimatedEntrance index={2}>
+            <Card
+              style={styles.urgentCard}
+              onPress={() => navigation.navigate('Announcements')}
+            >
+              <View style={styles.urgentRow}>
+                <View style={styles.urgentIconCircle}>
+                  <AlertTriangle color="#DC2626" size={22} />
+                </View>
+                <View style={styles.urgentTextContainer}>
+                  <Text style={styles.urgentTitle}>{urgentAnnouncement.title}</Text>
+                  <Text style={styles.urgentContent} numberOfLines={2}>
+                    {urgentAnnouncement.content}
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#DC2626" />
+              </View>
+            </Card>
+          </AnimatedEntrance>
         )}
 
         {/* Emergency SOS Button */}
-        <View style={styles.sosSection}>
-          <SosHoldButton
-            loading={sosTriggering}
-            onConfirmed={handleTriggerSos}
-          />
+        <AnimatedEntrance index={3} style={styles.sosSection}>
+          <SosHoldButton loading={sosTriggering} onConfirmed={handleTriggerSos} />
           <TouchableOpacity
             style={styles.sosHistoryRow}
             onPress={() => navigation.navigate('SosHistory')}
+            accessibilityRole="button"
+            accessibilityLabel={t('sos.viewHistoryLink')}
           >
-            <Text style={styles.sosHistoryText}>{t('sos.viewHistoryLink')}</Text>
-            <ChevronRight size={14} color={Colors.textMuted} />
+            <Text style={[styles.sosHistoryText, { color: theme.colors.textMuted }]}>
+              {t('sos.viewHistoryLink')}
+            </Text>
+            <ChevronRight size={14} color={theme.colors.textMuted} />
           </TouchableOpacity>
-        </View>
+        </AnimatedEntrance>
 
-        {/* Quick Access Actions */}
-        <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
-        <View style={styles.quickGrid}>
-          <TouchableOpacity
-            style={styles.quickActionCard}
-            onPress={() => navigation.navigate('Main', { screen: 'AccessTab' })}
-          >
-            <View style={[styles.quickIconCircle, { backgroundColor: '#ECFDF5' }]}>
-              <ShieldCheck color={Colors.primary} size={24} />
-            </View>
-            <Text style={styles.quickActionTitle}>{t('dashboard.barrier')}</Text>
-            <Text style={styles.quickActionSub}>{t('dashboard.openEntry')}</Text>
-          </TouchableOpacity>
+        {/* Quick Actions Bento Grid */}
+        <AnimatedEntrance index={4}>
+          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+            {t('dashboard.quickActions')}
+          </Text>
 
-          <TouchableOpacity
-            style={styles.quickActionCard}
-            onPress={() => navigation.navigate('Main', { screen: 'AccessTab' })}
-          >
-            <View style={[styles.quickIconCircle, { backgroundColor: '#EFF6FF' }]}>
-              <UserPlus color={Colors.info} size={24} />
-            </View>
-            <Text style={styles.quickActionTitle}>{t('dashboard.guestQr')}</Text>
-            <Text style={styles.quickActionSub}>{t('dashboard.passCourier')}</Text>
-          </TouchableOpacity>
+          <View style={styles.bentoGrid}>
+            {/* 1. Barrier */}
+            <Card
+              style={styles.bentoCard}
+              onPress={() => navigation.navigate('Main', { screen: 'AccessTab' })}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.primaryBg }]}>
+                <ShieldCheck color={theme.colors.primary} size={24} />
+              </View>
+              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
+                {t('dashboard.barrier')}
+              </Text>
+              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
+                {t('dashboard.openEntry')}
+              </Text>
+            </Card>
 
-          <TouchableOpacity
-            style={styles.quickActionCard}
-            onPress={() => navigation.navigate('CreateRequest')}
-          >
-            <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
-              <Wrench color={Colors.warning} size={24} />
-            </View>
-            <Text style={styles.quickActionTitle}>{t('dashboard.master')}</Text>
-            <Text style={styles.quickActionSub}>{t('dashboard.callService')}</Text>
-          </TouchableOpacity>
-        </View>
+            {/* 2. Guest QR */}
+            <Card
+              style={styles.bentoCard}
+              onPress={() => navigation.navigate('Main', { screen: 'AccessTab' })}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.infoBg }]}>
+                <UserPlus color={theme.colors.info} size={24} />
+              </View>
+              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
+                {t('dashboard.guestQr')}
+              </Text>
+              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
+                {t('dashboard.passCourier')}
+              </Text>
+            </Card>
 
-        {/* Personal Account / Finance Card */}
-        <Card
-          style={styles.financeCard}
-          onPress={() => (navigation as any).navigate('FinanceAccount')}
-        >
-          <View style={styles.financeRow}>
-            <View style={[styles.quickIconCircle, { backgroundColor: '#ECFDF5' }]}>
-              <CreditCard color={Colors.primary} size={22} />
-            </View>
-            <View style={styles.financeTextContainer}>
-              <Text style={styles.financeTitle}>{t('dashboard.financeCardTitle')}</Text>
-              <Text style={styles.financeSub}>{t('dashboard.financeCardSub')}</Text>
-            </View>
-            <ChevronRight color={Colors.textMuted} size={20} />
+            {/* 3. Call Master */}
+            <Card
+              style={styles.bentoCard}
+              onPress={() => navigation.navigate('CreateRequest')}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.warningBg }]}>
+                <Wrench color={theme.colors.warning} size={24} />
+              </View>
+              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
+                {t('dashboard.master')}
+              </Text>
+              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
+                {t('dashboard.callService')}
+              </Text>
+            </Card>
+
+            {/* 4. Meters */}
+            <Card
+              style={styles.bentoCard}
+              onPress={() => navigation.navigate('Meters')}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#1E3A8A' : '#EFF6FF' }]}>
+                <Gauge color="#2563EB" size={24} />
+              </View>
+              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
+                {t('dashboard.metersAction')}
+              </Text>
+              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
+                {t('dashboard.metersCardSub')}
+              </Text>
+            </Card>
+
+            {/* 5. Bookings */}
+            <Card
+              style={styles.bentoCard}
+              onPress={() => navigation.navigate('Bookings')}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#4C1D95' : '#F5F3FF' }]}>
+                <Calendar color="#8B5CF6" size={24} />
+              </View>
+              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
+                {t('dashboard.bookingsAction')}
+              </Text>
+              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
+                {t('dashboard.bookingsCardSub')}
+              </Text>
+            </Card>
+
+            {/* 6. Community Board */}
+            <Card
+              style={styles.bentoCard}
+              onPress={() => navigation.navigate('CommunityBoard')}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#78350F' : '#FFFBEB' }]}>
+                <ShoppingBag color="#D97706" size={24} />
+              </View>
+              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
+                {t('dashboard.boardAction')}
+              </Text>
+              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
+                {t('dashboard.communityBoardCardSub')}
+              </Text>
+            </Card>
           </View>
-        </Card>
-
-        {/* Meter Readings Card */}
-        <Card
-          style={[styles.financeCard, { marginTop: 8 }]}
-          onPress={() => (navigation as any).navigate('Meters')}
-        >
-          <View style={styles.financeRow}>
-            <View style={[styles.quickIconCircle, { backgroundColor: '#EFF6FF' }]}>
-              <Gauge color={Colors.info} size={22} />
-            </View>
-            <View style={styles.financeTextContainer}>
-              <Text style={styles.financeTitle}>{t('dashboard.metersCardTitle')}</Text>
-              <Text style={styles.financeSub}>{t('dashboard.metersCardSub')}</Text>
-            </View>
-            <ChevronRight color={Colors.textMuted} size={20} />
-          </View>
-        </Card>
-
-        {/* Amenity Booking Card */}
-        <Card
-          style={[styles.financeCard, { marginTop: 8 }]}
-          onPress={() => (navigation as any).navigate('Bookings')}
-        >
-          <View style={styles.financeRow}>
-            <View style={[styles.quickIconCircle, { backgroundColor: '#FDF4FF' }]}>
-              <Calendar color="#A855F7" size={22} />
-            </View>
-            <View style={styles.financeTextContainer}>
-              <Text style={styles.financeTitle}>{t('dashboard.bookingsCardTitle')}</Text>
-              <Text style={styles.financeSub}>{t('dashboard.bookingsCardSub')}</Text>
-            </View>
-            <ChevronRight color={Colors.textMuted} size={20} />
-          </View>
-        </Card>
-
-        {/* Community Board Card */}
-        <Card
-          style={[styles.financeCard, { marginTop: 8 }]}
-          onPress={() => (navigation as any).navigate('CommunityBoard')}
-        >
-          <View style={styles.financeRow}>
-            <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
-              <ShoppingBag color="#D97706" size={22} />
-            </View>
-            <View style={styles.financeTextContainer}>
-              <Text style={styles.financeTitle}>{t('dashboard.communityBoardCardTitle')}</Text>
-              <Text style={styles.financeSub}>{t('dashboard.communityBoardCardSub')}</Text>
-            </View>
-            <ChevronRight color={Colors.textMuted} size={20} />
-          </View>
-        </Card>
-
-        {/* Dispatcher Chat Card */}
-        <Card
-          style={[styles.financeCard, { marginTop: 8 }]}
-          onPress={() => (navigation as any).navigate('Chat')}
-        >
-          <View style={styles.financeRow}>
-            <View style={[styles.quickIconCircle, { backgroundColor: '#E0F2FE' }]}>
-              <MessageSquare color="#0284C7" size={22} />
-            </View>
-            <View style={styles.financeTextContainer}>
-              <Text style={styles.financeTitle}>{t('dashboard.chatCardTitle')}</Text>
-              <Text style={styles.financeSub}>{t('dashboard.chatCardSub')}</Text>
-            </View>
-            <ChevronRight color={Colors.textMuted} size={20} />
-          </View>
-        </Card>
+        </AnimatedEntrance>
 
         {/* Section: Active Votings */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('dashboard.activeVotings', { count: activeVotings.length })}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'VotingsTab' })}>
-            <Text style={styles.seeAllText}>{t('common.all')}</Text>
-          </TouchableOpacity>
-        </View>
+        <AnimatedEntrance index={5}>
+          <SectionHeader
+            title={t('dashboard.activeVotings', { count: activeVotings.length })}
+            actionText={t('common.all')}
+            onActionPress={() => navigation.navigate('Main', { screen: 'VotingsTab' })}
+          />
 
-        {activeVotings.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{t('dashboard.noActiveVotings')}</Text>
-          </Card>
-        ) : (
-          activeVotings.slice(0, 2).map((v) => (
-            <Card
-              key={v.id}
-              style={styles.votingCard}
-              onPress={() => navigation.navigate('VotingDetails', { meetingId: v.id })}
-            >
-              <View style={styles.votingCardHeader}>
-                <Badge label={t('dashboard.votingInProgress')} variant="success" />
-                <Text style={styles.votingDate}>{t('dashboard.untilDate', { date: new Date(v.endDate).toLocaleDateString(i18n.language) })}</Text>
-              </View>
-              <Text style={styles.votingTitle}>{v.title}</Text>
-              <View style={styles.quorumBar}>
+          {initialLoading ? (
+            <SkeletonCard />
+          ) : activeVotings.length === 0 ? (
+            <Card style={styles.emptyCardWrap}>
+              <Text style={[styles.emptyCardText, { color: theme.colors.textMuted }]}>
+                {t('dashboard.noActiveVotings')}
+              </Text>
+            </Card>
+          ) : (
+            activeVotings.slice(0, 2).map((v) => (
+              <Card
+                key={v.id}
+                style={styles.votingCard}
+                onPress={() => navigation.navigate('VotingDetails', { meetingId: v.id })}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <Badge label={t('dashboard.votingInProgress')} variant="success" size="sm" showDot />
+                  <View style={styles.dateRow}>
+                    <Clock size={12} color={theme.colors.textMuted} />
+                    <Text style={[styles.votingDateText, { color: theme.colors.textMuted }]}>
+                      {t('dashboard.untilDate', {
+                        date: new Date(v.endDate).toLocaleDateString(i18n.language),
+                      })}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.votingTitle, { color: theme.colors.text }]}>
+                  {v.title}
+                </Text>
+
+                {/* Quorum Progress Bar */}
                 <View
                   style={[
-                    styles.quorumProgress,
-                    { width: `${Math.min(v.quorumPercent || 0, 100)}%` },
+                    styles.quorumTrack,
+                    { backgroundColor: theme.isDark ? '#1E293B' : '#E2E8F0' },
                   ]}
-                />
-              </View>
-              <View style={styles.quorumRow}>
-                <Text style={styles.quorumLabel}>{t('dashboard.quorum', { percent: v.quorumPercent?.toFixed(1) || 0 })}</Text>
-                <View style={styles.actionArrow}>
-                  <Text style={styles.actionArrowText}>{t('dashboard.voteAction')}</Text>
-                  <ChevronRight color={Colors.primary} size={16} />
+                >
+                  <View
+                    style={[
+                      styles.quorumFill,
+                      {
+                        width: `${Math.min(v.quorumPercent || 0, 100)}%`,
+                        backgroundColor: theme.colors.primary,
+                      },
+                    ]}
+                  />
                 </View>
-              </View>
-            </Card>
-          ))
-        )}
+
+                <View style={styles.votingFooter}>
+                  <Text style={[styles.quorumLabel, { color: theme.colors.textMuted }]}>
+                    {t('dashboard.quorum', {
+                      percent: v.quorumPercent?.toFixed(1) || 0,
+                    })}
+                  </Text>
+                  <View style={styles.actionArrowRow}>
+                    <Text style={[styles.actionArrowLabel, { color: theme.colors.primary }]}>
+                      {t('dashboard.voteAction')}
+                    </Text>
+                    <ChevronRight size={15} color={theme.colors.primary} />
+                  </View>
+                </View>
+              </Card>
+            ))
+          )}
+        </AnimatedEntrance>
 
         {/* Section: Open Service Requests */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('dashboard.openRequests', { count: openRequests.length })}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'RequestsTab' })}>
-            <Text style={styles.seeAllText}>{t('common.all')}</Text>
-          </TouchableOpacity>
-        </View>
+        <AnimatedEntrance index={6}>
+          <SectionHeader
+            title={t('dashboard.openRequests', { count: openRequests.length })}
+            actionText={t('common.all')}
+            onActionPress={() => navigation.navigate('Main', { screen: 'RequestsTab' })}
+          />
 
-        {openRequests.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{t('dashboard.noOpenRequests')}</Text>
-          </Card>
-        ) : (
-          openRequests.slice(0, 2).map((r) => (
-            <Card
-              key={r.id}
-              style={styles.requestCard}
-              onPress={() => navigation.navigate('RequestDetail', { requestId: r.id })}
-            >
-              <View style={styles.requestHeader}>
-                <Text style={styles.requestTitle}>{r.title}</Text>
-                <Badge label={getRequestStatusLabel(r.status)} variant="info" />
-              </View>
-              <Text style={styles.requestDesc} numberOfLines={2}>
-                {r.description}
-              </Text>
-              <Text style={styles.requestDate}>
-                {new Date(r.createdAt).toLocaleDateString(i18n.language)}
+          {initialLoading ? (
+            <SkeletonCard />
+          ) : openRequests.length === 0 ? (
+            <Card style={styles.emptyCardWrap}>
+              <Text style={[styles.emptyCardText, { color: theme.colors.textMuted }]}>
+                {t('dashboard.noOpenRequests')}
               </Text>
             </Card>
-          ))
-        )}
+          ) : (
+            openRequests.slice(0, 2).map((r) => {
+              const statusProps = getRequestStatusProps(r.status);
+              return (
+                <Card
+                  key={r.id}
+                  style={styles.requestCard}
+                  onPress={() => navigation.navigate('RequestDetail', { requestId: r.id })}
+                >
+                  <View style={styles.cardHeaderRow}>
+                    <Text
+                      style={[styles.requestTitle, { color: theme.colors.text }]}
+                      numberOfLines={1}
+                    >
+                      {r.title}
+                    </Text>
+                    <Badge label={statusProps.label} variant={statusProps.variant} size="sm" />
+                  </View>
 
-        {/* Section: Announcements preview */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('dashboard.newsAndAnnouncements')}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Announcements')}>
-            <Text style={styles.seeAllText}>{t('dashboard.newsFeed')}</Text>
-          </TouchableOpacity>
-        </View>
+                  <Text
+                    style={[styles.requestDesc, { color: theme.colors.textMuted }]}
+                    numberOfLines={2}
+                  >
+                    {r.description}
+                  </Text>
 
-        {announcements.slice(0, 2).map((a) => (
-          <Card key={a.id} style={styles.newsCard} onPress={() => navigation.navigate('Announcements')}>
-            <Text style={styles.newsTitle}>{a.title}</Text>
-            <Text style={styles.newsSnippet} numberOfLines={2}>
-              {a.content}
-            </Text>
-            <Text style={styles.newsDate}>{new Date(a.createdAt).toLocaleDateString(i18n.language)}</Text>
-          </Card>
-        ))}
+                  <Text style={[styles.requestDate, { color: theme.colors.textLight }]}>
+                    {new Date(r.createdAt).toLocaleDateString(i18n.language)}
+                  </Text>
+                </Card>
+              );
+            })
+          )}
+        </AnimatedEntrance>
+
+        {/* Section: Announcements */}
+        <AnimatedEntrance index={7}>
+          <SectionHeader
+            title={t('dashboard.newsAndAnnouncements')}
+            actionText={t('dashboard.newsFeed')}
+            onActionPress={() => navigation.navigate('Announcements')}
+          />
+
+          {initialLoading ? (
+            <SkeletonCard />
+          ) : (
+            announcements.slice(0, 2).map((a) => (
+              <Card
+                key={a.id}
+                style={styles.newsCard}
+                onPress={() => navigation.navigate('Announcements')}
+              >
+                <Text style={[styles.newsTitle, { color: theme.colors.text }]}>{a.title}</Text>
+                <Text
+                  style={[styles.newsSnippet, { color: theme.colors.textMuted }]}
+                  numberOfLines={2}
+                >
+                  {a.content}
+                </Text>
+                <Text style={[styles.newsDate, { color: theme.colors.textLight }]}>
+                  {new Date(a.createdAt).toLocaleDateString(i18n.language)}
+                </Text>
+              </Card>
+            ))
+          )}
+        </AnimatedEntrance>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
-    marginTop: 4,
+    marginBottom: 18,
+  },
+  headerLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  dateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    marginBottom: 2,
+    textTransform: 'uppercase',
   },
   greeting: {
     fontSize: 22,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.4,
   },
   apartmentInfo: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    marginTop: 2,
+    fontSize: 13,
+    marginTop: 3,
   },
-  headerRightActions: {
+  headerRight: {
     alignItems: 'flex-end',
-    gap: 6,
+    gap: 8,
   },
-  notificationButton: {
+  notifBtn: {
     position: 'relative',
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.surface,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   notifBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: 4,
+    right: 4,
     backgroundColor: '#DC2626',
-    borderRadius: 9,
+    borderRadius: 8,
     minWidth: 16,
     height: 16,
     alignItems: 'center',
@@ -509,115 +687,207 @@ const styles = StyleSheet.create({
   notifBadgeText: {
     color: '#FFFFFF',
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  statusBadge: {
-    marginTop: 2,
+  heroCard: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroCardSubtitle: {
+    color: '#D1FAE5',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  heroActionArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroBalanceWrap: {
+    marginVertical: 14,
+  },
+  heroBalanceText: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+  },
+  heroFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+  },
+  heroChip: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  heroChipText: {
+    color: '#065F46',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  heroChipSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  heroChipSecondaryText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 13,
   },
   urgentCard: {
     backgroundColor: '#FEF2F2',
     borderColor: '#FCA5A5',
+    borderWidth: 1.5,
     marginBottom: 16,
+    padding: 14,
   },
   urgentRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
+  },
+  urgentIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   urgentTextContainer: {
     flex: 1,
   },
   urgentTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#991B1B',
   },
   urgentContent: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#B91C1C',
     marginTop: 2,
-    lineHeight: 18,
+    lineHeight: 16,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
+  sosSection: {
+    marginBottom: 18,
   },
-  sectionHeaderRow: {
+  sosHistoryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  seeAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  quickGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
-  quickActionCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  quickIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
-  },
-  quickActionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  quickActionSub: {
-    fontSize: 11,
-    color: Colors.textMuted,
+    paddingVertical: 8,
     marginTop: 2,
   },
-  votingCard: {
+  sosHistoryText: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  sectionHeading: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  bentoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
+  },
+  bentoCard: {
+    width: '48.5%',
+    padding: 14,
+    borderRadius: 18,
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 10,
   },
-  votingCardHeader: {
+  bentoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  bentoSub: {
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  emptyCardWrap: {
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  emptyCardText: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  votingCard: {
+    marginBottom: 12,
+    padding: 16,
+  },
+  cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  votingDate: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  votingTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
     marginBottom: 10,
   },
-  quorumBar: {
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  votingDateText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  votingTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  quorumTrack: {
     height: 6,
-    backgroundColor: Colors.border,
     borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  quorumProgress: {
+  quorumFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
+    borderRadius: 3,
   },
-  quorumRow: {
+  votingFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -625,107 +895,50 @@ const styles = StyleSheet.create({
   quorumLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textMuted,
   },
-  actionArrow: {
+  actionArrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
   },
-  actionArrowText: {
+  actionArrowLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
   },
   requestCard: {
     marginBottom: 10,
-  },
-  requestHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    padding: 16,
   },
   requestTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.text,
     flex: 1,
     marginRight: 8,
   },
   requestDesc: {
     fontSize: 13,
-    color: Colors.textMuted,
     marginTop: 6,
     lineHeight: 18,
   },
   requestDate: {
     fontSize: 11,
-    color: Colors.textLight,
     marginTop: 8,
   },
-  emptyCard: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 13,
-    color: Colors.textMuted,
-  },
   newsCard: {
-    marginBottom: 8,
+    marginBottom: 10,
+    padding: 16,
   },
   newsTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.text,
   },
   newsSnippet: {
     fontSize: 13,
-    color: Colors.textMuted,
     marginTop: 4,
     lineHeight: 18,
   },
   newsDate: {
     fontSize: 11,
-    color: Colors.textLight,
     marginTop: 8,
-  },
-  financeCard: {
-    marginBottom: 20,
-    padding: 14,
-  },
-  financeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  financeTextContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  financeTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  financeSub: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  sosSection: {
-    marginBottom: 20,
-  },
-  sosHistoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    marginTop: 4,
-  },
-  sosHistoryText: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    fontWeight: '500',
-    marginRight: 4,
   },
 });
