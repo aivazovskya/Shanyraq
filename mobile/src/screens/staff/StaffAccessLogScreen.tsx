@@ -354,7 +354,7 @@ export const StaffAccessLogScreen: React.FC = () => {
               <Text style={styles.emptyTitle}>{t('staff.accessLog.emptyTitle')}</Text>
               <Text style={styles.emptySubtitle}>{t('staff.accessLog.emptySubtitle')}</Text>
             </Card>
-          ) : null
+          ) : undefined
         }
       />
     </SafeAreaView>
