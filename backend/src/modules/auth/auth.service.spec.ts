@@ -123,6 +123,68 @@ describe('AuthService (Аудит безопасности авторизаци�
     expect(redisMock.set).not.toHaveBeenCalled();
   });
 
+  describe('DEV_OTP_ECHO (локальный вход без SMS-шлюза)', () => {
+    const withEnv = (nodeEnv: string, echo?: string) => {
+      const originalGet = configServiceMock.get.getMockImplementation();
+      configServiceMock.get.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return nodeEnv;
+        if (key === 'DEV_OTP_ECHO') return echo;
+        return originalGet(key);
+      });
+    };
+
+    it('development + DEV_OTP_ECHO=true: код возвращается в devCode и сохраняется в Redis', async () => {
+      withEnv('development', 'true');
+      const res = await service.requestOtp({ phone: '+77015550101' });
+      expect(res.success).toBe(true);
+      expect(res.devCode).toMatch(/^\d{6}$/);
+      expect(redisMock.set).toHaveBeenCalledTimes(1);
+      // выданный код — тот же, что сохранён для проверки при входе
+      const stored = JSON.parse(redisStore.get('otp:+77015550101').value);
+      expect(stored.code).toBe(res.devCode);
+    });
+
+    it('development без флага: SMS недоступен, код не выдаётся', async () => {
+      withEnv('development', undefined);
+      await expect(service.requestOtp({ phone: '+77015550101' })).rejects.toMatchObject({
+        response: { code: 'AUTH.SMS_SERVICE_UNAVAILABLE' },
+      });
+      expect(redisMock.set).not.toHaveBeenCalled();
+    });
+
+    it.each(['production', 'staging', 'preview'])(
+      'флаг игнорируется вне development (%s)',
+      async (environment) => {
+        withEnv(environment, 'true');
+        await expect(service.requestOtp({ phone: '+77015550101' })).rejects.toMatchObject({
+          response: { code: 'AUTH.SMS_SERVICE_UNAVAILABLE' },
+        });
+        expect(redisMock.set).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['TRUE', '1', 'yes', 'false', ' true'])('значение флага %p не включает режим (строго "true")', async (value) => {
+      withEnv('development', value);
+      await expect(service.requestOtp({ phone: '+77015550101' })).rejects.toMatchObject({
+        response: { code: 'AUTH.SMS_SERVICE_UNAVAILABLE' },
+      });
+    });
+
+    it('в режиме эха rate limit 60 секунд сохраняется и код не пишется в console.log', async () => {
+      withEnv('development', 'true');
+      const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        await service.requestOtp({ phone: '+77015550101' });
+        await expect(service.requestOtp({ phone: '+77015550101' })).rejects.toMatchObject({
+          response: { code: 'AUTH.OTP_RATE_LIMITED' },
+        });
+        expect(log).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+  });
+
   it('не записывает номер и OTP в console.log', async () => {
     const log = jest.spyOn(console, 'log').mockImplementation(() => {});
     try {

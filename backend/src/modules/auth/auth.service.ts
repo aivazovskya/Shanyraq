@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   BadRequestException,
   ServiceUnavailableException,
@@ -36,6 +37,7 @@ const ACCESS_TOKEN_TTL_SECONDS = 900; // 15 minutes in seconds
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly accessSecret: string;
   private readonly refreshSecret: string;
 
@@ -53,12 +55,34 @@ export class AuthService {
         'КРИТИЧЕСКАЯ ОШИБКА БЕЗОПАСНОСТИ: JWT_ACCESS_SECRET или JWT_REFRESH_SECRET не заданы в конфигурации!',
       );
     }
+
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
+    if (this.configService.get<string>('DEV_OTP_ECHO') === 'true') {
+      if (nodeEnv === 'development') {
+        this.logger.warn(
+          'DEV_OTP_ECHO=true: коды подтверждения возвращаются в ответе API. Только для локальной разработки!',
+        );
+      } else {
+        this.logger.warn(`DEV_OTP_ECHO=true проигнорирован: допустим только при NODE_ENV=development (сейчас: ${nodeEnv}).`);
+      }
+    }
+  }
+
+  /**
+   * Локальная разработка без SMS-шлюза: код возвращается в ответе (devCode), и мобильное
+   * приложение показывает его в окне. Включается ТОЛЬКО явным DEV_OTP_ECHO=true и ТОЛЬКО при
+   * NODE_ENV=development; в production/staging/любой другой среде флаг игнорируется.
+   */
+  private isDevOtpEchoEnabled(environment: string | undefined): boolean {
+    return environment === 'development' && this.configService.get<string>('DEV_OTP_ECHO') === 'true';
   }
 
   async requestOtp(dto: RequestOtpDto) {
-    // No SMS transport is implemented yet. Never claim delivery outside tests.
+    // No SMS transport is implemented yet. Never claim delivery outside tests
+    // (or an explicit local-only development echo, see isDevOtpEchoEnabled).
     const environment = this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
-    if (environment !== 'test') {
+    const echoOtp = environment === 'test' || this.isDevOtpEchoEnabled(environment);
+    if (!echoOtp) {
       throw new ServiceUnavailableException({
         code: 'AUTH.SMS_SERVICE_UNAVAILABLE',
         message: 'Сервис отправки SMS недоступен. Попробуйте позже.',
@@ -139,7 +163,7 @@ export class AuthService {
       success: true,
       message: 'Одноразовый 6-значный код подтверждения успешно отправлен по SMS',
       // В production devCode НИКОГДА не возвращается в API ответе
-      devCode: process.env.NODE_ENV === 'test' ? code : undefined,
+      devCode: echoOtp ? code : undefined,
     };
   }
 
