@@ -31,6 +31,7 @@ import {
   Clock,
   ChevronRight,
   ShieldAlert,
+  Users,
 } from 'lucide-react';
 import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
 import { isResidentRole } from '@/lib/role-routing';
@@ -106,9 +107,11 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
   const primaryOwnership = profile?.ownerships?.[0];
   const unitNumber = primaryOwnership?.unit?.unitNumber;
   const complexName = profile?.tenant?.name || user?.tenantName || t('dashboard.defaultComplex');
+  const isOwner = user?.role === 'RESIDENT_OWNER' || profile?.ownerships?.some((o) => o.ownershipType === 'OWNER' && o.isVerified);
 
   const navigation = [
     { name: t('navigation.cabinetHome'), href: '/cabinet', icon: LayoutDashboard },
+    ...(isOwner ? [{ name: t('navigation.cabinetResidents'), href: '/cabinet/residents', icon: Users }] : []),
     { name: t('navigation.cabinetRequests'), href: '/cabinet/requests', icon: Wrench },
     { name: t('navigation.cabinetAccess'), href: '/cabinet/access', icon: KeyRound },
     { name: t('navigation.cabinetFinance'), href: '/cabinet/finance', icon: CreditCard },

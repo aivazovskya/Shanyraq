@@ -47,4 +47,5 @@ export type RootStackParamList = {
   CreateListing: undefined;
   Chat: undefined;
   Notifications: undefined;
+  Residents: undefined;
 };

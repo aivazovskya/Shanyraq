@@ -58,7 +58,7 @@ export const ClaimUnitScreen: React.FC = () => {
   const [selectedUnit, setSelectedUnit] = useState<UnitInfo | null>(null);
 
   // Form state
-  const [ownershipType, setOwnershipType] = useState<'OWNER' | 'TENANT'>('OWNER');
+  const [ownershipType, setOwnershipType] = useState<'OWNER' | 'TENANT' | 'FAMILY_MEMBER'>('OWNER');
   const [sharePercent, setSharePercent] = useState('100');
   const [submitting, setSubmitting] = useState(false);
   const [refreshingStatus, setRefreshingStatus] = useState(false);
@@ -218,7 +218,9 @@ export const ClaimUnitScreen: React.FC = () => {
                 <Text style={[styles.infoValue, { color: theme.colors.text }]}>
                   {existingOwnership.ownershipType === 'OWNER'
                     ? t('onboarding.roleOwner')
-                    : t('onboarding.roleTenant')}
+                    : existingOwnership.ownershipType === 'TENANT'
+                    ? t('onboarding.roleTenant')
+                    : t('onboarding.roleFamilyMember', 'Член семьи')}
                 </Text>
               </View>
 
@@ -573,9 +575,10 @@ export const ClaimUnitScreen: React.FC = () => {
                 options={[
                   { value: 'OWNER', label: t('onboarding.roleOwner') },
                   { value: 'TENANT', label: t('onboarding.roleTenant') },
+                  { value: 'FAMILY_MEMBER', label: t('onboarding.roleFamilyMember', 'Член семьи') },
                 ]}
                 value={ownershipType}
-                onChange={(val) => setOwnershipType(val)}
+                onChange={(val) => setOwnershipType(val as any)}
               />
             </View>
 

@@ -47,6 +47,8 @@ import {
   Sun,
   Moon,
   Smartphone,
+  Users,
+  ChevronRight,
 } from 'lucide-react-native';
 
 const LANGUAGES: { code: SupportedLocale; label: string; nativeName: string }[] = [
@@ -290,6 +292,43 @@ export const ProfileScreen: React.FC = () => {
                     <Text style={[styles.metaValue, { color: theme.colors.text }]}>{o.sharePercent}%</Text>
                   </Text>
                 </View>
+
+                {o.leaseEndDate && (
+                  <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 12, color: theme.colors.warning, fontWeight: '500' }}>
+                      {t('cabinet.leaseUntil', 'Срок аренды: до')}{' '}
+                      {new Date(o.leaseEndDate).toLocaleDateString()}
+                    </Text>
+                  </View>
+                )}
+
+                {o.ownershipType === 'OWNER' && o.isVerified && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      safeHaptic.selection();
+                      navigation.navigate('Residents');
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                      borderTopColor: theme.colors.border,
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('navigation.cabinetResidents', 'Жильцы квартиры')}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Users size={16} color={theme.colors.primary} />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.primary }}>
+                        {t('navigation.cabinetResidents', 'Жильцы квартиры')}
+                      </Text>
+                    </View>
+                    <ChevronRight size={16} color={theme.colors.textMuted} />
+                  </TouchableOpacity>
+                )}
               </Card>
             ))
           ) : (

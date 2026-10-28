@@ -82,6 +82,13 @@ enum AccessPointType {
   CAMERA
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 // -------------------------------------------------------------
 // Core Living Infrastructure & Tenancy
 // -------------------------------------------------------------
@@ -155,6 +162,7 @@ model Unit {
   bookings         Booking[]
   sosAlerts        SosAlert[]
   bookingWaitlistEntries BookingWaitlistEntry[]
+  invitations      UnitInvitation[]
 
   @@unique([buildingId, unitNumber])
   @@map("units")
@@ -220,6 +228,8 @@ model User {
   createdImportBatches    ImportBatch[]      @relation("CreatedImportBatches")
   voidedImportBatches     ImportBatch[]      @relation("VoidedImportBatches")
   createdBudgetLines      BudgetLine[]       @relation("CreatedBudgetLines")
+  invitedResidents        UnitOwnership[]    @relation("InvitedResidents")
+  sentInvitations         UnitInvitation[]   @relation("SentUnitInvitations")
 
   @@map("users")
 }
@@ -262,13 +272,39 @@ model UnitOwnership {
   isVerified       Boolean           @default(false)
   verificationDoc  String?           // Ссылка на скан выписки eGov или ДДУ
   verifiedAt       DateTime?
+  leaseEndDate     DateTime?         // Срок аренды / действия привязки (для арендаторов и членов семьи)
+  invitedById      String?           // Кто пригласил (ID собственника)
   createdAt        DateTime          @default(now())
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   unit             Unit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  invitedBy        User?             @relation("InvitedResidents", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@unique([userId, unitId])
+  @@index([unitId, isVerified])
   @@map("unit_ownerships")
+}
+
+model UnitInvitation {
+  id            String            @id @default(uuid())
+  unitId        String
+  invitedById   String
+  phone         String            // Номер телефона: +77011234567
+  fullName      String?           // Имя жильца (опционально)
+  ownershipType OwnershipType     @default(TENANT)
+  leaseEndDate  DateTime?
+  status        InvitationStatus  @default(PENDING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  acceptedAt    DateTime?
+  revokedAt     DateTime?
+
+  unit          Unit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  invitedBy     User              @relation("SentUnitInvitations", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([phone, status])
+  @@index([unitId, status])
+  @@map("unit_invitations")
 }
 
 // -------------------------------------------------------------

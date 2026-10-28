@@ -7,6 +7,14 @@ export interface UserOwnership {
   sharePercent: number;
   isVerified: boolean;
   verificationDoc?: string | null;
+  leaseEndDate?: string | null;
+  invitedById?: string | null;
+  invitedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
   unit: {
     id: string;
     unitNumber: string;

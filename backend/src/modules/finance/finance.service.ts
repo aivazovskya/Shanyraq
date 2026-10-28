@@ -450,15 +450,12 @@ export class FinanceService {
       return account;
     }
 
-    // Для жителей: разрешено только подтвержденным собственникам данной квартиры
-    const isVerifiedOwner = account.unit.ownerships.some(
-      (o) =>
-        o.userId === user.id &&
-        o.ownershipType === OwnershipType.OWNER &&
-        o.isVerified,
+    // Для жителей: разрешено только подтвержденным собственникам помещения
+    const isConfirmedOwner = account.unit.ownerships.some(
+      (o) => o.userId === user.id && o.isVerified && o.ownershipType === OwnershipType.OWNER,
     );
 
-    if (!isVerifiedOwner) {
+    if (!isConfirmedOwner) {
       throw new ForbiddenException({
         code: 'FINANCE.ACCOUNT_ACCESS_CONFIRMED_ONLY',
         message: 'Доступ к лицевому счету разрешен только подтвержденным собственникам помещения',
@@ -516,7 +513,6 @@ export class FinanceService {
     const verifiedOwnerships = await this.prisma.unitOwnership.findMany({
       where: {
         userId,
-        ownershipType: OwnershipType.OWNER,
         isVerified: true,
       },
       include: {
@@ -546,11 +542,26 @@ export class FinanceService {
     }
 
     const result = [];
+    const now = Date.now();
+
     for (const ownership of verifiedOwnerships) {
+      // Исключаем доступ с истекшим сроком аренды
+      if (
+        ownership.leaseEndDate &&
+        new Date(ownership.leaseEndDate).getTime() < now
+      ) {
+        continue;
+      }
+
       const account = await getOrCreatePersonalAccount(this.prisma, ownership.unit);
+
+      // Член семьи (FAMILY_MEMBER) видит баланс, но без детальных списков начислений и платежей
+      const isFamilyMember = ownership.ownershipType === OwnershipType.FAMILY_MEMBER;
 
       result.push({
         ...account,
+        charges: isFamilyMember ? [] : account.charges,
+        payments: isFamilyMember ? [] : account.payments,
         unit: {
           id: ownership.unit.id,
           unitNumber: ownership.unit.unitNumber,
@@ -1259,6 +1270,7 @@ export class FinanceService {
 
     const allowedRoles: UserRole[] = [
       UserRole.RESIDENT_OWNER,
+      UserRole.RESIDENT_TENANT,
       UserRole.HOA_ADMIN,
       UserRole.HOA_CHAIRMAN,
       UserRole.SUPERADMIN,

@@ -222,13 +222,30 @@ export function getRoleLabel(role: string | undefined | null, t: TFunction): str
       return t('roles.superadmin');
     case 'RESIDENT_OWNER':
     case 'OWNER':
-      return t('cabinet.roleOwner');
+      return t('cabinet.roleOwner', { defaultValue: 'Собственник' });
     case 'RESIDENT_TENANT':
     case 'TENANT':
-      return t('cabinet.roleTenant');
+      return t('cabinet.roleTenant', { defaultValue: 'Квартирант' });
     case 'FAMILY_MEMBER':
-      return t('cabinet.roleFamily');
+      return t('cabinet.roleFamily', { defaultValue: 'Член семьи' });
     default:
       return role;
   }
 }
+
+export function getInvitationStatusLabel(status: string | undefined | null, t: TFunction): string {
+  if (!status) return '—';
+  switch (status.toUpperCase()) {
+    case 'PENDING':
+      return t('cabinet.invitationPending');
+    case 'ACCEPTED':
+      return t('cabinet.invitationAccepted');
+    case 'REVOKED':
+      return t('cabinet.invitationRevoked');
+    case 'EXPIRED':
+      return t('cabinet.invitationExpired');
+    default:
+      return status;
+  }
+}
+

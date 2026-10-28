@@ -149,6 +149,7 @@ export class FinanceController {
     UserRole.SUPERADMIN,
     UserRole.HOA_CHAIRMAN,
     UserRole.RESIDENT_OWNER,
+    UserRole.RESIDENT_TENANT,
   )
   @ApiOperation({ summary: 'Скачать выписку по лицевому счету в формате PDF' })
   async downloadStatement(
@@ -181,6 +182,7 @@ export class FinanceController {
     UserRole.SUPERADMIN,
     UserRole.HOA_CHAIRMAN,
     UserRole.RESIDENT_OWNER,
+    UserRole.RESIDENT_TENANT,
   )
   @ApiOperation({ summary: 'Экспорт выписки по лицевому счету в формате CSV' })
   async exportStatementCsv(
@@ -287,6 +289,7 @@ export class FinanceController {
   @Get('tenants/:tenantId/transparency-report')
   @Roles(
     UserRole.RESIDENT_OWNER,
+    UserRole.RESIDENT_TENANT,
     UserRole.HOA_ADMIN,
     UserRole.HOA_CHAIRMAN,
     UserRole.SUPERADMIN,
@@ -303,6 +306,7 @@ export class FinanceController {
   @Get('tenants/:tenantId/transparency-report/export')
   @Roles(
     UserRole.RESIDENT_OWNER,
+    UserRole.RESIDENT_TENANT,
     UserRole.HOA_ADMIN,
     UserRole.HOA_CHAIRMAN,
     UserRole.SUPERADMIN,

@@ -12,7 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { RequestOtpDto, VerifyOtpDto, LoginPasswordDto, RefreshTokenDto, SetPinDto, ResetPinConfirmDto, SetInitialPasswordDto, ForgotStaffPasswordDto, ResetStaffPasswordDto } from './dto/auth.dto';
-import { UserRole } from '@prisma/client';
+import { UserRole, OwnershipType, InvitationStatus } from '@prisma/client';
 import { JwtPayload } from './jwt.strategy';
 import { RedisService } from '../../redis/redis.service';
 import { maskIin } from '../../common/crypto/pii-crypto.helper';
@@ -320,6 +320,144 @@ export class AuthService {
           },
         },
       });
+    }
+
+    // Автопривязка к квартире при наличии ожидающих приглашений от собственников (Task 0022)
+    const pendingInvitations = this.prisma.unitInvitation?.findMany
+      ? await this.prisma.unitInvitation.findMany({
+          where: {
+            phone,
+            status: InvitationStatus.PENDING,
+          },
+          include: {
+            unit: {
+              include: { building: true },
+            },
+          },
+        })
+      : [];
+
+    if (pendingInvitations.length > 0) {
+      let didAccept = false;
+      let acceptedTenantId = user.tenantId;
+      let shouldUpdateUserName = user.firstName === 'Житель' && user.lastName === phone.slice(-4);
+      let newFirstName = user.firstName;
+      let newLastName = user.lastName;
+
+      for (const inv of pendingInvitations) {
+        if (inv.leaseEndDate && new Date(inv.leaseEndDate).getTime() < Date.now()) {
+          await this.prisma.unitInvitation.update({
+            where: { id: inv.id },
+            data: { status: InvitationStatus.EXPIRED },
+          });
+          continue;
+        }
+
+        didAccept = true;
+        if (!acceptedTenantId) {
+          acceptedTenantId = inv.unit.building.tenantId;
+        }
+
+        if (shouldUpdateUserName && inv.fullName) {
+          const parts = inv.fullName.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            newFirstName = parts[0];
+            newLastName = parts.slice(1).join(' ');
+          } else if (parts.length === 1) {
+            newFirstName = parts[0];
+            newLastName = phone.slice(-4);
+          }
+          shouldUpdateUserName = false;
+        }
+
+        await this.prisma.unitOwnership.upsert({
+          where: {
+            userId_unitId: {
+              userId: user.id,
+              unitId: inv.unitId,
+            },
+          },
+          create: {
+            userId: user.id,
+            unitId: inv.unitId,
+            ownershipType: inv.ownershipType,
+            sharePercent: 0,
+            isVerified: true,
+            verifiedAt: new Date(),
+            leaseEndDate: inv.leaseEndDate,
+            invitedById: inv.invitedById,
+          },
+          update: {
+            ownershipType: inv.ownershipType,
+            isVerified: true,
+            verifiedAt: new Date(),
+            leaseEndDate: inv.leaseEndDate,
+            invitedById: inv.invitedById,
+          },
+        });
+
+        await this.prisma.unitInvitation.update({
+          where: { id: inv.id },
+          data: {
+            status: InvitationStatus.ACCEPTED,
+            acceptedAt: new Date(),
+          },
+        });
+
+        try {
+          await this.prisma.auditLog.create({
+            data: {
+              tenantId: inv.unit.building.tenantId,
+              actorId: user.id,
+              action: 'INVITATION_ACCEPTED',
+              targetType: 'UnitInvitation',
+              targetId: inv.id,
+              metadata: {
+                unitId: inv.unitId,
+                phone: user.phone,
+                ownershipType: inv.ownershipType,
+              },
+            },
+          });
+        } catch {
+          // best-effort
+        }
+      }
+
+      if (didAccept) {
+        const hasVerifiedOwner = await this.prisma.unitOwnership.count({
+          where: {
+            userId: user.id,
+            ownershipType: OwnershipType.OWNER,
+            isVerified: true,
+          },
+        });
+
+        const updatedRole = hasVerifiedOwner > 0 ? UserRole.RESIDENT_OWNER : UserRole.RESIDENT_TENANT;
+
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isVerified: true,
+            tenantId: acceptedTenantId,
+            role: updatedRole,
+            firstName: newFirstName,
+            lastName: newLastName,
+          },
+          include: {
+            tenant: true,
+            ownerships: {
+              include: {
+                unit: {
+                  include: {
+                    building: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
     }
 
     const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);

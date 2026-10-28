@@ -145,3 +145,34 @@ export class UpdateStaffDto {
   isActive?: boolean;
 }
 
+export class InviteResidentDto {
+  @ApiProperty({ example: '+77015550199', description: 'Номер телефона в формате +7XXXXXXXXXX' })
+  @IsNotEmpty({ message: 'Номер телефона обязателен' })
+  @IsString()
+  @Matches(/^\+7\d{10}$/, { message: 'Номер телефона должен быть в формате +7XXXXXXXXXX' })
+  phone: string;
+
+  @ApiProperty({ example: 'Алибек Сериков', required: false })
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @ApiProperty({ enum: [OwnershipType.TENANT, OwnershipType.FAMILY_MEMBER], default: OwnershipType.TENANT })
+  @IsEnum(OwnershipType)
+  @IsIn([OwnershipType.TENANT, OwnershipType.FAMILY_MEMBER], {
+    message: 'Тип привязки должен быть TENANT или FAMILY_MEMBER',
+  })
+  ownershipType: OwnershipType;
+
+  @ApiProperty({ example: '2026-12-31T23:59:59.000Z', required: false, description: 'Дата окончания аренды (опционально)' })
+  @IsOptional()
+  @IsString()
+  leaseEndDate?: string;
+}
+
+export class UpdateLeaseDto {
+  @ApiProperty({ example: '2026-12-31T23:59:59.000Z', required: false, description: 'Новая дата окончания аренды (null для бессрочного)' })
+  @IsOptional()
+  leaseEndDate?: string | null;
+}
+

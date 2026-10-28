@@ -240,7 +240,11 @@ export class BookingsService {
       include: { unit: true },
     });
 
-    if (!ownership) {
+    if (
+      !ownership ||
+      (ownership.leaseEndDate &&
+        new Date(ownership.leaseEndDate).getTime() < Date.now())
+    ) {
       throw new ForbiddenException({
         code: 'BOOKINGS.OWNERSHIP_REQUIRED',
         message: 'Для бронирования общих пространств требуется подтвержденное право владения или проживания в данном ЖК',
@@ -373,7 +377,11 @@ export class BookingsService {
       include: { unit: true },
     });
 
-    if (!ownership) {
+    if (
+      !ownership ||
+      (ownership.leaseEndDate &&
+        new Date(ownership.leaseEndDate).getTime() < Date.now())
+    ) {
       throw new ForbiddenException({
         code: 'BOOKINGS.OWNERSHIP_REQUIRED',
         message: 'Для листа ожидания требуется подтвержденное право владения или проживания в данном ЖК',

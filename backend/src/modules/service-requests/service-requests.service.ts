@@ -32,8 +32,12 @@ export class ServiceRequestsService {
     }
 
     // Аудит безопасности: проверка прав на помещение (BOLA/IDOR protection)
+    const now = Date.now();
     const hasVerifiedOwnership = unit.ownerships?.some(
-      (o) => o.userId === userId && o.isVerified,
+      (o) =>
+        o.userId === userId &&
+        o.isVerified &&
+        (!o.leaseEndDate || new Date(o.leaseEndDate).getTime() >= now),
     );
 
     if (!hasVerifiedOwnership) {

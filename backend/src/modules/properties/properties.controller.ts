@@ -2,7 +2,17 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PropertiesService } from './properties.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto, UpdateStaffDto } from './dto/properties.dto';
+import {
+  CreateTenantDto,
+  CreateUnitDto,
+  ClaimOwnershipDto,
+  VerifyOwnershipDto,
+  UpdateResidentStatusDto,
+  CreateStaffDto,
+  UpdateStaffDto,
+  InviteResidentDto,
+  UpdateLeaseDto,
+} from './dto/properties.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -106,7 +116,13 @@ export class PropertiesController {
   }
 
   @Patch('ownerships/:id/verify')
-  @Roles(UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER, UserRole.SUPERADMIN)
+  @Roles(
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SUPERADMIN,
+    UserRole.RESIDENT_OWNER,
+  )
   @ApiOperation({ summary: 'Верифицировать право собственности и скорректировать долю (Одобрить/Отклонить)' })
   async verifyOwnership(
     @Param('id') id: string,
@@ -181,5 +197,94 @@ export class PropertiesController {
     @CurrentUser() user: any,
   ) {
     return this.propertiesService.unlinkOwnership(id, user);
+  }
+
+  // -------------------------------------------------------------
+  // Квартиранты и члены семьи: приглашение, список, отзыв, продление (Task 0022)
+  // -------------------------------------------------------------
+
+  @Post('units/:unitId/invitations')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Пригласить квартиранта или члена семьи в свою квартиру' })
+  async inviteResident(
+    @Param('unitId') unitId: string,
+    @CurrentUser() user: any,
+    @Body() dto: InviteResidentDto,
+  ) {
+    return this.propertiesService.inviteResident(unitId, user, dto);
+  }
+
+  @Get('units/:unitId/residents')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Список жильцов и активных приглашений квартиры (для собственника или УК)' })
+  async getUnitResidents(
+    @Param('unitId') unitId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.propertiesService.getUnitResidents(unitId, user);
+  }
+
+  @Delete('units/:unitId/residents/:ownershipId')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Отозвать доступ квартиранта/члена семьи к квартире' })
+  async revokeResidentAccess(
+    @Param('unitId') unitId: string,
+    @Param('ownershipId') ownershipId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.propertiesService.revokeResidentAccess(unitId, ownershipId, user);
+  }
+
+  @Delete('units/:unitId/invitations/:invitationId')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Отозвать непринятое приглашение в квартиру' })
+  async revokeInvitation(
+    @Param('unitId') unitId: string,
+    @Param('invitationId') invitationId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.propertiesService.revokeInvitation(unitId, invitationId, user);
+  }
+
+  @Patch('units/:unitId/residents/:ownershipId/lease')
+  @Roles(
+    UserRole.RESIDENT_OWNER,
+    UserRole.HOA_ADMIN,
+    UserRole.HOA_CHAIRMAN,
+    UserRole.DISPATCHER,
+    UserRole.SUPERADMIN,
+  )
+  @ApiOperation({ summary: 'Продлить или изменить срок аренды жильца' })
+  async extendLease(
+    @Param('unitId') unitId: string,
+    @Param('ownershipId') ownershipId: string,
+    @CurrentUser() user: any,
+    @Body() dto: UpdateLeaseDto,
+  ) {
+    return this.propertiesService.extendLease(unitId, ownershipId, dto, user);
   }
 }

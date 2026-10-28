@@ -24,6 +24,14 @@ interface VerificationItem {
   ownershipType: string;
   sharePercent: number;
   isVerified: boolean;
+  leaseEndDate?: string | null;
+  invitedById?: string | null;
+  invitedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
   verificationDoc: string | null;
   createdAt: string;
   user: {
@@ -344,6 +352,18 @@ export default function VerificationsPage() {
                             ? t('verifications.ownershipTenant')
                             : t('verifications.ownershipFamily')}
                         </span>
+                        {item.leaseEndDate && (
+                          <div className="text-[11px] text-amber-600 font-medium mt-0.5">
+                            {t('cabinet.leaseUntil', 'Срок аренды: до')} {new Date(item.leaseEndDate).toLocaleDateString(
+                              i18n.language === 'kk' ? 'kk-KZ' : i18n.language === 'en' ? 'en-US' : 'ru-RU',
+                            )}
+                          </div>
+                        )}
+                        {item.invitedBy && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {t('cabinet.invitedBy', 'Пригласил')}: {item.invitedBy.firstName} {item.invitedBy.lastName} ({item.invitedBy.phone})
+                          </div>
+                        )}
                       </td>
 
                       {/* Документ eGov */}

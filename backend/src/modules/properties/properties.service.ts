@@ -6,8 +6,20 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto, CreateUnitDto, ClaimOwnershipDto, VerifyOwnershipDto, UpdateResidentStatusDto, CreateStaffDto, UpdateStaffDto } from './dto/properties.dto';
-import { UserRole } from '@prisma/client';
+import {
+  CreateTenantDto,
+  CreateUnitDto,
+  ClaimOwnershipDto,
+  VerifyOwnershipDto,
+  UpdateResidentStatusDto,
+  CreateStaffDto,
+  UpdateStaffDto,
+  InviteResidentDto,
+  UpdateLeaseDto,
+} from './dto/properties.dto';
+import { UserRole, OwnershipType, InvitationStatus } from '@prisma/client';
+
+export const MAX_RESIDENTS_PER_UNIT = 5;
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { getOrCreatePersonalAccount } from '../finance/personal-account.helper';
@@ -497,8 +509,32 @@ export class PropertiesService {
       });
     }
 
-    // Аудит безопасности (Tenant isolation): сотрудник УК может верифицировать только свой ЖК
-    if (verifierUser.role !== UserRole.SUPERADMIN) {
+    // Аудит безопасности (Tenant isolation):
+    const isStaff = ([
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+    ] as UserRole[]).includes(verifierUser.role);
+
+    if (!isStaff) {
+      // Собственник может подтверждать/отклонять только заявки на свою квартиру и только типов TENANT / FAMILY_MEMBER
+      const isOwnerOfUnit = await this.prisma.unitOwnership.findFirst({
+        where: {
+          unitId: record.unitId,
+          userId: verifierUser.id,
+          ownershipType: OwnershipType.OWNER,
+          isVerified: true,
+        },
+      });
+
+      if (!isOwnerOfUnit || record.ownershipType === OwnershipType.OWNER) {
+        throw new ForbiddenException({
+          code: 'PROPERTIES.OWNER_VERIFY_FORBIDDEN',
+          message: 'Собственник может подтверждать заявки только квартирантов и членов семьи для своей квартиры',
+        });
+      }
+    } else if (verifierUser.role !== UserRole.SUPERADMIN) {
       if (!verifierUser.tenantId || verifierUser.tenantId !== record.unit.building.tenantId) {
         throw new ForbiddenException({
           code: 'PROPERTIES.CROSS_TENANT_VERIFY_FORBIDDEN',
@@ -510,7 +546,11 @@ export class PropertiesService {
     // Валидация и корректировка доли при подтверждении
     const finalSharePercent = dto.approvedSharePercent !== undefined ? dto.approvedSharePercent : record.sharePercent;
 
-    if (dto.isVerified) {
+    const isNonOwner =
+      record.ownershipType === OwnershipType.TENANT ||
+      record.ownershipType === OwnershipType.FAMILY_MEMBER;
+
+    if (dto.isVerified && !isNonOwner) {
       // Check total shares of all OTHER verified owners for this apartment
       const otherOwners = await this.prisma.unitOwnership.findMany({
         where: {
@@ -519,7 +559,7 @@ export class PropertiesService {
           id: { not: record.id },
         },
       });
-      const otherSum = otherOwners.reduce((sum, o) => sum + o.sharePercent, 0);
+      const otherSum = otherOwners.reduce((sum, o) => sum + (o.sharePercent || 0), 0);
       if (otherSum + finalSharePercent > 100.0) {
         throw new BadRequestException({
           code: 'PROPERTIES.CONFIRMED_SHARE_EXCEEDS_TOTAL',
@@ -580,15 +620,41 @@ export class PropertiesService {
       where: { id: ownershipId },
       data: {
         isVerified: true,
-        sharePercent: finalSharePercent,
+        sharePercent: isNonOwner ? 0 : finalSharePercent,
         verifiedAt: new Date(),
       },
     });
 
-    await this.prisma.user.update({
+    const userToVerify = await this.prisma.user.findUnique({
       where: { id: record.userId },
-      data: { isVerified: true },
+      select: { role: true },
     });
+    if (userToVerify?.role === UserRole.RESIDENT_OWNER && isNonOwner) {
+      const hasAnyOwnerUnits = await this.prisma.unitOwnership.count({
+        where: {
+          userId: record.userId,
+          ownershipType: OwnershipType.OWNER,
+          isVerified: true,
+          id: { not: ownershipId },
+        },
+      });
+      if (hasAnyOwnerUnits === 0) {
+        await this.prisma.user.update({
+          where: { id: record.userId },
+          data: { role: UserRole.RESIDENT_TENANT, isVerified: true },
+        });
+      } else {
+        await this.prisma.user.update({
+          where: { id: record.userId },
+          data: { isVerified: true },
+        });
+      }
+    } else {
+      await this.prisma.user.update({
+        where: { id: record.userId },
+        data: { isVerified: true },
+      });
+    }
 
     await this.auditLogService.log({
       tenantId: record.unit.building.tenantId,
@@ -618,6 +684,7 @@ export class PropertiesService {
       },
       include: {
         user: true,
+        invitedBy: true,
         unit: {
           include: {
             building: true,
@@ -1075,6 +1142,623 @@ export class PropertiesService {
       success: true,
       message: 'Квартира успешно отвязана от жильца',
     };
+  }
+
+  // -------------------------------------------------------------
+  // Управление доступом квартирантов и членов семьи (Task 0022)
+  // -------------------------------------------------------------
+
+  async inviteResident(unitId: string, actor: any, dto: InviteResidentDto) {
+    const unit = await this.prisma.unit.findUnique({
+      where: { id: unitId },
+      include: {
+        building: true,
+        ownerships: {
+          include: { user: true },
+        },
+        invitations: true,
+      },
+    });
+
+    if (!unit) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.UNIT_NOT_FOUND',
+        message: 'Квартира/помещение не найдено',
+      });
+    }
+
+    const isStaff = [
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+    ].includes(actor.role);
+
+    if (isStaff && actor.role !== UserRole.SUPERADMIN) {
+      if (!actor.tenantId || actor.tenantId !== unit.building.tenantId) {
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал ЖК не может управлять жильцами другого жилого комплекса',
+        });
+      }
+    }
+
+    const isVerifiedOwner = unit.ownerships.some(
+      (o) => o.userId === actor.id && o.ownershipType === OwnershipType.OWNER && o.isVerified,
+    );
+
+    if (!isStaff && !isVerifiedOwner) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.INVITE_RESIDENT_FORBIDDEN',
+        message: 'Приглашать жильцов может только подтвержденный собственник помещения или администрация ЖК',
+      });
+    }
+
+    // 0. Запрет приглашать самого себя
+    if (actor.phone && dto.phone === actor.phone) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.CANNOT_INVITE_SELF',
+        message: 'Собственник не может пригласить самого себя',
+      });
+    }
+
+    // 1. Проверка лимита жильцов на одну квартиру (считаются только TENANT, FAMILY_MEMBER и PENDING приглашения)
+    const now = new Date();
+    const activeNonOwnerResidentsCount = unit.ownerships.filter(
+      (o) =>
+        o.isVerified &&
+        o.ownershipType !== OwnershipType.OWNER &&
+        (!o.leaseEndDate || new Date(o.leaseEndDate) >= now),
+    ).length;
+    const pendingInvitationsCount = unit.invitations.filter(
+      (i) => i.status === InvitationStatus.PENDING,
+    ).length;
+    const totalOccupied = activeNonOwnerResidentsCount + pendingInvitationsCount;
+
+    if (totalOccupied >= MAX_RESIDENTS_PER_UNIT) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.UNIT_RESIDENTS_LIMIT_EXCEEDED',
+        message: `Превышен лимит жильцов для одной квартиры (максимум ${MAX_RESIDENTS_PER_UNIT})`,
+        params: { limit: MAX_RESIDENTS_PER_UNIT, currentCount: totalOccupied },
+      });
+    }
+
+    // 2. Проверка, не привязан ли уже этот телефон к данной квартире
+    const alreadyResident = unit.ownerships.some(
+      (o) => o.user?.phone === dto.phone && o.isVerified && (!o.leaseEndDate || new Date(o.leaseEndDate) >= now),
+    );
+    if (alreadyResident) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.PHONE_ALREADY_RESIDENT',
+        message: 'Пользователь с этим номером телефона уже является подтвержденным жильцом этой квартиры',
+      });
+    }
+
+    // 3. Проверка на повторное активное приглашение
+    const existingPending = unit.invitations.some(
+      (i) => i.phone === dto.phone && i.status === InvitationStatus.PENDING,
+    );
+    if (existingPending) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.INVITATION_ALREADY_PENDING',
+        message: 'Приглашение для этого номера телефона уже ожидает входа жильца',
+      });
+    }
+
+    // 4. Валидация даты окончания аренды (если указана)
+    let parsedLeaseEndDate: Date | null = null;
+    if (dto.leaseEndDate) {
+      parsedLeaseEndDate = new Date(dto.leaseEndDate);
+      if (isNaN(parsedLeaseEndDate.getTime())) {
+        throw new BadRequestException({
+          code: 'PROPERTIES.INVALID_LEASE_END_DATE',
+          message: 'Некорректный формат даты окончания аренды',
+        });
+      }
+      if (parsedLeaseEndDate.getTime() <= Date.now()) {
+        throw new BadRequestException({
+          code: 'PROPERTIES.LEASE_END_DATE_PAST',
+          message: 'Дата окончания аренды должна быть в будущем',
+        });
+      }
+    }
+
+    const invitation = await this.prisma.unitInvitation.create({
+      data: {
+        unitId,
+        invitedById: actor.id,
+        phone: dto.phone,
+        fullName: dto.fullName?.trim() || null,
+        ownershipType: dto.ownershipType || OwnershipType.TENANT,
+        leaseEndDate: parsedLeaseEndDate,
+        status: InvitationStatus.PENDING,
+      },
+    });
+
+    await this.auditLogService.log({
+      tenantId: unit.building.tenantId,
+      actorId: actor.id,
+      action: 'TENANT_INVITED',
+      targetType: 'UnitInvitation',
+      targetId: invitation.id,
+      metadata: {
+        unitId,
+        phone: dto.phone,
+        ownershipType: dto.ownershipType,
+        leaseEndDate: parsedLeaseEndDate,
+      },
+    });
+
+    return invitation;
+  }
+
+  async getUnitResidents(unitId: string, actor: any) {
+    const unit = await this.prisma.unit.findUnique({
+      where: { id: unitId },
+      include: {
+        building: {
+          include: { tenant: true },
+        },
+        ownerships: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                role: true,
+              },
+            },
+            invitedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        invitations: {
+          where: { status: InvitationStatus.PENDING },
+          include: {
+            invitedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!unit) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.UNIT_NOT_FOUND',
+        message: 'Квартира/помещение не найдено',
+      });
+    }
+
+    const isStaff = [
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+    ].includes(actor.role);
+
+    if (isStaff && actor.role !== UserRole.SUPERADMIN) {
+      if (!actor.tenantId || actor.tenantId !== unit.building.tenantId) {
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал ЖК не может просматривать жильцов другого жилого комплекса',
+        });
+      }
+    }
+
+    const isVerifiedOwner = unit.ownerships.some(
+      (o) => o.userId === actor.id && o.ownershipType === OwnershipType.OWNER && o.isVerified,
+    );
+
+    if (!isStaff && !isVerifiedOwner) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.VIEW_RESIDENTS_FORBIDDEN',
+        message: 'Просматривать жильцов может только подтвержденный собственник помещения или персонал ЖК',
+      });
+    }
+
+    const now = new Date();
+    const mappedResidents = unit.ownerships.map((o) => {
+      const isLeaseExpired = o.leaseEndDate ? new Date(o.leaseEndDate) < now : false;
+      const fullName = [o.user?.firstName, o.user?.lastName].filter(Boolean).join(' ') || 'Житель';
+      const invitedByName = o.invitedBy
+        ? [o.invitedBy.firstName, o.invitedBy.lastName].filter(Boolean).join(' ') || 'Собственник'
+        : null;
+
+      return {
+        id: o.id,
+        userId: o.userId,
+        unitId: o.unitId,
+        name: fullName,
+        phone: o.user?.phone || '',
+        ownershipType: o.ownershipType,
+        isVerified: o.isVerified,
+        leaseEndDate: o.leaseEndDate,
+        isLeaseExpired,
+        status: isLeaseExpired ? 'EXPIRED' : o.isVerified ? 'ACTIVE' : 'PENDING',
+        invitedBy: o.invitedBy
+          ? {
+              id: o.invitedBy.id,
+              firstName: o.invitedBy.firstName,
+              lastName: o.invitedBy.lastName,
+              phone: o.invitedBy.phone,
+            }
+          : null,
+        invitedByName,
+        boundAt: o.createdAt,
+        createdAt: o.createdAt,
+        user: {
+          id: o.user?.id || o.userId,
+          firstName: o.user?.firstName || '',
+          lastName: o.user?.lastName || '',
+          phone: o.user?.phone || '',
+          role: o.user?.role || 'RESIDENT_TENANT',
+        },
+        ...(o.ownershipType === OwnershipType.OWNER ? { sharePercent: o.sharePercent } : {}),
+      };
+    });
+
+    const mappedInvitations = unit.invitations.map((i) => ({
+      id: i.id,
+      unitId: i.unitId,
+      phone: i.phone,
+      fullName: i.fullName,
+      ownershipType: i.ownershipType,
+      leaseEndDate: i.leaseEndDate,
+      status: i.status,
+      createdAt: i.createdAt,
+      invitedBy: i.invitedBy
+        ? {
+            id: i.invitedBy.id,
+            firstName: i.invitedBy.firstName,
+            lastName: i.invitedBy.lastName,
+            phone: i.invitedBy.phone,
+          }
+        : null,
+    }));
+
+    const activeNonOwnerResidents = mappedResidents.filter(
+      (r) => r.ownershipType !== OwnershipType.OWNER && !r.isLeaseExpired && r.isVerified,
+    );
+    const pendingInvitations = unit.invitations.filter(
+      (i) => i.status === InvitationStatus.PENDING,
+    );
+    const totalOccupied = activeNonOwnerResidents.length + pendingInvitations.length;
+
+    return {
+      unit: {
+        id: unit.id,
+        unitNumber: unit.unitNumber,
+        floor: unit.floor,
+        entrance: unit.entrance,
+        area: unit.area,
+        blockName: unit.building.blockName,
+        complexName: unit.building.tenant?.name || '',
+      },
+      residents: mappedResidents,
+      invitations: mappedInvitations,
+      totalCount: totalOccupied,
+      occupiedCount: totalOccupied,
+      maxAllowed: MAX_RESIDENTS_PER_UNIT,
+      maxLimit: MAX_RESIDENTS_PER_UNIT,
+    };
+  }
+
+  async revokeResidentAccess(unitId: string, ownershipId: string, actor: any) {
+    const ownership = await this.prisma.unitOwnership.findUnique({
+      where: { id: ownershipId },
+      include: {
+        unit: { include: { building: true } },
+        user: true,
+      },
+    });
+
+    if (!ownership || ownership.unitId !== unitId) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.OWNERSHIP_NOT_FOUND',
+        message: 'Запись жильца не найдена в указанной квартире',
+      });
+    }
+
+    const isStaff = [
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+    ].includes(actor.role);
+
+    if (isStaff && actor.role !== UserRole.SUPERADMIN) {
+      if (!actor.tenantId || actor.tenantId !== ownership.unit.building.tenantId) {
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал ЖК не может отзывать жильцов другого жилого комплекса',
+        });
+      }
+    }
+
+    const isVerifiedOwner = await this.prisma.unitOwnership.findFirst({
+      where: {
+        unitId,
+        userId: actor.id,
+        ownershipType: OwnershipType.OWNER,
+        isVerified: true,
+      },
+    });
+
+    if (!isStaff && !isVerifiedOwner) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.REVOKE_RESIDENT_FORBIDDEN',
+        message: 'Отозвать доступ жильца может только собственник помещения или администрация ЖК',
+      });
+    }
+
+    if (!isStaff && ownership.userId === actor.id) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.CANNOT_REVOKE_SELF',
+        message: 'Собственник не может отозвать доступ у самого себя',
+      });
+    }
+
+    if (!isStaff && ownership.ownershipType === OwnershipType.OWNER) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.CANNOT_REVOKE_OWNER',
+        message: 'Собственник не может отозвать доступ у другого собственника',
+      });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Удаляем привязку к квартире
+      await tx.unitOwnership.delete({
+        where: { id: ownershipId },
+      });
+
+      // 2. Мгновенно отзываем активные гостевые пропуска этого жильца по данной квартире
+      await tx.guestPass.updateMany({
+        where: {
+          unitId,
+          creatorId: ownership.userId,
+          isRevoked: false,
+        },
+        data: {
+          isRevoked: true,
+          revokedAt: new Date(),
+          revokedById: actor.id,
+        },
+      });
+
+      // 3. Инвалидируем сессии/токены жильца и отзываем PIN доступа, если больше нет других подтвержденных квартир
+      const remainingVerified = await tx.unitOwnership.count({
+        where: {
+          userId: ownership.userId,
+          isVerified: true,
+          OR: [{ leaseEndDate: null }, { leaseEndDate: { gte: new Date() } }],
+        },
+      });
+
+      if (remainingVerified === 0) {
+        await tx.user.update({
+          where: { id: ownership.userId },
+          data: {
+            tokenVersion: { increment: 1 },
+            accessPinHash: null,
+            accessPinSetAt: null,
+            isVerified: false,
+            tenantId: null,
+          },
+        });
+      } else {
+        await tx.user.update({
+          where: { id: ownership.userId },
+          data: {
+            tokenVersion: { increment: 1 },
+          },
+        });
+      }
+    });
+
+    await this.auditLogService.log({
+      tenantId: ownership.unit.building.tenantId,
+      actorId: actor.id,
+      action: 'OWNERSHIP_REVOKED',
+      targetType: 'UnitOwnership',
+      targetId: ownershipId,
+      metadata: {
+        unitId,
+        residentUserId: ownership.userId,
+        ownershipType: ownership.ownershipType,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Доступ жильца успешно отозван',
+    };
+  }
+
+  async revokeInvitation(unitId: string, invitationId: string, actor: any) {
+    const invitation = await this.prisma.unitInvitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        unit: { include: { building: true } },
+      },
+    });
+
+    if (!invitation || invitation.unitId !== unitId) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.INVITATION_NOT_FOUND',
+        message: 'Приглашение не найдено в указанной квартире',
+      });
+    }
+
+    const isStaff = [
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+    ].includes(actor.role);
+
+    if (isStaff && actor.role !== UserRole.SUPERADMIN) {
+      if (!actor.tenantId || actor.tenantId !== invitation.unit.building.tenantId) {
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал ЖК не может отзывать приглашения другого жилого комплекса',
+        });
+      }
+    }
+
+    const isVerifiedOwner = await this.prisma.unitOwnership.findFirst({
+      where: {
+        unitId,
+        userId: actor.id,
+        ownershipType: OwnershipType.OWNER,
+        isVerified: true,
+      },
+    });
+
+    if (!isStaff && !isVerifiedOwner) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.REVOKE_INVITATION_FORBIDDEN',
+        message: 'Отозвать приглашение может только собственник помещения или администрация ЖК',
+      });
+    }
+
+    if (invitation.status !== InvitationStatus.PENDING) {
+      throw new BadRequestException({
+        code: 'PROPERTIES.INVITATION_NOT_PENDING',
+        message: 'Отозвать можно только ожидающее приглашение',
+      });
+    }
+
+    const updated = await this.prisma.unitInvitation.update({
+      where: { id: invitationId },
+      data: {
+        status: InvitationStatus.REVOKED,
+        revokedAt: new Date(),
+      },
+    });
+
+    await this.auditLogService.log({
+      tenantId: invitation.unit.building.tenantId,
+      actorId: actor.id,
+      action: 'INVITATION_REVOKED',
+      targetType: 'UnitInvitation',
+      targetId: invitationId,
+      metadata: {
+        unitId,
+        phone: invitation.phone,
+      },
+    });
+
+    return updated;
+  }
+
+  async extendLease(unitId: string, ownershipId: string, dto: UpdateLeaseDto, actor: any) {
+    const ownership = await this.prisma.unitOwnership.findUnique({
+      where: { id: ownershipId },
+      include: {
+        unit: { include: { building: true } },
+      },
+    });
+
+    if (!ownership || ownership.unitId !== unitId) {
+      throw new NotFoundException({
+        code: 'PROPERTIES.OWNERSHIP_NOT_FOUND',
+        message: 'Запись жильца не найдена в указанной квартире',
+      });
+    }
+
+    const isStaff = [
+      UserRole.SUPERADMIN,
+      UserRole.HOA_ADMIN,
+      UserRole.HOA_CHAIRMAN,
+      UserRole.DISPATCHER,
+    ].includes(actor.role);
+
+    if (isStaff && actor.role !== UserRole.SUPERADMIN) {
+      if (!actor.tenantId || actor.tenantId !== ownership.unit.building.tenantId) {
+        throw new ForbiddenException({
+          code: 'PROPERTIES.CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал ЖК не может изменять срок аренды другого жилого комплекса',
+        });
+      }
+    }
+
+    const isVerifiedOwner = await this.prisma.unitOwnership.findFirst({
+      where: {
+        unitId,
+        userId: actor.id,
+        ownershipType: OwnershipType.OWNER,
+        isVerified: true,
+      },
+    });
+
+    if (!isStaff && !isVerifiedOwner) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.EXTEND_LEASE_FORBIDDEN',
+        message: 'Изменять срок аренды может только собственник помещения или администрация ЖК',
+      });
+    }
+
+    if (ownership.ownershipType === OwnershipType.OWNER) {
+      throw new ForbiddenException({
+        code: 'PROPERTIES.CANNOT_REVOKE_OWNER',
+        message: 'Нельзя изменять срок аренды для собственника помещения',
+      });
+    }
+
+    let parsedLeaseEndDate: Date | null = null;
+    if (dto.leaseEndDate) {
+      parsedLeaseEndDate = new Date(dto.leaseEndDate);
+      if (isNaN(parsedLeaseEndDate.getTime())) {
+        throw new BadRequestException({
+          code: 'PROPERTIES.INVALID_LEASE_END_DATE',
+          message: 'Некорректный формат даты окончания аренды',
+        });
+      }
+      if (parsedLeaseEndDate.getTime() <= Date.now()) {
+        throw new BadRequestException({
+          code: 'PROPERTIES.LEASE_END_DATE_PAST',
+          message: 'Дата окончания аренды должна быть в будущем',
+        });
+      }
+    }
+
+    const updated = await this.prisma.unitOwnership.update({
+      where: { id: ownershipId },
+      data: {
+        leaseEndDate: parsedLeaseEndDate,
+      },
+    });
+
+    await this.auditLogService.log({
+      tenantId: ownership.unit.building.tenantId,
+      actorId: actor.id,
+      action: 'LEASE_EXTENDED',
+      targetType: 'UnitOwnership',
+      targetId: ownershipId,
+      metadata: {
+        unitId,
+        residentUserId: ownership.userId,
+        newLeaseEndDate: parsedLeaseEndDate,
+      },
+    });
+
+    return updated;
   }
 
   private async recalculateAreas(tenantId: string, buildingId: string) {

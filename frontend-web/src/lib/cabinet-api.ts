@@ -26,7 +26,80 @@ export interface UserOwnership {
   sharePercent: number;
   isVerified: boolean;
   verificationDoc?: string | null;
+  leaseEndDate?: string | null;
+  invitedById?: string | null;
+  invitedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
   unit: UserUnit;
+}
+
+export interface UnitResidentItem {
+  id: string;
+  userId: string;
+  unitId: string;
+  name?: string;
+  phone?: string;
+  status?: string;
+  boundAt?: string;
+  ownershipType: 'OWNER' | 'TENANT' | 'FAMILY_MEMBER';
+  sharePercent?: number;
+  isVerified: boolean;
+  leaseEndDate?: string | null;
+  isLeaseExpired?: boolean;
+  createdAt: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    role: string;
+  };
+  invitedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
+}
+
+export interface UnitInvitationItem {
+  id: string;
+  unitId: string;
+  invitedById: string;
+  phone: string;
+  fullName?: string | null;
+  ownershipType: 'TENANT' | 'FAMILY_MEMBER';
+  leaseEndDate?: string | null;
+  status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
+  createdAt: string;
+  expiresAt?: string;
+  invitedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  } | null;
+}
+
+export interface UnitResidentsResponse {
+  unit: {
+    id: string;
+    unitNumber: string;
+    floor: number;
+    entrance: number;
+    area: number;
+    blockName: string;
+    complexName: string;
+  };
+  residents: UnitResidentItem[];
+  invitations: UnitInvitationItem[];
+  totalCount: number;
+  maxAllowed: number;
+  maxLimit: number;
 }
 
 export interface ResidentProfile {
@@ -649,12 +722,48 @@ export const CabinetApi = {
 
   async claimOwnership(dto: {
     unitId: string;
-    ownershipType: 'OWNER' | 'TENANT';
+    ownershipType: 'OWNER' | 'TENANT' | 'FAMILY_MEMBER';
     sharePercent?: number;
     verificationDoc?: string;
   }): Promise<any> {
     return apiRequest('/properties/ownerships/claim', {
       method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  },
+
+  // Residents & Invitations (Task 0022)
+  async getUnitResidents(unitId: string): Promise<UnitResidentsResponse> {
+    return apiRequest(`/properties/units/${unitId}/residents`);
+  },
+
+  async inviteResident(unitId: string, dto: {
+    phone: string;
+    fullName?: string;
+    ownershipType: 'TENANT' | 'FAMILY_MEMBER';
+    leaseEndDate?: string | null;
+  }): Promise<UnitInvitationItem> {
+    return apiRequest(`/properties/units/${unitId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  },
+
+  async revokeResident(unitId: string, ownershipId: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/properties/units/${unitId}/residents/${ownershipId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async revokeInvitation(unitId: string, invitationId: string): Promise<UnitInvitationItem> {
+    return apiRequest(`/properties/units/${unitId}/invitations/${invitationId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async extendLease(unitId: string, ownershipId: string, dto: { leaseEndDate?: string | null }): Promise<UnitResidentItem> {
+    return apiRequest(`/properties/units/${unitId}/residents/${ownershipId}/lease`, {
+      method: 'PATCH',
       body: JSON.stringify(dto),
     });
   },

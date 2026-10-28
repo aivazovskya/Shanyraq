@@ -34,6 +34,8 @@ export function roleLabel(
     case 'TENANT':
     case 'RESIDENT':
       return t('profile.tenantRole');
+    case 'FAMILY_MEMBER':
+      return t('profile.familyMemberRole', 'Член семьи');
     case 'HOA_ADMIN':
       return t('staff.roleHoaAdmin');
     case 'HOA_CHAIRMAN':

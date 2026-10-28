@@ -61,8 +61,12 @@ export class MetersService {
     if (isStaff) {
       assertUserBelongsToTenant(user, unit.building.tenantId);
     } else {
+      const now = Date.now();
       const hasVerifiedOwnership = unit.ownerships.some(
-        (o) => o.userId === user.id && o.isVerified,
+        (o) =>
+          o.userId === user.id &&
+          o.isVerified &&
+          (!o.leaseEndDate || new Date(o.leaseEndDate).getTime() >= now),
       );
       if (!hasVerifiedOwnership) {
         throw new ForbiddenException({
@@ -172,8 +176,12 @@ export class MetersService {
       });
     }
 
+    const now = Date.now();
     const hasVerifiedOwnership = meter.unit.ownerships.some(
-      (o) => o.userId === user.id && o.isVerified,
+      (o) =>
+        o.userId === user.id &&
+        o.isVerified &&
+        (!o.leaseEndDate || new Date(o.leaseEndDate).getTime() >= now),
     );
 
     if (!hasVerifiedOwnership) {
@@ -276,8 +284,12 @@ export class MetersService {
     if (isStaff) {
       assertUserBelongsToTenant(user, meter.unit.building.tenantId);
     } else {
+      const now = Date.now();
       const hasVerifiedOwnership = meter.unit.ownerships.some(
-        (o) => o.userId === user.id && o.isVerified,
+        (o) =>
+          o.userId === user.id &&
+          o.isVerified &&
+          (!o.leaseEndDate || new Date(o.leaseEndDate).getTime() >= now),
       );
       if (!hasVerifiedOwnership) {
         throw new ForbiddenException({

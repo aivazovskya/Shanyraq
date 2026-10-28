@@ -78,6 +78,13 @@ export async function assertAccessToTenant(
     throw new ForbiddenException(errorCodes.residentForbidden);
   }
 
+  if (
+    (verifiedOwnership as any).leaseEndDate &&
+    new Date((verifiedOwnership as any).leaseEndDate).getTime() < Date.now()
+  ) {
+    throw new ForbiddenException(errorCodes.residentForbidden);
+  }
+
   return false;
 }
 

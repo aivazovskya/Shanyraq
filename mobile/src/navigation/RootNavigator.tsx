@@ -35,6 +35,7 @@ import { CommunityBoardScreen } from '../screens/community-board/CommunityBoardS
 import { CreateListingScreen } from '../screens/community-board/CreateListingScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { ResidentsScreen } from '../screens/residents/ResidentsScreen';
 import { SkeletonList } from '../components/ui/Skeleton';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -111,6 +112,7 @@ export const RootNavigator: React.FC = () => {
               <Stack.Screen name="CreateListing" component={CreateListingScreen} />
               <Stack.Screen name="Chat" component={ChatScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="Residents" component={ResidentsScreen} />
             </>
           )}
         </Stack.Navigator>

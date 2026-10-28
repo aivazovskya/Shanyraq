@@ -52,6 +52,9 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { meetingId } = route.params;
   const { user } = useAuth();
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
+  const isOwner =
+    user?.role === 'RESIDENT_OWNER' ||
+    user?.ownerships?.some((o) => o.ownershipType === 'OWNER' && o.isVerified);
 
   const [meeting, setMeeting] = useState<MeetingItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   }, [loadDetails]);
 
   const openVoteModal = (item: AgendaItem) => {
+    if (!isOwner) return;
     safeHaptic.selection();
     setActiveItem(item);
     setSelectedChoice(null);
@@ -374,13 +378,30 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                       </View>
                     </View>
                   ) : meeting.status === 'ACTIVE' ? (
-                    <Button
-                      title={t('votings.voteOnQuestion')}
-                      onPress={() => openVoteModal(item)}
-                      variant="primary"
-                      size="md"
-                      style={styles.voteBtn}
-                    />
+                    isOwner ? (
+                      <Button
+                        title={t('votings.voteOnQuestion')}
+                        onPress={() => openVoteModal(item)}
+                        variant="primary"
+                        size="md"
+                        style={styles.voteBtn}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.votedBadgeBlock,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                            marginTop: 12,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.votedText, { color: theme.colors.textMuted, fontSize: 13 }]}>
+                          {t('votings.ownersOnlyNotice', 'Голосование доступно только собственникам помещений')}
+                        </Text>
+                      </View>
+                    )
                   ) : null}
 
                   {/* Votes summary by area */}

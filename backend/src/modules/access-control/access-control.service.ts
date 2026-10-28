@@ -519,7 +519,11 @@ export class AccessControlService {
         },
       });
 
-      if (!verifiedOwnership) {
+      if (
+        !verifiedOwnership ||
+        (verifiedOwnership.leaseEndDate &&
+          new Date(verifiedOwnership.leaseEndDate).getTime() < Date.now())
+      ) {
         throw new ForbiddenException({
           code: 'ACCESS_CONTROL.RESIDENT_CAMERA_ACCESS_FORBIDDEN',
           message: 'У вас нет подтвержденного доступа к видеокамерам данного жилого комплекса',
@@ -616,7 +620,11 @@ export class AccessControlService {
         },
       });
 
-      if (!verifiedOwnership) {
+      if (
+        !verifiedOwnership ||
+        (verifiedOwnership.leaseEndDate &&
+          new Date(verifiedOwnership.leaseEndDate).getTime() < Date.now())
+      ) {
         await this.prisma.accessLog.create({
           data: {
             accessPointId: accessPoint.id,
@@ -799,7 +807,11 @@ export class AccessControlService {
         },
       });
 
-      if (!ownership) {
+      if (
+        !ownership ||
+        (ownership.leaseEndDate &&
+          new Date(ownership.leaseEndDate).getTime() < Date.now())
+      ) {
         throw new ForbiddenException({
           code: 'ACCESS_CONTROL.GUEST_PASS_OWN_UNIT_ONLY',
           message: 'IDOR защита: вы можете оформлять гостевой пропуск только для своей подтвержденной квартиры',
@@ -870,7 +882,11 @@ export class AccessControlService {
         },
       });
 
-      if (!ownership) {
+      if (
+        !ownership ||
+        (ownership.leaseEndDate &&
+          new Date(ownership.leaseEndDate).getTime() < Date.now())
+      ) {
         throw new ForbiddenException({
           code: 'ACCESS_CONTROL.GUEST_PASS_OWN_UNIT_ONLY',
           message: 'IDOR защита: вы можете просматривать пропуска только для своей подтвержденной квартиры',

@@ -151,49 +151,89 @@ export default function CabinetProfilePage() {
               </Link>
             </div>
 
-            {primaryOwnership ? (
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div>
-                  <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <Home className="w-4 h-4 text-emerald-600" />
-                    <span>
-                      {t('cabinet.apartment', { number: primaryOwnership.unit.unitNumber })}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        primaryOwnership.isVerified
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                      }`}
+            {profile?.ownerships && profile.ownerships.length > 0 ? (
+              <div className="space-y-3">
+                {profile.ownerships.map((ownership) => {
+                  const isExpired = ownership.leaseEndDate && new Date(ownership.leaseEndDate).getTime() < Date.now();
+                  return (
+                    <div
+                      key={ownership.id}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                     >
-                      {primaryOwnership.isVerified
-                        ? t('cabinet.ownershipVerified')
-                        : t('cabinet.ownershipPending')}
-                    </span>
-                  </div>
+                      <div>
+                        <div className="font-bold text-sm text-slate-900 dark:text-white flex flex-wrap items-center gap-2">
+                          <Home className="w-4 h-4 text-emerald-600" />
+                          <span>
+                            {t('cabinet.apartment', { number: ownership.unit.unitNumber })}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              ownership.ownershipType === 'OWNER'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                : ownership.ownershipType === 'TENANT'
+                                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                                : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                            }`}
+                          >
+                            {getRoleLabel(ownership.ownershipType, t)}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              ownership.isVerified
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            }`}
+                          >
+                            {ownership.isVerified
+                              ? t('cabinet.ownershipVerified')
+                              : t('cabinet.ownershipPending')}
+                          </span>
+                          {isExpired && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+                              {t('cabinet.leaseExpired', 'Срок аренды истек')}
+                            </span>
+                          )}
+                        </div>
 
-                  <div className="text-slate-500 dark:text-slate-400 mt-1 space-x-2">
-                    <span>{profile?.tenant?.name || profile?.tenantName}</span>
-                    <span>•</span>
-                    <span>{primaryOwnership.unit.building?.blockName}</span>
-                    <span>•</span>
-                    <span>
-                      {t('cabinet.entranceNum', { number: primaryOwnership.unit.entrance })}
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {t('cabinet.floorNum', { number: primaryOwnership.unit.floor })}
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {t('cabinet.areaSqm', { area: primaryOwnership.unit.area })}
-                    </span>
-                  </div>
-                </div>
+                        <div className="text-slate-500 dark:text-slate-400 mt-1 space-x-2">
+                          <span>{profile?.tenant?.name || profile?.tenantName}</span>
+                          <span>•</span>
+                          <span>{ownership.unit.building?.blockName}</span>
+                          <span>•</span>
+                          <span>
+                            {t('cabinet.entranceNum', { number: ownership.unit.entrance })}
+                          </span>
+                          <span>•</span>
+                          <span>
+                            {t('cabinet.floorNum', { number: ownership.unit.floor })}
+                          </span>
+                          <span>•</span>
+                          <span>
+                            {t('cabinet.areaSqm', { area: ownership.unit.area })}
+                          </span>
+                        </div>
 
-                <div className="text-right text-slate-500 self-end sm:self-center">
-                  {t('cabinet.shareLabel', { percent: primaryOwnership.sharePercent })}
-                </div>
+                        {ownership.leaseEndDate && (
+                          <div className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                            {t('cabinet.leaseUntil', 'Срок аренды: до')}{' '}
+                            {new Date(ownership.leaseEndDate).toLocaleDateString(
+                              i18n.language === 'kk' ? 'kk-KZ' : i18n.language === 'en' ? 'en-US' : 'ru-RU',
+                            )}
+                          </div>
+                        )}
+                        {ownership.invitedBy && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {t('cabinet.invitedBy', 'Пригласил')}: {ownership.invitedBy.firstName} {ownership.invitedBy.lastName} ({ownership.invitedBy.phone})
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-right text-slate-500 self-end sm:self-center">
+                        {t('cabinet.shareLabel', { percent: ownership.sharePercent })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-6 text-xs text-slate-400">

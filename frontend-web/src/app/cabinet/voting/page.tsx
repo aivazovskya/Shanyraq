@@ -34,6 +34,8 @@ export default function CabinetVotingPage() {
   const [votingSubmitting, setVotingSubmitting] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
 
+  const isOwner = profile?.role === 'RESIDENT_OWNER' || profile?.ownerships?.some((o) => o.ownershipType === 'OWNER' && o.isVerified);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -240,6 +242,12 @@ export default function CabinetVotingPage() {
               </p>
             )}
 
+            {!isOwner && (
+              <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 text-xs">
+                {t('cabinet.votingOwnersOnlyNotice', 'Голосование на общем собрании собственников доступно только собственникам помещений. Вам доступны повестка и результаты.')}
+              </div>
+            )}
+
             {/* Quorum status block */}
             <div className="mt-4 p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 flex items-center justify-between text-xs">
               <div>
@@ -298,17 +306,26 @@ export default function CabinetVotingPage() {
                           </span>
                         </div>
                       ) : selectedMeeting.status === 'ACTIVE' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVotingItem(item);
-                            setVoteChoice('FOR');
-                            setVoteError(null);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shrink-0 shadow-sm transition-colors"
-                        >
-                          {t('cabinet.votingVoteAction')}
-                        </button>
+                        isOwner ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVotingItem(item);
+                              setVoteChoice('FOR');
+                              setVoteError(null);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shrink-0 shadow-sm transition-colors"
+                          >
+                            {t('cabinet.votingVoteAction')}
+                          </button>
+                        ) : (
+                          <span
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium text-[11px] shrink-0"
+                            title={t('cabinet.votingOwnersOnly', 'Только для собственников')}
+                          >
+                            {t('cabinet.votingOwnersOnly', 'Только для собственников')}
+                          </span>
+                        )
                       ) : null}
                     </div>
 
