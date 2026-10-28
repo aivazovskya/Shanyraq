@@ -72,15 +72,15 @@ export const StaffRequestsListScreen: React.FC = () => {
     } catch (e) {
       console.warn('Failed to load staff requests:', e);
     } finally {
-      if (!isSilent) setLoading(false);
+      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadRequests(true);
-    }, [loadRequests])
+      loadRequests(requests.length > 0);
+    }, [loadRequests, requests.length])
   );
 
   const onRefresh = () => {

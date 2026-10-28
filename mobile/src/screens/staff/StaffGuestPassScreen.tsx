@@ -103,7 +103,7 @@ export const StaffGuestPassScreen: React.FC = () => {
       } catch (err) {
         console.warn('Failed to load guest passes:', err);
       } finally {
-        if (!isSilent) setLoadingPasses(false);
+        setLoadingPasses(false);
         setRefreshing(false);
       }
     },
@@ -127,9 +127,9 @@ export const StaffGuestPassScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchPasses(true);
+      fetchPasses(tenantPasses.length > 0);
       fetchStructure();
-    }, [fetchPasses, fetchStructure])
+    }, [fetchPasses, fetchStructure, tenantPasses.length])
   );
 
   const onRefresh = () => {

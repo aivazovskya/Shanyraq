@@ -86,7 +86,7 @@ export const StaffChatThreadScreen: React.FC = () => {
       } catch (err) {
         console.warn('Failed to load conversation messages:', err);
       } finally {
-        if (!isSilent) setLoading(false);
+        setLoading(false);
       }
     },
     [conversationId]

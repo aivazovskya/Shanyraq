@@ -1,4 +1,13 @@
 {
+  "configError": {
+    "title": "Ошибка конфигурации",
+    "subtitle": "Адрес сервера не задан",
+    "description": "В production-сборке мобильного приложения не задан адрес API-сервера. Приложение не может работать без указания бэкенда.",
+    "envLabel": "Переменная окружения",
+    "envExample": "EXPO_PUBLIC_API_URL=https://api.example.kz/api/v1",
+    "instruction": "Для устранения проблемы создайте файл .env или задайте переменную при сборке:",
+    "subInstruction": "• Скопируйте .env.example в .env\n• Укажите рабочий адрес API\n• Пересоберите приложение командой npx expo export"
+  },
   "photos": {
     "limit": "До {{count}} фото, каждое до 15 МБ.",
     "uploading": "Подготовка и загрузка фото…",

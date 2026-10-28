@@ -17,7 +17,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { safeHaptic } from '../../lib/haptics';
 import { accessibleSpring } from '../../lib/motion';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'outline';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps {
@@ -93,6 +93,18 @@ export const Button: React.FC<ButtonProps> = ({
     }
 
     switch (variant) {
+      case 'outline':
+        return {
+          container: {
+            backgroundColor: 'transparent',
+            borderColor: theme.colors.border,
+            borderWidth: 1,
+          },
+          text: {
+            color: theme.colors.text,
+          },
+          indicatorColor: theme.colors.primary,
+        };
       case 'secondary':
         return {
           container: {

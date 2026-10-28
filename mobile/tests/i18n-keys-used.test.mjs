@@ -46,3 +46,37 @@ test('every literal t() key used in code exists in ru, kk and en', () => {
   }
   assert.deepEqual(problems, [], `Missing translation keys:\n${problems.join('\n')}`);
 });
+
+test('no hardcoded Cyrillic or Latin text strings in JSX outside t()', () => {
+  const tsxFiles = files.filter((f) => f.endsWith('.tsx'));
+  const violations = [];
+
+  for (const file of tsxFiles) {
+    const rel = path.relative(srcDir, file).replace(/\\/g, '/');
+    const text = fs.readFileSync(file, 'utf8');
+
+    // Strip comments
+    const clean = text
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+
+    const lines = clean.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Skip imports, type/interface declarations, generic brackets, and arrow functions
+      if (/^\s*(import|export\s+(type|interface)|type\s+|interface\s+)/.test(line)) continue;
+      if (/React\.FC<|Record<|Array<|Promise<|SegmentedControl</.test(line)) continue;
+      if (/=>/.test(line)) continue;
+
+      let match;
+      const lineRe = />\s*([А-Яа-яA-Za-z]{3,}[^<{]*)</g;
+      while ((match = lineRe.exec(line))) {
+        const content = match[1].trim();
+        if (content.startsWith('Date.') || content.startsWith('Math.')) continue;
+        violations.push(`${rel}:${i + 1} -> "${content}"`);
+      }
+    }
+  }
+
+  assert.deepEqual(violations, [], `Hardcoded strings in JSX:\n${violations.join('\n')}`);
+});

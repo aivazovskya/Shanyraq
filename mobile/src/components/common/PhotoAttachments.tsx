@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertCircle } from 'lucide-react-native';
 import { UploadsApi } from '../../api/uploads';
 import { getApiErrorMessage } from '../../api/client';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { useTheme } from '../../theme/ThemeContext';
 
 interface Props {

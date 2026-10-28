@@ -4,13 +4,33 @@
     "slug": "shanyraq-resident",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#059669",
+      "dark": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0F172A"
+      }
+    },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "kz.shanyraq.resident"
+      "bundleIdentifier": "kz.shanyraq.app",
+      "userInterfaceStyle": "automatic"
     },
     "android": {
-      "package": "kz.shanyraq.resident"
+      "package": "kz.shanyraq.app",
+      "userInterfaceStyle": "automatic",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#059669"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store",

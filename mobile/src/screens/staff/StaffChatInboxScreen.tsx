@@ -64,7 +64,7 @@ export const StaffChatInboxScreen: React.FC = () => {
       } catch (err: any) {
         console.warn('Failed to load tenant conversations:', err);
       } finally {
-        if (!isSilent) setLoading(false);
+        setLoading(false);
         setRefreshing(false);
       }
     },

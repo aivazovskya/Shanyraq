@@ -1,4 +1,13 @@
 {
+  "configError": {
+    "title": "Configuration Error",
+    "subtitle": "Server address is not set",
+    "description": "The production build of the mobile app is missing the API server address. The application cannot run without a configured backend.",
+    "envLabel": "Environment variable",
+    "envExample": "EXPO_PUBLIC_API_URL=https://api.example.kz/api/v1",
+    "instruction": "To resolve this issue, create a .env file or define the environment variable before building:",
+    "subInstruction": "• Copy .env.example to .env\n• Specify the active API endpoint\n• Rebuild the application with npx expo export"
+  },
   "photos": {
     "limit": "Up to {{count}} photos, 15 MB each.",
     "uploading": "Preparing and uploading photo…",

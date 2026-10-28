@@ -103,7 +103,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(normalizeProfile(profile));
         }
       } catch (err) {
-        console.log('Session expired or invalid, logging out:', err);
+        if (__DEV__) {
+          console.warn('Session expired or invalid, logging out:', err);
+        }
         await TokenStorage.clearTokens();
         setUser(null);
       } finally {

@@ -74,7 +74,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
       } catch (err) {
         console.warn('Failed to load shift handover notes:', err);
       } finally {
-        if (!isSilent) setLoading(false);
+        setLoading(false);
         setRefreshing(false);
       }
     },
@@ -83,8 +83,8 @@ export const StaffShiftHandoverScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchNotes(true);
-    }, [fetchNotes])
+      fetchNotes(notes.length > 0);
+    }, [fetchNotes, notes.length])
   );
 
   const onRefresh = () => {

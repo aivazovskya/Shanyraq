@@ -86,7 +86,7 @@ export const ChatScreen: React.FC = () => {
       }
       return null;
     } finally {
-      if (!isSilent) setLoading(false);
+      setLoading(false);
     }
   }, []);
 

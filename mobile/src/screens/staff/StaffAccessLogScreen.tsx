@@ -79,7 +79,7 @@ export const StaffAccessLogScreen: React.FC = () => {
       } catch (e: any) {
         console.warn('Failed to load access logs:', e);
       } finally {
-        if (!isSilent) setLoading(false);
+        setLoading(false);
         setRefreshing(false);
       }
     },
@@ -88,8 +88,8 @@ export const StaffAccessLogScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchLogs(true);
-    }, [fetchLogs])
+      fetchLogs(logs.length > 0);
+    }, [fetchLogs, logs.length])
   );
 
   const onRefresh = () => {

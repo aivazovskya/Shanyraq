@@ -85,7 +85,7 @@ export const StaffSosScreen: React.FC = () => {
       } catch (err: any) {
         console.warn('Failed to load SOS alerts:', err);
       } finally {
-        if (!isSilent) setLoading(false);
+        setLoading(false);
         setRefreshing(false);
       }
     },

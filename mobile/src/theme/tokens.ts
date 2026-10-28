@@ -52,8 +52,8 @@ export interface ThemeColors {
 }
 
 export const lightColors: ThemeColors = {
-  primary: '#059669',
-  primaryDark: '#047857',
+  primary: '#047857', // 5.48:1 WCAG AA with #FFFFFF
+  primaryDark: '#065F46',
   primaryLight: '#D1FAE5',
   primaryBg: '#ECFDF5',
   onPrimary: '#FFFFFF',
@@ -63,29 +63,29 @@ export const lightColors: ThemeColors = {
   surfaceElevated: '#FFFFFF',
   surfaceSubtle: '#F1F5F9',
   border: '#E2E8F0',
-  borderFocus: '#059669',
+  borderFocus: '#047857',
 
   text: '#0F172A',
   textMuted: '#475569', // 7.58:1 WCAG AA
   textLight: '#94A3B8',
 
-  success: '#10B981',
+  success: '#047857', // 4.86:1 WCAG AA on #DEF7EC, 5.48:1 with #FFFFFF
   successBg: '#DEF7EC',
   successBorder: '#A7F3D0',
   onSuccess: '#FFFFFF',
 
-  warning: '#D97706',
+  warning: '#B45309', // 4.51:1 WCAG AA on #FEF3C7, 5.02:1 with #FFFFFF
   warningBg: '#FEF3C7',
   warningBorder: '#FDE68A',
   onWarning: '#FFFFFF',
 
-  danger: '#DC2626',
+  danger: '#B91C1C', // 5.30:1 WCAG AA on #FEE2E2, 5.89:1 with #FFFFFF
   dangerDark: '#991B1B',
   dangerBg: '#FEE2E2',
   dangerBorder: '#FECACA',
   onDanger: '#FFFFFF',
 
-  info: '#2563EB',
+  info: '#2563EB', // 4.75:1 WCAG AA on #EFF6FF, 5.17:1 with #FFFFFF
   infoBg: '#EFF6FF',
   infoBorder: '#BFDBFE',
   onInfo: '#FFFFFF',
@@ -135,7 +135,7 @@ export const darkColors: ThemeColors = {
   dangerBorder: '#B91C1C',
   onDanger: '#062117',
 
-  info: '#60A5FA',
+  info: '#93C5FD', // 5.74:1 WCAG AA on #1E3A8A, 9.12:1 with #062117
   infoBg: '#1E3A8A',
   infoBorder: '#1D4ED8',
   onInfo: '#062117',

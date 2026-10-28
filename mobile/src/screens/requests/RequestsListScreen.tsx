@@ -102,6 +102,112 @@ export const RequestsListScreen: React.FC = () => {
     { value: 'DONE', label: t('requests.tabDone') },
   ];
 
+  const keyExtractor = useCallback((item: ServiceRequestItem) => item.id, []);
+
+  const renderRequestItem = useCallback(
+    ({ item, index }: { item: ServiceRequestItem; index: number }) => {
+      const statusInfo = getStatusInfo(item.status, t);
+      const statusVariant: BadgeVariant =
+        statusInfo.variant === 'default' ? 'neutral' : statusInfo.variant;
+      const prioVariant = getPriorityBadgeVariant(item.priority);
+      const formattedDate = new Date(item.createdAt).toLocaleDateString(
+        i18n.language,
+        { day: 'numeric', month: 'short' }
+      );
+
+      return (
+        <AnimatedEntrance index={Math.min(index, 6)}>
+          <Card
+            onPress={() => {
+              safeHaptic.selection();
+              navigation.navigate('RequestDetail', { requestId: item.id });
+            }}
+            style={styles.card}
+            accessibilityLabel={`${item.title}. ${statusInfo.label}`}
+          >
+            <View style={styles.cardHeader}>
+              <View style={styles.badgesRow}>
+                <Badge
+                  label={getCategoryLabel(item.category, t)}
+                  variant="neutral"
+                  size="sm"
+                />
+                {item.priority === 'EMERGENCY' || item.priority === 'HIGH' ? (
+                  <Badge
+                    label={getPriorityLabel(item.priority, t)}
+                    variant={prioVariant}
+                    size="sm"
+                    showDot
+                  />
+                ) : null}
+              </View>
+              <Badge
+                label={statusInfo.label}
+                variant={statusVariant}
+                size="sm"
+                mode="subtle"
+              />
+            </View>
+
+            <Text
+              style={[styles.itemTitle, { color: theme.colors.text }]}
+              numberOfLines={1}
+            >
+              {item.title}
+            </Text>
+
+            <Text
+              style={[styles.itemDesc, { color: theme.colors.textMuted }]}
+              numberOfLines={2}
+            >
+              {item.description}
+            </Text>
+
+            <View
+              style={[
+                styles.cardFooter,
+                { borderTopColor: theme.colors.border },
+              ]}
+            >
+              <View style={styles.dateWrap}>
+                <Clock size={13} color={theme.colors.textLight} />
+                <Text
+                  style={[styles.dateText, { color: theme.colors.textLight }]}
+                >
+                  {formattedDate}
+                </Text>
+              </View>
+
+              <View style={styles.footerRight}>
+                {item.comments && item.comments.length > 0 && (
+                  <View style={styles.commentCount}>
+                    <MessageSquare
+                      color={theme.colors.textMuted}
+                      size={14}
+                    />
+                    <Text
+                      style={[
+                        styles.commentText,
+                        { color: theme.colors.textMuted },
+                      ]}
+                    >
+                      {item.comments.length}
+                    </Text>
+                  </View>
+                )}
+                <ChevronRight
+                  color={theme.colors.textLight}
+                  size={18}
+                />
+              </View>
+            </View>
+          </Card>
+        </AnimatedEntrance>
+      );
+    },
+    [t, i18n.language, theme, navigation]
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Header */}
@@ -156,7 +262,7 @@ export const RequestsListScreen: React.FC = () => {
       ) : (
         <FlatList
           data={filteredRequests}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: tabBarInset },
@@ -180,106 +286,7 @@ export const RequestsListScreen: React.FC = () => {
               }}
             />
           }
-          renderItem={({ item, index }) => {
-            const statusInfo = getStatusInfo(item.status, t);
-            const statusVariant: BadgeVariant =
-              statusInfo.variant === 'default' ? 'neutral' : statusInfo.variant;
-            const prioVariant = getPriorityBadgeVariant(item.priority);
-            const formattedDate = new Date(item.createdAt).toLocaleDateString(
-              i18n.language,
-              { day: 'numeric', month: 'short' }
-            );
-
-            return (
-              <AnimatedEntrance index={Math.min(index, 6)}>
-                <Card
-                  onPress={() => {
-                    safeHaptic.selection();
-                    navigation.navigate('RequestDetail', { requestId: item.id });
-                  }}
-                  style={styles.card}
-                  accessibilityLabel={`${item.title}. ${statusInfo.label}`}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={styles.badgesRow}>
-                      <Badge
-                        label={getCategoryLabel(item.category, t)}
-                        variant="neutral"
-                        size="sm"
-                      />
-                      {item.priority === 'EMERGENCY' || item.priority === 'HIGH' ? (
-                        <Badge
-                          label={getPriorityLabel(item.priority, t)}
-                          variant={prioVariant}
-                          size="sm"
-                          showDot
-                        />
-                      ) : null}
-                    </View>
-                    <Badge
-                      label={statusInfo.label}
-                      variant={statusVariant}
-                      size="sm"
-                      mode="subtle"
-                    />
-                  </View>
-
-                  <Text
-                    style={[styles.itemTitle, { color: theme.colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {item.title}
-                  </Text>
-
-                  <Text
-                    style={[styles.itemDesc, { color: theme.colors.textMuted }]}
-                    numberOfLines={2}
-                  >
-                    {item.description}
-                  </Text>
-
-                  <View
-                    style={[
-                      styles.cardFooter,
-                      { borderTopColor: theme.colors.border },
-                    ]}
-                  >
-                    <View style={styles.dateWrap}>
-                      <Clock size={13} color={theme.colors.textLight} />
-                      <Text
-                        style={[styles.dateText, { color: theme.colors.textLight }]}
-                      >
-                        {formattedDate}
-                      </Text>
-                    </View>
-
-                    <View style={styles.footerRight}>
-                      {item.comments && item.comments.length > 0 && (
-                        <View style={styles.commentCount}>
-                          <MessageSquare
-                            color={theme.colors.textMuted}
-                            size={14}
-                          />
-                          <Text
-                            style={[
-                              styles.commentText,
-                              { color: theme.colors.textMuted },
-                            ]}
-                          >
-                            {item.comments.length}
-                          </Text>
-                        </View>
-                      )}
-                      <ChevronRight
-                        color={theme.colors.textLight}
-                        size={18}
-                      />
-                    </View>
-                  </View>
-                </Card>
-              </AnimatedEntrance>
-            );
-          }}
+          renderItem={renderRequestItem}
         />
       )}
     </View>
