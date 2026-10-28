@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Platform, View, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -6,9 +7,10 @@ import { RootStackParamList } from './types';
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-if (typeof window !== 'undefined') {
+if (__DEV__ && Platform.OS === 'web' && typeof window !== 'undefined') {
   (window as any).navigationRef = navigationRef;
 }
+
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { AuthStack } from './AuthStack';
@@ -34,7 +36,6 @@ import { CreateListingScreen } from '../screens/community-board/CreateListingScr
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
 import { SkeletonList } from '../components/ui/Skeleton';
-import { View, StyleSheet } from 'react-native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -54,7 +55,7 @@ export const RootNavigator: React.FC = () => {
         notification: theme.colors.danger,
       },
     }),
-    [isDark, theme],
+    [isDark, theme]
   );
 
   if (isLoading) {
@@ -86,6 +87,8 @@ export const RootNavigator: React.FC = () => {
               <Stack.Screen name="StaffAccessLog" component={StaffAccessLogScreen} />
               <Stack.Screen name="StaffGuestPass" component={StaffGuestPassScreen} />
               <Stack.Screen name="StaffShiftHandover" component={StaffShiftHandoverScreen} />
+              <Stack.Screen name="TransparencyReport" component={TransparencyReportScreen} />
+              <Stack.Screen name="VotingDetails" component={VotingDetailsScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
             </>
           ) : !hasOwnership ? (

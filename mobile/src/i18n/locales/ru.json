@@ -9,7 +9,8 @@
     "cameraPermission": "Разрешите доступ к камере в настройках или выберите фото из галереи.",
     "preview": "Фото {{count}}",
     "pending": "Фото ожидает загрузки",
-    "camera": "Снять фото"
+    "camera": "Снять фото",
+    "libraryPermission": "Разрешите доступ к фотографиям в настройках устройства"
   },
   "common": {
     "loading": "Загрузка...",
@@ -35,7 +36,16 @@
     "sqm": "м²",
     "kazakhAlphabet": "Казахские символы: Ә І Ң Ғ Ү Ұ Қ Ө Һ",
     "hoursShort": "ч.",
-    "minsShort": "мин."
+    "minsShort": "мин.",
+    "refresh": "Обновить",
+    "send": "Отправить",
+    "clear": "Очистить",
+    "userNotAuthorizedOrLinked": "Пользователь не авторизован или не привязан к ЖК",
+    "ok": "ОК",
+    "search": "Поиск",
+    "networkError": "Ошибка сети. Проверьте подключение",
+    "uploadFailed": "Не удалось загрузить файл",
+    "share": "Поделиться"
   },
   "navigation": {
     "home": "Главная",
@@ -259,7 +269,9 @@
     "keypadClear": "C",
     "keypadBackspace": "Стереть",
     "keypadSubmit": "Подтвердить",
-    "incorrectPin": "Неверный PIN-код доступа"
+    "incorrectPin": "Неверный PIN-код доступа",
+    "noUnitAttachedError": "К вашему аккаунту не привязана квартира",
+    "passCreatedSuccess": "Гостевой пропуск создан"
   },
   "votings": {
     "title": "Голосования ОСС",
@@ -494,7 +506,8 @@
     "shareReceipt": "Поделиться квитанцией",
     "receiptOfflineNotice": "Квитанция формируется автоматически в начале каждого расчетного месяца",
     "shareOfAccruals": "{{percent}}% от начислений",
-    "shareOfExpenses": "{{percent}}% от всех расходов"
+    "shareOfExpenses": "{{percent}}% от всех расходов",
+    "methodManual": "Внесено вручную"
   },
   "meters": {
     "title": "Показания счётчиков",
@@ -978,7 +991,21 @@
         "requiresAttention": "Требует реакции",
         "allClear": "Все обработаны",
         "resolvedOnly": "Только решённые"
-      }
+      },
+      "acceptAction": "Принять",
+      "acceptSuccess": "Вызов принят в работу",
+      "acceptError": "Не удалось принять вызов",
+      "waitTimer": "Ждет {{time}}",
+      "unacceptedPulse": "Не принят",
+      "acceptedByMe": "Взят вами",
+      "acceptedByOther": "Взят: {{name}}",
+      "resolveSheetTitle": "Завершение вызова SOS",
+      "resolveSuccessNotice": "Помощь оказана",
+      "resolveFalseAlarmNotice": "Ложная тревога",
+      "tabAlerts": "Тревоги",
+      "tabStats": "Статистика (30 дн.)",
+      "avgResponseTime": "Время реакции",
+      "totalAlerts": "Всего вызовов"
     },
     "chatTab": "Чат ЖК",
     "chat": {
@@ -1021,7 +1048,13 @@
       "readOnlyNotice": "Режим только для чтения (Председатель ОСИ)",
       "goToRequests": "Перейти к заявкам ЖК",
       "activeRequestsNote": "Service Desk: управление обращениями и смена статусов",
-      "unitPrefix": "кв. {{unit}}"
+      "unitPrefix": "кв. {{unit}}",
+      "overdueBadge": "SLA Просрочено",
+      "urgentBadge": "Срочно",
+      "readOnlyBadge": "Только просмотр",
+      "assigneeLabel": "Исполнитель",
+      "notAssigned": "Не назначен",
+      "priority": "Приоритет"
     },
     "accessLog": {
       "cardLabel": "Журнал доступа",
@@ -1041,7 +1074,12 @@
       "emptySubtitle": "События проезда и прохода отобразятся здесь",
       "loadError": "Не удалось загрузить журнал доступа",
       "unauthorizedTitle": "Доступ ограничен",
-      "unauthorizedMsg": "Просмотр журнала доступа доступен только сотрудникам службы охраны и администраторам ЖК."
+      "unauthorizedMsg": "Просмотр журнала доступа доступен только сотрудникам службы охраны и администраторам ЖК.",
+      "tabLabel": "Журнал",
+      "filterAllowed": "Разрешено",
+      "filterDenied": "Отказано",
+      "today": "Сегодня",
+      "yesterday": "Вчера"
     },
     "guestPass": {
       "cardLabel": "Гостевой пропуск",
@@ -1068,7 +1106,22 @@
       "historyTitle": "История пропусков ЖК",
       "noHistory": "В жилом комплексе нет оформленных пропусков",
       "issuedBy": "Оформил: {{name}}",
-      "revokedByLabel": "Отозвал: {{name}}"
+      "revokedByLabel": "Отозвал: {{name}}",
+      "tabLabel": "Пропуска",
+      "revokePass": "Отозвать",
+      "revokeConfirmTitle": "Отозвать гостевой пропуск?",
+      "revokeConfirmMessage": "Действие пропуска будет немедленно прекращено.",
+      "revokeSuccess": "Пропуск успешно отозван",
+      "revokeError": "Не удалось отозвать пропуск",
+      "activePassesTitle": "Активные пропуска",
+      "issuePassBtn": "Оформить пропуск",
+      "passCode": "Код доступа",
+      "pedestrian": "Пешеходный",
+      "vehicle": "Автомобиль",
+      "plateNumber": "Госномер авто",
+      "guestName": "ФИО гостя",
+      "hours": "ч.",
+      "durationLabel": "Срок действия"
     },
     "shiftHandover": {
       "cardLabel": "Охрана и диспетчерская",
@@ -1083,7 +1136,39 @@
       "charCount": "{{count}}/2000",
       "loadError": "Не удалось загрузить журнал смены",
       "postError": "Не удалось опубликовать заметку",
-      "retry": "Повторить"
+      "retry": "Повторить",
+      "tabLabel": "Смена",
+      "newNote": "Добавить запись",
+      "createNoteSheetTitle": "Заметка для смены",
+      "postSuccess": "Заметка успешно сохранена",
+      "author": "Автор"
+    },
+    "home": {
+      "shiftGreeting": "Смена сотрудника",
+      "kpiActiveSos": "Активные SOS",
+      "kpiRequests": "Заявки в работе",
+      "kpiOverdueSla": "Просрочено SLA",
+      "kpiUnreadChats": "Непрочитанные чаты",
+      "kpiActivePasses": "Активные пропуска",
+      "attentionTitle": "Требует внимания",
+      "attentionEmptyTitle": "Все спокойно",
+      "attentionEmptySubtitle": "Критических инцидентов и просроченных обращений нет",
+      "quickActions": "Быстрые действия",
+      "actionSos": "SOS вызовы",
+      "actionRequests": "Заявки жителей",
+      "actionChat": "Чат с жителями",
+      "actionAccessLog": "Журнал доступа",
+      "actionGuestPass": "Выдать пропуск",
+      "actionShiftHandover": "Передача смены",
+      "actionTransparency": "Прозрачность",
+      "actionVotings": "Собрания ОСС"
+    },
+    "profile": {
+      "profileTitle": "Профиль сотрудника",
+      "themeMode": "Тема оформления",
+      "language": "Язык приложения",
+      "settings": "Настройки",
+      "notifications": "Уведомления"
     }
   },
   "notifications": {

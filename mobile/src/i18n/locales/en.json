@@ -9,7 +9,8 @@
     "cameraPermission": "Allow camera access in settings or choose a photo from your library.",
     "preview": "Photo {{count}}",
     "pending": "Photo awaiting upload",
-    "camera": "Take photo"
+    "camera": "Take photo",
+    "libraryPermission": "Allow photo library access in your device settings"
   },
   "common": {
     "loading": "Loading...",
@@ -35,7 +36,16 @@
     "sqm": "m²",
     "kazakhAlphabet": "Kazakh alphabet: Ә І Ң Ғ Ү Ұ Қ Ө Һ",
     "hoursShort": "h",
-    "minsShort": "m"
+    "minsShort": "m",
+    "refresh": "Refresh",
+    "send": "Send",
+    "clear": "Clear",
+    "userNotAuthorizedOrLinked": "You are not signed in or not linked to a residential complex",
+    "ok": "OK",
+    "search": "Search",
+    "networkError": "Network error. Check your connection",
+    "uploadFailed": "Failed to upload the file",
+    "share": "Share"
   },
   "navigation": {
     "home": "Home",
@@ -259,7 +269,9 @@
     "keypadClear": "C",
     "keypadBackspace": "Delete",
     "keypadSubmit": "Confirm",
-    "incorrectPin": "Incorrect access PIN"
+    "incorrectPin": "Incorrect access PIN",
+    "noUnitAttachedError": "No unit is linked to your account",
+    "passCreatedSuccess": "Guest pass created"
   },
   "votings": {
     "title": "General Meetings (HOA)",
@@ -494,7 +506,8 @@
     "shareReceipt": "Share receipt",
     "receiptOfflineNotice": "Receipt is generated automatically at the beginning of each billing month",
     "shareOfAccruals": "{{percent}}% of accruals",
-    "shareOfExpenses": "{{percent}}% of all expenses"
+    "shareOfExpenses": "{{percent}}% of all expenses",
+    "methodManual": "Recorded manually"
   },
   "meters": {
     "title": "Meter Readings",
@@ -978,7 +991,21 @@
         "requiresAttention": "Needs attention",
         "allClear": "All handled",
         "resolvedOnly": "Resolved only"
-      }
+      },
+      "acceptAction": "Accept",
+      "acceptSuccess": "Alert accepted",
+      "acceptError": "Failed to accept alert",
+      "waitTimer": "Waiting: {{time}}",
+      "unacceptedPulse": "Unaccepted",
+      "acceptedByMe": "Taken by you",
+      "acceptedByOther": "Taken by: {{name}}",
+      "resolveSheetTitle": "Resolve SOS Alert",
+      "resolveSuccessNotice": "Assistance provided",
+      "resolveFalseAlarmNotice": "False alarm",
+      "tabAlerts": "Alerts",
+      "tabStats": "Statistics (30d)",
+      "avgResponseTime": "Response Time",
+      "totalAlerts": "Total Alerts"
     },
     "chatTab": "Resident Chat",
     "chat": {
@@ -1021,7 +1048,13 @@
       "readOnlyNotice": "Read-only mode (HOA Chairman)",
       "goToRequests": "Go to Service Requests",
       "activeRequestsNote": "Service desk management and status triage",
-      "unitPrefix": "apt. {{unit}}"
+      "unitPrefix": "apt. {{unit}}",
+      "overdueBadge": "Overdue SLA",
+      "urgentBadge": "Urgent",
+      "readOnlyBadge": "Read Only",
+      "assigneeLabel": "Assignee",
+      "notAssigned": "Not assigned",
+      "priority": "Priority"
     },
     "accessLog": {
       "cardLabel": "Access Log",
@@ -1041,7 +1074,12 @@
       "emptySubtitle": "Access and entry events will appear here",
       "loadError": "Failed to load access logs",
       "unauthorizedTitle": "Access Restricted",
-      "unauthorizedMsg": "Access log viewing is only available to Security and HOA Administrators."
+      "unauthorizedMsg": "Access log viewing is only available to Security and HOA Administrators.",
+      "tabLabel": "Log",
+      "filterAllowed": "Allowed",
+      "filterDenied": "Denied",
+      "today": "Today",
+      "yesterday": "Yesterday"
     },
     "guestPass": {
       "cardLabel": "Guest Pass",
@@ -1068,7 +1106,22 @@
       "historyTitle": "Complex Pass History",
       "noHistory": "No guest passes in this complex",
       "issuedBy": "Issued by: {{name}}",
-      "revokedByLabel": "Revoked by: {{name}}"
+      "revokedByLabel": "Revoked by: {{name}}",
+      "tabLabel": "Passes",
+      "revokePass": "Revoke",
+      "revokeConfirmTitle": "Revoke guest pass?",
+      "revokeConfirmMessage": "The pass will be immediately invalidated.",
+      "revokeSuccess": "Pass successfully revoked",
+      "revokeError": "Failed to revoke pass",
+      "activePassesTitle": "Active Passes",
+      "issuePassBtn": "Issue Pass",
+      "passCode": "Access Code",
+      "pedestrian": "Pedestrian",
+      "vehicle": "Vehicle",
+      "plateNumber": "License Plate",
+      "guestName": "Guest Name",
+      "hours": "h.",
+      "durationLabel": "Validity Duration"
     },
     "shiftHandover": {
       "cardLabel": "Security & Dispatch",
@@ -1083,7 +1136,39 @@
       "charCount": "{{count}}/2000",
       "loadError": "Failed to load shift logbook",
       "postError": "Failed to post handover note",
-      "retry": "Retry"
+      "retry": "Retry",
+      "tabLabel": "Shift",
+      "newNote": "Add Note",
+      "createNoteSheetTitle": "Shift Handover Note",
+      "postSuccess": "Note saved successfully",
+      "author": "Author"
+    },
+    "home": {
+      "shiftGreeting": "Staff Shift",
+      "kpiActiveSos": "Active SOS",
+      "kpiRequests": "Active Requests",
+      "kpiOverdueSla": "Overdue SLA",
+      "kpiUnreadChats": "Unread Chats",
+      "kpiActivePasses": "Active Passes",
+      "attentionTitle": "Requires Attention",
+      "attentionEmptyTitle": "All quiet",
+      "attentionEmptySubtitle": "No critical incidents or overdue tickets",
+      "quickActions": "Quick Actions",
+      "actionSos": "SOS Alerts",
+      "actionRequests": "Resident Requests",
+      "actionChat": "Resident Chat",
+      "actionAccessLog": "Access Log",
+      "actionGuestPass": "Issue Pass",
+      "actionShiftHandover": "Shift Handover",
+      "actionTransparency": "Transparency",
+      "actionVotings": "General Meetings"
+    },
+    "profile": {
+      "profileTitle": "Staff Profile",
+      "themeMode": "App Theme",
+      "language": "App Language",
+      "settings": "Settings",
+      "notifications": "Notifications"
     }
   },
   "notifications": {

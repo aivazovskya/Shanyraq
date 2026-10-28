@@ -8,26 +8,53 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   SafeAreaView,
   Image,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
-import { ChatApi, ChatMessage } from '../../api/chat';
-import { Badge } from '../../components/common/Badge';
-import { createRealtimeSocket } from '../../lib/socket';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Socket } from 'socket.io-client';
-import { Colors } from '../../constants/colors';
-import { ArrowLeft, Send, User, ShieldCheck, CheckCheck } from 'lucide-react-native';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
+import { ChatApi, ChatMessage } from '../../api/chat';
+import { UploadsApi } from '../../api/uploads';
+import { createRealtimeSocket } from '../../lib/socket';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  IconButton,
+  Badge,
+  Button,
+  SkeletonList,
+  Avatar,
+} from '../../components/ui';
+import {
+  ArrowLeft,
+  Send,
+  Paperclip,
+  CheckCircle2,
+  CheckCheck,
+  X,
+  User,
+} from 'lucide-react-native';
+
+interface GroupedItem {
+  type: 'date' | 'message';
+  dateStr?: string;
+  message?: ChatMessage;
+}
 
 export const StaffChatThreadScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuth();
+  const { theme } = useTheme();
 
   const { conversationId, residentName, unitInfo } = route.params || {};
 
@@ -35,10 +62,14 @@ export const StaffChatThreadScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [attachedPhoto, setAttachedPhoto] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   const [isResolved, setIsResolved] = useState<boolean>(route.params?.isResolved ?? false);
   const [resolving, setResolving] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
 
+  const flatListRef = useRef<FlatList>(null);
   const canResolve = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(user?.role || '');
 
   const loadMessages = useCallback(
@@ -53,23 +84,29 @@ export const StaffChatThreadScreen: React.FC = () => {
           setIsResolved(conv.isResolved);
         }
       } catch (err) {
-        console.error('Failed to load conversation messages:', err);
+        console.warn('Failed to load conversation messages:', err);
       } finally {
         if (!isSilent) setLoading(false);
       }
     },
-    [conversationId],
+    [conversationId]
   );
 
   const handleResolve = async () => {
     if (!conversationId || resolving) return;
+    safeHaptic.selection();
     setResolving(true);
+
     try {
       await ChatApi.resolveConversation(conversationId);
       setIsResolved(true);
+      safeHaptic.selection();
     } catch (err: any) {
-      console.error('Failed to resolve conversation:', err);
-      Alert.alert(t('common.error'), err?.response?.data?.message || t('staff.chat.resolveError'));
+      console.warn('Failed to resolve conversation:', err);
+      Alert.alert(
+        t('common.error'),
+        err?.response?.data?.message || t('staff.chat.resolveError')
+      );
     } finally {
       setResolving(false);
     }
@@ -100,15 +137,11 @@ export const StaffChatThreadScreen: React.FC = () => {
         });
 
         socket.on('chat:message', (newMsg: ChatMessage) => {
-          if (!newMsg) return;
+          safeHaptic.selection();
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
-          const role = newMsg.sender?.role;
-          if (!role || role === 'RESIDENT' || role === 'RESIDENT_OWNER' || role === 'RESIDENT_TENANT') {
-            setIsResolved(false);
-          }
           setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
           }, 100);
@@ -124,354 +157,584 @@ export const StaffChatThreadScreen: React.FC = () => {
           socket.disconnect();
         }
       };
-    }, [conversationId, loadMessages]),
+    }, [conversationId, loadMessages])
   );
 
-  const handleSend = async () => {
-    const text = inputText.trim();
-    if (!text || sending || !conversationId) return;
-
-    setSending(true);
-    setInputText('');
+  const handlePickPhoto = async () => {
+    if (uploadingPhoto) return;
+    safeHaptic.selection();
 
     try {
-      const newMsg = await ChatApi.sendStaffMessage(conversationId, text);
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === newMsg.id)) return prev;
-        return [...prev, newMsg];
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
       });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setUploadingPhoto(true);
+        const uploaded = await UploadsApi.uploadFile(
+          result.assets[0].uri,
+          'chat-attachment.jpg',
+          'image/jpeg',
+          'media'
+        );
+        setAttachedPhoto(uploaded.url);
+      }
+    } catch (err) {
+      console.warn('Failed to pick/upload photo:', err);
+      Alert.alert(t('common.error'), t('common.uploadFailed'));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    const textToSend = inputText.trim();
+    if (!textToSend && !attachedPhoto) return;
+    if (sending || uploadingPhoto || !conversationId) return;
+
+    safeHaptic.selection();
+    setSending(true);
+
+    try {
+      const newMsg = await ChatApi.sendStaffMessage(
+        conversationId,
+        textToSend || undefined,
+        attachedPhoto || undefined
+      );
+
+      setMessages((prev) => [...prev, newMsg]);
+      setInputText('');
+      setAttachedPhoto(null);
+
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
-    } catch (err) {
-      console.error('Failed to send staff message:', err);
-      // Restore input text if failed
-      setInputText(text);
+    } catch (err: any) {
+      Alert.alert(
+        t('common.error'),
+        err?.response?.data?.message || t('staff.chat.sendMessageError')
+      );
     } finally {
       setSending(false);
     }
   };
 
-  const renderMessageItem = ({ item }: { item: ChatMessage }) => {
-    // Message is from staff if sender role is not resident
-    const isStaffMsg = item.sender?.role && item.sender.role !== 'RESIDENT_OWNER' && item.sender.role !== 'RESIDENT_TENANT';
-    const isCurrentUser = item.senderId === user?.id;
+  const formatMessageTime = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
 
-    const timeStr = new Date(item.createdAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
+  const getDateHeaderLabel = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      if (d.toDateString() === today.toDateString()) {
+        return t('chat.today');
+      }
+      if (d.toDateString() === yesterday.toDateString()) {
+        return t('chat.yesterday');
+      }
+      return d.toLocaleDateString([], { day: 'numeric', month: 'long' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Group messages by date
+  const groupedItems: GroupedItem[] = [];
+  let lastDateStr = '';
+
+  for (const msg of messages) {
+    const msgDate = new Date(msg.createdAt).toDateString();
+    if (msgDate !== lastDateStr) {
+      lastDateStr = msgDate;
+      groupedItems.push({
+        type: 'date',
+        dateStr: msg.createdAt,
+      });
+    }
+    groupedItems.push({
+      type: 'message',
+      message: msg,
     });
+  }
+
+  const renderItem = ({ item }: { item: GroupedItem }) => {
+    if (item.type === 'date' && item.dateStr) {
+      return (
+        <View style={styles.dateSeparator}>
+          <View
+            style={[
+              styles.datePill,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dateText,
+                { color: theme.colors.textMuted },
+                theme.typography.caption,
+              ]}
+            >
+              {getDateHeaderLabel(item.dateStr)}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (!item.message) return null;
+    const msg = item.message;
+    const isMe = msg.senderId === user?.id;
 
     return (
       <View
         style={[
           styles.messageRow,
-          isStaffMsg ? styles.messageRowStaff : styles.messageRowResident,
+          isMe ? styles.messageRowMe : styles.messageRowOther,
         ]}
       >
+        {!isMe && (
+          <Avatar
+            name={residentName || t('staff.chat.resident')}
+            size="sm"
+            style={styles.senderAvatar}
+          />
+        )}
+
         <View
           style={[
-            styles.messageBubble,
-            isStaffMsg ? styles.messageBubbleStaff : styles.messageBubbleResident,
+            styles.bubble,
+            isMe
+              ? [
+                  styles.bubbleMe,
+                  { backgroundColor: theme.colors.primary },
+                ]
+              : [
+                  styles.bubbleOther,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ],
           ]}
         >
-          {/* Sender label */}
-          <Text
-            style={[
-              styles.senderName,
-              isStaffMsg ? styles.senderNameStaff : styles.senderNameResident,
-            ]}
-          >
-            {isStaffMsg
-              ? isCurrentUser
-                ? t('staff.chat.dispatcherReply')
-                : `${item.sender?.firstName || ''} (${t('staff.chat.dispatcherReply')})`.trim()
-              : residentName || t('staff.chat.resident')}
-          </Text>
-
-          {/* Photo attachment if available */}
-          {item.photoUrl && (
-            <Image
-              source={{ uri: item.photoUrl }}
-              style={styles.attachedImage}
-              resizeMode="cover"
-            />
+          {Boolean(msg.photoUrl) && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setPreviewImage(msg.photoUrl)}
+              style={styles.photoContainer}
+            >
+              <Image
+                source={{ uri: msg.photoUrl! }}
+                style={styles.photoThumbnail}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
           )}
 
-          {/* Text content */}
-          {item.text && (
+          {Boolean(msg.text) && (
             <Text
               style={[
-                styles.messageText,
-                isStaffMsg ? styles.messageTextStaff : styles.messageTextResident,
+                styles.bubbleText,
+                {
+                  color: isMe ? theme.colors.onPrimary : theme.colors.text,
+                },
+                theme.typography.body,
               ]}
             >
-              {item.text}
+              {msg.text}
             </Text>
           )}
 
-          <Text
-            style={[
-              styles.messageTime,
-              isStaffMsg ? styles.messageTimeStaff : styles.messageTimeResident,
-            ]}
-          >
-            {timeStr}
-          </Text>
+          <View style={styles.bubbleFooter}>
+            <Text
+              style={[
+                styles.timeText,
+                {
+                  color: isMe ? 'rgba(255, 255, 255, 0.75)' : theme.colors.textMuted,
+                },
+                theme.typography.caption,
+              ]}
+            >
+              {formatMessageTime(msg.createdAt)}
+            </Text>
+            {isMe && (
+              <CheckCheck
+                size={14}
+                color="rgba(255, 255, 255, 0.85)"
+                style={{ marginLeft: 4 }}
+              />
+            )}
+          </View>
         </View>
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    <SafeAreaView
+      style={[styles.root, { backgroundColor: theme.colors.background }]}
+    >
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        {/* Custom Header */}
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.colors.surface,
+              borderBottomColor: theme.colors.border,
+            },
+          ]}
         >
-          <ArrowLeft size={24} color={Colors.text} />
-        </TouchableOpacity>
+          <IconButton
+            icon={<ArrowLeft size={22} color={theme.colors.text} />}
+            accessibilityLabel={t('common.back')}
+            onPress={() => {
+              safeHaptic.selection();
+              navigation.goBack();
+            }}
+            variant="ghost"
+            size={40}
+          />
 
-        <View style={styles.headerTitleGroup}>
-          <Text style={styles.headerTitle}>{residentName || t('staff.chat.threadTitle')}</Text>
-          {unitInfo && <Text style={styles.headerSubtitle}>{unitInfo}</Text>}
-        </View>
-
-        <View style={styles.headerRight}>
-          {canResolve && (
-            isResolved ? (
-              <Badge label={t('staff.chat.resolvedBadge')} variant="success" />
-            ) : (
-              <TouchableOpacity
-                style={styles.resolveButton}
-                onPress={handleResolve}
-                disabled={resolving}
-                activeOpacity={0.8}
+          <View style={styles.headerTitleWrap}>
+            <Text
+              style={[
+                styles.headerName,
+                { color: theme.colors.text },
+                theme.typography.headline,
+              ]}
+              numberOfLines={1}
+            >
+              {residentName || t('staff.chat.threadTitle')}
+            </Text>
+            {Boolean(unitInfo) && (
+              <Text
+                style={[
+                  styles.headerUnit,
+                  { color: theme.colors.textMuted },
+                  theme.typography.caption,
+                ]}
+                numberOfLines={1}
               >
-                {resolving ? (
-                  <ActivityIndicator size="small" color="#166534" />
-                ) : (
-                  <CheckCheck size={15} color="#166534" style={{ marginRight: 4 }} />
-                )}
-                <Text style={styles.resolveButtonText}>{t('staff.chat.resolveBtn')}</Text>
-              </TouchableOpacity>
-            )
+                {unitInfo}
+              </Text>
+            )}
+          </View>
+
+          {/* Resolve Button or Badge */}
+          {canResolve && !isResolved && (
+            <Button
+              title={t('staff.chat.resolveBtn')}
+              variant="secondary"
+              size="sm"
+              onPress={handleResolve}
+              loading={resolving}
+              leftIcon={<CheckCircle2 size={15} color={theme.colors.primary} />}
+            />
+          )}
+          {isResolved && (
+            <Badge
+              label={t('staff.chat.resolvedBadge')}
+              variant="success"
+              size="sm"
+            />
           )}
         </View>
-      </View>
 
-      {/* Messages list */}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+        {/* Messages List */}
         {loading ? (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+          <View style={styles.loadingWrap}>
+            <SkeletonList count={4} />
           </View>
         ) : (
           <FlatList
             ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={renderMessageItem}
+            data={groupedItems}
+            keyExtractor={(_, index) => `item-${index}`}
+            renderItem={renderItem}
             contentContainerStyle={styles.messagesList}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            }}
           />
         )}
 
-        {/* Input bar */}
-        <View style={styles.inputContainer}>
+        {/* Attached Photo Preview */}
+        {Boolean(attachedPhoto) && (
+          <View
+            style={[
+              styles.attachedPreviewRow,
+              {
+                backgroundColor: theme.colors.surface,
+                borderTopColor: theme.colors.border,
+              },
+            ]}
+          >
+            <View style={styles.attachedThumbnailWrap}>
+              <Image
+                source={{ uri: attachedPhoto! }}
+                style={styles.attachedThumbnail}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.removeAttachBtn,
+                  { backgroundColor: theme.colors.danger },
+                ]}
+                onPress={() => setAttachedPhoto(null)}
+              >
+                <X size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Input Bar */}
+        <View
+          style={[
+            styles.inputBar,
+            {
+              backgroundColor: theme.colors.surface,
+              borderTopColor: theme.colors.border,
+              paddingBottom: Math.max(insets.bottom, 10),
+            },
+          ]}
+        >
+          <IconButton
+            icon={<Paperclip size={20} color={theme.colors.textMuted} />}
+            accessibilityLabel={t('staff.chat.photoAttachment')}
+            onPress={handlePickPhoto}
+            variant="ghost"
+            size={40}
+            disabled={uploadingPhoto || sending}
+          />
+
           <TextInput
-            style={styles.input}
+            style={[
+              styles.textInput,
+              {
+                color: theme.colors.text,
+                backgroundColor: theme.colors.surfaceSubtle,
+                borderColor: theme.colors.border,
+              },
+              theme.typography.body,
+            ]}
             placeholder={t('staff.chat.typeMessagePlaceholder')}
-            placeholderTextColor={Colors.textLight}
+            placeholderTextColor={theme.colors.textMuted}
             value={inputText}
             onChangeText={setInputText}
             multiline
             maxLength={1000}
           />
-          <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-            onPress={handleSend}
-            disabled={!inputText.trim() || sending}
-            activeOpacity={0.8}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Send size={18} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
+
+          <IconButton
+            icon={<Send size={18} color={theme.colors.onPrimary} />}
+            accessibilityLabel={t('staff.chat.send')}
+            onPress={handleSendMessage}
+            variant="primary"
+            size={40}
+            disabled={(!inputText.trim() && !attachedPhoto) || sending}
+          />
         </View>
       </KeyboardAvoidingView>
+
+      {/* Fullscreen Photo Preview Modal */}
+      <Modal visible={Boolean(previewImage)} transparent animationType="fade">
+        <Pressable
+          style={styles.fullscreenModalBackdrop}
+          onPress={() => setPreviewImage(null)}
+        >
+          <IconButton
+            icon={<X size={24} color="#FFFFFF" />}
+            accessibilityLabel={t('common.close')}
+            onPress={() => setPreviewImage(null)}
+            variant="ghost"
+            style={styles.closeModalBtn}
+          />
+          {Boolean(previewImage) && (
+            <Image
+              source={{ uri: previewImage! }}
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+            />
+          )}
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleGroup: {
+  headerTitleWrap: {
     flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
+    marginLeft: 8,
+    marginRight: 8,
   },
-  headerTitle: {
-    fontSize: 16,
+  headerName: {
     fontWeight: '700',
-    color: Colors.text,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
+  headerUnit: {
+    fontWeight: '500',
   },
-  headerRight: {
-    minWidth: 40,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  resolveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 8,
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  resolveButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#166534',
-  },
-  centerContainer: {
+  loadingWrap: {
+    padding: 16,
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   messagesList: {
-    padding: 16,
-    paddingBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  dateSeparator: {
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  datePill: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  dateText: {
+    fontWeight: '500',
   },
   messageRow: {
     flexDirection: 'row',
-    marginBottom: 12,
+    alignItems: 'flex-end',
+    marginVertical: 2,
   },
-  messageRowResident: {
-    justifyContent: 'flex-start',
-  },
-  messageRowStaff: {
+  messageRowMe: {
     justifyContent: 'flex-end',
   },
-  messageBubble: {
-    maxWidth: '80%',
-    borderRadius: 16,
+  messageRowOther: {
+    justifyContent: 'flex-start',
+  },
+  senderAvatar: {
+    marginRight: 8,
+    marginBottom: 2,
+  },
+  bubble: {
+    maxWidth: '78%',
     paddingHorizontal: 14,
     paddingVertical: 10,
+    borderRadius: 18,
   },
-  messageBubbleResident: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderBottomLeftRadius: 4,
-  },
-  messageBubbleStaff: {
-    backgroundColor: Colors.primary,
+  bubbleMe: {
     borderBottomRightRadius: 4,
   },
-  senderName: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 4,
+  bubbleOther: {
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
   },
-  senderNameResident: {
-    color: Colors.textMuted,
-  },
-  senderNameStaff: {
-    color: '#D1FAE5',
-  },
-  attachedImage: {
-    width: 200,
-    height: 150,
-    borderRadius: 8,
-    marginBottom: 6,
-  },
-  messageText: {
-    fontSize: 14,
+  bubbleText: {
     lineHeight: 20,
   },
-  messageTextResident: {
-    color: Colors.text,
-  },
-  messageTextStaff: {
-    color: '#FFFFFF',
-  },
-  messageTime: {
-    fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  messageTimeResident: {
-    color: Colors.textLight,
-  },
-  messageTimeStaff: {
-    color: '#D1FAE5',
-  },
-  inputContainer: {
+  bubbleFooter: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingHorizontal: 12,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  timeText: {
+    fontSize: 11,
+  },
+  photoContainer: {
+    marginBottom: 6,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  photoThumbnail: {
+    width: 200,
+    height: 160,
+    borderRadius: 12,
+  },
+  attachedPreviewRow: {
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 8,
+    borderTopWidth: 1,
   },
-  input: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 8,
-    fontSize: 14,
-    color: Colors.text,
-    maxHeight: 100,
+  attachedThumbnailWrap: {
+    position: 'relative',
+    width: 60,
+    height: 60,
   },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
+  attachedThumbnail: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  removeAttachBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sendButtonDisabled: {
-    backgroundColor: Colors.border,
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  textInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  fullscreenModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeModalBtn: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+  },
+  fullscreenImage: {
+    width: '94%',
+    height: '80%',
   },
 });

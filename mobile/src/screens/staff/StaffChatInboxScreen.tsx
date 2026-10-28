@@ -1,41 +1,48 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  SafeAreaView,
   RefreshControl,
   ScrollView,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../context/AuthContext';
-import { ChatApi, Conversation } from '../../api/chat';
-import { Badge } from '../../components/common/Badge';
-import { createRealtimeSocket } from '../../lib/socket';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Socket } from 'socket.io-client';
-import { Colors } from '../../constants/colors';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
 import { useTabBarInset } from '../../hooks/useTabBarInset';
+import { ChatApi, Conversation } from '../../api/chat';
+import { createRealtimeSocket } from '../../lib/socket';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Input,
+  Avatar,
+  EmptyState,
+  SkeletonList,
+  AnimatedEntrance,
+} from '../../components/ui';
 import {
   MessageSquare,
   Search,
-  User,
-  Image as ImageIcon,
-  Clock,
   ChevronRight,
-  RefreshCw,
+  CheckCircle2,
+  Image as ImageIcon,
 } from 'lucide-react-native';
 
 type FilterStatus = 'ALL' | 'UNRESOLVED' | 'RESOLVED';
 
 export const StaffChatInboxScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset(24);
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { theme } = useTheme();
   const navigation = useNavigation<any>();
 
   const tenantId = user?.tenantId || user?.tenant?.id || '';
@@ -45,33 +52,23 @@ export const StaffChatInboxScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('ALL');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadConversations = useCallback(
-    async (isSilent = false, filterOverride?: FilterStatus) => {
+    async (isSilent = false) => {
       if (!tenantId) return;
       if (!isSilent) setLoading(true);
-      else setRefreshing(true);
-      setErrorMsg(null);
-
-      const activeFilter = filterOverride ?? selectedFilter;
-      const resolvedParam =
-        activeFilter === 'UNRESOLVED' ? false : activeFilter === 'RESOLVED' ? true : undefined;
 
       try {
-        const data = await ChatApi.getTenantConversations(tenantId, resolvedParam);
+        const data = await ChatApi.getTenantConversations(tenantId);
         setConversations(data || []);
       } catch (err: any) {
-        console.error('Failed to load tenant conversations:', err);
-        if (!isSilent) {
-          setErrorMsg(err?.response?.data?.message || t('staff.chat.loadError'));
-        }
+        console.warn('Failed to load tenant conversations:', err);
       } finally {
-        setLoading(false);
+        if (!isSilent) setLoading(false);
         setRefreshing(false);
       }
     },
-    [tenantId, selectedFilter, t],
+    [tenantId]
   );
 
   // Real-time WebSocket connection to tenant inbox room
@@ -90,49 +87,16 @@ export const StaffChatInboxScreen: React.FC = () => {
 
         socket.on('connect', () => {
           socket?.emit('chat:join', { tenantId });
-          // Reconciliation fetch on initial connect
           loadConversations(true);
         });
 
         socket.on('reconnect', () => {
           socket?.emit('chat:join', { tenantId });
-          // Reconciliation fetch on reconnect
           loadConversations(true);
         });
 
-        socket.on('chat:inbox:conversation-status', (payload: {
-          conversationId: string;
-          isResolved: boolean;
-          resolvedAt: string | null;
-          resolvedById: string | null;
-        }) => {
-          if (!payload || !payload.conversationId) return;
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === payload.conversationId
-                ? {
-                    ...c,
-                    isResolved: payload.isResolved,
-                    resolvedAt: payload.resolvedAt,
-                    resolvedById: payload.resolvedById,
-                  }
-                : c,
-            ),
-          );
-        });
-
-        socket.on('chat:inbox:message', (payload: any) => {
-          const role = payload?.message?.sender?.role;
-          if (payload?.conversationId && (!role || role === 'RESIDENT' || role === 'RESIDENT_OWNER' || role === 'RESIDENT_TENANT')) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === payload.conversationId
-                  ? { ...c, isResolved: false, resolvedAt: null, resolvedById: null }
-                  : c,
-              ),
-            );
-          }
-          // Re-fetch conversations and unread counts upon new incoming message
+        socket.on('chat:message', () => {
+          safeHaptic.selection();
           loadConversations(true);
         });
       };
@@ -146,469 +110,512 @@ export const StaffChatInboxScreen: React.FC = () => {
           socket.disconnect();
         }
       };
-    }, [tenantId, loadConversations]),
+    }, [tenantId, loadConversations])
   );
 
-  const formatMessageTime = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const isToday =
-        date.getDate() === now.getDate() &&
-        date.getMonth() === now.getMonth() &&
-        date.getFullYear() === now.getFullYear();
-
-      if (isToday) {
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    } catch {
-      return '';
-    }
+  const onRefresh = () => {
+    safeHaptic.selection();
+    setRefreshing(true);
+    loadConversations(true);
   };
 
-  const filteredConversations = conversations.filter((c) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
-    const residentName = `${c.resident?.firstName || ''} ${c.resident?.lastName || ''}`.toLowerCase();
-    const phone = (c.resident?.phone || '').toLowerCase();
-    const unit = (c.resident?.ownerships?.[0]?.unit?.unitNumber || '').toLowerCase();
-    const block = (c.resident?.ownerships?.[0]?.unit?.building?.blockName || '').toLowerCase();
+  const filteredConversations = useMemo(() => {
+    return conversations.filter((c) => {
+      // Filter status
+      if (selectedFilter === 'UNRESOLVED' && c.isResolved) return false;
+      if (selectedFilter === 'RESOLVED' && !c.isResolved) return false;
 
-    return (
-      residentName.includes(q) ||
-      phone.includes(q) ||
-      unit.includes(q) ||
-      block.includes(q)
-    );
-  });
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const residentName = c.resident
+          ? `${c.resident.firstName} ${c.resident.lastName}`.toLowerCase()
+          : '';
+        const unitNumber = c.resident?.ownerships?.[0]?.unit?.unitNumber?.toLowerCase() || '';
+        const blockName = c.resident?.ownerships?.[0]?.unit?.building?.blockName?.toLowerCase() || '';
+        const lastMsg = c.lastMessage?.text?.toLowerCase() || '';
+        return (
+          residentName.includes(q) ||
+          unitNumber.includes(q) ||
+          blockName.includes(q) ||
+          lastMsg.includes(q)
+        );
+      }
+      return true;
+    });
+  }, [conversations, selectedFilter, searchQuery]);
 
-  const renderConversationItem = ({ item }: { item: Conversation }) => {
+  const unresolvedCount = useMemo(
+    () => conversations.filter((c) => !c.isResolved).length,
+    [conversations]
+  );
+  const resolvedCount = useMemo(
+    () => conversations.filter((c) => c.isResolved).length,
+    [conversations]
+  );
+
+  const renderItem = ({ item, index }: { item: Conversation; index: number }) => {
     const resident = item.resident;
     const residentName = resident
-      ? `${resident.firstName} ${resident.lastName}`.trim() || resident.phone
+      ? `${resident.firstName} ${resident.lastName}`.trim()
       : t('staff.chat.resident');
+    const residentUnit = resident?.ownerships?.[0]?.unit;
+    const unitStr = residentUnit
+      ? `${residentUnit.building?.blockName ? `${residentUnit.building.blockName}, ` : ''}${t('staff.sos.unit')} ${residentUnit.unitNumber}`
+      : undefined;
 
-    const primaryUnit = resident?.ownerships?.[0]?.unit;
-    const unitInfo = primaryUnit
-      ? `${primaryUnit.building?.blockName ? primaryUnit.building.blockName + ', ' : ''}${t('common.unitShort')} ${primaryUnit.unitNumber}`
-      : null;
-
-    const unreadCount = item.unreadCount || 0;
-    const lastMsg = item.lastMessage;
-    const timeStr = lastMsg ? formatMessageTime(lastMsg.createdAt) : formatMessageTime(item.updatedAt);
-
-    const handlePress = () => {
-      navigation.navigate('StaffChatThread', {
-        conversationId: item.id,
-        residentName,
-        unitInfo: unitInfo || undefined,
-        isResolved: item.isResolved,
-      });
-    };
+    const unreadCount = item.unreadCount ?? 0;
+    const hasPhoto = Boolean(item.lastMessage?.photoUrl);
+    const lastMsgText = item.lastMessage?.text || (hasPhoto ? t('staff.chat.photoAttachment') : '—');
 
     return (
-      <TouchableOpacity
-        style={[styles.conversationRow, unreadCount > 0 && styles.conversationRowUnread]}
-        onPress={handlePress}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.avatarCircle, unreadCount > 0 && styles.avatarCircleUnread]}>
-          <User color={unreadCount > 0 ? Colors.primary : Colors.textMuted} size={22} />
-        </View>
+      <AnimatedEntrance index={index}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.navigate('StaffChatThread', {
+              conversationId: item.id,
+              residentName,
+              unitInfo: unitStr,
+              isResolved: item.isResolved,
+            });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${residentName}, ${unreadCount > 0 ? `${unreadCount} unread` : ''}`}
+        >
+          <Card
+            style={[
+              styles.convCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: unreadCount > 0 ? theme.colors.primary : theme.colors.border,
+                borderWidth: unreadCount > 0 ? 1.5 : 1,
+              },
+            ]}
+          >
+            <View style={styles.cardContentRow}>
+              {/* Resident Avatar */}
+              <Avatar
+                name={residentName}
+                size="md"
+                style={styles.avatar}
+              />
 
-        <View style={styles.conversationInfo}>
-          <View style={styles.nameTimeRow}>
-            <View style={styles.nameWithBadge}>
-              <Text style={[styles.residentName, unreadCount > 0 && styles.residentNameBold]}>
-                {residentName}
-              </Text>
-              {item.isResolved && (
-                <Badge
-                  label={t('staff.chat.resolvedBadge')}
-                  variant="success"
-                  style={styles.resolvedBadge}
-                />
-              )}
+              {/* Middle text */}
+              <View style={styles.cardTextWrap}>
+                <View style={styles.cardTopLine}>
+                  <Text
+                    style={[
+                      styles.residentName,
+                      { color: theme.colors.text },
+                      theme.typography.headline,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {residentName}
+                  </Text>
+                  {item.lastMessage?.createdAt && (
+                    <Text
+                      style={[
+                        styles.timeText,
+                        { color: theme.colors.textMuted },
+                        theme.typography.caption,
+                      ]}
+                    >
+                      {new Date(item.lastMessage.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  )}
+                </View>
+
+                {Boolean(unitStr) && (
+                  <Text
+                    style={[
+                      styles.unitText,
+                      { color: theme.colors.textMuted },
+                      theme.typography.caption,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {unitStr}
+                  </Text>
+                )}
+
+                <View style={styles.lastMsgRow}>
+                  {hasPhoto && (
+                    <ImageIcon
+                      size={14}
+                      color={theme.colors.primary}
+                      style={{ marginRight: 4 }}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.lastMsgText,
+                      {
+                        color: unreadCount > 0 ? theme.colors.text : theme.colors.textMuted,
+                        fontWeight: unreadCount > 0 ? '600' : '400',
+                      },
+                      theme.typography.callout,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {lastMsgText}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Right status badge / chevron */}
+              <View style={styles.cardRightWrap}>
+                {unreadCount > 0 ? (
+                  <Badge
+                    label={`${unreadCount}`}
+                    variant="primary"
+                    size="sm"
+                  />
+                ) : item.isResolved ? (
+                  <Badge
+                    label={t('staff.chat.resolvedBadge')}
+                    variant="success"
+                    size="sm"
+                  />
+                ) : (
+                  <ChevronRight size={18} color={theme.colors.textMuted} />
+                )}
+              </View>
             </View>
-            <Text style={styles.timeText}>{timeStr}</Text>
-          </View>
-
-          {unitInfo && <Text style={styles.unitText}>{unitInfo}</Text>}
-
-          <View style={styles.previewRow}>
-            {lastMsg?.photoUrl && (
-              <View style={styles.photoIndicator}>
-                <ImageIcon size={13} color={Colors.textMuted} style={{ marginRight: 4 }} />
-                <Text style={styles.previewText}>{t('staff.chat.photoAttachment')}</Text>
-              </View>
-            )}
-            {lastMsg?.text && (
-              <Text
-                style={[styles.previewText, unreadCount > 0 && styles.previewTextUnread]}
-                numberOfLines={1}
-              >
-                {lastMsg.text}
-              </Text>
-            )}
-            {!lastMsg && (
-              <Text style={styles.emptyPreviewText}>{t('staff.chat.noConversationsSub')}</Text>
-            )}
-
-            {unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <ChevronRight size={18} color={Colors.textLight} style={styles.chevron} />
-      </TouchableOpacity>
+          </Card>
+        </TouchableOpacity>
+      </AnimatedEntrance>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleGroup}>
-          <View style={styles.headerIconCircle}>
-            <MessageSquare size={20} color={Colors.primary} />
+      <View
+        style={[
+          styles.headerWrap,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+          },
+        ]}
+      >
+        <View style={styles.headerTitleRow}>
+          <View
+            style={[
+              styles.headerIconCircle,
+              { backgroundColor: theme.colors.primaryBg },
+            ]}
+          >
+            <MessageSquare size={22} color={theme.colors.primary} />
           </View>
-          <View>
-            <Text style={styles.headerTitle}>{t('staff.chat.inboxTitle')}</Text>
-            <Text style={styles.headerSubtitle}>
-              {user?.tenant?.name || t('staff.chat.inboxSubtitle')}
+          <View style={styles.headerTextWrap}>
+            <Text
+              style={[
+                styles.title,
+                { color: theme.colors.text },
+                theme.typography.title,
+              ]}
+            >
+              {t('staff.chat.inboxTitle')}
+            </Text>
+            <Text
+              style={[
+                styles.subtitle,
+                { color: theme.colors.textMuted },
+                theme.typography.caption,
+              ]}
+            >
+              {t('staff.chat.inboxSubtitle')}
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          onPress={() => loadConversations(false)}
-          disabled={refreshing}
-          style={styles.refreshBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <RefreshCw
-            size={18}
-            color={refreshing ? Colors.primary : Colors.textMuted}
+        {/* Search Input */}
+        <View style={styles.searchBar}>
+          <Input
+            label={t('common.search')}
+            placeholder={t('staff.chat.searchPlaceholder')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            leftIcon={<Search size={18} color={theme.colors.textMuted} />}
           />
-        </TouchableOpacity>
-      </View>
+        </View>
 
-      {/* Search bar */}
-      <View style={styles.searchContainer}>
-        <Search size={16} color={Colors.textMuted} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={t('staff.chat.searchPlaceholder')}
-          placeholderTextColor={Colors.textLight}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          clearButtonMode="while-editing"
-        />
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.filterSection}>
+        {/* Filters */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
-          {(
-            [
-              { key: 'ALL', label: t('staff.chat.filterAll') },
-              { key: 'UNRESOLVED', label: t('staff.chat.filterUnresolved') },
-              { key: 'RESOLVED', label: t('staff.chat.filterResolved') },
-            ] as const
-          ).map((opt) => {
-            const isActive = selectedFilter === opt.key;
-            return (
-              <TouchableOpacity
-                key={opt.key}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-                onPress={() => {
-                  setSelectedFilter(opt.key);
-                  loadConversations(false, opt.key);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          <FilterChip
+            label={t('staff.chat.filterAll')}
+            count={conversations.length}
+            isSelected={selectedFilter === 'ALL'}
+            onPress={() => {
+              safeHaptic.selection();
+              setSelectedFilter('ALL');
+            }}
+          />
+          <FilterChip
+            label={t('staff.chat.filterUnresolved')}
+            count={unresolvedCount}
+            isSelected={selectedFilter === 'UNRESOLVED'}
+            onPress={() => {
+              safeHaptic.selection();
+              setSelectedFilter('UNRESOLVED');
+            }}
+          />
+          <FilterChip
+            label={t('staff.chat.filterResolved')}
+            count={resolvedCount}
+            isSelected={selectedFilter === 'RESOLVED'}
+            onPress={() => {
+              safeHaptic.selection();
+              setSelectedFilter('RESOLVED');
+            }}
+          />
         </ScrollView>
       </View>
 
-      {errorMsg && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
-        </View>
-      )}
-
+      {/* Conversations List */}
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      ) : filteredConversations.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <MessageSquare size={48} color={Colors.border} style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>{t('staff.chat.noConversations')}</Text>
-          <Text style={styles.emptySubtitle}>{t('staff.chat.noConversationsSub')}</Text>
+        <View style={styles.loadingWrap}>
+          <SkeletonList count={4} />
         </View>
       ) : (
         <FlatList
           data={filteredConversations}
           keyExtractor={(item) => item.id}
-          renderItem={renderConversationItem}
-          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
+          renderItem={renderItem}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: tabBarInset + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => loadConversations(true)}
-              colors={[Colors.primary]}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
             />
+          }
+          ListEmptyComponent={
+            <Card
+              style={[
+                styles.emptyCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <EmptyState
+                title={t('staff.chat.noConversations')}
+                description={t('staff.chat.noConversationsSub')}
+              />
+            </Card>
           }
         />
       )}
-    </SafeAreaView>
+    </View>
+  );
+};
+
+interface FilterChipProps {
+  label: string;
+  count: number;
+  isSelected: boolean;
+  onPress: () => void;
+}
+
+const FilterChip: React.FC<FilterChipProps> = ({
+  label,
+  count,
+  isSelected,
+  onPress,
+}) => {
+  const { theme } = useTheme();
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.filterChip,
+        {
+          backgroundColor: isSelected
+            ? theme.colors.primary
+            : theme.colors.surface,
+          borderColor: isSelected
+            ? theme.colors.primary
+            : theme.colors.border,
+        },
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} (${count})`}
+    >
+      <Text
+        style={[
+          styles.filterChipText,
+          {
+            color: isSelected
+              ? theme.colors.onPrimary
+              : theme.colors.text,
+          },
+          theme.typography.caption,
+        ]}
+      >
+        {label}
+      </Text>
+      <View
+        style={[
+          styles.chipCountBadge,
+          {
+            backgroundColor: isSelected
+              ? 'rgba(255, 255, 255, 0.25)'
+              : theme.colors.surfaceSubtle,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.chipCountText,
+            {
+              color: isSelected
+                ? theme.colors.onPrimary
+                : theme.colors.textMuted,
+            },
+            theme.typography.caption,
+          ]}
+        >
+          {count}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  headerWrap: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingBottom: 10,
   },
-  headerTitleGroup: {
+  headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    flex: 1,
+    marginBottom: 12,
   },
   headerIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  refreshBtn: {
-    padding: 8,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    height: 40,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.text,
-    paddingVertical: 0,
-  },
-  filterSection: {
-    marginBottom: 8,
-  },
-  filterScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterChipText: {
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  errorBox: {
-    backgroundColor: Colors.dangerBg,
-    padding: 12,
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 8,
-  },
-  errorText: {
-    color: Colors.danger,
-    fontSize: 13,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
-  conversationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  conversationRowUnread: {
-    borderColor: Colors.primary,
-    backgroundColor: '#F0FDF4',
-  },
-  avatarCircle: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.border,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  avatarCircleUnread: {
-    backgroundColor: Colors.primaryLight,
-  },
-  conversationInfo: {
+  headerTextWrap: {
     flex: 1,
   },
-  nameTimeRow: {
+  title: {
+    fontWeight: '700',
+  },
+  subtitle: {
+    fontWeight: '400',
+  },
+  searchBar: {
+    marginBottom: 10,
+  },
+  filterScroll: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+    minHeight: 36,
+  },
+  filterChipText: {
+    fontWeight: '600',
+  },
+  chipCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  chipCountText: {
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  loadingWrap: {
+    padding: 16,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 10,
+  },
+  convCard: {
+    padding: 14,
+    borderRadius: 16,
+  },
+  cardContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    marginRight: 12,
+  },
+  cardTextWrap: {
+    flex: 1,
+    marginRight: 8,
+  },
+  cardTopLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 2,
   },
-  nameWithBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  residentName: {
+    fontWeight: '600',
     flex: 1,
-    gap: 6,
     marginRight: 8,
   },
-  residentName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  resolvedBadge: {
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 6,
-  },
-  residentNameBold: {
-    fontWeight: '700',
-    color: Colors.primaryDark,
-  },
   timeText: {
-    fontSize: 11,
-    color: Colors.textMuted,
+    fontWeight: '400',
   },
   unitText: {
-    fontSize: 12,
-    color: Colors.textMuted,
+    fontWeight: '500',
     marginBottom: 4,
   },
-  previewRow: {
+  lastMsgRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
-  photoIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  previewText: {
-    fontSize: 13,
-    color: Colors.textMuted,
+  lastMsgText: {
     flex: 1,
   },
-  previewTextUnread: {
-    color: Colors.text,
-    fontWeight: '600',
-  },
-  emptyPreviewText: {
-    fontSize: 13,
-    color: Colors.textLight,
-    fontStyle: 'italic',
-  },
-  unreadBadge: {
-    backgroundColor: Colors.primary,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+  cardRightWrap: {
     justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
+    alignItems: 'flex-end',
+    minWidth: 28,
   },
-  unreadBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  chevron: {
-    marginLeft: 8,
+  emptyCard: {
+    paddingVertical: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 12,
   },
 });

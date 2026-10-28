@@ -29,6 +29,7 @@ export interface UserProfile {
   lastName: string;
   role: string;
   tenantId?: string | null;
+  tenantName?: string | null;
   tenant?: {
     id: string;
     name: string;

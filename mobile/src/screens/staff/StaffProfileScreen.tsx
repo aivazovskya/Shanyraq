@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   TouchableOpacity,
@@ -11,46 +10,63 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
-import { Button } from '../../components/common/Button';
-import { Colors } from '../../constants/colors';
-import { roleLabel } from '../../lib/role-label';
+import { useTheme } from '../../theme/ThemeContext';
 import { useTabBarInset } from '../../hooks/useTabBarInset';
+import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
 import { changeAppLanguage, SupportedLocale } from '../../i18n';
+import { ThemeMode } from '../../storage/theme-storage';
+import { roleLabel } from '../../lib/role-label';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Button,
+  Avatar,
+  ListItem,
+  BottomSheet,
+  AnimatedEntrance,
+  Divider,
+} from '../../components/ui';
 import {
   User,
   Phone,
   Building2,
-  ShieldCheck,
-  LogOut,
-  Globe,
   MapPin,
-  MessageSquare,
-  Wrench,
+  Globe,
+  Palette,
   Bell,
-  CreditCard,
+  LogOut,
+  Check,
+  Sun,
+  Moon,
+  Smartphone,
 } from 'lucide-react-native';
 
-const LANGUAGES: { code: SupportedLocale; label: string }[] = [
-  { code: 'kk', label: 'Қазақша' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'en', label: 'English' },
+const LANGUAGES: { code: SupportedLocale; label: string; nativeName: string }[] = [
+  { code: 'kk', label: 'Қазақша', nativeName: 'Қазақ тілі' },
+  { code: 'ru', label: 'Русский', nativeName: 'Русский язык' },
+  { code: 'en', label: 'English', nativeName: 'English (US)' },
 ];
 
 export const StaffProfileScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset(24);
   const { user, logout } = useAuth();
+  const { theme, mode, setThemeMode, isDark } = useTheme();
   const { t, i18n } = useTranslation();
   const isFocused = useIsFocused();
+
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     CHAT: true,
     SERVICE_REQUEST: true,
     ANNOUNCEMENT: true,
     FINANCE: true,
   });
+
+  const [themeSheetVisible, setThemeSheetVisible] = useState(false);
+  const [langSheetVisible, setLangSheetVisible] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
@@ -63,395 +79,550 @@ export const StaffProfileScreen: React.FC = () => {
   }, [isFocused]);
 
   const handleTogglePreference = async (key: keyof NotificationPreferences, value: boolean) => {
+    safeHaptic.selection();
     setPreferences((prev) => ({ ...prev, [key]: value }));
     try {
       const updated = await NotificationsApi.updatePreferences({ [key]: value });
-      if (updated) {
-        setPreferences(updated);
-      }
+      if (updated) setPreferences(updated);
     } catch {
       setPreferences((prev) => ({ ...prev, [key]: !value }));
-      Alert.alert(t('common.error'), t('common.networkError'));
     }
   };
 
   const handleConfirmLogout = () => {
+    safeHaptic.selection();
     Alert.alert(
       t('staff.logoutDialogTitle'),
       t('staff.logoutDialogMessage'),
       [
         { text: t('common.cancel'), style: 'cancel' },
-        { text: t('staff.logoutButton'), style: 'destructive', onPress: logout },
-      ],
+        {
+          text: t('staff.logoutButton'),
+          style: 'destructive',
+          onPress: async () => {
+            safeHaptic.selection();
+            await logout();
+          },
+        },
+      ]
     );
   };
 
   const handleLanguageChange = async (lang: SupportedLocale) => {
+    safeHaptic.selection();
     await changeAppLanguage(lang);
+    setLangSheetVisible(false);
   };
 
-  const getRoleLabel = (role?: string | null) => {
-    switch (role) {
-      case 'HOA_ADMIN':
-        return t('staff.roleHoaAdmin');
-      case 'HOA_CHAIRMAN':
-        return t('staff.roleHoaChairman');
-      case 'DISPATCHER':
-        return t('staff.roleDispatcher');
-      case 'SECURITY':
-        return t('staff.roleSecurity');
-      default:
-        return role || '—';
-    }
+  const handleThemeChange = async (newMode: ThemeMode) => {
+    safeHaptic.selection();
+    await setThemeMode(newMode);
+    setThemeSheetVisible(false);
   };
 
-  const currentLang = (i18n.language?.slice(0, 2) as SupportedLocale) || 'ru';
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+  const tenantName = user?.tenant?.name || user?.tenantName || t('staff.noTenantAssigned');
+  const tenantAddress = user?.tenant?.address
+    ? user.tenant.city
+      ? `${user.tenant.city}, ${user.tenant.address}`
+      : user.tenant.address
+    : user?.tenant?.city || t('staff.addressNotSet');
+
+  const currentLangLabel =
+    LANGUAGES.find((l) => l.code === i18n.language)?.label || 'Русский';
+
+  const themeLabelMap: Record<ThemeMode, string> = {
+    system: t('profile.themeSystem'),
+    light: t('profile.themeLight'),
+    dark: t('profile.themeDark'),
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('navigation.profile')}</Text>
-        </View>
-
-        {/* User Profile Card */}
-        <Card style={styles.userCard}>
-          <View style={styles.userRow}>
-            <View style={styles.avatarCircle}>
-              <User color="#FFFFFF" size={36} />
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{fullName || user?.phone || '—'}</Text>
-              <View style={styles.phoneRow}>
-                <Phone color={Colors.textMuted} size={14} />
-                <Text style={styles.userPhone}>{user?.phone || '—'}</Text>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingBottom: tabBarInset + 24,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* User Hero Card */}
+        <AnimatedEntrance index={0}>
+          <Card
+            style={[
+              styles.userCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <View style={styles.userTopRow}>
+              <Avatar
+                name={fullName || user?.phone || 'Staff'}
+                size="lg"
+                style={styles.avatar}
+              />
+              <View style={styles.userInfoWrap}>
+                <View style={styles.badgeRow}>
+                  <Badge
+                    label={roleLabel(user?.role, t)}
+                    variant="primary"
+                    size="sm"
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.userName,
+                    { color: theme.colors.text },
+                    theme.typography.title,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {fullName || t('staff.staffInfo')}
+                </Text>
+                {Boolean(user?.phone) && (
+                  <View style={styles.phoneRow}>
+                    <Phone size={13} color={theme.colors.textMuted} />
+                    <Text
+                      style={[
+                        styles.phoneText,
+                        { color: theme.colors.textMuted },
+                        theme.typography.caption,
+                      ]}
+                    >
+                      {user?.phone}
+                    </Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.badgeRow}>
-                <Badge label={roleLabel(user?.role, t)} variant="info" />
-              </View>
             </View>
-          </View>
-        </Card>
+          </Card>
+        </AnimatedEntrance>
 
-        {/* Complex / Tenant Details */}
-        <Text style={styles.sectionHeading}>{t('staff.complexInfo')}</Text>
-        <Card style={styles.complexCard}>
-          <View style={styles.complexRow}>
-            <View style={styles.complexIconWrap}>
-              <Building2 color={Colors.primary} size={22} />
-            </View>
-            <View style={styles.complexInfo}>
-              <Text style={styles.complexName}>
-                {user?.tenant?.name || t('staff.noTenantAssigned')}
-              </Text>
-              {user?.tenant?.address ? (
-                <View style={styles.complexAddressRow}>
-                  <MapPin color={Colors.textMuted} size={14} style={{ marginRight: 4 }} />
-                  <Text style={styles.complexAddress}>
-                    {user.tenant.city ? `${user.tenant.city}, ` : ''}
-                    {user.tenant.address}
+        {/* Complex Info Card */}
+        <AnimatedEntrance index={1}>
+          <Card
+            style={[
+              styles.complexCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <View style={styles.complexRow}>
+              <View
+                style={[
+                  styles.complexIconCircle,
+                  { backgroundColor: theme.colors.primaryBg },
+                ]}
+              >
+                <Building2 size={22} color={theme.colors.primary} />
+              </View>
+              <View style={styles.complexTextWrap}>
+                <Text
+                  style={[
+                    styles.complexLabel,
+                    { color: theme.colors.textMuted },
+                    theme.typography.caption,
+                  ]}
+                >
+                  {t('staff.complexInfo')}
+                </Text>
+                <Text
+                  style={[
+                    styles.complexName,
+                    { color: theme.colors.text },
+                    theme.typography.headline,
+                  ]}
+                  numberOfLines={2}
+                >
+                  {tenantName}
+                </Text>
+                <View style={styles.addressRow}>
+                  <MapPin size={13} color={theme.colors.textMuted} />
+                  <Text
+                    style={[
+                      styles.addressText,
+                      { color: theme.colors.textMuted },
+                      theme.typography.caption,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {tenantAddress}
                   </Text>
                 </View>
-              ) : (
-                <Text style={styles.complexAddressMuted}>{t('staff.addressNotSet')}</Text>
-              )}
+              </View>
             </View>
-          </View>
-        </Card>
+          </Card>
+        </AnimatedEntrance>
 
-        {/* Language Selection */}
-        <Text style={styles.sectionHeading}>{t('common.language')}</Text>
-        <Card style={styles.languageCard}>
-          <View style={styles.languageRow}>
-            <View style={styles.languageIconWrap}>
-              <Globe color={Colors.primary} size={20} />
-            </View>
-            <View style={styles.languageButtons}>
-              {LANGUAGES.map((lang) => {
-                const isSelected = currentLang === lang.code;
-                return (
-                  <TouchableOpacity
-                    key={lang.code}
-                    onPress={() => handleLanguageChange(lang.code)}
-                    style={[styles.langBtn, isSelected && styles.langBtnActive]}
-                  >
-                    <Text
-                      style={[styles.langBtnText, isSelected && styles.langBtnTextActive]}
-                    >
-                      {lang.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </Card>
+        {/* Settings Section */}
+        <AnimatedEntrance index={2}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.colors.textMuted },
+              theme.typography.caption,
+            ]}
+          >
+            {t('staff.profile.settings')}
+          </Text>
 
-        {/* Notification Preferences */}
-        <Text style={styles.sectionHeading}>{t('profile.pushSection')}</Text>
-        <Card style={styles.settingsCard}>
-          {/* 1. Chat notifications */}
-          <View style={styles.settingItem}>
-            <MessageSquare color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefChatTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefChatSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.CHAT}
-              onValueChange={(val) => handleTogglePreference('CHAT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+          <Card
+            style={[
+              styles.settingsCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            {/* Language */}
+            <ListItem
+              title={t('staff.profile.language')}
+              subtitle={currentLangLabel}
+              leftIcon={<Globe size={20} color={theme.colors.primary} />}
+              onPress={() => {
+                safeHaptic.selection();
+                setLangSheetVisible(true);
+              }}
+              showChevron
             />
-          </View>
 
-          <View style={styles.separator} />
+            <Divider />
 
-          {/* 2. Service request notifications */}
-          <View style={styles.settingItem}>
-            <Wrench color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefRequestTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefRequestSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.SERVICE_REQUEST}
-              onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+            {/* Theme */}
+            <ListItem
+              title={t('staff.profile.themeMode')}
+              subtitle={themeLabelMap[mode]}
+              leftIcon={
+                isDark ? (
+                  <Moon size={20} color={theme.colors.warning} />
+                ) : (
+                  <Sun size={20} color={theme.colors.warning} />
+                )
+              }
+              onPress={() => {
+                safeHaptic.selection();
+                setThemeSheetVisible(true);
+              }}
+              showChevron
             />
-          </View>
+          </Card>
+        </AnimatedEntrance>
 
-          <View style={styles.separator} />
+        {/* Notifications Section */}
+        <AnimatedEntrance index={3}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.colors.textMuted },
+              theme.typography.caption,
+            ]}
+          >
+            {t('staff.profile.notifications')}
+          </Text>
 
-          {/* 3. Announcement notifications */}
-          <View style={styles.settingItem}>
-            <Bell color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefAnnouncementTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefAnnouncementSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.ANNOUNCEMENT}
-              onValueChange={(val) => handleTogglePreference('ANNOUNCEMENT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+          <Card
+            style={[
+              styles.settingsCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <ListItem
+              title={t('profile.prefChatTitle')}
+              subtitle={t('profile.prefChatSub')}
+              leftIcon={<Bell size={20} color={theme.colors.primary} />}
+              rightElement={
+                <Switch
+                  value={preferences.CHAT}
+                  onValueChange={(val) => handleTogglePreference('CHAT', val)}
+                  trackColor={{
+                    false: theme.colors.surfaceSubtle,
+                    true: theme.colors.primaryLight,
+                  }}
+                  thumbColor={preferences.CHAT ? theme.colors.primary : theme.colors.surface}
+                />
+              }
             />
-          </View>
 
-          <View style={styles.separator} />
+            <Divider />
 
-          {/* 4. Finance notifications */}
-          <View style={styles.settingItem}>
-            <CreditCard color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefFinanceTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefFinanceSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.FINANCE}
-              onValueChange={(val) => handleTogglePreference('FINANCE', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
+            <ListItem
+              title={t('profile.prefRequestTitle')}
+              subtitle={t('profile.prefRequestSub')}
+              leftIcon={<Bell size={20} color={theme.colors.info} />}
+              rightElement={
+                <Switch
+                  value={preferences.SERVICE_REQUEST}
+                  onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
+                  trackColor={{
+                    false: theme.colors.surfaceSubtle,
+                    true: theme.colors.primaryLight,
+                  }}
+                  thumbColor={
+                    preferences.SERVICE_REQUEST ? theme.colors.primary : theme.colors.surface
+                  }
+                />
+              }
             />
-          </View>
-        </Card>
+          </Card>
+        </AnimatedEntrance>
 
         {/* Logout Section */}
-        <View style={styles.logoutSection}>
-          <Button
-            title={t('staff.logoutButton')}
-            onPress={handleConfirmLogout}
-            variant="outline"
-            icon={<LogOut size={18} color={Colors.danger} />}
-            textStyle={{ color: Colors.danger }}
-            style={styles.logoutButton}
-          />
-        </View>
+        <AnimatedEntrance index={4}>
+          <View style={styles.logoutWrap}>
+            <Button
+              title={t('staff.logoutButton')}
+              variant="destructive"
+              size="lg"
+              onPress={handleConfirmLogout}
+              leftIcon={<LogOut size={18} color="#FFFFFF" />}
+            />
+          </View>
+        </AnimatedEntrance>
       </ScrollView>
-    </SafeAreaView>
+
+      {/* Language BottomSheet */}
+      <BottomSheet
+        visible={langSheetVisible}
+        onClose={() => setLangSheetVisible(false)}
+        title={t('staff.profile.language')}
+      >
+        <View style={styles.sheetBody}>
+          {LANGUAGES.map((item) => {
+            const isSelected = i18n.language === item.code;
+            return (
+              <TouchableOpacity
+                key={item.code}
+                style={[
+                  styles.sheetOption,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.colors.primaryBg
+                      : theme.colors.surface,
+                    borderColor: isSelected
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                  },
+                ]}
+                onPress={() => handleLanguageChange(item.code)}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+              >
+                <View>
+                  <Text
+                    style={[
+                      styles.sheetOptionTitle,
+                      {
+                        color: isSelected
+                          ? theme.colors.primary
+                          : theme.colors.text,
+                      },
+                      theme.typography.headline,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sheetOptionSub,
+                      { color: theme.colors.textMuted },
+                      theme.typography.caption,
+                    ]}
+                  >
+                    {item.nativeName}
+                  </Text>
+                </View>
+                {isSelected && <Check size={20} color={theme.colors.primary} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BottomSheet>
+
+      {/* Theme BottomSheet */}
+      <BottomSheet
+        visible={themeSheetVisible}
+        onClose={() => setThemeSheetVisible(false)}
+        title={t('staff.profile.themeMode')}
+      >
+        <View style={styles.sheetBody}>
+          {(['system', 'light', 'dark'] as ThemeMode[]).map((tMode) => {
+            const isSelected = mode === tMode;
+            return (
+              <TouchableOpacity
+                key={tMode}
+                style={[
+                  styles.sheetOption,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.colors.primaryBg
+                      : theme.colors.surface,
+                    borderColor: isSelected
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                  },
+                ]}
+                onPress={() => handleThemeChange(tMode)}
+                accessibilityRole="button"
+                accessibilityLabel={themeLabelMap[tMode]}
+              >
+                <View style={styles.themeOptionRow}>
+                  {tMode === 'light' ? (
+                    <Sun size={20} color={theme.colors.warning} />
+                  ) : tMode === 'dark' ? (
+                    <Moon size={20} color={theme.colors.warning} />
+                  ) : (
+                    <Smartphone size={20} color={theme.colors.primary} />
+                  )}
+                  <Text
+                    style={[
+                      styles.sheetOptionTitle,
+                      {
+                        color: isSelected
+                          ? theme.colors.primary
+                          : theme.colors.text,
+                        marginLeft: 12,
+                      },
+                      theme.typography.headline,
+                    ]}
+                  >
+                    {themeLabelMap[tMode]}
+                  </Text>
+                </View>
+                {isSelected && <Check size={20} color={theme.colors.primary} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BottomSheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text,
+    paddingHorizontal: 16,
   },
   userCard: {
     padding: 16,
-    marginBottom: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 14,
   },
-  userRow: {
+  userTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatarCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+  avatar: {
+    marginRight: 14,
   },
-  userInfo: {
+  userInfoWrap: {
     flex: 1,
   },
-  userName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
+  badgeRow: {
+    flexDirection: 'row',
     marginBottom: 4,
+  },
+  userName: {
+    fontWeight: '700',
+    marginBottom: 2,
   },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
+    gap: 4,
   },
-  userPhone: {
-    fontSize: 14,
-    color: Colors.textMuted,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-  },
-  sectionHeading: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 4,
+  phoneText: {
+    fontWeight: '500',
   },
   complexCard: {
     padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
     marginBottom: 20,
   },
   complexRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  complexIconWrap: {
+  complexIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
   },
-  complexInfo: {
+  complexTextWrap: {
     flex: 1,
+  },
+  complexLabel: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   complexName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
+    fontWeight: '700',
     marginBottom: 4,
   },
-  complexAddressRow: {
+  addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
-  complexAddress: {
-    fontSize: 13,
-    color: Colors.textMuted,
+  addressText: {
     flex: 1,
   },
-  complexAddressMuted: {
-    fontSize: 13,
-    color: Colors.textLight,
-    fontStyle: 'italic',
-  },
-  languageCard: {
-    padding: 16,
-    marginBottom: 24,
-  },
-  languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  languageIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  languageButtons: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  langBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-  },
-  langBtnActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryBg,
-  },
-  langBtnText: {
-    fontSize: 12,
+  sectionTitle: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
     fontWeight: '600',
-    color: Colors.textMuted,
-  },
-  langBtnTextActive: {
-    color: Colors.primary,
-  },
-  logoutSection: {
-    marginTop: 8,
-  },
-  logoutButton: {
-    borderColor: Colors.danger,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   settingsCard: {
-    marginBottom: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 20,
   },
-  settingItem: {
+  logoutWrap: {
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  sheetBody: {
+    gap: 10,
+    paddingBottom: 24,
+  },
+  sheetOption: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 6,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  settingTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
+  sheetOptionTitle: {
+    fontWeight: '600',
   },
-  settingSub: {
-    fontSize: 12,
-    color: Colors.textMuted,
+  sheetOptionSub: {
     marginTop: 2,
   },
-  separator: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 10,
+  themeOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });

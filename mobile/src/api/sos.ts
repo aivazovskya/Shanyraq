@@ -8,6 +8,8 @@ export interface SosAlert {
   latitude: number | null;
   longitude: number | null;
   status: 'ACTIVE' | 'RESOLVED' | 'FALSE_ALARM';
+  acceptedById?: string | null;
+  acceptedAt?: string | null;
   resolvedById: string | null;
   resolvedAt: string | null;
   resolutionNote: string | null;
@@ -19,6 +21,11 @@ export interface SosAlert {
       id: string;
       blockName: string;
     };
+  } | null;
+  acceptedBy?: {
+    id: string;
+    firstName: string;
+    lastName: string;
   } | null;
   resolvedBy?: {
     id: string;
@@ -70,6 +77,11 @@ export const sosApi = {
     return res.data;
   },
 
+  acceptAlert: async (id: string): Promise<SosAlert> => {
+    const res = await apiClient.patch<SosAlert>(`/sos/${id}/accept`);
+    return res.data;
+  },
+
   resolveSosAlert: async (
     id: string,
     data: { status: 'RESOLVED' | 'FALSE_ALARM'; note?: string },
@@ -78,4 +90,3 @@ export const sosApi = {
     return res.data;
   },
 };
-

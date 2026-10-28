@@ -26,10 +26,38 @@ export function canAccessRequests(role?: string | null): boolean {
   return role === 'DISPATCHER' || role === 'HOA_ADMIN' || role === 'HOA_CHAIRMAN';
 }
 
+export function canManageRequests(role?: string | null): boolean {
+  return role === 'DISPATCHER' || role === 'HOA_ADMIN';
+}
+
 export function canAccessLogs(role?: string | null): boolean {
   return role === 'SECURITY' || role === 'HOA_ADMIN';
 }
 
+export function canManageSos(role?: string | null): boolean {
+  return role === 'SECURITY' || role === 'DISPATCHER' || role === 'HOA_ADMIN';
+}
+
+export function canAccessShiftHandover(role?: string | null): boolean {
+  return role === 'SECURITY' || role === 'DISPATCHER' || role === 'HOA_ADMIN';
+}
+
+function normalizeProfile(raw: UserProfile): UserProfile {
+  if (!raw) return raw;
+  const flatTenantName = raw.tenantName || (raw as any)?.tenant_name;
+  if (!raw.tenant && flatTenantName) {
+    return {
+      ...raw,
+      tenant: {
+        id: raw.tenantId || '',
+        name: flatTenantName,
+        address: (raw as any)?.tenantAddress || '',
+        city: (raw as any)?.tenantCity || '',
+      },
+    };
+  }
+  return raw;
+}
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -58,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshProfile = useCallback(async () => {
     try {
       const profile = await AuthApi.getMe();
-      setUser(profile);
+      setUser((prev) => normalizeProfile({ ...(prev || {}), ...profile }));
     } catch {
       handleAuthFailure();
     }
@@ -72,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const token = await TokenStorage.getAccessToken();
         if (token) {
           const profile = await AuthApi.getMe();
-          setUser(profile);
+          setUser(normalizeProfile(profile));
         }
       } catch (err) {
         console.log('Session expired or invalid, logging out:', err);
@@ -89,7 +117,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (authData: AuthTokensResponse) => {
     hideDevCodeToast();
     await TokenStorage.saveTokens(authData.accessToken, authData.refreshToken);
-    setUser(authData.user);
+    const initialUser = normalizeProfile(authData.user);
+    setUser(initialUser);
+
+    // Fetch full profile (e.g. for staff where verify-otp response doesn't include full tenant object)
+    try {
+      const fullProfile = await AuthApi.getMe();
+      setUser((prev) => {
+        const merged = normalizeProfile({
+          ...(prev || initialUser),
+          ...fullProfile,
+        });
+        return merged;
+      });
+    } catch (err) {
+      console.warn('Failed to load full profile after login:', err);
+    }
   };
 
   const logout = async () => {
@@ -105,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isStaffRole = Boolean(user && isStaffUser(user.role));
   const hasOwnership = Boolean(user && user.ownerships && user.ownerships.length > 0);
-  const activeTenantId = user?.tenantId || (user?.ownerships && user.ownerships[0]?.unit ? (user as any).tenantId : null) || null;
+  const activeTenantId = user?.tenantId || user?.tenant?.id || (user?.ownerships && user.ownerships[0]?.unit ? (user as any).tenantId : null) || null;
 
   return (
     <AuthContext.Provider

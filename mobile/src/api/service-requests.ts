@@ -38,6 +38,14 @@ export interface RequestComment {
   };
 }
 
+export interface AssigneeOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  phone?: string;
+}
+
 export interface ServiceRequestItem {
   id: string;
   tenantId: string;
@@ -60,6 +68,7 @@ export interface ServiceRequestItem {
     };
   };
   assignee?: {
+    id?: string;
     firstName: string;
     lastName: string;
     phone: string;
@@ -77,6 +86,12 @@ export interface CreateServiceRequestDto {
   attachmentUrls?: string[];
 }
 
+export interface UpdateRequestStatusDto {
+  status: RequestStatus;
+  assigneeId?: string;
+  expectedUpdatedAt?: string;
+}
+
 export const ServiceRequestsApi = {
   async getRequests(filter?: { status?: RequestStatus; tenantId?: string } | string): Promise<ServiceRequestItem[]> {
     let params: Record<string, string> = {};
@@ -92,8 +107,17 @@ export const ServiceRequestsApi = {
     return res.data;
   },
 
-  async updateStatus(requestId: string, status: RequestStatus): Promise<ServiceRequestItem> {
-    const res = await apiClient.patch(`/service-requests/${requestId}/status`, { status });
+  async updateStatus(
+    requestId: string,
+    payload: RequestStatus | UpdateRequestStatusDto
+  ): Promise<ServiceRequestItem> {
+    const body = typeof payload === 'string' ? { status: payload } : payload;
+    const res = await apiClient.patch(`/service-requests/${requestId}/status`, body);
+    return res.data;
+  },
+
+  async getAssignees(requestId: string): Promise<AssigneeOption[]> {
+    const res = await apiClient.get(`/service-requests/${requestId}/assignees`);
     return res.data;
   },
 

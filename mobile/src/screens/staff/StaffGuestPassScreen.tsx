@@ -1,43 +1,50 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  FlatList,
-  Alert,
   Share,
   RefreshControl,
+  Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
-import { useAuth, isStaffUser } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import { AccessApi, GuestPass } from '../../api/access';
 import { PropertiesApi, TenantStructureResponse } from '../../api/properties';
-import { getApiErrorMessage } from '../../api/client';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
-import { Badge } from '../../components/common/Badge';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Colors } from '../../constants/colors';
+import { safeHaptic } from '../../lib/haptics';
 import {
-  ArrowLeft,
+  Card,
+  Button,
+  Input,
+  Badge,
+  EmptyState,
+  SkeletonList,
+  BottomSheet,
+  SegmentedControl,
+  AnimatedEntrance,
+  IconButton,
+} from '../../components/ui';
+import {
+  KeyRound,
   Building,
   User,
   Car,
   Clock,
   Search,
-  Check,
-  ChevronRight,
   Share2,
-  PlusCircle,
-  ShieldCheck,
-  X,
+  Trash2,
+  ChevronRight,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  Plus,
 } from 'lucide-react-native';
 
 interface SelectedUnitInfo {
@@ -49,85 +56,113 @@ interface SelectedUnitInfo {
 }
 
 export const StaffGuestPassScreen: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset(24);
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { theme } = useTheme();
 
+  const tenantId = user?.tenantId || user?.tenant?.id || '';
+
+  // Data states
   const [structure, setStructure] = useState<TenantStructureResponse | null>(null);
   const [loadingStructure, setLoadingStructure] = useState(true);
+  const [tenantPasses, setTenantPasses] = useState<GuestPass[]>([]);
+  const [loadingPasses, setLoadingPasses] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Form states
   const [selectedUnit, setSelectedUnit] = useState<SelectedUnitInfo | null>(null);
   const [guestName, setGuestName] = useState('');
   const [guestPlate, setGuestPlate] = useState('');
+  const [passType, setPassType] = useState<'PEDESTRIAN' | 'VEHICLE'>('PEDESTRIAN');
+  const [durationHours, setDurationHours] = useState<'4' | '12' | '24'>('12');
   const [submitting, setSubmitting] = useState(false);
-  const [createdPass, setCreatedPass] = useState<GuestPass | null>(null);
 
-  // Unit Picker Modal
-  const [unitModalVisible, setUnitModalVisible] = useState(false);
+  // Unit picker sheet
+  const [unitSheetVisible, setUnitSheetVisible] = useState(false);
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
 
-  const [tenantPasses, setTenantPasses] = useState<GuestPass[]>([]);
-  const [loadingPasses, setLoadingPasses] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [revokingPassId, setRevokingPassId] = useState<string | null>(null);
-  const [redeemingPassId, setRedeemingPassId] = useState<string | null>(null);
+  // Revoke confirmation sheet
+  const [passToRevoke, setPassToRevoke] = useState<GuestPass | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
-  const isStaff = isStaffUser(user?.role);
-
-  const fetchTenantPasses = async () => {
-    if (!user?.tenantId) return;
-    try {
-      setLoadingPasses(true);
-      const data = await AccessApi.getTenantGuestPasses(user.tenantId);
-      setTenantPasses(data);
-    } catch (err) {
-      console.warn('Failed to load tenant guest passes:', err);
-    } finally {
-      setLoadingPasses(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => {
-    const fetchStructure = async () => {
-      if (!user?.tenantId) {
-        setLoadingStructure(false);
+  const fetchPasses = useCallback(
+    async (isSilent = false) => {
+      if (!tenantId) {
+        setLoadingPasses(false);
+        setRefreshing(false);
         return;
       }
+      if (!isSilent) setLoadingPasses(true);
+
       try {
-        const data = await PropertiesApi.getTenantStructure(user.tenantId);
-        setStructure(data);
+        const data = await AccessApi.getTenantGuestPasses(tenantId);
+        setTenantPasses(data || []);
       } catch (err) {
-        console.warn('Failed to load tenant structure:', err);
+        console.warn('Failed to load guest passes:', err);
       } finally {
-        setLoadingStructure(false);
+        if (!isSilent) setLoadingPasses(false);
+        setRefreshing(false);
       }
-    };
+    },
+    [tenantId]
+  );
 
+  const fetchStructure = useCallback(async () => {
+    if (!tenantId) {
+      setLoadingStructure(false);
+      return;
+    }
+    try {
+      const data = await PropertiesApi.getTenantStructure(tenantId);
+      setStructure(data);
+    } catch (err) {
+      console.warn('Failed to load tenant structure:', err);
+    } finally {
+      setLoadingStructure(false);
+    }
+  }, [tenantId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPasses(true);
+      fetchStructure();
+    }, [fetchPasses, fetchStructure])
+  );
+
+  const onRefresh = () => {
+    safeHaptic.selection();
+    setRefreshing(true);
+    fetchPasses(true);
     fetchStructure();
-    fetchTenantPasses();
-  }, [user?.tenantId]);
+  };
 
-  // Flatten units from all buildings
-  const allUnits = useMemo<SelectedUnitInfo[]>(() => {
+  // Flatten all units for search picker
+  const allUnits: SelectedUnitInfo[] = useMemo(() => {
     if (!structure?.buildings) return [];
-    const list: SelectedUnitInfo[] = [];
-    for (const b of structure.buildings) {
-      for (const u of b.units) {
-        list.push({
-          id: u.id,
-          unitNumber: u.unitNumber,
-          blockName: b.blockName,
-          floor: u.floor,
-          entrance: u.entrance,
-        });
+    const units: SelectedUnitInfo[] = [];
+
+    for (const bld of structure.buildings) {
+      if (bld.units) {
+        for (const u of bld.units) {
+          units.push({
+            id: u.id,
+            unitNumber: u.unitNumber,
+            blockName: bld.blockName,
+            floor: u.floor,
+            entrance: u.entrance,
+          });
+        }
       }
     }
-    return list;
+    return units.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true }));
   }, [structure]);
 
   const filteredUnits = useMemo(() => {
     if (!unitSearchQuery.trim()) return allUnits;
-    const q = unitSearchQuery.toLowerCase();
+    const q = unitSearchQuery.toLowerCase().trim();
     return allUnits.filter(
       (u) =>
         u.unitNumber.toLowerCase().includes(q) ||
@@ -135,12 +170,7 @@ export const StaffGuestPassScreen: React.FC = () => {
     );
   }, [allUnits, unitSearchQuery]);
 
-  const handleSelectUnit = (unit: SelectedUnitInfo) => {
-    setSelectedUnit(unit);
-    setUnitModalVisible(false);
-    setUnitSearchQuery('');
-  };
-
+  // Create Guest Pass
   const handleCreatePass = async () => {
     if (!selectedUnit) {
       Alert.alert(t('common.error'), t('staff.guestPass.selectUnitWarning'));
@@ -151,810 +181,763 @@ export const StaffGuestPassScreen: React.FC = () => {
       return;
     }
 
+    safeHaptic.selection();
     setSubmitting(true);
-    try {
-      const now = new Date();
-      const validTo = new Date(now.getTime() + 12 * 3600 * 1000); // 12 hours
 
-      const pass = await AccessApi.createGuestPass({
+    const now = new Date();
+    const validFrom = now.toISOString();
+    const hours = parseInt(durationHours, 10);
+    const validTo = new Date(now.getTime() + hours * 3600 * 1000).toISOString();
+
+    try {
+      await AccessApi.createGuestPass({
         unitId: selectedUnit.id,
         guestName: guestName.trim(),
-        guestPlateNumber: guestPlate.trim() || undefined,
-        validFrom: now.toISOString(),
-        validTo: validTo.toISOString(),
+        guestPlateNumber: passType === 'VEHICLE' ? guestPlate.trim() || undefined : undefined,
+        validFrom,
+        validTo,
       });
 
-      setCreatedPass(pass);
-      fetchTenantPasses();
-    } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      safeHaptic.selection();
+      setGuestName('');
+      setGuestPlate('');
+      setSelectedUnit(null);
+
+      await fetchPasses(true);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || t('common.error');
+      Alert.alert(t('common.error'), msg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchTenantPasses();
-  };
+  // Confirm Revoke
+  const handleConfirmRevoke = async () => {
+    if (!passToRevoke || revoking) return;
+    safeHaptic.selection();
+    setRevoking(true);
 
-  const handleRevokePass = (pass: GuestPass) => {
-    Alert.alert(
-      t('access.revokeConfirmTitle'),
-      t('access.revokeConfirmMsg'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('access.revokePassBtn'),
-          style: 'destructive',
-          onPress: async () => {
-            setRevokingPassId(pass.id);
-            try {
-              await AccessApi.revokeGuestPass(pass.id);
-              Alert.alert(t('common.success'), t('access.revokedSuccess'));
-              fetchTenantPasses();
-            } catch (err: any) {
-              Alert.alert(t('common.error'), getApiErrorMessage(err));
-            } finally {
-              setRevokingPassId(null);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleRedeemPass = (pass: GuestPass) => {
-    Alert.alert(
-      t('access.redeemConfirmTitle'),
-      t('access.redeemConfirmMsg'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('access.redeemPassBtn'),
-          onPress: async () => {
-            setRedeemingPassId(pass.id);
-            try {
-              await AccessApi.redeemGuestPass(pass.id);
-              Alert.alert(t('common.success'), t('access.redeemedSuccess'));
-              fetchTenantPasses();
-            } catch (err: any) {
-              Alert.alert(t('common.error'), getApiErrorMessage(err));
-            } finally {
-              setRedeemingPassId(null);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleSharePass = async (pass: GuestPass) => {
     try {
-      const complexName = user?.tenant?.name || structure?.tenantName || t('staff.complexInfo');
-      const unitStr = selectedUnit
-        ? `${selectedUnit.blockName ? `${selectedUnit.blockName}, ` : ''}${t('common.unitShort')} ${selectedUnit.unitNumber}`
-        : '';
-      const plateLine = pass.guestPlateNumber
-        ? `${t('access.guestPlateLabel', { plate: pass.guestPlateNumber })}\n`
-        : '';
-      const validTimeStr = new Date(pass.validTo).toLocaleTimeString(i18n.language, {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      const message = `${complexName}\n${t('staff.guestPass.sharePassTitle')}\n${unitStr}\n${t('access.guestNameLabel', { name: pass.guestName })}\n${plateLine}${t('access.passCodeTitle')}: ${pass.accessCode}\n${t('access.valid12Hours', { time: validTimeStr })}`;
-
-      await Share.share({ message });
-    } catch (e) {
-      console.warn('Share error:', e);
+      await AccessApi.revokeGuestPass(passToRevoke.id);
+      safeHaptic.selection();
+      setPassToRevoke(null);
+      await fetchPasses(true);
+    } catch (err: any) {
+      Alert.alert(
+        t('common.error'),
+        err?.response?.data?.message || t('staff.guestPass.revokeError')
+      );
+    } finally {
+      setRevoking(false);
     }
   };
 
-  const handleResetForm = () => {
-    setCreatedPass(null);
-    setGuestName('');
-    setGuestPlate('');
-    setSelectedUnit(null);
+  const handleSharePass = async (pass: GuestPass) => {
+    safeHaptic.selection();
+    try {
+      const unit = pass.unit
+        ? `${pass.unit.building?.blockName ? `${pass.unit.building.blockName}, ` : ''}${t('staff.sos.unit')} ${pass.unit.unitNumber}`
+        : '';
+      const text = `${t('staff.guestPass.sharePassTitle')}\n${t('staff.guestPass.passCode')}: ${pass.accessCode}\n${unit}\n${t('staff.guestPass.durationLabel')}: ${new Date(pass.validTo).toLocaleString()}`;
+      await Share.share({ message: text });
+    } catch {}
   };
 
-  if (!isStaff) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color={Colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('staff.guestPass.title')}</Text>
-        </View>
-        <View style={styles.content}>
-          <Card style={styles.unauthorizedCard}>
-            <ShieldCheck size={48} color={Colors.danger} style={{ marginBottom: 12 }} />
-            <Text style={styles.unauthorizedTitle}>{t('staff.guestPass.unauthorizedTitle')}</Text>
-            <Text style={styles.unauthorizedMsg}>{t('staff.guestPass.unauthorizedMsg')}</Text>
-            <Button
-              title={t('common.back')}
-              onPress={() => navigation.goBack()}
-              variant="outline"
-              style={{ marginTop: 16 }}
-            />
-          </Card>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const activePasses = useMemo(
+    () => tenantPasses.filter((p) => p.status === 'ACTIVE' || (!p.isRevoked && !p.isUsed)),
+    [tenantPasses]
+  );
 
-  if (loadingStructure) {
-    return <LoadingState message={t('common.loading')} />;
-  }
+  const canGoBack = navigation.canGoBack();
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{t('staff.guestPass.title')}</Text>
-          <Text style={styles.headerSubtitle}>
-            {user?.tenant?.name || structure?.tenantName || t('staff.complexInfo')}
-          </Text>
-        </View>
-      </View>
-
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingBottom: tabBarInset + 24,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+          />
         }
       >
-        {createdPass ? (
-          // ==================== SUCCESS / QR DISPLAY ====================
-          <Card style={styles.resultCard}>
-            <View style={styles.qrResultContainer}>
-              <View style={styles.qrBox}>
-                <QRCode
-                  value={createdPass.qrCodeUrl || createdPass.accessCode}
-                  size={160}
-                  color="#111827"
-                  backgroundColor="#FFFFFF"
-                />
-              </View>
-
-              <Text style={styles.passCodeTitle}>{t('access.passCodeTitle')}</Text>
-              <Text style={styles.passCode}>{createdPass.accessCode}</Text>
-
-              <View style={styles.passMetaBlock}>
-                {selectedUnit && (
-                  <View style={styles.metaLine}>
-                    <Building size={16} color={Colors.primary} />
-                    <Text style={styles.passMetaText}>
-                      {selectedUnit.blockName ? `${selectedUnit.blockName}, ` : ''}
-                      {t('common.unitShort')} {selectedUnit.unitNumber}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.metaLine}>
-                  <User size={16} color={Colors.textMuted} />
-                  <Text style={styles.passMetaText}>
-                    {t('access.guestNameLabel', { name: createdPass.guestName })}
-                  </Text>
-                </View>
-                {createdPass.guestPlateNumber ? (
-                  <View style={styles.metaLine}>
-                    <Car size={16} color={Colors.textMuted} />
-                    <Text style={styles.passMetaText}>
-                      {t('access.guestPlateLabel', { plate: createdPass.guestPlateNumber })}
-                    </Text>
-                  </View>
-                ) : null}
-                <View style={styles.metaLine}>
-                  <Clock size={16} color={Colors.textMuted} />
-                  <Text style={styles.passMetaText}>
-                    {t('access.valid12Hours', {
-                      time: new Date(createdPass.validTo).toLocaleTimeString(i18n.language, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }),
-                    })}
-                  </Text>
-                </View>
-              </View>
-
-              <Button
-                title={t('access.sharePassBtn')}
-                onPress={() => handleSharePass(createdPass)}
-                variant="primary"
-                size="lg"
-                icon={<Share2 color="#FFFFFF" size={20} />}
-                style={styles.actionBtn}
+        {/* Header */}
+        <AnimatedEntrance index={0}>
+          <View style={styles.headerRow}>
+            {canGoBack && (
+              <IconButton
+                icon={<ArrowLeft size={22} color={theme.colors.text} />}
+                accessibilityLabel={t('common.back')}
+                onPress={() => {
+                  safeHaptic.selection();
+                  navigation.goBack();
+                }}
+                variant="ghost"
+                size={40}
+                style={{ marginRight: 8 }}
               />
+            )}
 
-              <Button
-                title={t('staff.guestPass.issueAnotherBtn')}
-                onPress={handleResetForm}
-                variant="outline"
-                size="lg"
-                icon={<PlusCircle color={Colors.text} size={20} />}
-                style={styles.secondaryBtn}
-              />
+            <View style={styles.headerTextWrap}>
+              <Text
+                style={[
+                  styles.title,
+                  { color: theme.colors.text },
+                  theme.typography.title,
+                ]}
+              >
+                {t('staff.guestPass.title')}
+              </Text>
+              <Text
+                style={[
+                  styles.subtitle,
+                  { color: theme.colors.textMuted },
+                  theme.typography.caption,
+                ]}
+              >
+                {t('staff.guestPass.cardSubtitle')}
+              </Text>
             </View>
-          </Card>
-        ) : (
-          // ==================== CREATION FORM ====================
-          <View>
-            {/* Step 1: Unit Selector Card */}
-            <Text style={styles.sectionLabel}>{t('staff.guestPass.selectUnitStep')}</Text>
-            <TouchableOpacity
-              onPress={() => setUnitModalVisible(true)}
-              activeOpacity={0.8}
+          </View>
+        </AnimatedEntrance>
+
+        {/* Master / Wizard Card */}
+        <AnimatedEntrance index={1}>
+          <Card
+            style={[
+              styles.formCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.stepTitle,
+                { color: theme.colors.text },
+                theme.typography.headline,
+              ]}
             >
-              <Card style={styles.unitSelectorCard}>
-                <View style={styles.unitSelectorRow}>
-                  <View style={styles.unitIconContainer}>
-                    <Building size={22} color={selectedUnit ? Colors.primary : Colors.textMuted} />
-                  </View>
-                  <View style={styles.unitInfoContainer}>
-                    <Text style={styles.unitCardSub}>
-                      {selectedUnit
-                        ? t('staff.guestPass.selectedUnitLabel')
-                        : t('staff.guestPass.noUnitSelected')}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.unitCardTitle,
-                        !selectedUnit && styles.unitCardPlaceholder,
-                      ]}
-                    >
-                      {selectedUnit
-                        ? `${selectedUnit.blockName ? `${selectedUnit.blockName}, ` : ''}${t('common.unitShort')} ${selectedUnit.unitNumber}`
-                        : t('staff.guestPass.selectUnitPlaceholder')}
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color={Colors.textMuted} />
-                </View>
-              </Card>
-            </TouchableOpacity>
-
-            {/* Step 2: Guest Details Form */}
-            <Text style={[styles.sectionLabel, { marginTop: 16 }]}>
-              {t('staff.guestPass.guestDetailsStep')}
+              {t('staff.guestPass.selectUnitStep')}
             </Text>
-            <Card style={styles.formCard}>
-              <Input
-                label={t('access.guestInputLabel')}
-                placeholder={t('access.guestInputPlaceholder')}
-                value={guestName}
-                onChangeText={setGuestName}
-                leftIcon={<User size={18} color={Colors.textMuted} />}
-              />
 
-              <Input
-                label={t('access.plateInputLabel')}
-                placeholder={t('access.plateInputPlaceholder')}
-                value={guestPlate}
-                onChangeText={setGuestPlate}
-                leftIcon={<Car size={18} color={Colors.textMuted} />}
-                helper={t('access.plateHelper')}
-              />
-
-              {/* Validity notice banner */}
-              <View style={styles.validityNotice}>
-                <Clock size={16} color={Colors.textMuted} />
-                <Text style={styles.validityText}>
-                  {t('staff.guestPass.validityNotice')}
+            {/* Select Unit Trigger Button */}
+            <TouchableOpacity
+              style={[
+                styles.unitSelectBtn,
+                {
+                  backgroundColor: theme.colors.surfaceSubtle,
+                  borderColor: selectedUnit ? theme.colors.primary : theme.colors.border,
+                },
+              ]}
+              onPress={() => {
+                safeHaptic.selection();
+                setUnitSheetVisible(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={selectedUnit ? `${selectedUnit.blockName}, ${selectedUnit.unitNumber}` : t('staff.guestPass.selectUnitPlaceholder')}
+            >
+              <View style={styles.unitBtnLeft}>
+                <Building
+                  size={18}
+                  color={selectedUnit ? theme.colors.primary : theme.colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.unitBtnText,
+                    {
+                      color: selectedUnit ? theme.colors.text : theme.colors.textMuted,
+                      fontWeight: selectedUnit ? '600' : '400',
+                    },
+                    theme.typography.body,
+                  ]}
+                >
+                  {selectedUnit
+                    ? `${selectedUnit.blockName}, ${t('staff.sos.unit')} ${selectedUnit.unitNumber}`
+                    : t('staff.guestPass.selectUnitPlaceholder')}
                 </Text>
               </View>
+              <ChevronRight size={18} color={theme.colors.textMuted} />
+            </TouchableOpacity>
 
-              <Button
-                title={t('access.generateQrBtn')}
-                onPress={handleCreatePass}
-                loading={submitting}
-                size="lg"
-                style={{ marginTop: 16 }}
+            <Text
+              style={[
+                styles.stepTitle,
+                { color: theme.colors.text, marginTop: 16 },
+                theme.typography.headline,
+              ]}
+            >
+              {t('staff.guestPass.guestDetailsStep')}
+            </Text>
+
+            {/* Pass Type Switcher (Pedestrian vs Vehicle) */}
+            <View style={styles.fieldWrap}>
+              <SegmentedControl<'PEDESTRIAN' | 'VEHICLE'>
+                options={[
+                  {
+                    value: 'PEDESTRIAN',
+                    label: t('staff.guestPass.pedestrian'),
+                    icon: <User size={16} color={theme.colors.primary} />,
+                  },
+                  {
+                    value: 'VEHICLE',
+                    label: t('staff.guestPass.vehicle'),
+                    icon: <Car size={16} color={theme.colors.primary} />,
+                  },
+                ]}
+                value={passType}
+                onChange={(val) => {
+                  safeHaptic.selection();
+                  setPassType(val);
+                }}
               />
-            </Card>
+            </View>
 
-            {/* Step 3: Tenant Passes History */}
-            <View style={styles.historySection}>
-              <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
-                {t('staff.guestPass.historyTitle')}
+            {/* Guest Name Input */}
+            <View style={styles.fieldWrap}>
+              <Input
+                label={t('staff.guestPass.guestName')}
+                placeholder={t('staff.guestPass.guestName')}
+                value={guestName}
+                onChangeText={setGuestName}
+                leftIcon={<User size={18} color={theme.colors.textMuted} />}
+              />
+            </View>
+
+            {/* License Plate (if Vehicle) */}
+            {passType === 'VEHICLE' && (
+              <View style={styles.fieldWrap}>
+                <Input
+                  label={t('staff.guestPass.plateNumber')}
+                  placeholder="001 AAA 01"
+                  value={guestPlate}
+                  onChangeText={setGuestPlate}
+                  autoCapitalize="characters"
+                  leftIcon={<Car size={18} color={theme.colors.textMuted} />}
+                />
+              </View>
+            )}
+
+            {/* Duration Selector */}
+            <View style={styles.fieldWrap}>
+              <Text
+                style={[
+                  styles.fieldLabel,
+                  { color: theme.colors.textMuted },
+                  theme.typography.caption,
+                ]}
+              >
+                {t('staff.guestPass.durationLabel')}
               </Text>
-              {tenantPasses.length === 0 ? (
-                <Card style={styles.emptyHistoryCard}>
-                  <Text style={styles.emptyHistoryText}>
-                    {t('staff.guestPass.noHistory')}
-                  </Text>
-                </Card>
-              ) : (
-                tenantPasses.map((pass) => {
-                  const statusVariant =
-                    pass.status === 'ACTIVE'
-                      ? 'success'
-                      : pass.status === 'REVOKED'
-                      ? 'danger'
-                      : pass.status === 'USED'
-                      ? 'info'
-                      : 'default';
+              <SegmentedControl<'4' | '12' | '24'>
+                options={[
+                  { value: '4', label: `4 ${t('staff.guestPass.hours')}` },
+                  { value: '12', label: `12 ${t('staff.guestPass.hours')}` },
+                  { value: '24', label: `24 ${t('staff.guestPass.hours')}` },
+                ]}
+                value={durationHours}
+                onChange={(val) => {
+                  safeHaptic.selection();
+                  setDurationHours(val);
+                }}
+              />
+            </View>
 
-                  const statusLabel =
-                    pass.status === 'ACTIVE'
-                      ? t('access.statusActive')
-                      : pass.status === 'REVOKED'
-                      ? t('access.statusRevoked')
-                      : pass.status === 'USED'
-                      ? t('access.statusUsed')
-                      : t('access.statusExpired');
+            {/* Issue Button */}
+            <Button
+              title={t('staff.guestPass.issuePassBtn')}
+              variant="primary"
+              size="lg"
+              onPress={handleCreatePass}
+              loading={submitting}
+              style={styles.submitBtn}
+              leftIcon={<Plus size={18} color="#FFFFFF" />}
+            />
+          </Card>
+        </AnimatedEntrance>
 
-                  const unitStr = pass.unit
-                    ? `${pass.unit.building?.blockName ? `${pass.unit.building.blockName}, ` : ''}${t('common.unitShort')} ${pass.unit.unitNumber}`
-                    : '';
+        {/* Active Passes List */}
+        <AnimatedEntrance index={2}>
+          <View style={styles.sectionWrap}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: theme.colors.text },
+                theme.typography.headline,
+              ]}
+            >
+              {t('staff.guestPass.activePassesTitle')} ({activePasses.length})
+            </Text>
 
-                  const creatorName = pass.creator
-                    ? `${pass.creator.firstName || ''} ${pass.creator.lastName || ''}`.trim() || pass.creator.role
+            {loadingPasses ? (
+              <SkeletonList count={2} />
+            ) : activePasses.length > 0 ? (
+              <View style={styles.passesList}>
+                {activePasses.map((pass) => {
+                  const unit = pass.unit
+                    ? `${pass.unit.building?.blockName ? `${pass.unit.building.blockName}, ` : ''}${t('staff.sos.unit')} ${pass.unit.unitNumber}`
                     : '';
 
                   return (
-                    <Card key={pass.id} style={styles.historyCard}>
-                      <View style={styles.historyCardTop}>
-                        <View style={{ flex: 1 }}>
-                          {unitStr ? (
-                            <View style={styles.historyUnitRow}>
-                              <Building size={14} color={Colors.primary} />
-                              <Text style={styles.historyUnitText}>{unitStr}</Text>
-                            </View>
-                          ) : null}
-                          <Text style={styles.historyGuestName}>{pass.guestName}</Text>
-                          {pass.guestPlateNumber ? (
-                            <View style={styles.historyPlateRow}>
-                              <Car size={13} color={Colors.textMuted} />
-                              <Text style={styles.historyPlateText}>{pass.guestPlateNumber}</Text>
-                            </View>
-                          ) : null}
-                          {creatorName ? (
-                            <Text style={styles.historyCreatorText}>
-                              {t('staff.guestPass.issuedBy', { name: creatorName })}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <Badge label={statusLabel} variant={statusVariant} />
-                      </View>
-
-                      <View style={styles.historyCardBottom}>
-                        <View style={styles.historyValidRow}>
-                          <Clock size={13} color={Colors.textMuted} />
-                          <Text style={styles.historyValidText}>
-                            {t('access.validUntil', {
-                              time: new Date(pass.validTo).toLocaleString(i18n.language, {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }),
-                            })}
+                    <Card
+                      key={pass.id}
+                      style={[
+                        styles.passCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.passTopRow}>
+                        <View style={styles.codeWrap}>
+                          <Text
+                            style={[
+                              styles.codeLabel,
+                              { color: theme.colors.textMuted },
+                              theme.typography.caption,
+                            ]}
+                          >
+                            {t('staff.guestPass.passCode')}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.codeValue,
+                              { color: theme.colors.primary },
+                              theme.typography.title,
+                            ]}
+                          >
+                            {pass.accessCode}
                           </Text>
                         </View>
 
-                        {pass.status === 'ACTIVE' && (
-                          <View style={styles.actionButtonsRow}>
-                            <Button
-                              title={t('access.redeemPassBtn')}
-                              onPress={() => handleRedeemPass(pass)}
-                              loading={redeemingPassId === pass.id}
-                              size="sm"
-                              style={styles.redeemButton}
-                            />
-                            <Button
-                              title={t('access.revokePassBtn')}
-                              onPress={() => handleRevokePass(pass)}
-                              loading={revokingPassId === pass.id}
-                              variant="outline"
-                              size="sm"
-                              style={styles.revokeButton}
-                            />
+                        <Badge
+                          label={t('staff.sos.status.ACTIVE')}
+                          variant="success"
+                          size="sm"
+                        />
+                      </View>
+
+                      {/* QR Code and Meta */}
+                      <View style={styles.passDetailsRow}>
+                        <View style={styles.qrBox}>
+                          <QRCode
+                            value={pass.accessCode}
+                            size={72}
+                            backgroundColor="transparent"
+                            color={theme.isDark ? '#FFFFFF' : '#0F172A'}
+                          />
+                        </View>
+
+                        <View style={styles.passInfoWrap}>
+                          <Text
+                            style={[
+                              styles.guestName,
+                              { color: theme.colors.text },
+                              theme.typography.headline,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {pass.guestName}
+                          </Text>
+
+                          {Boolean(pass.guestPlateNumber) && (
+                            <View style={styles.metaRow}>
+                              <Car size={13} color={theme.colors.textMuted} />
+                              <Text
+                                style={[
+                                  styles.metaText,
+                                  { color: theme.colors.text },
+                                  theme.typography.caption,
+                                ]}
+                              >
+                                {pass.guestPlateNumber}
+                              </Text>
+                            </View>
+                          )}
+
+                          {Boolean(unit) && (
+                            <View style={styles.metaRow}>
+                              <Building size={13} color={theme.colors.textMuted} />
+                              <Text
+                                style={[
+                                  styles.metaText,
+                                  { color: theme.colors.textMuted },
+                                  theme.typography.caption,
+                                ]}
+                              >
+                                {unit}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={styles.metaRow}>
+                            <Clock size={13} color={theme.colors.textMuted} />
+                            <Text
+                              style={[
+                                styles.metaText,
+                                { color: theme.colors.textMuted },
+                                theme.typography.caption,
+                              ]}
+                            >
+                              {new Date(pass.validTo).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </Text>
                           </View>
-                        )}
+                        </View>
+                      </View>
+
+                      {/* Actions: Share & Revoke */}
+                      <View
+                        style={[
+                          styles.passActionsRow,
+                          { borderTopColor: theme.colors.border },
+                        ]}
+                      >
+                        <Button
+                          title={t('common.share')}
+                          variant="secondary"
+                          size="sm"
+                          onPress={() => handleSharePass(pass)}
+                          style={{ flex: 1 }}
+                          leftIcon={<Share2 size={15} color={theme.colors.primary} />}
+                        />
+
+                        <Button
+                          title={t('staff.guestPass.revokePass')}
+                          variant="destructive"
+                          size="sm"
+                          onPress={() => {
+                            safeHaptic.selection();
+                            setPassToRevoke(pass);
+                          }}
+                          style={{ flex: 1 }}
+                          leftIcon={<Trash2 size={15} color="#FFFFFF" />}
+                        />
                       </View>
                     </Card>
                   );
-                })
-              )}
-            </View>
+                })}
+              </View>
+            ) : (
+              <Card
+                style={[
+                  styles.emptyCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <EmptyState
+                  title={t('staff.guestPass.noHistory')}
+                  description={t('staff.guestPass.cardSubtitle')}
+                />
+              </Card>
+            )}
           </View>
-        )}
+        </AnimatedEntrance>
       </ScrollView>
 
-      {/* ==================== UNIT PICKER MODAL ==================== */}
-      <Modal visible={unitModalVisible} animationType="slide" transparent>
-        <SafeAreaView style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('staff.guestPass.chooseUnitTitle')}</Text>
-              <TouchableOpacity onPress={() => setUnitModalVisible(false)}>
-                <X size={24} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
+      {/* Unit Picker BottomSheet */}
+      <BottomSheet
+        visible={unitSheetVisible}
+        onClose={() => setUnitSheetVisible(false)}
+        title={t('staff.guestPass.chooseUnitTitle')}
+      >
+        <View style={styles.unitSheetBody}>
+          <Input
+            label={t('common.search')}
+            placeholder={t('staff.guestPass.searchUnitPlaceholder')}
+            value={unitSearchQuery}
+            onChangeText={setUnitSearchQuery}
+            leftIcon={<Search size={18} color={theme.colors.textMuted} />}
+          />
 
-            <View style={styles.modalSearchBox}>
-              <Input
-                placeholder={t('staff.guestPass.searchUnitPlaceholder')}
-                value={unitSearchQuery}
-                onChangeText={setUnitSearchQuery}
-                leftIcon={<Search size={18} color={Colors.textMuted} />}
-                style={{ marginBottom: 0 }}
-              />
-            </View>
-
-            <FlatList
-              data={filteredUnits}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.unitList}
-              renderItem={({ item }) => {
-                const isSelected = selectedUnit?.id === item.id;
+          <ScrollView style={styles.unitListScroll} showsVerticalScrollIndicator={false}>
+            {filteredUnits.length > 0 ? (
+              filteredUnits.map((u) => {
+                const isSelected = selectedUnit?.id === u.id;
                 return (
                   <TouchableOpacity
-                    onPress={() => handleSelectUnit(item)}
-                    activeOpacity={0.7}
-                    style={[styles.unitItem, isSelected && styles.unitItemSelected]}
+                    key={u.id}
+                    style={[
+                      styles.unitPickItem,
+                      {
+                        backgroundColor: isSelected
+                          ? theme.colors.primaryBg
+                          : theme.colors.surface,
+                        borderColor: isSelected
+                          ? theme.colors.primary
+                          : theme.colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      safeHaptic.selection();
+                      setSelectedUnit(u);
+                      setUnitSheetVisible(false);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${u.blockName}, ${u.unitNumber}`}
                   >
-                    <View style={styles.unitItemTextContainer}>
-                      <Text style={styles.unitItemTitle}>
-                        {item.blockName ? `${item.blockName}, ` : ''}
-                        {t('common.unitShort')} {item.unitNumber}
+                    <View style={styles.unitPickTextWrap}>
+                      <Text
+                        style={[
+                          styles.unitPickTitle,
+                          {
+                            color: isSelected
+                              ? theme.colors.primary
+                              : theme.colors.text,
+                          },
+                          theme.typography.headline,
+                        ]}
+                      >
+                        {u.blockName}, {t('staff.sos.unit')} {u.unitNumber}
                       </Text>
-                      {(item.entrance || item.floor) && (
-                        <Text style={styles.unitItemSub}>
-                          {item.entrance ? `${t('staff.guestPass.entrance')} ${item.entrance}` : ''}
-                          {item.entrance && item.floor ? ' • ' : ''}
-                          {item.floor ? `${t('staff.guestPass.floor')} ${item.floor}` : ''}
+                      {(u.floor != null || u.entrance != null) && (
+                        <Text
+                          style={[
+                            styles.unitPickSub,
+                            { color: theme.colors.textMuted },
+                            theme.typography.caption,
+                          ]}
+                        >
+                          {u.entrance != null ? `${t('staff.guestPass.entrance')} ${u.entrance}` : ''}
+                          {u.floor != null ? ` • ${t('staff.guestPass.floor')} ${u.floor}` : ''}
                         </Text>
                       )}
                     </View>
-                    {isSelected && <Check size={20} color={Colors.primary} />}
+                    {isSelected && <CheckCircle2 size={18} color={theme.colors.primary} />}
                   </TouchableOpacity>
                 );
-              }}
-              ListEmptyComponent={
-                <View style={styles.emptyUnits}>
-                  <Text style={styles.emptyUnitsText}>
-                    {t('staff.guestPass.noUnitsFound')}
-                  </Text>
-                </View>
-              }
-            />
-          </View>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+              })
+            ) : (
+              <Text
+                style={[
+                  styles.noUnitsText,
+                  { color: theme.colors.textMuted },
+                  theme.typography.callout,
+                ]}
+              >
+                {t('staff.guestPass.noUnitsFound')}
+              </Text>
+            )}
+          </ScrollView>
+        </View>
+      </BottomSheet>
+
+      {/* Revoke Confirmation BottomSheet */}
+      <BottomSheet
+        visible={Boolean(passToRevoke)}
+        onClose={() => setPassToRevoke(null)}
+        title={t('staff.guestPass.revokeConfirmTitle')}
+      >
+        <View style={styles.revokeSheetBody}>
+          <Text
+            style={[
+              styles.revokeSheetMsg,
+              { color: theme.colors.textMuted },
+              theme.typography.body,
+            ]}
+          >
+            {t('staff.guestPass.revokeConfirmMessage')}
+          </Text>
+
+          <Button
+            title={t('staff.guestPass.revokePass')}
+            variant="destructive"
+            size="lg"
+            onPress={handleConfirmRevoke}
+            loading={revoking}
+          />
+          <Button
+            title={t('common.cancel')}
+            variant="secondary"
+            size="md"
+            onPress={() => setPassToRevoke(null)}
+          />
+        </View>
+      </BottomSheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  backButton: {
-    padding: 6,
-    marginRight: 8,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 36,
+    paddingHorizontal: 16,
   },
-  content: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  unitSelectorCard: {
-    padding: 14,
-  },
-  unitSelectorRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
   },
-  unitIconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  unitInfoContainer: {
+  headerTextWrap: {
     flex: 1,
   },
-  unitCardSub: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginBottom: 2,
+  title: {
+    fontWeight: '700',
   },
-  unitCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  unitCardPlaceholder: {
-    color: Colors.textMuted,
-    fontWeight: 'normal',
+  subtitle: {
+    fontWeight: '400',
   },
   formCard: {
     padding: 16,
-  },
-  validityNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.background,
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  validityText: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    flex: 1,
-  },
-  resultCard: {
-    padding: 20,
-  },
-  qrResultContainer: {
-    alignItems: 'center',
-  },
-  qrBox: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  passCodeTitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  passCode: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.primary,
-    letterSpacing: 4,
-    marginBottom: 16,
-  },
-  passMetaBlock: {
-    width: '100%',
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
-    marginBottom: 16,
-  },
-  metaLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  passMetaText: {
-    fontSize: 14,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  actionBtn: {
-    width: '100%',
-  },
-  secondaryBtn: {
-    width: '100%',
-    marginTop: 10,
-  },
-  unauthorizedCard: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  unauthorizedTitle: {
-    fontSize: 18,
+  stepTitle: {
     fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  unauthorizedMsg: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    height: '75%',
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  modalSearchBox: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  unitList: {
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  unitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginBottom: 6,
-    backgroundColor: Colors.background,
-  },
-  unitItemSelected: {
-    backgroundColor: Colors.primary + '15',
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  unitItemTextContainer: {
-    flex: 1,
-  },
-  unitItemTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  unitItemSub: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  emptyUnits: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyUnitsText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-  },
-  historySection: {
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  emptyHistoryCard: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyHistoryText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    textAlign: 'center',
-  },
-  historyCard: {
-    padding: 14,
     marginBottom: 10,
   },
-  historyCardTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  historyUnitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 4,
-  },
-  historyUnitText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  historyGuestName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  historyPlateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 3,
-  },
-  historyPlateText: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    fontWeight: '500',
-  },
-  historyCreatorText: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 4,
-  },
-  historyCardBottom: {
+  unitSelectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-    paddingTop: 10,
-    marginTop: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 48,
   },
-  historyValidRow: {
+  unitBtnLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 10,
     flex: 1,
   },
-  historyValidText: {
-    fontSize: 12,
-    color: Colors.textMuted,
+  unitBtnText: {
+    flex: 1,
   },
-  actionButtonsRow: {
+  fieldWrap: {
+    marginTop: 12,
+  },
+  fieldLabel: {
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  submitBtn: {
+    marginTop: 16,
+  },
+  sectionWrap: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  passesList: {
+    gap: 12,
+  },
+  passCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  passTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  codeWrap: {
+    flex: 1,
+  },
+  codeLabel: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  codeValue: {
+    fontWeight: '800',
+    letterSpacing: 2,
+  },
+  passDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
+  },
+  qrBox: {
+    padding: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  passInfoWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  guestName: {
+    fontWeight: '700',
+  },
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginLeft: 8,
   },
-  redeemButton: {
-    backgroundColor: Colors.primary,
+  metaText: {
+    fontWeight: '500',
   },
-  revokeButton: {
-    borderColor: Colors.danger,
+  passActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    borderTopWidth: 1,
+    paddingTop: 12,
+  },
+  emptyCard: {
+    paddingVertical: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  unitSheetBody: {
+    gap: 12,
+    paddingBottom: 24,
+  },
+  unitListScroll: {
+    maxHeight: 320,
+  },
+  unitPickItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  unitPickTextWrap: {
+    flex: 1,
+  },
+  unitPickTitle: {
+    fontWeight: '600',
+  },
+  unitPickSub: {
+    fontWeight: '400',
+  },
+  noUnitsText: {
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  revokeSheetBody: {
+    gap: 14,
+    paddingBottom: 24,
+  },
+  revokeSheetMsg: {
+    lineHeight: 22,
   },
 });

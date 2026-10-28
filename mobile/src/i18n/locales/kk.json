@@ -9,7 +9,8 @@
     "cameraPermission": "Баптауларда камераға рұқсат беріңіз немесе галереядан фото таңдаңыз.",
     "preview": "Фото {{count}}",
     "pending": "Фото жүктеуді күтуде",
-    "camera": "Суретке түсіру"
+    "camera": "Суретке түсіру",
+    "libraryPermission": "Құрылғы параметрлерінде фотосуреттерге рұқсат беріңіз"
   },
   "common": {
     "loading": "Жүктелуде...",
@@ -35,7 +36,16 @@
     "sqm": "м²",
     "kazakhAlphabet": "Қазақ әріптері: Ә І Ң Ғ Ү Ұ Қ Ө Һ (ә і ң ғ ү ұ қ ө һ)",
     "hoursShort": "сағ.",
-    "minsShort": "мин."
+    "minsShort": "мин.",
+    "refresh": "Жаңарту",
+    "send": "Жіберу",
+    "clear": "Тазалау",
+    "userNotAuthorizedOrLinked": "Пайдаланушы авторизацияланбаған немесе ТК-ға тіркелмеген",
+    "ok": "Жарайды",
+    "search": "Іздеу",
+    "networkError": "Желі қатесі. Байланысты тексеріңіз",
+    "uploadFailed": "Файлды жүктеу мүмкін болмады",
+    "share": "Бөлісу"
   },
   "navigation": {
     "home": "Басты бет",
@@ -259,7 +269,9 @@
     "keypadClear": "C",
     "keypadBackspace": "Өшіру",
     "keypadSubmit": "Растау",
-    "incorrectPin": "Қате PIN-код"
+    "incorrectPin": "Қате PIN-код",
+    "noUnitAttachedError": "Тіркелгіңізге пәтер тіркелмеген",
+    "passCreatedSuccess": "Қонақ рұқсатнамасы құрылды"
   },
   "votings": {
     "title": "ОСС дауыс берулері",
@@ -494,7 +506,8 @@
     "shareReceipt": "Түбіртекпен бөлісу",
     "receiptOfflineNotice": "Түбіртек әр есептік айдың басында автоматты түрде жасалады",
     "shareOfAccruals": "есептеулердің {{percent}}%",
-    "shareOfExpenses": "барлық шығындардың {{percent}}%"
+    "shareOfExpenses": "барлық шығындардың {{percent}}%",
+    "methodManual": "Қолмен енгізілген"
   },
   "meters": {
     "title": "Есептегіштер көрсеткіші",
@@ -978,7 +991,21 @@
         "requiresAttention": "Әрекет қажет",
         "allClear": "Барлығы шешілген",
         "resolvedOnly": "Тек шешілгендер"
-      }
+      },
+      "acceptAction": "Қабылдау",
+      "acceptSuccess": "Шақыру жұмысқа қабылданды",
+      "acceptError": "Шақыруды қабылдау мүмкін болмады",
+      "waitTimer": "Күтуде: {{time}}",
+      "unacceptedPulse": "Қабылданбаған",
+      "acceptedByMe": "Сіз қабылдадыңыз",
+      "acceptedByOther": "Қабылдаған: {{name}}",
+      "resolveSheetTitle": "SOS шақыруын аяқтау",
+      "resolveSuccessNotice": "Көмек көрсетілді",
+      "resolveFalseAlarmNotice": "Жалған дабыл",
+      "tabAlerts": "Дабылдар",
+      "tabStats": "Статистика (30 күн)",
+      "avgResponseTime": "Әрекет ету уақыты",
+      "totalAlerts": "Барлық шақырулар"
     },
     "chatTab": "ТҮК чаты",
     "chat": {
@@ -1021,7 +1048,13 @@
       "readOnlyNotice": "Тек оқу режимі (ПИК/ОСИ төрағасы)",
       "goToRequests": "ТҮК өтінімдеріне өту",
       "activeRequestsNote": "Service Desk: өтінімдерді басқару және мәртебені өзгерту",
-      "unitPrefix": "пәт. {{unit}}"
+      "unitPrefix": "пәт. {{unit}}",
+      "overdueBadge": "SLA мерзімі өткен",
+      "urgentBadge": "Шұғыл",
+      "readOnlyBadge": "Тек қарау",
+      "assigneeLabel": "Орындаушы",
+      "notAssigned": "Тағайындалмаған",
+      "priority": "Басымдық"
     },
     "accessLog": {
       "cardLabel": "Қолжетімділік журналы",
@@ -1041,7 +1074,12 @@
       "emptySubtitle": "Өту және кіру оқиғалары осында пайда болады",
       "loadError": "Қолжетімділік журналын жүктеу сәтсіз аяқталды",
       "unauthorizedTitle": "Қолжетімділік шектелген",
-      "unauthorizedMsg": "Қолжетімділік журналын қарау тек күзет қызметкерлері мен ТҮК әкімшілеріне қолжетімді."
+      "unauthorizedMsg": "Қолжетімділік журналын қарау тек күзет қызметкерлері мен ТҮК әкімшілеріне қолжетімді.",
+      "tabLabel": "Журнал",
+      "filterAllowed": "Рұқсат етілген",
+      "filterDenied": "Бас тартылған",
+      "today": "Бүгін",
+      "yesterday": "Кеше"
     },
     "guestPass": {
       "cardLabel": "Қонақ рұқсаттамасы",
@@ -1068,7 +1106,22 @@
       "historyTitle": "ТК рұқсаттамалар тарихы",
       "noHistory": "Тұрғын үй кешенінде ресімделген рұқсаттамалар жоқ",
       "issuedBy": "Ресімдеген: {{name}}",
-      "revokedByLabel": "Қайтарып алған: {{name}}"
+      "revokedByLabel": "Қайтарып алған: {{name}}",
+      "tabLabel": "Рұқсаттамалар",
+      "revokePass": "Қайтарып алу",
+      "revokeConfirmTitle": "Қонақ рұқсаттамасын қайтарып алу керек пе?",
+      "revokeConfirmMessage": "Рұқсаттаманың қолданылу мерзімі дереу тоқтатылады.",
+      "revokeSuccess": "Рұқсаттама сәтті қайтарып алынды",
+      "revokeError": "Рұқсаттаманы қайтарып алу мүмкін болмады",
+      "activePassesTitle": "Белсенді рұқсаттамалар",
+      "issuePassBtn": "Рұқсаттама ресімдеу",
+      "passCode": "Қолжетімділік коды",
+      "pedestrian": "Жаяу жүргінші",
+      "vehicle": "Автокөлік",
+      "plateNumber": "Көліктің мемлекеттік нөмірі",
+      "guestName": "Қонақтың аты-жөні",
+      "hours": "сағ.",
+      "durationLabel": "Қолданылу мерзімі"
     },
     "shiftHandover": {
       "cardLabel": "Күзет және диспетчерлік",
@@ -1083,7 +1136,39 @@
       "charCount": "{{count}}/2000",
       "loadError": "Ауысым журналын жүктеу сәтсіз аяқталды",
       "postError": "Жазбаны жариялау сәтсіз аяқталды",
-      "retry": "Қайталау"
+      "retry": "Қайталау",
+      "tabLabel": "Ауысым",
+      "newNote": "Жазба қосу",
+      "createNoteSheetTitle": "Ауысым үшін жазба",
+      "postSuccess": "Жазба сәтті сақталды",
+      "author": "Автор"
+    },
+    "home": {
+      "shiftGreeting": "Қызметкер ауысымы",
+      "kpiActiveSos": "Белсенді SOS",
+      "kpiRequests": "Жұмыстағы өтінімдер",
+      "kpiOverdueSla": "SLA мерзімі өткен",
+      "kpiUnreadChats": "Оқылмаған чаттар",
+      "kpiActivePasses": "Белсенді рұқсаттамалар",
+      "attentionTitle": "Назар аударуды талап етеді",
+      "attentionEmptyTitle": "Барлығы тыныш",
+      "attentionEmptySubtitle": "Маңызды оқиғалар мен мерзімі өткен өтінімдер жоқ",
+      "quickActions": "Жылдам әрекеттер",
+      "actionSos": "SOS шақырулары",
+      "actionRequests": "Тұрғындар өтінімдері",
+      "actionChat": "Тұрғындармен чат",
+      "actionAccessLog": "Қолжетімділік журналы",
+      "actionGuestPass": "Рұқсаттама беру",
+      "actionShiftHandover": "Ауысымды тапсыру",
+      "actionTransparency": "Ашықтық",
+      "actionVotings": "ТКЖ жиналыстары"
+    },
+    "profile": {
+      "profileTitle": "Қызметкер бейіні",
+      "themeMode": "Дизайн тақырыбы",
+      "language": "Қолданба тілі",
+      "settings": "Баптаулар",
+      "notifications": "Хабарландырулар"
     }
   },
   "notifications": {

@@ -1,9 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
@@ -11,6 +10,10 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../theme/ThemeContext';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import {
   ServiceRequestsApi,
   ServiceRequestItem,
@@ -21,27 +24,39 @@ import {
   getPriorityLabel,
   getStatusInfo,
 } from '../../utils/requestLabels';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
-import { Input } from '../../components/common/Input';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Colors } from '../../constants/colors';
-import { useTabBarInset } from '../../hooks/useTabBarInset';
+import { isRequestOverdue } from '../../utils/sla';
+import { safeHaptic } from '../../lib/haptics';
 import {
-  Wrench,
-  ChevronRight,
+  Card,
+  Badge,
+  Input,
+  Button,
+  EmptyState,
+  SkeletonList,
+  AnimatedEntrance,
+} from '../../components/ui';
+import {
+  ClipboardList,
   Search,
   Building,
-  Calendar,
+  User,
+  Clock,
   AlertCircle,
+  ChevronRight,
+  ShieldAlert,
 } from 'lucide-react-native';
 
 type FilterStatus = 'ALL' | RequestStatus;
 
 export const StaffRequestsListScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const tabBarInset = useTabBarInset(24);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const { user } = useAuth();
+  const { theme } = useTheme();
+
+  const isChairman = user?.role === 'HOA_CHAIRMAN';
 
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,28 +64,48 @@ export const StaffRequestsListScreen: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const loadRequests = useCallback(async () => {
+  const loadRequests = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const data = await ServiceRequestsApi.getRequests();
-      setRequests(data);
+      setRequests(data || []);
     } catch (e) {
       console.warn('Failed to load staff requests:', e);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadRequests();
+      loadRequests(true);
     }, [loadRequests])
   );
 
   const onRefresh = () => {
+    safeHaptic.selection();
     setRefreshing(true);
-    loadRequests();
+    loadRequests(true);
   };
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: requests.length,
+      PENDING: 0,
+      ASSIGNED: 0,
+      IN_PROGRESS: 0,
+      RESOLVED: 0,
+      CLOSED: 0,
+      REJECTED: 0,
+    };
+    for (const r of requests) {
+      if (counts[r.status] !== undefined) {
+        counts[r.status]++;
+      }
+    }
+    return counts;
+  }, [requests]);
 
   const filterOptions: { key: FilterStatus; label: string }[] = [
     { key: 'ALL', label: t('staff.requests.filterAll') },
@@ -79,128 +114,316 @@ export const StaffRequestsListScreen: React.FC = () => {
     { key: 'IN_PROGRESS', label: t('requests.statusInProgress') },
     { key: 'RESOLVED', label: t('requests.statusResolved') },
     { key: 'CLOSED', label: t('requests.statusClosed') },
-    { key: 'REJECTED', label: t('requests.statusRejected') },
   ];
 
-  const filteredRequests = requests.filter((r) => {
-    if (selectedStatus !== 'ALL' && r.status !== selectedStatus) {
-      return false;
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const titleMatch = r.title.toLowerCase().includes(q);
-      const descMatch = r.description.toLowerCase().includes(q);
-      const unitMatch = r.unit?.unitNumber?.toLowerCase().includes(q) || false;
-      const blockMatch = r.unit?.building?.blockName?.toLowerCase().includes(q) || false;
-      return titleMatch || descMatch || unitMatch || blockMatch;
-    }
-    return true;
-  });
+  const filteredRequests = useMemo(() => {
+    return requests.filter((r) => {
+      if (selectedStatus !== 'ALL' && r.status !== selectedStatus) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const titleMatch = r.title.toLowerCase().includes(q);
+        const descMatch = r.description.toLowerCase().includes(q);
+        const unitMatch = r.unit?.unitNumber?.toLowerCase().includes(q) || false;
+        const blockMatch = r.unit?.building?.blockName?.toLowerCase().includes(q) || false;
+        return titleMatch || descMatch || unitMatch || blockMatch;
+      }
+      return true;
+    });
+  }, [requests, selectedStatus, searchQuery]);
 
-  const renderRequestItem = ({ item }: { item: ServiceRequestItem }) => {
-    const statusInfo = getStatusInfo(item.status, t);
-    const unitText = item.unit?.unitNumber
-      ? `${t('staff.requests.unitPrefix', { unit: item.unit.unitNumber })}${item.unit.building?.blockName ? ` (${item.unit.building.blockName})` : ''}`
+  const renderItem = ({ item, index }: { item: ServiceRequestItem; index: number }) => {
+    const stInfo = getStatusInfo(item.status, t);
+    const badgeVariant = stInfo.variant === 'default' ? 'neutral' : stInfo.variant;
+    const overdue = isRequestOverdue(item);
+    const isUrgent = item.priority === 'EMERGENCY';
+    const unitStr = item.unit
+      ? `${item.unit.building?.blockName ? `${item.unit.building.blockName}, ` : ''}${t('staff.requests.unitPrefix', { unit: item.unit.unitNumber })}`
       : null;
 
     return (
-      <TouchableOpacity
-        onPress={() => navigation.navigate('RequestDetail', { requestId: item.id })}
-        activeOpacity={0.7}
-      >
-        <Card style={styles.itemCard}>
-          <View style={styles.itemHeader}>
-            <View style={styles.itemMetaLeft}>
-              <Badge label={statusInfo.label} variant={statusInfo.variant} />
-              {item.priority === 'EMERGENCY' && (
-                <Badge label={getPriorityLabel(item.priority, t)} variant="danger" />
-              )}
-            </View>
-            <Text style={styles.itemDate}>
-              {new Date(item.createdAt).toLocaleDateString(i18n.language, {
-                day: '2-digit',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-          </View>
-
-          <Text style={styles.itemTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-
-          <View style={styles.itemFooter}>
-            <View style={styles.detailsRow}>
-              {unitText && (
-                <View style={styles.tag}>
-                  <Building size={13} color={Colors.textMuted} />
-                  <Text style={styles.tagText}>{unitText}</Text>
-                </View>
-              )}
-              <View style={styles.tag}>
-                <Wrench size={13} color={Colors.textMuted} />
-                <Text style={styles.tagText}>{getCategoryLabel(item.category, t)}</Text>
+      <AnimatedEntrance index={index}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.navigate('RequestDetail', { requestId: item.id });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, ${stInfo.label}`}
+        >
+          <Card
+            style={[
+              styles.requestCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: overdue
+                  ? theme.colors.danger
+                  : isUrgent
+                  ? theme.colors.warning
+                  : theme.colors.border,
+                borderWidth: overdue || isUrgent ? 1.5 : 1,
+              },
+            ]}
+          >
+            {/* Top row: Status, Overdue SLA & Created Date */}
+            <View style={styles.cardTopRow}>
+              <View style={styles.badgesWrap}>
+                <Badge label={stInfo.label} variant={badgeVariant} size="sm" />
+                {overdue && (
+                  <Badge
+                    label={t('staff.requests.overdueBadge')}
+                    variant="danger"
+                    size="sm"
+                  />
+                )}
+                {!overdue && isUrgent && (
+                  <Badge
+                    label={t('staff.requests.urgentBadge')}
+                    variant="warning"
+                    size="sm"
+                  />
+                )}
               </View>
-              {item.priority !== 'EMERGENCY' && (
-                <View style={styles.tag}>
-                  <AlertCircle size={13} color={Colors.textMuted} />
-                  <Text style={styles.tagText}>{getPriorityLabel(item.priority, t)}</Text>
-                </View>
-              )}
+
+              <Text
+                style={[
+                  styles.createdDate,
+                  { color: theme.colors.textMuted },
+                  theme.typography.caption,
+                ]}
+              >
+                {new Date(item.createdAt).toLocaleDateString([], {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </Text>
             </View>
-            <ChevronRight size={18} color={Colors.textMuted} />
-          </View>
-        </Card>
-      </TouchableOpacity>
+
+            {/* Category & Priority Pill */}
+            <View style={styles.categoryRow}>
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: theme.colors.primary },
+                  theme.typography.caption,
+                ]}
+              >
+                {getCategoryLabel(item.category, t)}
+              </Text>
+              <Text style={[styles.dotSep, { color: theme.colors.textMuted }]}>•</Text>
+              <Text
+                style={[
+                  styles.priorityText,
+                  { color: theme.colors.textMuted },
+                  theme.typography.caption,
+                ]}
+              >
+                {getPriorityLabel(item.priority, t)}
+              </Text>
+            </View>
+
+            {/* Title & Description */}
+            <Text
+              style={[
+                styles.requestTitle,
+                { color: theme.colors.text },
+                theme.typography.headline,
+              ]}
+              numberOfLines={2}
+            >
+              {item.title}
+            </Text>
+            {Boolean(item.description) && (
+              <Text
+                style={[
+                  styles.requestDesc,
+                  { color: theme.colors.textMuted },
+                  theme.typography.caption,
+                ]}
+                numberOfLines={2}
+              >
+                {item.description}
+              </Text>
+            )}
+
+            {/* Unit & Assignee Footer */}
+            <View
+              style={[
+                styles.cardFooter,
+                {
+                  borderTopColor: theme.colors.border,
+                },
+              ]}
+            >
+              <View style={styles.footerInfo}>
+                {Boolean(unitStr) && (
+                  <View style={styles.footerItem}>
+                    <Building size={14} color={theme.colors.textMuted} />
+                    <Text
+                      style={[
+                        styles.footerItemText,
+                        { color: theme.colors.text },
+                        theme.typography.caption,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {unitStr}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.footerItem}>
+                  <User size={14} color={theme.colors.textMuted} />
+                  <Text
+                    style={[
+                      styles.footerItemText,
+                      {
+                        color: item.assignee
+                          ? theme.colors.text
+                          : theme.colors.textMuted,
+                      },
+                      theme.typography.caption,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.assignee
+                      ? `${item.assignee.firstName} ${item.assignee.lastName}`
+                      : t('staff.requests.notAssigned')}
+                  </Text>
+                </View>
+              </View>
+
+              <ChevronRight size={18} color={theme.colors.textMuted} />
+            </View>
+          </Card>
+        </TouchableOpacity>
+      </AnimatedEntrance>
     );
   };
 
-  if (loading && requests.length === 0) {
-    return <LoadingState message={t('requests.loadingRequests')} />;
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('staff.requests.title')}</Text>
-        <Text style={styles.headerSubtitle}>{t('staff.requests.subtitle')}</Text>
-      </View>
+      <View
+        style={[
+          styles.headerWrap,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+          },
+        ]}
+      >
+        <View style={styles.headerRow}>
+          <View style={styles.headerTextWrap}>
+            <Text
+              style={[
+                styles.title,
+                { color: theme.colors.text },
+                theme.typography.title,
+              ]}
+            >
+              {t('staff.requests.title')}
+            </Text>
+            <Text
+              style={[
+                styles.subtitle,
+                { color: theme.colors.textMuted },
+                theme.typography.caption,
+              ]}
+            >
+              {t('staff.requests.subtitle')}
+            </Text>
+          </View>
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <Input
-          placeholder={t('staff.requests.searchPlaceholder')}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          containerStyle={{ marginBottom: 0 }}
-        />
-      </View>
+          {isChairman && (
+            <Badge
+              label={t('staff.requests.readOnlyBadge')}
+              variant="warning"
+              size="sm"
+            />
+          )}
+        </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterSection}>
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Input
+            label={t('common.search')}
+            placeholder={t('staff.requests.searchPlaceholder')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            leftIcon={<Search size={18} color={theme.colors.textMuted} />}
+          />
+        </View>
+
+        {/* Status Filters Horizontal Scroll */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
           {filterOptions.map((opt) => {
-            const count = opt.key === 'ALL'
-              ? requests.length
-              : requests.filter((r) => r.status === opt.key).length;
-            const isActive = selectedStatus === opt.key;
+            const isSelected = selectedStatus === opt.key;
+            const count = statusCounts[opt.key] ?? 0;
 
             return (
               <TouchableOpacity
                 key={opt.key}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-                onPress={() => setSelectedStatus(opt.key)}
-                activeOpacity={0.8}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: isSelected
+                      ? theme.colors.primary
+                      : theme.colors.surface,
+                    borderColor: isSelected
+                      ? theme.colors.primary
+                      : theme.colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  safeHaptic.selection();
+                  setSelectedStatus(opt.key);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`${opt.label} (${count})`}
               >
-                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                  {opt.label} ({count})
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    {
+                      color: isSelected
+                        ? theme.colors.onPrimary
+                        : theme.colors.text,
+                    },
+                    theme.typography.caption,
+                  ]}
+                >
+                  {opt.label}
                 </Text>
+                <View
+                  style={[
+                    styles.chipCountBadge,
+                    {
+                      backgroundColor: isSelected
+                        ? 'rgba(255, 255, 255, 0.25)'
+                        : theme.colors.surfaceSubtle,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.chipCountText,
+                      {
+                        color: isSelected
+                          ? theme.colors.onPrimary
+                          : theme.colors.textMuted,
+                      },
+                      theme.typography.caption,
+                    ]}
+                  >
+                    {count}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -208,157 +431,182 @@ export const StaffRequestsListScreen: React.FC = () => {
       </View>
 
       {/* Requests List */}
-      <FlatList
-        data={filteredRequests}
-        keyExtractor={(item) => item.id}
-        renderItem={renderRequestItem}
-        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary]}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Wrench size={48} color={Colors.textLight} />
-            <Text style={styles.emptyTitle}>{t('staff.requests.emptyTitle')}</Text>
-            <Text style={styles.emptySubtitle}>{t('staff.requests.emptySubtitle')}</Text>
-          </View>
-        }
-      />
-    </SafeAreaView>
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <SkeletonList count={4} />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredRequests}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: tabBarInset + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          }
+          ListEmptyComponent={
+            <Card
+              style={[
+                styles.emptyCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <EmptyState
+                title={t('staff.requests.emptyTitle')}
+                description={t('staff.requests.emptySubtitle')}
+              />
+            </Card>
+          }
+        />
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  header: {
+  headerWrap: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
-  headerTitle: {
-    fontSize: 22,
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  headerTextWrap: {
+    flex: 1,
+    marginRight: 10,
+  },
+  title: {
     fontWeight: '700',
-    color: Colors.text,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 2,
+  subtitle: {
+    fontWeight: '400',
   },
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  filterSection: {
-    marginVertical: 8,
+  searchBar: {
+    marginBottom: 10,
   },
   filterScroll: {
-    paddingHorizontal: 16,
     gap: 8,
+    paddingVertical: 2,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    gap: 6,
+    minHeight: 36,
   },
   filterChipText: {
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
     fontWeight: '600',
   },
-  listContent: {
+  chipCountBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  chipCountText: {
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  loadingWrap: {
     padding: 16,
+  },
+  listContent: {
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 32,
+    gap: 12,
   },
-  itemCard: {
-    marginBottom: 12,
-    padding: 14,
+  requestCard: {
+    padding: 16,
+    borderRadius: 16,
   },
-  itemHeader: {
+  cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  itemMetaLeft: {
+  badgesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
+  },
+  createdDate: {
+    fontWeight: '400',
+  },
+  categoryRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 6,
     gap: 6,
   },
-  itemDate: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  itemTitle: {
-    fontSize: 16,
+  categoryText: {
     fontWeight: '600',
-    color: Colors.text,
-    lineHeight: 22,
-    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
-  itemFooter: {
+  dotSep: {
+    fontWeight: '700',
+  },
+  priorityText: {
+    fontWeight: '500',
+  },
+  requestTitle: {
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  requestDesc: {
+    fontWeight: '400',
+    marginBottom: 12,
+  },
+  cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
     paddingTop: 10,
-    marginTop: 2,
+    marginTop: 4,
   },
-  detailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 10,
+  footerInfo: {
     flex: 1,
-    marginRight: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    alignItems: 'center',
   },
-  tag: {
+  footerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
-  tagText: {
-    fontSize: 12,
-    color: Colors.textMuted,
+  footerItemText: {
+    fontWeight: '500',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.text,
-    marginTop: 16,
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
+  emptyCard: {
+    paddingVertical: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 12,
   },
 });
