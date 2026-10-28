@@ -7,9 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { Colors } from '../../constants/colors';
-import { KeyRound, Delete, X } from 'lucide-react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+  useReducedMotion,
+} from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../../theme/ThemeContext';
+import { safeHaptic } from '../../lib/haptics';
+import { KeyRound, Delete, X } from 'lucide-react-native';
 
 interface PinEntryModalProps {
   visible: boolean;
@@ -31,7 +39,11 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
   onForgotPin,
 }) => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
+  const reducedMotion = useReducedMotion();
+
   const [pin, setPin] = useState('');
+  const shakeOffset = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
@@ -39,20 +51,43 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (error) {
+      safeHaptic.notification();
+      if (!reducedMotion) {
+        shakeOffset.value = withSequence(
+          withTiming(-12, { duration: 50 }),
+          withTiming(12, { duration: 50 }),
+          withTiming(-10, { duration: 50 }),
+          withTiming(10, { duration: 50 }),
+          withTiming(-5, { duration: 50 }),
+          withTiming(0, { duration: 50 })
+        );
+      }
+    }
+  }, [error, reducedMotion, shakeOffset]);
+
   const handleKeyPress = (num: string) => {
     if (pin.length < 6 && !loading) {
-      setPin((prev) => prev + num);
+      safeHaptic.selection();
+      const nextPin = pin + num;
+      setPin(nextPin);
+      if (nextPin.length === 4 || nextPin.length === 6) {
+        // Can submit or auto-submit on 6
+      }
     }
   };
 
   const handleDelete = () => {
     if (pin.length > 0 && !loading) {
+      safeHaptic.selection();
       setPin((prev) => prev.slice(0, -1));
     }
   };
 
   const handleClear = () => {
     if (!loading) {
+      safeHaptic.selection();
       setPin('');
     }
   };
@@ -61,9 +96,21 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
 
   const handleSubmit = () => {
     if (canSubmit) {
+      safeHaptic.selection();
       onConfirm(pin);
     }
   };
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeOffset.value }],
+  }), [shakeOffset]);
+
+  const keypadButtons = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['C', '0', 'DEL'],
+  ];
 
   return (
     <Modal
@@ -72,30 +119,64 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
       animationType="fade"
       onRequestClose={onCancel}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modalCard}>
+      <View
+        style={[
+          styles.overlay,
+          { backgroundColor: theme.colors.overlay },
+        ]}
+      >
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              ...theme.shadows.floating,
+            },
+          ]}
+        >
           {/* Close button */}
           <TouchableOpacity
             style={styles.closeButton}
             onPress={onCancel}
             disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.close')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <X color={Colors.textMuted} size={22} />
+            <X color={theme.colors.textMuted} size={22} />
           </TouchableOpacity>
 
+          {/* Header */}
           <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <KeyRound color="#FFFFFF" size={28} />
+            <View
+              style={[
+                styles.iconCircle,
+                { backgroundColor: theme.colors.primary },
+              ]}
+            >
+              <KeyRound color={theme.colors.onPrimary} size={26} />
             </View>
-            <Text style={styles.title}>{t('access.enterPinTitle')}</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>
+              {t('access.enterPinTitle')}
+            </Text>
+            <Text
+              style={[styles.subtitle, { color: theme.colors.textMuted }]}
+            >
               {t('access.pin2faSubtitle')}{'\n'}
-              <Text style={styles.pointHighlight}>«{accessPointName}»</Text>
+              <Text
+                style={[
+                  styles.pointHighlight,
+                  { color: theme.colors.primary },
+                ]}
+              >
+                «{accessPointName}»
+              </Text>
             </Text>
           </View>
 
-          {/* Dots Indicator */}
-          <View style={styles.dotsContainer}>
+          {/* Dots Indicator with Shake */}
+          <Animated.View style={[styles.dotsContainer, shakeStyle]}>
             {Array.from({ length: 6 }).map((_, i) => {
               const isFilled = i < pin.length;
               return (
@@ -103,63 +184,109 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
                   key={i}
                   style={[
                     styles.dot,
-                    isFilled && styles.dotFilled,
-                    i >= 4 && !isFilled && styles.dotOptional,
+                    {
+                      borderColor: isFilled
+                        ? theme.colors.primary
+                        : theme.colors.border,
+                      backgroundColor: isFilled
+                        ? theme.colors.primary
+                        : theme.colors.surfaceSubtle,
+                    },
                   ]}
                 />
               );
             })}
-          </View>
+          </Animated.View>
 
-          {/* Error display */}
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+          {/* Error Message if any */}
+          {error && (
+            <Text
+              style={[styles.errorText, { color: theme.colors.danger }]}
+              accessibilityLiveRegion="polite"
+            >
+              {error}
+            </Text>
+          )}
 
-          {/* Keypad */}
-          <View style={styles.keypad}>
-            {[
-              ['1', '2', '3'],
-              ['4', '5', '6'],
-              ['7', '8', '9'],
-              ['C', '0', 'DEL'],
-            ].map((row, rIdx) => (
-              <View key={rIdx} style={styles.keypadRow}>
-                {row.map((btn) => {
-                  if (btn === 'C') {
+          {/* Numeric Keypad Grid */}
+          <View style={styles.keypadGrid}>
+            {keypadButtons.map((row, rowIdx) => (
+              <View key={rowIdx} style={styles.keypadRow}>
+                {row.map((item) => {
+                  if (item === 'C') {
                     return (
                       <TouchableOpacity
-                        key={btn}
-                        style={styles.keypadButtonSpecial}
+                        key={item}
+                        style={[
+                          styles.keypadKey,
+                          styles.actionKey,
+                          {
+                            backgroundColor: theme.colors.surfaceSubtle,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
                         onPress={handleClear}
                         disabled={loading || pin.length === 0}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('access.keypadClear')}
                       >
-                        <Text style={styles.keypadSpecialText}>{t('access.resetKeypad')}</Text>
+                        <Text
+                          style={[
+                            styles.actionKeyText,
+                            { color: theme.colors.textMuted },
+                          ]}
+                        >
+                          C
+                        </Text>
                       </TouchableOpacity>
                     );
                   }
-                  if (btn === 'DEL') {
+
+                  if (item === 'DEL') {
                     return (
                       <TouchableOpacity
-                        key={btn}
-                        style={styles.keypadButtonSpecial}
+                        key={item}
+                        style={[
+                          styles.keypadKey,
+                          styles.actionKey,
+                          {
+                            backgroundColor: theme.colors.surfaceSubtle,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
                         onPress={handleDelete}
                         disabled={loading || pin.length === 0}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('access.keypadBackspace')}
                       >
-                        <Delete color={Colors.text} size={22} />
+                        <Delete color={theme.colors.textMuted} size={22} />
                       </TouchableOpacity>
                     );
                   }
+
                   return (
                     <TouchableOpacity
-                      key={btn}
-                      style={styles.keypadButton}
-                      onPress={() => handleKeyPress(btn)}
+                      key={item}
+                      style={[
+                        styles.keypadKey,
+                        {
+                          backgroundColor: theme.colors.surfaceSubtle,
+                          borderColor: theme.colors.border,
+                        },
+                      ]}
+                      onPress={() => handleKeyPress(item)}
                       disabled={loading || pin.length >= 6}
+                      accessibilityRole="button"
+                      accessibilityLabel={item}
                     >
-                      <Text style={styles.keypadNumberText}>{btn}</Text>
+                      <Text
+                        style={[
+                          styles.numberKeyText,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {item}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -167,29 +294,61 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
             ))}
           </View>
 
-          {/* Submit Action */}
+          {/* Confirm Button */}
           <TouchableOpacity
-            style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              {
+                backgroundColor: canSubmit
+                  ? theme.colors.primary
+                  : theme.colors.surfaceSubtle,
+                borderColor: canSubmit
+                  ? theme.colors.primaryDark
+                  : theme.colors.border,
+                opacity: canSubmit ? 1 : 0.6,
+              },
+            ]}
             onPress={handleSubmit}
             disabled={!canSubmit}
+            accessibilityRole="button"
+            accessibilityLabel={t('access.openBarrierAction')}
           >
             {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color={theme.colors.onPrimary} size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>{t('access.openBarrierAction')}</Text>
+              <Text
+                style={[
+                  styles.submitButtonText,
+                  {
+                    color: canSubmit
+                      ? theme.colors.onPrimary
+                      : theme.colors.textLight,
+                  },
+                ]}
+              >
+                {t('access.openBarrierAction')}
+              </Text>
             )}
           </TouchableOpacity>
 
-          {/* Forgot PIN */}
-          {onForgotPin ? (
+          {/* Forgot PIN Link */}
+          {onForgotPin && (
             <TouchableOpacity
-              style={styles.forgotButton}
               onPress={onForgotPin}
               disabled={loading}
+              style={styles.forgotButton}
+              accessibilityRole="link"
             >
-              <Text style={styles.forgotButtonText}>{t('access.forgotPinPrompt')}</Text>
+              <Text
+                style={[
+                  styles.forgotText,
+                  { color: theme.colors.primary },
+                ]}
+              >
+                {t('access.forgotPinPrompt')}
+              </Text>
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
       </View>
     </Modal>
@@ -199,45 +358,34 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
   },
   modalCard: {
     width: '100%',
-    maxWidth: 360,
-    backgroundColor: Colors.card,
+    maxWidth: 380,
     borderRadius: 24,
+    borderWidth: 1.5,
     padding: 24,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 10,
+    position: 'relative',
   },
   closeButton: {
     position: 'absolute',
     top: 16,
     right: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.background,
+    padding: 6,
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -245,110 +393,83 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.3,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.textMuted,
     textAlign: 'center',
-    marginTop: 4,
     lineHeight: 18,
   },
   pointHighlight: {
-    color: Colors.primary,
     fontWeight: '700',
   },
   dotsContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
+    marginVertical: 14,
   },
   dot: {
     width: 14,
     height: 14,
     borderRadius: 7,
     borderWidth: 1.5,
-    borderColor: Colors.border || '#CBD5E1',
-    backgroundColor: 'transparent',
-  },
-  dotFilled: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  dotOptional: {
-    borderStyle: 'dashed',
-    opacity: 0.5,
-  },
-  errorContainer: {
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
   },
   errorText: {
-    fontSize: 12,
-    color: Colors.danger || '#EF4444',
-    textAlign: 'center',
+    fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  keypad: {
+  keypadGrid: {
     width: '100%',
-    marginBottom: 20,
+    maxWidth: 300,
+    gap: 10,
+    marginVertical: 12,
   },
   keypadRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    gap: 10,
   },
-  keypadButton: {
-    width: 68,
+  keypadKey: {
+    flex: 1,
     height: 52,
-    borderRadius: 14,
-    backgroundColor: Colors.background,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keypadButtonSpecial: {
-    width: 68,
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+  actionKey: {
+    paddingHorizontal: 4,
   },
-  keypadNumberText: {
+  numberKeyText: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.text,
   },
-  keypadSpecialText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
+  actionKeyText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   submitButton: {
     width: '100%',
     height: 48,
     borderRadius: 14,
-    backgroundColor: Colors.primary,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  submitButtonDisabled: {
-    opacity: 0.4,
+    marginTop: 8,
   },
   submitButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
   },
   forgotButton: {
-    marginTop: 14,
-    paddingVertical: 4,
+    paddingVertical: 12,
+    marginTop: 4,
   },
-  forgotButtonText: {
+  forgotText: {
     fontSize: 13,
-    color: Colors.primary,
     fontWeight: '600',
   },
 });

@@ -1,8 +1,14 @@
 import React, { useMemo } from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { RootStackParamList } from './types';
+
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+if (typeof window !== 'undefined') {
+  (window as any).navigationRef = navigationRef;
+}
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../theme/ThemeContext';
 import { AuthStack } from './AuthStack';
@@ -63,7 +69,7 @@ export const RootNavigator: React.FC = () => {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <NavigationContainer theme={navTheme}>
+      <NavigationContainer ref={navigationRef} theme={navTheme}>
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

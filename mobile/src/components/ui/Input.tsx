@@ -8,6 +8,7 @@ import {
   ViewStyle,
   TextStyle,
   Pressable,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -137,6 +138,12 @@ export const Input: React.FC<InputProps> = ({
                 color: theme.colors.text,
                 paddingTop: hasValue || isFocused ? 14 : 0,
               },
+              Platform.OS === 'web'
+                ? ({
+                    outlineStyle: 'none',
+                    outlineWidth: 0,
+                  } as any)
+                : null,
               inputStyle,
             ]}
             placeholderTextColor={theme.colors.textLight}
@@ -194,6 +201,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     paddingVertical: 8,
+    ...(Platform.OS === 'web'
+      ? ({
+          outlineStyle: 'none',
+          outlineWidth: 0,
+        } as any)
+      : {}),
   },
   rightSlot: {
     marginLeft: 8,

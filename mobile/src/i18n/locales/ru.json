@@ -33,7 +33,9 @@
     "all": "Все",
     "unitShort": "кв.",
     "sqm": "м²",
-    "kazakhAlphabet": "Казахские символы: Ә І Ң Ғ Ү Ұ Қ Ө Һ"
+    "kazakhAlphabet": "Казахские символы: Ә І Ң Ғ Ү Ұ Қ Ө Һ",
+    "hoursShort": "ч.",
+    "minsShort": "мин."
   },
   "navigation": {
     "home": "Главная",
@@ -133,7 +135,17 @@
     "sharePercentHelper": "По умолчанию 100%, если владеете квартирой полностью",
     "submitClaimBtn": "Отправить заявку в УК",
     "selectUnitError": "Пожалуйста, выберите вашу квартиру из списка",
-    "claimSentSuccess": "Заявка на привязку квартиры отправлена на рассмотрение в УК!"
+    "claimSentSuccess": "Заявка на привязку квартиры отправлена на рассмотрение в УК!",
+    "stepComplex": "ЖК",
+    "stepBlock": "Блок",
+    "stepUnit": "Помещение",
+    "stepConfirm": "Подтверждение",
+    "chooseBlock": "Выберите блок / подъезд",
+    "chooseUnit": "Выберите квартиру или помещение",
+    "noBlocksFound": "В этом ЖК пока нет добавленных блоков",
+    "noUnitsFound": "В выбранном блоке нет свободных помещений",
+    "selectedComplex": "Выбранный комплекс",
+    "selectedUnit": "Выбранное помещение"
   },
   "access": {
     "title": "Управление доступом",
@@ -237,7 +249,17 @@
     "intercomsSection": "Домофоны",
     "noIntercoms": "В вашем ЖК пока нет настроенных домофонов",
     "pointTypeIntercom": "Домофон",
-    "holdToOpenIntercom": "Удерживайте для открытия двери"
+    "holdToOpenIntercom": "Удерживайте для открытия двери",
+    "copyCode": "Копировать код",
+    "codeCopied": "Код скопирован в буфер обмена",
+    "pointOnline": "В сети",
+    "pointOffline": "Не в сети",
+    "passActive": "Пропуск активен",
+    "passExpiresIn": "Истекает через {{time}}",
+    "keypadClear": "C",
+    "keypadBackspace": "Стереть",
+    "keypadSubmit": "Подтвердить",
+    "incorrectPin": "Неверный PIN-код доступа"
   },
   "votings": {
     "title": "Голосования ОСС",
@@ -291,7 +313,7 @@
     "devSmsBody": "Код: {{code}}"
   },
   "requests": {
-    "serviceDesk": "Service Desk",
+    "serviceDesk": "Заявки и услуги",
     "subtitle": "Заявки на ремонт, сантехнику и обслуживание дома",
     "createBtn": "Создать",
     "tabAll": "Все ({{count}})",
@@ -351,7 +373,26 @@
     "prioLow": "Низкий",
     "prioMedium": "Обычный",
     "prioHigh": "Высокий",
-    "prioEmergency": "Аварийный"
+    "prioEmergency": "Аварийный",
+    "timelineTitle": "Ход выполнения",
+    "commentsTitle": "Комментарии и переписка",
+    "commentPlaceholder": "Написать комментарий...",
+    "sendComment": "Отправить",
+    "stepCategory": "Категория",
+    "stepDescription": "Описание",
+    "stepPhotos": "Фото",
+    "stepPriority": "Срочность",
+    "stepConfirmation": "Подтверждение",
+    "photosOptional": "Прикрепить фото (до 5 шт.)",
+    "viewPhoto": "Просмотр фото",
+    "closePhoto": "Закрыть",
+    "selectCategory": "Выберите категорию проблемы",
+    "nextStep": "Далее",
+    "prevStep": "Назад",
+    "priorityLowDesc": "Плановые работы, не требующие срочности",
+    "priorityMediumDesc": "Стандартная заявка в течение 24 часов",
+    "priorityHighDesc": "Требуется устранение в течение 4 часов",
+    "priorityEmergencyDesc": "Аварийная ситуация, выезд немедленно"
   },
   "announcements": {
     "title": "Новости и оповещения",
@@ -359,7 +400,10 @@
     "emptyNewsTitle": "Новостей пока нет",
     "emptyNewsSubtitle": "Здесь будут публиковаться объявления управляющей компании, отчеты и информация об отключениях",
     "urgentBadgeText": "ЭКСТРЕННОЕ ОПОВЕЩЕНИЕ",
-    "regularBadgeText": "Объявление"
+    "regularBadgeText": "Объявление",
+    "readMore": "Читать полностью",
+    "showLess": "Свернуть",
+    "publishedAt": "Опубликовано: {{date}}"
   },
   "dashboard": {
     "welcome": "С возвращением, {{name}}!",
@@ -542,7 +586,10 @@
       "ACTIVE": "Активен",
       "RESOLVED": "Обработан",
       "FALSE_ALARM": "Ложный вызов"
-    }
+    },
+    "pressAndHold": "Нажмите и удерживайте 1.5 сек",
+    "signalSent": "Сигнал SOS отправлен",
+    "timelineDate": "Время вызова: {{date}}"
   },
   "communityBoard": {
     "screenTitle": "Доска объявлений",
@@ -605,7 +652,13 @@
     "dispatcherFallback": "Диспетчер",
     "supportTeam": "Служба заботы",
     "today": "Сегодня",
-    "photoLabel": "Фото"
+    "photoLabel": "Фото",
+    "delivered": "Доставлено",
+    "sent": "Отправлено",
+    "read": "Прочитано",
+    "yesterday": "Вчера",
+    "attachPhoto": "Фото",
+    "connecting": "Подключение к чату..."
   },
   "errors": {
     "AUTH": {
@@ -1025,6 +1078,23 @@
     "minutesAgo": "{{count}} мин. назад",
     "hoursAgo": "{{count}} ч. назад",
     "daysAgo": "{{count}} дн. назад",
-    "allRead": "Все уведомления прочитаны"
+    "allRead": "Все уведомления прочитаны",
+    "sectionToday": "Сегодня",
+    "sectionYesterday": "Вчера",
+    "sectionEarlier": "Ранее",
+    "markAsRead": "Отметить как прочитанное"
+  },
+  "roles": {
+    "RESIDENT_OWNER": "Собственник",
+    "RESIDENT_TENANT": "Арендатор",
+    "RESIDENT": "Житель",
+    "HOA_ADMIN": "Управляющий / ОСИ",
+    "HOA_CHAIRMAN": "Председатель ОСИ",
+    "DISPATCHER": "Диспетчер",
+    "SECURITY": "Охрана",
+    "SUPERADMIN": "Суперадминистратор",
+    "OWNER": "Собственник",
+    "TENANT": "Арендатор",
+    "FAMILY_MEMBER": "Член семьи"
   }
 }

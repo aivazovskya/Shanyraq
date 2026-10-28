@@ -1,24 +1,229 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
-  FlatList,
+  SectionList,
   RefreshControl,
   TouchableOpacity,
+  PanResponder,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  useReducedMotion,
+  runOnJS,
+} from 'react-native-reanimated';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { NotificationsApi, NotificationItem } from '../../api/notifications';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Colors } from '../../constants/colors';
-import { ArrowLeft, Bell, CheckCheck, ChevronRight } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeContext';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  Button,
+  IconButton,
+  EmptyState,
+  SkeletonList,
+  AnimatedEntrance,
+} from '../../components/ui';
+import {
+  ArrowLeft,
+  Bell,
+  CheckCheck,
+  ChevronRight,
+  AlertTriangle,
+  MessageSquare,
+  Wrench,
+  Vote,
+  CreditCard,
+  Calendar,
+  Check,
+} from 'lucide-react-native';
+
+interface NotificationCardProps {
+  item: NotificationItem;
+  onPress: () => void;
+  onMarkRead: () => void;
+}
+
+const NotificationCardItem: React.FC<NotificationCardProps> = ({
+  item,
+  onPress,
+  onMarkRead,
+}) => {
+  const { theme } = useTheme();
+  const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
+
+  const translateX = useSharedValue(0);
+
+  const triggerMarkRead = () => {
+    safeHaptic.selection();
+    onMarkRead();
+    translateX.value = withSpring(0);
+  };
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        return !item.isRead && Math.abs(gesture.dx) > 15 && Math.abs(gesture.dy) < 15;
+      },
+      onPanResponderMove: (_, gesture) => {
+        if (!item.isRead && gesture.dx < 0) {
+          translateX.value = Math.max(gesture.dx, -80);
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (!item.isRead && gesture.dx < -50) {
+          runOnJS(triggerMarkRead)();
+        } else {
+          translateX.value = withSpring(0);
+        }
+      },
+    })
+  ).current;
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }), [translateX]);
+
+  const getNotificationIcon = () => {
+    const type = item.data?.type || '';
+    if (type.includes('SOS')) {
+      return <AlertTriangle size={20} color={theme.colors.danger} />;
+    }
+    if (type.includes('CHAT')) {
+      return <MessageSquare size={20} color={theme.colors.primary} />;
+    }
+    if (type.includes('REQUEST')) {
+      return <Wrench size={20} color={theme.colors.info} />;
+    }
+    if (type.includes('VOTING')) {
+      return <Vote size={20} color={theme.colors.warning} />;
+    }
+    if (type.includes('BILL') || type.includes('FINANCE')) {
+      return <CreditCard size={20} color={theme.colors.success} />;
+    }
+    return <Bell size={20} color={theme.colors.primary} />;
+  };
+
+  const timeFormatted = new Date(item.createdAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <View style={styles.cardContainer} {...panResponder.panHandlers}>
+      {/* Background action button revealed on swipe */}
+      {!item.isRead && (
+        <View
+          style={[
+            styles.swipeActionBg,
+            { backgroundColor: theme.colors.primary },
+          ]}
+        >
+          <Check size={20} color={theme.colors.onPrimary} />
+          <Text
+            style={[
+              styles.swipeActionText,
+              { color: theme.colors.onPrimary },
+            ]}
+          >
+            {t('notifications.markAsRead')}
+          </Text>
+        </View>
+      )}
+
+      <Animated.View style={animatedStyle}>
+        <Card
+          onPress={onPress}
+          style={[
+            styles.itemCard,
+            {
+              backgroundColor: item.isRead
+                ? theme.colors.surface
+                : theme.colors.primaryBg,
+              borderColor: item.isRead
+                ? theme.colors.border
+                : theme.colors.primary,
+            },
+          ]}
+          accessibilityLabel={`${item.title}. ${item.body}`}
+        >
+          <View style={styles.cardRow}>
+            {/* Icon */}
+            <View
+              style={[
+                styles.iconWrap,
+                {
+                  backgroundColor: item.isRead
+                    ? theme.colors.surfaceSubtle
+                    : theme.colors.primaryBg,
+                },
+              ]}
+            >
+              {getNotificationIcon()}
+            </View>
+
+            {/* Texts */}
+            <View style={styles.textWrap}>
+              <View style={styles.titleRow}>
+                <Text
+                  style={[
+                    styles.itemTitle,
+                    {
+                      color: theme.colors.text,
+                      fontWeight: item.isRead ? '600' : '800',
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.title}
+                </Text>
+
+                {!item.isRead && (
+                  <View
+                    style={[
+                      styles.unreadDot,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
+                  />
+                )}
+              </View>
+
+              <Text
+                style={[styles.itemBody, { color: theme.colors.textMuted }]}
+                numberOfLines={2}
+              >
+                {item.body}
+              </Text>
+
+              <Text
+                style={[styles.itemTime, { color: theme.colors.textLight }]}
+              >
+                {timeFormatted}
+              </Text>
+            </View>
+
+            <ChevronRight size={18} color={theme.colors.textLight} />
+          </View>
+        </Card>
+      </Animated.View>
+    </View>
+  );
+};
 
 export const NotificationsScreen: React.FC = () => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { isStaffRole } = useAuth();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -50,33 +255,41 @@ export const NotificationsScreen: React.FC = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     fetchNotifications();
   };
 
   const handleMarkAllRead = async () => {
+    safeHaptic.selection();
     try {
       await NotificationsApi.markAllAsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
+      safeHaptic.notification();
     } catch (e) {
       console.warn('Failed to mark all as read:', e);
     }
   };
 
+  const handleMarkSingleRead = async (id: string) => {
+    try {
+      await NotificationsApi.markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (e) {
+      console.warn('Failed to mark as read:', e);
+    }
+  };
+
   const handleItemPress = async (item: NotificationItem) => {
     if (!item.isRead) {
-      try {
-        await NotificationsApi.markAsRead(item.id);
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n))
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      } catch (e) {
-        console.warn('Failed to mark notification as read:', e);
-      }
+      handleMarkSingleRead(item.id);
     }
 
-    // Actionable deep linking
+    safeHaptic.selection();
+
     const data = item.data;
     if (!data) return;
 
@@ -110,275 +323,250 @@ export const NotificationsScreen: React.FC = () => {
     }
   };
 
-  const formatRelativeTime = (isoDate: string): string => {
-    try {
-      const date = new Date(isoDate);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMinutes = Math.floor(diffMs / (1000 * 60));
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  // Group notifications into Today, Yesterday, Earlier
+  const sections = useMemo(() => {
+    const today: NotificationItem[] = [];
+    const yesterday: NotificationItem[] = [];
+    const earlier: NotificationItem[] = [];
 
-      if (diffMinutes < 1) return t('notifications.justNow');
-      if (diffMinutes < 60) return t('notifications.minutesAgo', { count: diffMinutes });
-      if (diffHours < 24) return t('notifications.hoursAgo', { count: diffHours });
-      return t('notifications.daysAgo', { count: diffDays });
-    } catch {
-      return '';
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+
+    notifications.forEach((item) => {
+      const itemTime = new Date(item.createdAt).getTime();
+      if (itemTime >= todayStart) {
+        today.push(item);
+      } else if (itemTime >= yesterdayStart) {
+        yesterday.push(item);
+      } else {
+        earlier.push(item);
+      }
+    });
+
+    const result = [];
+    if (today.length > 0) {
+      result.push({ title: t('notifications.sectionToday'), data: today });
     }
-  };
-
-  if (loading) {
-    return <LoadingState message={t('common.loading')} />;
-  }
+    if (yesterday.length > 0) {
+      result.push({ title: t('notifications.sectionYesterday'), data: yesterday });
+    }
+    if (earlier.length > 0) {
+      result.push({ title: t('notifications.sectionEarlier'), data: earlier });
+    }
+    return result;
+  }, [notifications, t]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
+        <IconButton
+          icon={<ArrowLeft color={theme.colors.text} size={22} />}
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <ArrowLeft size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.titleContainer}>
-          <Text style={styles.headerTitle}>{t('notifications.title')}</Text>
+          variant="ghost"
+          accessibilityLabel={t('common.back')}
+        />
+        <View style={styles.headerTitleWrap}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            {t('notifications.title')}
+          </Text>
           {unreadCount > 0 && (
-            <View style={styles.badgeContainer}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
+            <Badge
+              label={t('notifications.unreadBadge', { count: unreadCount })}
+              variant="primary"
+              size="sm"
+            />
           )}
         </View>
+
         {unreadCount > 0 ? (
-          <TouchableOpacity
+          <IconButton
+            icon={<CheckCheck size={20} color={theme.colors.primary} />}
             onPress={handleMarkAllRead}
-            style={styles.markAllButton}
-          >
-            <CheckCheck size={18} color={Colors.primary} />
-            <Text style={styles.markAllText}>{t('notifications.markAllAsRead')}</Text>
-          </TouchableOpacity>
+            variant="surface"
+            accessibilityLabel={t('notifications.markAllAsRead')}
+          />
         ) : (
-          <View style={styles.headerSpacer} />
+          <View style={{ width: 44 }} />
         )}
       </View>
 
-      {/* Notifications List */}
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+      {/* Content */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <SkeletonList count={5} />
+        </View>
+      ) : notifications.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <EmptyState
+            title={t('notifications.empty')}
+            description={t('notifications.emptySubtitle')}
           />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconCircle}>
-              <Bell size={36} color={Colors.textMuted} />
-            </View>
-            <Text style={styles.emptyTitle}>{t('notifications.empty')}</Text>
-            <Text style={styles.emptySubtitle}>{t('notifications.emptySubtitle')}</Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.notificationItem,
-              !item.isRead && styles.unreadItem,
-            ]}
-            onPress={() => handleItemPress(item)}
-            activeOpacity={0.7}
-          >
-            {/* Status dot */}
-            <View style={styles.indicatorContainer}>
-              <View
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + 24 },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
+          renderSectionHeader={({ section: { title } }) => (
+            <View
+              style={[
+                styles.sectionHeader,
+                { backgroundColor: theme.colors.background },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.unreadDot,
-                  { backgroundColor: !item.isRead ? Colors.primary : 'transparent' },
+                  styles.sectionHeaderText,
+                  { color: theme.colors.textMuted },
                 ]}
-              />
-            </View>
-
-            {/* Content */}
-            <View style={styles.itemContent}>
-              <View style={styles.itemHeader}>
-                <Text
-                  style={[
-                    styles.itemTitle,
-                    !item.isRead && styles.itemTitleUnread,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.title}
-                </Text>
-                <Text style={styles.itemTime}>
-                  {formatRelativeTime(item.createdAt)}
-                </Text>
-              </View>
-              <Text style={styles.itemBody} numberOfLines={3}>
-                {item.body}
+              >
+                {title}
               </Text>
             </View>
-
-            {/* Chevron */}
-            <View style={styles.chevronContainer}>
-              <ChevronRight size={16} color={Colors.textMuted} />
-            </View>
-          </TouchableOpacity>
-        )}
-      />
-    </SafeAreaView>
+          )}
+          renderItem={({ item }) => (
+            <NotificationCardItem
+              item={item}
+              onPress={() => handleItemPress(item)}
+              onMarkRead={() => handleMarkSingleRead(item.id)}
+            />
+          )}
+        />
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: 12,
+    paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  backButton: {
-    padding: 4,
-  },
-  titleContainer: {
+  headerTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
-  badgeContainer: {
-    backgroundColor: '#DC2626',
-    borderRadius: 12,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    minWidth: 20,
+  loadingContainer: {
+    padding: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  sectionHeader: {
+    paddingVertical: 10,
+    marginTop: 6,
+  },
+  sectionHeaderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  cardContainer: {
+    position: 'relative',
+    marginBottom: 10,
+  },
+  swipeActionBg: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '100%',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingRight: 20,
+    gap: 6,
+  },
+  swipeActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  itemCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+  textWrap: {
+    flex: 1,
   },
-  markAllButton: {
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    marginBottom: 3,
   },
-  markAllText: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  headerSpacer: {
-    width: 32,
-  },
-  listContent: {
-    paddingVertical: 8,
-    flexGrow: 1,
-  },
-  notificationItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.surface,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  unreadItem: {
-    backgroundColor: '#F0F9FF',
-  },
-  indicatorContainer: {
-    paddingTop: 5,
-    marginRight: 10,
+  itemTitle: {
+    fontSize: 15,
+    letterSpacing: -0.2,
+    flex: 1,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-  },
-  itemContent: {
-    flex: 1,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
-    flex: 1,
-    marginRight: 8,
-  },
-  itemTitleUnread: {
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  itemTime: {
-    fontSize: 11,
-    color: Colors.textMuted,
+    marginLeft: 6,
   },
   itemBody: {
     fontSize: 13,
-    color: Colors.textMuted,
     lineHeight: 18,
+    marginBottom: 4,
   },
-  chevronContainer: {
-    paddingTop: 12,
-    paddingLeft: 8,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 100,
-    paddingHorizontal: 32,
-  },
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
+  itemTime: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 });

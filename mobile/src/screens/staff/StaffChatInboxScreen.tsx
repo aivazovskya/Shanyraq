@@ -19,6 +19,7 @@ import { Badge } from '../../components/common/Badge';
 import { createRealtimeSocket } from '../../lib/socket';
 import { Socket } from 'socket.io-client';
 import { Colors } from '../../constants/colors';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import {
   MessageSquare,
   Search,
@@ -32,6 +33,7 @@ import {
 type FilterStatus = 'ALL' | 'UNRESOLVED' | 'RESOLVED';
 
 export const StaffChatInboxScreen: React.FC = () => {
+  const tabBarInset = useTabBarInset(24);
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigation = useNavigation<any>();
@@ -363,7 +365,7 @@ export const StaffChatInboxScreen: React.FC = () => {
           data={filteredConversations}
           keyExtractor={(item) => item.id}
           renderItem={renderConversationItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

@@ -31,7 +31,7 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
   const { login } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const { showToast } = useToast();
+  const { showToast, hideDevCodeToast, hideToast } = useToast();
   const insets = useSafeAreaInsets();
 
   const [code, setCode] = useState('');
@@ -51,6 +51,12 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
     return () => clearInterval(timer);
   }, [countdown]);
 
+  useEffect(() => {
+    return () => {
+      hideDevCodeToast();
+    };
+  }, [hideDevCodeToast]);
+
   const handleVerify = useCallback(
     async (codeToVerify?: string) => {
       const targetCode = codeToVerify || code;
@@ -67,6 +73,8 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
       try {
         const authData = await AuthApi.verifyOtp(phone, targetCode);
         safeHaptic.notification();
+        hideDevCodeToast();
+        hideToast();
         await login(authData);
         // RootNavigator handles redirection automatically
       } catch (err: any) {

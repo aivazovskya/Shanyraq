@@ -21,6 +21,7 @@ import { sosApi, SosAlert, SosStatistics } from '../../api/sos';
 import { createRealtimeSocket } from '../../lib/socket';
 import { Socket } from 'socket.io-client';
 import { Colors } from '../../constants/colors';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import {
@@ -39,6 +40,7 @@ import {
 } from 'lucide-react-native';
 
 export const StaffSosScreen: React.FC = () => {
+  const tabBarInset = useTabBarInset(24);
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigation = useNavigation();
@@ -412,7 +414,7 @@ export const StaffSosScreen: React.FC = () => {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl

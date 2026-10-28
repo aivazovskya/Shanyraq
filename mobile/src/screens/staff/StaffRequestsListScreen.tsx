@@ -26,6 +26,7 @@ import { Badge } from '../../components/common/Badge';
 import { Input } from '../../components/common/Input';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import {
   Wrench,
   ChevronRight,
@@ -38,6 +39,7 @@ import {
 type FilterStatus = 'ALL' | RequestStatus;
 
 export const StaffRequestsListScreen: React.FC = () => {
+  const tabBarInset = useTabBarInset(24);
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
 
@@ -210,7 +212,7 @@ export const StaffRequestsListScreen: React.FC = () => {
         data={filteredRequests}
         keyExtractor={(item) => item.id}
         renderItem={renderRequestItem}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

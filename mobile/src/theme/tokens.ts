@@ -21,18 +21,23 @@ export interface ThemeColors {
 
   success: string;
   successBg: string;
+  successBorder: string;
   onSuccess: string;
 
   warning: string;
   warningBg: string;
+  warningBorder: string;
   onWarning: string;
 
   danger: string;
+  dangerDark: string;
   dangerBg: string;
+  dangerBorder: string;
   onDanger: string;
 
   info: string;
   infoBg: string;
+  infoBorder: string;
   onInfo: string;
 
   card: string;
@@ -66,18 +71,23 @@ export const lightColors: ThemeColors = {
 
   success: '#10B981',
   successBg: '#DEF7EC',
+  successBorder: '#A7F3D0',
   onSuccess: '#FFFFFF',
 
   warning: '#D97706',
   warningBg: '#FEF3C7',
+  warningBorder: '#FDE68A',
   onWarning: '#FFFFFF',
 
   danger: '#DC2626',
+  dangerDark: '#991B1B',
   dangerBg: '#FEE2E2',
+  dangerBorder: '#FECACA',
   onDanger: '#FFFFFF',
 
   info: '#2563EB',
   infoBg: '#EFF6FF',
+  infoBorder: '#BFDBFE',
   onInfo: '#FFFFFF',
 
   card: '#FFFFFF',
@@ -111,18 +121,23 @@ export const darkColors: ThemeColors = {
 
   success: '#34D399',
   successBg: '#064E3B',
+  successBorder: '#059669',
   onSuccess: '#062117',
 
   warning: '#FBBF24',
   warningBg: '#451A03',
+  warningBorder: '#B45309',
   onWarning: '#062117',
 
   danger: '#F87171',
+  dangerDark: '#7F1D1D',
   dangerBg: '#450A0A',
+  dangerBorder: '#B91C1C',
   onDanger: '#062117',
 
   info: '#60A5FA',
   infoBg: '#1E3A8A',
+  infoBorder: '#1D4ED8',
   onInfo: '#062117',
 
   card: '#111827',

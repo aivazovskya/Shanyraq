@@ -1,36 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+  useReducedMotion,
+} from 'react-native-reanimated';
+import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
-import { Input } from '../../components/common/Input';
-import { Button } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
-import { Colors } from '../../constants/colors';
-import { KeyRound, ArrowLeft, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeContext';
+import { useToast } from '../../context/ToastContext';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Button,
+  IconButton,
+  Card,
+  Badge,
+  Input,
+  SkeletonCard,
+  AnimatedEntrance,
+} from '../../components/ui';
+import {
+  KeyRound,
+  ArrowLeft,
+  ShieldCheck,
+  CheckCircle2,
+  Delete,
+  ShieldAlert,
+  RotateCcw,
+} from 'lucide-react-native';
 
 export const PinSetupScreen: React.FC = () => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
+  const { showToast } = useToast();
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
 
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [isPinSet, setIsPinSet] = useState(false);
   const [mode, setMode] = useState<'SETUP' | 'CHANGE' | 'FORGOT_OTP'>('SETUP');
 
-  // Form fields
+  // Multi-step pin entry: 0: currentPin (if CHANGE), 1: newPin, 2: confirmPin
+  const [pinStep, setPinStep] = useState<number>(0);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -40,9 +65,25 @@ export const PinSetupScreen: React.FC = () => {
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(0);
 
+  const shakeOffset = useSharedValue(0);
+
+  const fetchStatus = useCallback(async () => {
+    setCheckingStatus(true);
+    try {
+      const res = await AuthApi.getPinStatus();
+      setIsPinSet(res.isPinSet);
+      setMode(res.isPinSet ? 'CHANGE' : 'SETUP');
+      setPinStep(res.isPinSet ? 0 : 1);
+    } catch (e) {
+      console.warn('Failed to load PIN status:', e);
+    } finally {
+      setCheckingStatus(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
-  }, []);
+  }, [fetchStatus]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
@@ -54,397 +95,665 @@ export const PinSetupScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  const fetchStatus = async () => {
-    setCheckingStatus(true);
-    try {
-      const res = await AuthApi.getPinStatus();
-      setIsPinSet(res.isPinSet);
-      setMode(res.isPinSet ? 'CHANGE' : 'SETUP');
-    } catch (e) {
-      console.warn('Failed to load PIN status:', e);
-    } finally {
-      setCheckingStatus(false);
+  const triggerShake = (errMsg: string) => {
+    setError(errMsg);
+    safeHaptic.notification();
+    if (!reducedMotion) {
+      shakeOffset.value = withSequence(
+        withTiming(-12, { duration: 50 }),
+        withTiming(12, { duration: 50 }),
+        withTiming(-10, { duration: 50 }),
+        withTiming(10, { duration: 50 }),
+        withTiming(-5, { duration: 50 }),
+        withTiming(0, { duration: 50 })
+      );
     }
   };
 
-  const validateLocalPin = (pin: string): string | null => {
-    if (!/^\d{4}$|^\d{6}$/.test(pin)) {
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeOffset.value }],
+  }), [shakeOffset]);
+
+  const validateLocalPin = (pinStr: string): string | null => {
+    if (!/^\d{4}$|^\d{6}$/.test(pinStr)) {
       return t('access.pinValidationLength');
     }
-    const allSame = pin.split('').every((d) => d === pin[0]);
+    const allSame = pinStr.split('').every((d) => d === pinStr[0]);
     if (allSame) {
       return t('access.pinValidationSame');
     }
-    const weakList = ['1234', '4321', '0123', '3210', '9876', '6789', '2580', '123456', '654321'];
-    if (weakList.includes(pin)) {
+    const weakList = [
+      '1234',
+      '4321',
+      '0123',
+      '3210',
+      '9876',
+      '6789',
+      '2580',
+      '123456',
+      '654321',
+    ];
+    if (weakList.includes(pinStr)) {
       return t('access.pinValidationWeak');
     }
     return null;
   };
 
-  const handleSavePin = async () => {
+  const handleKeyPress = (num: string) => {
+    safeHaptic.selection();
     setError('');
 
-    if (mode === 'CHANGE' && !currentPin) {
-      setError(t('access.enterCurrentPinError'));
-      return;
+    if (pinStep === 0) {
+      if (currentPin.length < 6) setCurrentPin((prev) => prev + num);
+    } else if (pinStep === 1) {
+      if (newPin.length < 6) setNewPin((prev) => prev + num);
+    } else if (pinStep === 2) {
+      if (confirmPin.length < 6) setConfirmPin((prev) => prev + num);
     }
+  };
 
-    const pinErr = validateLocalPin(newPin);
-    if (pinErr) {
-      setError(pinErr);
-      return;
+  const handleDelete = () => {
+    safeHaptic.selection();
+    setError('');
+
+    if (pinStep === 0) {
+      setCurrentPin((prev) => prev.slice(0, -1));
+    } else if (pinStep === 1) {
+      setNewPin((prev) => prev.slice(0, -1));
+    } else if (pinStep === 2) {
+      setConfirmPin((prev) => prev.slice(0, -1));
     }
+  };
 
-    if (newPin !== confirmPin) {
-      setError(t('access.pinsDoNotMatchError'));
-      return;
+  const handleClear = () => {
+    safeHaptic.selection();
+    setError('');
+
+    if (pinStep === 0) setCurrentPin('');
+    else if (pinStep === 1) setNewPin('');
+    else if (pinStep === 2) setConfirmPin('');
+  };
+
+  const handleNextStep = async () => {
+    if (pinStep === 0) {
+      if (currentPin.length < 4) {
+        triggerShake(t('access.enterCurrentPinError'));
+        return;
+      }
+      setPinStep(1);
+    } else if (pinStep === 1) {
+      const err = validateLocalPin(newPin);
+      if (err) {
+        triggerShake(err);
+        return;
+      }
+      setPinStep(2);
+    } else if (pinStep === 2) {
+      if (newPin !== confirmPin) {
+        triggerShake(t('access.pinsDoNotMatchError'));
+        return;
+      }
+      await handleSavePin();
     }
+  };
 
+  const handleSavePin = async () => {
     setLoading(true);
+    setError('');
+
     try {
       await AuthApi.setPin({
         newPin,
         currentPin: mode === 'CHANGE' ? currentPin : undefined,
       });
-
-      Alert.alert(t('common.success'), t('access.pinSavedSuccess'), [
-        {
-          text: t('access.ok'),
-          onPress: () => navigation.goBack(),
-        },
-      ]);
-    } catch (err: any) {
-      setError(getApiErrorMessage(err));
+      safeHaptic.notification();
+      showToast({
+        type: 'success',
+        title: t('common.success'),
+        message: t('access.pinSavedSuccess'),
+      });
+      setTimeout(() => navigation.goBack(), 1200);
+    } catch (e: any) {
+      const msg = getApiErrorMessage(e);
+      triggerShake(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStartForgotPin = async () => {
+  const handleRequestOtp = async () => {
     setError('');
     setLoading(true);
+
     try {
       const res = await AuthApi.requestPinReset();
-      setMode('FORGOT_OTP');
       setCountdown(60);
+      safeHaptic.selection();
+
       if (res.devCode) {
-        Alert.alert(
-          t('access.devSmsTitle'),
-          t('access.devSmsBody', { code: res.devCode })
-        );
+        showToast({
+          type: 'info',
+          title: t('access.devSmsTitle'),
+          message: t('access.devSmsBody', { code: res.devCode }),
+          code: res.devCode,
+        });
       }
-    } catch (err: any) {
-      setError(getApiErrorMessage(err));
+    } catch (e: any) {
+      triggerShake(getApiErrorMessage(e));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfirmReset = async () => {
-    setError('');
-
-    if (!otpCode || otpCode.length !== 6) {
-      setError(t('access.smsOtpLabel'));
+  const handleResetWithOtp = async () => {
+    if (!otpCode.trim() || otpCode.trim().length < 4) {
+      triggerShake(t('auth.otpValidation'));
       return;
     }
 
     const pinErr = validateLocalPin(newPin);
     if (pinErr) {
-      setError(pinErr);
+      triggerShake(pinErr);
       return;
     }
 
     if (newPin !== confirmPin) {
-      setError(t('access.pinsDoNotMatchError'));
+      triggerShake(t('access.pinsDoNotMatchError'));
       return;
     }
 
     setLoading(true);
+    setError('');
+
     try {
       await AuthApi.confirmPinReset({
-        otpCode,
+        otpCode: otpCode.trim(),
         newPin,
       });
-
-      Alert.alert(t('common.success'), t('access.pinResetSuccess'), [
-        {
-          text: t('access.ok'),
-          onPress: () => navigation.goBack(),
-        },
-      ]);
-    } catch (err: any) {
-      setError(getApiErrorMessage(err));
+      safeHaptic.notification();
+      showToast({
+        type: 'success',
+        title: t('common.success'),
+        message: t('access.pinResetSuccess'),
+      });
+      setTimeout(() => navigation.goBack(), 1200);
+    } catch (e: any) {
+      triggerShake(getApiErrorMessage(e));
     } finally {
       setLoading(false);
     }
   };
 
+  const currentDisplayPin =
+    pinStep === 0 ? currentPin : pinStep === 1 ? newPin : confirmPin;
+
+  const currentPromptText =
+    pinStep === 0
+      ? t('access.currentPinLabel')
+      : pinStep === 1
+      ? t('access.newPinLabel')
+      : t('access.confirmPinLabel');
+
+  const keypadButtons = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['C', '0', 'DEL'],
+  ];
+
   if (checkingStatus) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerLoading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{t('access.checkingSecurityStatus')}</Text>
-        </View>
-      </SafeAreaView>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: theme.colors.background,
+            paddingTop: Math.max(insets.top, 16) + 12,
+            paddingHorizontal: 16,
+          },
+        ]}
+      >
+        <SkeletonCard style={{ height: 260 }} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
+        <IconButton
+          icon={<ArrowLeft color={theme.colors.text} size={22} />}
+          onPress={() => navigation.goBack()}
+          variant="ghost"
+          accessibilityLabel={t('common.back')}
+        />
+        <View style={styles.headerTitleWrap}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {mode === 'CHANGE'
+              ? t('access.pinChangeTitle')
+              : mode === 'FORGOT_OTP'
+              ? t('access.pinForgotTitle')
+              : t('access.pinSetupTitle')}
+          </Text>
+        </View>
+        <View style={{ width: 44 }} />
+      </View>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ArrowLeft color={Colors.text} size={24} />
-            <Text style={styles.backText}>{t('common.back')}</Text>
-          </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 40 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {mode === 'FORGOT_OTP' ? (
+            /* Forgot PIN via SMS OTP Form */
+            <AnimatedEntrance index={0}>
+              <Card style={styles.card}>
+                <View style={styles.promoHeader}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      { backgroundColor: theme.colors.primaryBg },
+                    ]}
+                  >
+                    <KeyRound size={26} color={theme.colors.primary} />
+                  </View>
+                  <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                    {t('access.pinForgotTitle')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.cardSubtitle,
+                      { color: theme.colors.textMuted },
+                    ]}
+                  >
+                    {t('access.smsOtpHelper')}
+                  </Text>
+                </View>
 
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <KeyRound color="#FFFFFF" size={32} />
-            </View>
-            <Text style={styles.title}>
-              {mode === 'SETUP'
-                ? t('access.pinSetupTitle')
-                : mode === 'CHANGE'
-                ? t('access.pinChangeTitle')
-                : t('access.pinForgotTitle')}
-            </Text>
-            <Text style={styles.subtitle}>
-              {t('access.pinSetupSubtitle')}
-            </Text>
-          </View>
+                <View style={styles.otpRow}>
+                  <Input
+                    label={t('access.smsOtpLabel')}
+                    placeholder={t('access.pinPlaceholderDigits')}
+                    value={otpCode}
+                    onChangeText={setOtpCode}
+                    keyboardType="number-pad"
+                    containerStyle={{ flex: 1 }}
+                  />
+                  <Button
+                    title={
+                      countdown > 0
+                        ? `${countdown}s`
+                        : t('access.confirmResetBtn')
+                    }
+                    onPress={handleRequestOtp}
+                    disabled={countdown > 0 || loading}
+                    variant="secondary"
+                    size="md"
+                    style={{ marginTop: 6 }}
+                  />
+                </View>
 
-          {/* Status info card */}
-          <Card style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              {isPinSet ? (
-                <CheckCircle2 color={Colors.success || '#10B981'} size={20} />
-              ) : (
-                <ShieldAlert color={Colors.warning || '#F59E0B'} size={20} />
-              )}
-              <Text style={styles.infoText}>
-                {isPinSet
-                  ? t('access.pinStatusActive')
-                  : t('access.pinStatusInactive')}
-              </Text>
-            </View>
-          </Card>
+                <Input
+                  label={t('access.newPinLabel')}
+                  placeholder={t('access.pinPlaceholderDigits')}
+                  value={newPin}
+                  onChangeText={setNewPin}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  containerStyle={{ marginBottom: 14 }}
+                />
 
-          {/* Form */}
-          <View style={styles.form}>
-            {mode === 'CHANGE' && (
-              <Input
-                label={t('access.currentPinLabel')}
-                value={currentPin}
-                onChangeText={(val) => {
-                  setError('');
-                  setCurrentPin(val.replace(/\D/g, '').slice(0, 6));
-                }}
-                keyboardType="number-pad"
-                secureTextEntry
-                maxLength={6}
-                placeholder="••••"
-              />
-            )}
+                <Input
+                  label={t('access.confirmPinLabel')}
+                  placeholder={t('access.confirmPinPlaceholder')}
+                  value={confirmPin}
+                  onChangeText={setConfirmPin}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  containerStyle={{ marginBottom: 20 }}
+                />
 
-            {mode === 'FORGOT_OTP' && (
-              <Input
-                label={t('access.smsOtpLabel')}
-                value={otpCode}
-                onChangeText={(val) => {
-                  setError('');
-                  setOtpCode(val.replace(/\D/g, '').slice(0, 6));
-                }}
-                keyboardType="number-pad"
-                maxLength={6}
-                placeholder="000000"
-                helper={t('access.smsOtpHelper')}
-              />
-            )}
+                {error ? (
+                  <Text
+                    style={[styles.errorText, { color: theme.colors.danger }]}
+                  >
+                    {error}
+                  </Text>
+                ) : null}
 
-            <Input
-              label={t('access.newPinLabel')}
-              value={newPin}
-              onChangeText={(val) => {
-                setError('');
-                setNewPin(val.replace(/\D/g, '').slice(0, 6));
-              }}
-              keyboardType="number-pad"
-              secureTextEntry
-              maxLength={6}
-              placeholder={t('access.pinPlaceholderDigits')}
-            />
+                <Button
+                  title={t('access.confirmResetBtn')}
+                  onPress={handleResetWithOtp}
+                  loading={loading}
+                  variant="primary"
+                  size="lg"
+                  style={{ width: '100%' }}
+                />
 
-            <Input
-              label={t('access.confirmPinLabel')}
-              value={confirmPin}
-              onChangeText={(val) => {
-                setError('');
-                setConfirmPin(val.replace(/\D/g, '').slice(0, 6));
-              }}
-              keyboardType="number-pad"
-              secureTextEntry
-              maxLength={6}
-              placeholder={t('access.confirmPinPlaceholder')}
-            />
+                <TouchableOpacity
+                  onPress={() => {
+                    setMode(isPinSet ? 'CHANGE' : 'SETUP');
+                    setPinStep(isPinSet ? 0 : 1);
+                  }}
+                  style={styles.switchModeBtn}
+                >
+                  <Text
+                    style={[
+                      styles.switchModeText,
+                      { color: theme.colors.primary },
+                    ]}
+                  >
+                    {t('access.returnToRegularInput')}
+                  </Text>
+                </TouchableOpacity>
+              </Card>
+            </AnimatedEntrance>
+          ) : (
+            /* PIN Setup / Change with Custom Keypad */
+            <AnimatedEntrance index={0}>
+              <Card style={styles.card}>
+                <View style={styles.promoHeader}>
+                  <View
+                    style={[
+                      styles.iconCircle,
+                      { backgroundColor: theme.colors.primaryBg },
+                    ]}
+                  >
+                    <KeyRound size={26} color={theme.colors.primary} />
+                  </View>
+                  <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                    {currentPromptText}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.cardSubtitle,
+                      { color: theme.colors.textMuted },
+                    ]}
+                  >
+                    {t('access.pinSetupSubtitle')}
+                  </Text>
+                </View>
 
-            {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorBoxText}>{error}</Text>
-              </View>
-            ) : null}
+                {/* Dots Indicator */}
+                <Animated.View style={[styles.dotsContainer, shakeStyle]}>
+                  {Array.from({ length: 6 }).map((_, i) => {
+                    const isFilled = i < currentDisplayPin.length;
+                    return (
+                      <View
+                        key={i}
+                        style={[
+                          styles.dot,
+                          {
+                            borderColor: isFilled
+                              ? theme.colors.primary
+                              : theme.colors.border,
+                            backgroundColor: isFilled
+                              ? theme.colors.primary
+                              : theme.colors.surfaceSubtle,
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </Animated.View>
 
-            <Button
-              title={
-                mode === 'FORGOT_OTP'
-                  ? t('access.confirmResetBtn')
-                  : mode === 'CHANGE'
-                  ? t('access.updatePinBtn')
-                  : t('access.savePinBtn')
-              }
-              onPress={mode === 'FORGOT_OTP' ? handleConfirmReset : handleSavePin}
-              loading={loading}
-              size="lg"
-              style={styles.submitBtn}
-            />
+                {error ? (
+                  <Text
+                    style={[styles.errorText, { color: theme.colors.danger }]}
+                  >
+                    {error}
+                  </Text>
+                ) : null}
 
-            {/* Sub-actions */}
-            {mode === 'CHANGE' && (
-              <TouchableOpacity
-                style={styles.switchModeBtn}
-                onPress={handleStartForgotPin}
-                disabled={loading}
-              >
-                <Text style={styles.switchModeText}>{t('access.forgotCurrentPinBtn')}</Text>
-              </TouchableOpacity>
-            )}
+                {/* Keypad Grid */}
+                <View style={styles.keypadGrid}>
+                  {keypadButtons.map((row, rowIdx) => (
+                    <View key={rowIdx} style={styles.keypadRow}>
+                      {row.map((item) => {
+                        if (item === 'C') {
+                          return (
+                            <TouchableOpacity
+                              key={item}
+                              style={[
+                                styles.keypadKey,
+                                {
+                                  backgroundColor: theme.colors.surfaceSubtle,
+                                  borderColor: theme.colors.border,
+                                },
+                              ]}
+                              onPress={handleClear}
+                              disabled={loading || currentDisplayPin.length === 0}
+                            >
+                              <Text
+                                style={[
+                                  styles.actionKeyText,
+                                  { color: theme.colors.textMuted },
+                                ]}
+                              >
+                                C
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        }
 
-            {mode === 'FORGOT_OTP' && (
-              <TouchableOpacity
-                style={styles.switchModeBtn}
-                onPress={() => {
-                  setError('');
-                  setMode('CHANGE');
-                }}
-                disabled={loading}
-              >
-                <Text style={styles.switchModeText}>{t('access.returnToRegularInput')}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+                        if (item === 'DEL') {
+                          return (
+                            <TouchableOpacity
+                              key={item}
+                              style={[
+                                styles.keypadKey,
+                                {
+                                  backgroundColor: theme.colors.surfaceSubtle,
+                                  borderColor: theme.colors.border,
+                                },
+                              ]}
+                              onPress={handleDelete}
+                              disabled={loading || currentDisplayPin.length === 0}
+                            >
+                              <Delete color={theme.colors.textMuted} size={22} />
+                            </TouchableOpacity>
+                          );
+                        }
+
+                        return (
+                          <TouchableOpacity
+                            key={item}
+                            style={[
+                              styles.keypadKey,
+                              {
+                                backgroundColor: theme.colors.surfaceSubtle,
+                                borderColor: theme.colors.border,
+                              },
+                            ]}
+                            onPress={() => handleKeyPress(item)}
+                            disabled={loading || currentDisplayPin.length >= 6}
+                          >
+                            <Text
+                              style={[
+                                styles.numberKeyText,
+                                { color: theme.colors.text },
+                              ]}
+                            >
+                              {item}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+
+                {/* Next / Submit Button */}
+                <Button
+                  title={
+                    pinStep === 2
+                      ? t('access.savePinBtn')
+                      : t('requests.nextStep')
+                  }
+                  onPress={handleNextStep}
+                  loading={loading}
+                  disabled={
+                    currentDisplayPin.length < 4 || currentDisplayPin.length > 6
+                  }
+                  variant="primary"
+                  size="lg"
+                  style={{ width: '100%', marginTop: 8 }}
+                />
+
+                {/* Forgot PIN Link if in CHANGE mode */}
+                {mode === 'CHANGE' && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setMode('FORGOT_OTP');
+                      handleRequestOtp();
+                    }}
+                    style={styles.switchModeBtn}
+                  >
+                    <Text
+                      style={[
+                        styles.switchModeText,
+                        { color: theme.colors.primary },
+                      ]}
+                    >
+                      {t('access.forgotCurrentPinBtn')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </Card>
+            </AnimatedEntrance>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  centerLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  backText: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '500',
   },
   header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 18,
-  },
-  infoCard: {
-    marginBottom: 24,
-    padding: 14,
-    backgroundColor: Colors.card,
-  },
-  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
-  infoText: {
+  headerTitleWrap: {
     flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  scrollContent: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 420,
+    padding: 24,
+    alignItems: 'center',
+  },
+  promoHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    marginBottom: 6,
+  },
+  cardSubtitle: {
     fontSize: 13,
-    color: Colors.text,
+    textAlign: 'center',
     lineHeight: 18,
   },
-  form: {
+  dotsContainer: {
+    flexDirection: 'row',
     gap: 12,
+    marginVertical: 16,
   },
-  errorBox: {
-    padding: 12,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 10,
-    marginTop: 4,
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1.5,
   },
-  errorBoxText: {
-    color: Colors.danger || '#EF4444',
+  errorText: {
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
+    marginBottom: 10,
   },
-  submitBtn: {
-    marginTop: 12,
+  keypadGrid: {
+    width: '100%',
+    maxWidth: 320,
+    gap: 10,
+    marginVertical: 12,
+  },
+  keypadRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  keypadKey: {
+    flex: 1,
+    height: 54,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  numberKeyText: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  actionKeyText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  otpRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 10,
+    alignItems: 'flex-start',
+    marginBottom: 14,
   },
   switchModeBtn: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    marginTop: 6,
+    paddingVertical: 12,
+    marginTop: 8,
   },
   switchModeText: {
     fontSize: 14,
-    color: Colors.primary,
     fontWeight: '600',
   },
 });

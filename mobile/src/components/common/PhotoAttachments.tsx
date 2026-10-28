@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { UploadsApi } from '../../api/uploads';
 import { getApiErrorMessage } from '../../api/client';
 import { Button } from './Button';
-import { Colors } from '../../constants/colors';
+import { useTheme } from '../../theme/ThemeContext';
 
 interface Props {
   value: string[];
@@ -19,6 +19,7 @@ interface Props {
 /** Only completed uploads become form values; failed uploads can be retried. */
 export function PhotoAttachments({ value, onChange, onBusyChange, disabled = false, maxPhotos = 5 }: Props) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -127,11 +128,11 @@ export function PhotoAttachments({ value, onChange, onBusyChange, disabled = fal
           <Button title={t('photos.library')} variant="outline" disabled={busy || disabled} onPress={() => run('library')} />
         </View>
       )}
-      {busy && <View style={styles.row}><ActivityIndicator color={Colors.primary} /><Text accessibilityLiveRegion="polite">{t('photos.uploading')}</Text></View>}
-      {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+      {busy && <View style={styles.row}><ActivityIndicator color={theme.colors.primary} /><Text style={{ color: theme.colors.text }} accessibilityLiveRegion="polite">{t('photos.uploading')}</Text></View>}
+      {error && <Text style={[styles.error, { color: theme.colors.danger }]} accessibilityLiveRegion="polite">{error}</Text>}
       {pendingUri && !busy && <Button title={t('common.retry')} variant="secondary" disabled={disabled} onPress={() => run('retry')} />}
       {permissionDenied && <Button title={t('photos.settings')} variant="outline" onPress={() => { Linking.openSettings().catch(() => setError(t('photos.cameraPermission'))); }} />}
-      <Text style={styles.hint}>{t('photos.limit', { count: maxPhotos })}</Text>
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>{t('photos.limit', { count: maxPhotos })}</Text>
     </View>
   );
 }
@@ -140,7 +141,7 @@ const styles = StyleSheet.create({
   container: { gap: 10, marginBottom: 16 },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   photo: { gap: 6 },
-  thumbnail: { width: 88, height: 88, borderRadius: 10, backgroundColor: Colors.border },
-  error: { color: Colors.danger, fontSize: 14 },
-  hint: { color: Colors.textMuted, fontSize: 12 },
+  thumbnail: { width: 88, height: 88, borderRadius: 10 },
+  error: { fontSize: 14 },
+  hint: { fontSize: 12 },
 });

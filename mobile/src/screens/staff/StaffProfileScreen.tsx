@@ -17,6 +17,8 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Colors } from '../../constants/colors';
+import { roleLabel } from '../../lib/role-label';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import { changeAppLanguage, SupportedLocale } from '../../i18n';
 import {
   User,
@@ -39,6 +41,7 @@ const LANGUAGES: { code: SupportedLocale; label: string }[] = [
 ];
 
 export const StaffProfileScreen: React.FC = () => {
+  const tabBarInset = useTabBarInset(24);
   const { user, logout } = useAuth();
   const { t, i18n } = useTranslation();
   const isFocused = useIsFocused();
@@ -107,7 +110,7 @@ export const StaffProfileScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('navigation.profile')}</Text>
         </View>
@@ -125,7 +128,7 @@ export const StaffProfileScreen: React.FC = () => {
                 <Text style={styles.userPhone}>{user?.phone || '—'}</Text>
               </View>
               <View style={styles.badgeRow}>
-                <Badge label={getRoleLabel(user?.role)} variant="info" />
+                <Badge label={roleLabel(user?.role, t)} variant="info" />
               </View>
             </View>
           </View>

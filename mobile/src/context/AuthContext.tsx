@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { TokenStorage } from '../storage/token-storage';
 import { AuthApi, UserProfile, AuthTokensResponse } from '../api/auth';
 import { setAuthFailureCallback } from '../api/client';
+import { useToast } from './ToastContext';
 
 export const STAFF_ROLES = [
   'HOA_ADMIN',
@@ -45,6 +46,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { hideDevCodeToast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -85,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [handleAuthFailure]);
 
   const login = async (authData: AuthTokensResponse) => {
+    hideDevCodeToast();
     await TokenStorage.saveTokens(authData.accessToken, authData.refreshToken);
     setUser(authData.user);
   };

@@ -1,15 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableWithoutFeedback,
-  Animated,
   StyleSheet,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
-import { Colors } from '../../constants/colors';
-import { ShieldCheck } from 'lucide-react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from '../../theme/ThemeContext';
+import { safeHaptic } from '../../lib/haptics';
+import { ShieldCheck, LockOpen } from 'lucide-react-native';
 
 interface HoldToOpenButtonProps {
   title: string;
@@ -27,14 +29,28 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
   holdDurationMs = 1200,
 }) => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
+
   const [isHolding, setIsHolding] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [currentProgress, setCurrentProgress] = useState(0);
+
+  useEffect(() => {
+    const listenerId = progressAnim.addListener(({ value }) => {
+      setCurrentProgress(value);
+    });
+    return () => {
+      progressAnim.removeListener(listenerId);
+    };
+  }, [progressAnim]);
 
   const startHold = () => {
     if (disabled || loading) return;
 
+    safeHaptic.selection();
     setIsHolding(true);
+
     Animated.timing(progressAnim, {
       toValue: 1,
       duration: holdDurationMs,
@@ -42,6 +58,7 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
     }).start();
 
     timeoutRef.current = setTimeout(async () => {
+      safeHaptic.notification();
       setIsHolding(false);
       progressAnim.setValue(0);
       await onConfirmed();
@@ -56,7 +73,7 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
     setIsHolding(false);
     Animated.timing(progressAnim, {
       toValue: 0,
-      duration: 200,
+      duration: 180,
       useNativeDriver: false,
     }).start();
   };
@@ -66,28 +83,87 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
     outputRange: ['0%', '100%'],
   });
 
+  const ringSize = 40;
+  const strokeWidth = 3.5;
+  const radius = (ringSize - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - currentProgress);
+
   return (
     <TouchableWithoutFeedback
       onPressIn={startHold}
       onPressOut={cancelHold}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={t('access.holdToOpen')}
     >
-      <View style={[styles.container, disabled && styles.disabled]}>
-        {/* Animated filling background */}
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: disabled
+              ? theme.colors.surfaceSubtle
+              : theme.colors.primary,
+            borderColor: theme.colors.primaryDark,
+            opacity: disabled ? 0.6 : 1,
+          },
+        ]}
+      >
+        {/* Animated fill progress bar */}
         <Animated.View
           style={[
             styles.progressBar,
-            { width: widthInterpolation },
+            {
+              width: widthInterpolation,
+              backgroundColor: theme.colors.primaryDark,
+            },
           ]}
         />
 
         <View style={styles.contentRow}>
           {loading ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
+            <ActivityIndicator color={theme.colors.onPrimary} size="small" />
           ) : (
             <>
-              <ShieldCheck color="#FFFFFF" size={20} />
-              <Text style={styles.text}>
+              {/* Circular Ring Progress with Icon in center */}
+              <View style={[styles.ringWrapper, { width: ringSize, height: ringSize }]}>
+                <Svg width={ringSize} height={ringSize} style={styles.svgRing}>
+                  <Circle
+                    cx={ringSize / 2}
+                    cy={ringSize / 2}
+                    r={radius}
+                    stroke="rgba(255, 255, 255, 0.25)"
+                    strokeWidth={strokeWidth}
+                    fill="none"
+                  />
+                  <Circle
+                    cx={ringSize / 2}
+                    cy={ringSize / 2}
+                    r={radius}
+                    stroke="#FFFFFF"
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={`${circumference} ${circumference}`}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                </Svg>
+                <View style={styles.iconInsideRing}>
+                  {isHolding ? (
+                    <LockOpen color="#FFFFFF" size={18} />
+                  ) : (
+                    <ShieldCheck color="#FFFFFF" size={18} />
+                  )}
+                </View>
+              </View>
+
+              <Text
+                style={[
+                  styles.text,
+                  { color: theme.colors.onPrimary },
+                ]}
+              >
                 {isHolding ? t('access.holdingToOpen') : title}
               </Text>
             </>
@@ -100,39 +176,45 @@ export const HoldToOpenButton: React.FC<HoldToOpenButtonProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    height: 56,
+    height: 54,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
+    borderWidth: 1.5,
     overflow: 'hidden',
-    justifyContent: 'center',
     position: 'relative',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
+    justifyContent: 'center',
+    marginVertical: 6,
   },
   progressBar: {
     position: 'absolute',
-    top: 0,
     left: 0,
+    top: 0,
     bottom: 0,
-    backgroundColor: Colors.barrierProgress,
+    zIndex: 1,
   },
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 12,
+    zIndex: 2,
     paddingHorizontal: 16,
   },
-  text: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  ringWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  disabled: {
-    opacity: 0.5,
+  svgRing: {
+    position: 'absolute',
+    transform: [{ rotate: '-90deg' }],
+  },
+  iconInsideRing: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
 });

@@ -33,7 +33,9 @@
     "all": "Барлығы",
     "unitShort": "пәт.",
     "sqm": "м²",
-    "kazakhAlphabet": "Қазақ әріптері: Ә І Ң Ғ Ү Ұ Қ Ө Һ (ә і ң ғ ү ұ қ ө һ)"
+    "kazakhAlphabet": "Қазақ әріптері: Ә І Ң Ғ Ү Ұ Қ Ө Һ (ә і ң ғ ү ұ қ ө һ)",
+    "hoursShort": "сағ.",
+    "minsShort": "мин."
   },
   "navigation": {
     "home": "Басты бет",
@@ -133,7 +135,17 @@
     "sharePercentHelper": "Пәтерге толықтай иелік етсеңіз, әдепкі бойынша 100%",
     "submitClaimBtn": "Өтінімді БК-ға жіберу",
     "selectUnitError": "Тізімнен пәтеріңізді таңдаңыз",
-    "claimSentSuccess": "Пәтерді бекіту өтінімі БК қарауына жіберілді!"
+    "claimSentSuccess": "Пәтерді бекіту өтінімі БК қарауына жіберілді!",
+    "stepComplex": "ТК",
+    "stepBlock": "Блок",
+    "stepUnit": "Үй-жай",
+    "stepConfirm": "Растау",
+    "chooseBlock": "Блокты / кіреберісті таңдаңыз",
+    "chooseUnit": "Пәтерді немесе үй-жайды таңдаңыз",
+    "noBlocksFound": "Бұл ТК-де әзірше блоктар жоқ",
+    "noUnitsFound": "Таңдалған блокта бос үй-жайлар жоқ",
+    "selectedComplex": "Таңдалған кешен",
+    "selectedUnit": "Таңдалған үй-жай"
   },
   "access": {
     "title": "Қолжетімділікті басқару",
@@ -237,7 +249,17 @@
     "intercomsSection": "Домофондар",
     "noIntercoms": "Тұрғын үй кешеніңізде әзірге бапталған домофондар жоқ",
     "pointTypeIntercom": "Домофон",
-    "holdToOpenIntercom": "Есікті ашу үшін басып тұрыңыз"
+    "holdToOpenIntercom": "Есікті ашу үшін басып тұрыңыз",
+    "copyCode": "Кодты көшіру",
+    "codeCopied": "Код алмасу буферіне көшірілді",
+    "pointOnline": "Желіде",
+    "pointOffline": "Желіде емес",
+    "passActive": "Рұқсаттама белсенді",
+    "passExpiresIn": "Мерзімі {{time}} кейін аяқталады",
+    "keypadClear": "C",
+    "keypadBackspace": "Өшіру",
+    "keypadSubmit": "Растау",
+    "incorrectPin": "Қате PIN-код"
   },
   "votings": {
     "title": "ОСС дауыс берулері",
@@ -291,7 +313,7 @@
     "devSmsBody": "Код: {{code}}"
   },
   "requests": {
-    "serviceDesk": "Service Desk",
+    "serviceDesk": "Өтінімдер мен қызметтер",
     "subtitle": "Жөндеуге, сантехникаға және үйге қызмет көрсетуге өтінімдер",
     "createBtn": "Құру",
     "tabAll": "Барлығы ({{count}})",
@@ -351,7 +373,26 @@
     "prioLow": "Төмен",
     "prioMedium": "Қалыпты",
     "prioHigh": "Жоғары",
-    "prioEmergency": "Апаттық"
+    "prioEmergency": "Апаттық",
+    "timelineTitle": "Орындалу барысы",
+    "commentsTitle": "Пікірлер мен хат алмасу",
+    "commentPlaceholder": "Пікір жазу...",
+    "sendComment": "Жіберу",
+    "stepCategory": "Санат",
+    "stepDescription": "Сипаттама",
+    "stepPhotos": "Фото",
+    "stepPriority": "Шұғылдық",
+    "stepConfirmation": "Растау",
+    "photosOptional": "Фото қосу (5-ке дейін)",
+    "viewPhoto": "Фотоны қарау",
+    "closePhoto": "Жабу",
+    "selectCategory": "Мәселенің санатын таңдаңыз",
+    "nextStep": "Келесі",
+    "prevStep": "Артқа",
+    "priorityLowDesc": "Шұғылдықты талап етпейтін жоспарлы жұмыстар",
+    "priorityMediumDesc": "24 сағат ішіндегі стандартты өтінім",
+    "priorityHighDesc": "4 сағат ішінде жою талап етіледі",
+    "priorityEmergencyDesc": "Апаттық жағдай, дереу шығу"
   },
   "announcements": {
     "title": "Жаңалықтар мен хабарландырулар",
@@ -359,7 +400,10 @@
     "emptyNewsTitle": "Әзірге жаңалықтар жоқ",
     "emptyNewsSubtitle": "Мұнда басқарушы компанияның хабарландырулары, есептері және өшірулер туралы ақпарат жарияланады",
     "urgentBadgeText": "ШҰҒЫЛ ХАБАРЛАМА",
-    "regularBadgeText": "Хабарландыру"
+    "regularBadgeText": "Хабарландыру",
+    "readMore": "Толығырақ оқу",
+    "showLess": "Жинау",
+    "publishedAt": "Жарияланған күні: {{date}}"
   },
   "dashboard": {
     "welcome": "Қош келдіңіз, {{name}}!",
@@ -542,7 +586,10 @@
       "ACTIVE": "Белсенді",
       "RESOLVED": "Өңделді",
       "FALSE_ALARM": "Жалған дабыл"
-    }
+    },
+    "pressAndHold": "1.5 сек басып тұрыңыз",
+    "signalSent": "SOS сигналы жіберілді",
+    "timelineDate": "Шақыру уақыты: {{date}}"
   },
   "communityBoard": {
     "screenTitle": "Хабарландырулар тақтасы",
@@ -605,7 +652,13 @@
     "dispatcherFallback": "Диспетчер",
     "supportTeam": "Қамқорлық қызметі",
     "today": "Бүгін",
-    "photoLabel": "Фото"
+    "photoLabel": "Фото",
+    "delivered": "Жеткізілді",
+    "sent": "Жіберілді",
+    "read": "Оқылды",
+    "yesterday": "Кеше",
+    "attachPhoto": "Фото",
+    "connecting": "Чатқа қосылуда..."
   },
   "errors": {
     "AUTH": {
@@ -1025,6 +1078,23 @@
     "minutesAgo": "{{count}} мин. бұрын",
     "hoursAgo": "{{count}} сағ. бұрын",
     "daysAgo": "{{count}} күн бұрын",
-    "allRead": "Барлық хабарламалар оқылды"
+    "allRead": "Барлық хабарламалар оқылды",
+    "sectionToday": "Бүгін",
+    "sectionYesterday": "Кеше",
+    "sectionEarlier": "Бұрын",
+    "markAsRead": "Оқылды деп белгілеу"
+  },
+  "roles": {
+    "RESIDENT_OWNER": "Пәтер иесі",
+    "RESIDENT_TENANT": "Жалға алушы",
+    "RESIDENT": "Тұрғын",
+    "HOA_ADMIN": "Басқарушы / МИБ",
+    "HOA_CHAIRMAN": "МИБ төрағасы",
+    "DISPATCHER": "Диспетчер",
+    "SECURITY": "Күзетші",
+    "SUPERADMIN": "Бас әкімші",
+    "OWNER": "Пәтер иесі",
+    "TENANT": "Жалға алушы",
+    "FAMILY_MEMBER": "Отбасы мүшесі"
   }
 }

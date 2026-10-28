@@ -22,6 +22,7 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Colors } from '../../constants/colors';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import {
   Building2,
   UserCheck,
@@ -40,6 +41,7 @@ import {
 } from 'lucide-react-native';
 
 export const StaffHomeScreen: React.FC = () => {
+  const tabBarInset = useTabBarInset(24);
   const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
   const { t } = useTranslation();
@@ -96,7 +98,7 @@ export const StaffHomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: tabBarInset }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}

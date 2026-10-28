@@ -16,9 +16,11 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import { Vote, ChevronRight, CheckCircle2 } from 'lucide-react-native';
 
 export const VotingsListScreen: React.FC = () => {
+  const tabBarInset = useTabBarInset(24);
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
@@ -105,7 +107,7 @@ export const VotingsListScreen: React.FC = () => {
       <FlatList
         data={filteredMeetings}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

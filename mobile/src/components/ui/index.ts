@@ -17,3 +17,5 @@ export * from './ProgressRing';
 export * from './CountUp';
 export * from './AnimatedEntrance';
 export * from './Toast';
+export * from '../../hooks/useTabBarInset';
+export * from '../../lib/role-label';

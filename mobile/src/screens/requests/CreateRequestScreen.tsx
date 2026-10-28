@@ -1,16 +1,16 @@
-import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../../navigation/types';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -19,63 +19,193 @@ import {
   RequestPriority,
 } from '../../api/service-requests';
 import { getApiErrorMessage } from '../../api/client';
-import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
-import { Colors } from '../../constants/colors';
-import { ArrowLeft, Check } from 'lucide-react-native';
+import { useTheme } from '../../theme/ThemeContext';
+import { useToast } from '../../context/ToastContext';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Button,
+  IconButton,
+  Input,
+  Card,
+  Badge,
+  BadgeVariant,
+  AnimatedEntrance,
+} from '../../components/ui';
+import { PhotoAttachments } from '../../components/common/PhotoAttachments';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Droplets,
+  Zap,
+  Building,
+  Flame,
+  Trees,
+  KeyRound,
+  Sparkles,
+  HelpCircle,
+  AlertTriangle,
+  Clock,
+  Shield,
+  Check,
+} from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateRequest'>;
 
 export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
   const { t } = useTranslation();
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const { theme } = useTheme();
+  const { showToast } = useToast();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
 
+  const [step, setStep] = useState<number>(1);
+  const [category, setCategory] = useState<RequestCategory>('PLUMBING');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<RequestCategory>('PLUMBING');
-  const [priority, setPriority] = useState<RequestPriority>('MEDIUM');
   const [attachments, setAttachments] = useState<string[]>([]);
+  const [priority, setPriority] = useState<RequestPriority>('MEDIUM');
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const categories: Array<{ key: RequestCategory; label: string }> = [
-    { key: 'PLUMBING', label: t('requests.catPlumbing') },
-    { key: 'ELECTRICAL', label: t('requests.catElectrical') },
-    { key: 'ELEVATOR', label: t('requests.catElevator') },
-    { key: 'HEATING', label: t('requests.catHeating') },
-    { key: 'YARD_TERRITORY', label: t('requests.catYard') },
-    { key: 'INTERCOM_ACCESS', label: t('requests.catIntercom') },
-    { key: 'CLEANING', label: t('requests.catCleaning') },
-    { key: 'OTHER', label: t('requests.catOther') },
+  // Inline errors
+  const [titleError, setTitleError] = useState('');
+  const [descError, setDescError] = useState('');
+
+  const categories: Array<{
+    key: RequestCategory;
+    label: string;
+    icon: (color: string) => React.ReactNode;
+  }> = [
+    {
+      key: 'PLUMBING',
+      label: t('requests.catPlumbing'),
+      icon: (color) => <Droplets size={24} color={color} />,
+    },
+    {
+      key: 'ELECTRICAL',
+      label: t('requests.catElectrical'),
+      icon: (color) => <Zap size={24} color={color} />,
+    },
+    {
+      key: 'ELEVATOR',
+      label: t('requests.catElevator'),
+      icon: (color) => <Building size={24} color={color} />,
+    },
+    {
+      key: 'HEATING',
+      label: t('requests.catHeating'),
+      icon: (color) => <Flame size={24} color={color} />,
+    },
+    {
+      key: 'YARD_TERRITORY',
+      label: t('requests.catYard'),
+      icon: (color) => <Trees size={24} color={color} />,
+    },
+    {
+      key: 'INTERCOM_ACCESS',
+      label: t('requests.catIntercom'),
+      icon: (color) => <KeyRound size={24} color={color} />,
+    },
+    {
+      key: 'CLEANING',
+      label: t('requests.catCleaning'),
+      icon: (color) => <Sparkles size={24} color={color} />,
+    },
+    {
+      key: 'OTHER',
+      label: t('requests.catOther'),
+      icon: (color) => <HelpCircle size={24} color={color} />,
+    },
   ];
 
-  const priorities: Array<{ key: RequestPriority; label: string; color: string }> = [
-    { key: 'LOW', label: t('requests.prioLow'), color: Colors.textMuted },
-    { key: 'MEDIUM', label: t('requests.prioMedium'), color: Colors.info },
-    { key: 'HIGH', label: t('requests.prioHigh'), color: Colors.warning },
-    { key: 'EMERGENCY', label: t('requests.prioEmergency'), color: Colors.danger },
+  const priorities: Array<{
+    key: RequestPriority;
+    label: string;
+    desc: string;
+    variant: BadgeVariant;
+  }> = [
+    {
+      key: 'LOW',
+      label: t('requests.prioLow'),
+      desc: t('requests.priorityLowDesc'),
+      variant: 'neutral',
+    },
+    {
+      key: 'MEDIUM',
+      label: t('requests.prioMedium'),
+      desc: t('requests.priorityMediumDesc'),
+      variant: 'info',
+    },
+    {
+      key: 'HIGH',
+      label: t('requests.prioHigh'),
+      desc: t('requests.priorityHighDesc'),
+      variant: 'warning',
+    },
+    {
+      key: 'EMERGENCY',
+      label: t('requests.prioEmergency'),
+      desc: t('requests.priorityEmergencyDesc'),
+      variant: 'danger',
+    },
   ];
 
+  const handleNext = () => {
+    safeHaptic.selection();
+
+    if (step === 2) {
+      let hasError = false;
+      if (!title.trim()) {
+        setTitleError(t('requests.titleRequiredError'));
+        hasError = true;
+      } else {
+        setTitleError('');
+      }
+
+      if (!description.trim()) {
+        setDescError(t('requests.descriptionRequiredError'));
+        hasError = true;
+      } else {
+        setDescError('');
+      }
+
+      if (hasError) {
+        safeHaptic.notification();
+        return;
+      }
+    }
+
+    if (step < 4) {
+      setStep((prev) => prev + 1);
+    }
+  };
+
+  const handleBack = () => {
+    safeHaptic.selection();
+    if (step > 1) {
+      setStep((prev) => prev - 1);
+    } else {
+      navigation.goBack();
+    }
+  };
 
   const handleSubmit = async () => {
     if (uploadingPhoto || submitting) return;
+
     if (!primaryUnitId) {
-      Alert.alert(t('common.error'), t('requests.noUnitAttachedError'));
-      return;
-    }
-    if (!title.trim()) {
-      setError(t('requests.titleRequiredError'));
-      return;
-    }
-    if (!description.trim()) {
-      setError(t('requests.descriptionRequiredError'));
+      showToast({
+        type: 'error',
+        title: t('common.error'),
+        message: t('requests.noUnitAttachedError'),
+      });
       return;
     }
 
     setSubmitting(true);
-    setError('');
 
     try {
       await ServiceRequestsApi.createRequest({
@@ -87,218 +217,531 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         attachmentUrls: attachments.length > 0 ? attachments : undefined,
       });
 
-      Alert.alert(t('requests.requestCreatedTitle'), t('requests.requestCreatedMsg'), [
-        { text: t('access.ok'), onPress: () => navigation.goBack() },
-      ]);
+      safeHaptic.notification();
+      setIsSuccess(true);
+
+      showToast({
+        type: 'success',
+        title: t('requests.requestCreatedTitle'),
+        message: t('requests.requestCreatedMsg'),
+      });
+
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1400);
     } catch (e: any) {
-      setError(getApiErrorMessage(e));
+      safeHaptic.notification();
+      showToast({
+        type: 'error',
+        title: t('common.error'),
+        message: getApiErrorMessage(e),
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (isSuccess) {
+    return (
+      <View
+        style={[
+          styles.successContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <AnimatedEntrance index={0}>
+          <View style={styles.successCard}>
+            <View
+              style={[
+                styles.successIconCircle,
+                { backgroundColor: theme.colors.successBg },
+              ]}
+            >
+              <CheckCircle2 color={theme.colors.success} size={54} />
+            </View>
+            <Text style={[styles.successTitle, { color: theme.colors.text }]}>
+              {t('requests.requestCreatedTitle')}
+            </Text>
+            <Text
+              style={[styles.successSubtitle, { color: theme.colors.textMuted }]}
+            >
+              {t('requests.requestCreatedMsg')}
+            </Text>
+          </View>
+        </AnimatedEntrance>
+      </View>
+    );
+  }
+
+  const stepTitles = [
+    t('requests.stepCategory'),
+    t('requests.stepDescription'),
+    t('requests.stepPhotos'),
+    t('requests.stepPriority'),
+  ];
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ArrowLeft color={Colors.text} size={24} />
-        </TouchableOpacity>
-        <Text style={styles.navTitle}>{t('requests.newRequestTitle')}</Text>
-        <View style={{ width: 24 }} />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
+        <IconButton
+          icon={<ArrowLeft color={theme.colors.text} size={22} />}
+          onPress={handleBack}
+          variant="ghost"
+          accessibilityLabel={t('common.back')}
+        />
+        <View style={styles.headerTitleWrap}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {t('requests.newRequestTitle')}
+          </Text>
+          <Text style={[styles.stepIndicatorText, { color: theme.colors.textMuted }]}>
+            {step} / 4 • {stepTitles[step - 1]}
+          </Text>
+        </View>
+        <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Title */}
-        <Input
-          label={t('requests.whatHappenedLabel')}
-          placeholder={t('requests.whatHappenedPlaceholder')}
-          value={title}
-          onChangeText={(v) => {
-            setError('');
-            setTitle(v);
-          }}
+      {/* Progress Bar */}
+      <View
+        style={[
+          styles.progressTrack,
+          { backgroundColor: theme.colors.surfaceSubtle },
+        ]}
+      >
+        <View
+          style={[
+            styles.progressFill,
+            {
+              backgroundColor: theme.colors.primary,
+              width: `${(step / 4) * 100}%`,
+            },
+          ]}
         />
+      </View>
 
-        {/* Category Picker */}
-        <Text style={styles.fieldLabel}>{t('requests.categoryLabel')}</Text>
-        <View style={styles.chipGrid}>
-          {categories.map((c) => {
-            const active = category === c.key;
-            return (
-              <TouchableOpacity
-                key={c.key}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setCategory(c.key)}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {c.label}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 90 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* STEP 1: Categories Tiles */}
+          {step === 1 && (
+            <AnimatedEntrance index={0}>
+              <View style={styles.stepSection}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  {t('requests.selectCategory')}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                <View style={styles.categoriesGrid}>
+                  {categories.map((c) => {
+                    const isSelected = category === c.key;
+                    return (
+                      <TouchableOpacity
+                        key={c.key}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          safeHaptic.selection();
+                          setCategory(c.key);
+                        }}
+                        style={[
+                          styles.categoryTile,
+                          {
+                            backgroundColor: isSelected
+                              ? theme.colors.primaryBg
+                              : theme.colors.surface,
+                            borderColor: isSelected
+                              ? theme.colors.primary
+                              : theme.colors.border,
+                          },
+                        ]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={c.label}
+                      >
+                        <View
+                          style={[
+                            styles.tileIconCircle,
+                            {
+                              backgroundColor: isSelected
+                                ? theme.isDark
+                                  ? theme.colors.primaryDark
+                                  : theme.colors.primaryLight
+                                : theme.colors.surfaceSubtle,
+                            },
+                          ]}
+                        >
+                          {c.icon(
+                            isSelected
+                              ? theme.isDark
+                                ? '#FFFFFF'
+                                : theme.colors.primary
+                              : theme.colors.textMuted
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.categoryLabel,
+                            {
+                              color: isSelected
+                                ? theme.colors.primary
+                                : theme.colors.text,
+                              fontWeight: isSelected ? '700' : '600',
+                            },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {c.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </AnimatedEntrance>
+          )}
 
-        {/* Priority Picker */}
-        <Text style={styles.fieldLabel}>{t('requests.priorityLabel')}</Text>
-        <View style={styles.priorityRow}>
-          {priorities.map((p) => {
-            const active = priority === p.key;
-            return (
-              <TouchableOpacity
-                key={p.key}
-                style={[styles.priorityItem, active && styles.priorityItemActive]}
-                onPress={() => setPriority(p.key)}
-              >
-                <Text style={[styles.priorityText, { color: active ? '#FFFFFF' : p.color }]}>
-                  {p.label}
+          {/* STEP 2: Description & Title */}
+          {step === 2 && (
+            <AnimatedEntrance index={0}>
+              <View style={styles.stepSection}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  {t('requests.whatHappenedLabel')}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                <Input
+                  label={t('requests.whatHappenedLabel')}
+                  placeholder={t('requests.whatHappenedPlaceholder')}
+                  value={title}
+                  onChangeText={(val) => {
+                    setTitle(val);
+                    if (val.trim()) setTitleError('');
+                  }}
+                  error={titleError}
+                  containerStyle={{ marginBottom: 16 }}
+                />
 
-        {/* Description */}
-        <Input
-          label={t('requests.descriptionLabel')}
-          placeholder={t('requests.descriptionPlaceholder')}
-          value={description}
-          onChangeText={(v) => {
-            setError('');
-            setDescription(v);
-          }}
-          multiline
-          numberOfLines={4}
-          style={styles.textArea}
-        />
+                <Input
+                  label={t('requests.descriptionLabel')}
+                  placeholder={t('requests.descriptionPlaceholder')}
+                  value={description}
+                  onChangeText={(val) => {
+                    setDescription(val);
+                    if (val.trim()) setDescError('');
+                  }}
+                  error={descError}
+                  multiline
+                  numberOfLines={4}
+                  inputStyle={styles.multilineInput}
+                />
+              </View>
+            </AnimatedEntrance>
+          )}
 
-        {/* Attach Photo */}
-        <Text style={styles.fieldLabel}>{t('requests.photosLabel')}</Text>
-        <PhotoAttachments value={attachments} onChange={setAttachments} onBusyChange={setUploadingPhoto} disabled={submitting} />
+          {/* STEP 3: Photos */}
+          {step === 3 && (
+            <AnimatedEntrance index={0}>
+              <View style={styles.stepSection}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  {t('requests.photosLabel')}
+                </Text>
+                <Text
+                  style={[
+                    styles.sectionSubtitle,
+                    { color: theme.colors.textMuted },
+                  ]}
+                >
+                  {t('requests.photosOptional')}
+                </Text>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                <Card style={styles.photosCard}>
+                  <PhotoAttachments
+                    value={attachments}
+                    onChange={setAttachments}
+                    onBusyChange={setUploadingPhoto}
+                  />
+                </Card>
+              </View>
+            </AnimatedEntrance>
+          )}
 
-        <Button
-          title={t('requests.submitToDispatcher')}
-          onPress={handleSubmit}
-          loading={submitting}
-            disabled={uploadingPhoto}
-          size="lg"
-          style={styles.submitBtn}
-        />
-      </ScrollView>
-    </SafeAreaView>
+          {/* STEP 4: Priority & Confirmation */}
+          {step === 4 && (
+            <AnimatedEntrance index={0}>
+              <View style={styles.stepSection}>
+                <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                  {t('requests.priorityLabel')}
+                </Text>
+
+                <View style={styles.prioritiesList}>
+                  {priorities.map((p) => {
+                    const isSelected = priority === p.key;
+                    return (
+                      <TouchableOpacity
+                        key={p.key}
+                        activeOpacity={0.88}
+                        onPress={() => {
+                          safeHaptic.selection();
+                          setPriority(p.key);
+                        }}
+                        style={[
+                          styles.priorityCard,
+                          {
+                            backgroundColor: isSelected
+                              ? theme.colors.primaryBg
+                              : theme.colors.surface,
+                            borderColor: isSelected
+                              ? theme.colors.primary
+                              : theme.colors.border,
+                          },
+                        ]}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: isSelected }}
+                      >
+                        <View style={styles.priorityHeader}>
+                          <Badge
+                            label={p.label}
+                            variant={p.variant}
+                            size="md"
+                            showDot
+                          />
+                          {isSelected && (
+                            <View
+                              style={[
+                                styles.checkDot,
+                                { backgroundColor: theme.colors.primary },
+                              ]}
+                            >
+                              <Check color="#FFFFFF" size={14} />
+                            </View>
+                          )}
+                        </View>
+                        <Text
+                          style={[
+                            styles.priorityDesc,
+                            { color: theme.colors.textMuted },
+                          ]}
+                        >
+                          {p.desc}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </AnimatedEntrance>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Floating Bottom Action Bar */}
+      <View
+        style={[
+          styles.bottomBar,
+          {
+            paddingBottom: Math.max(insets.bottom, 16),
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.border,
+          },
+        ]}
+      >
+        {step > 1 ? (
+          <Button
+            title={t('requests.prevStep')}
+            variant="secondary"
+            onPress={handleBack}
+            style={styles.navButton}
+            accessibilityLabel={t('requests.prevStep')}
+          />
+        ) : null}
+
+        {step < 4 ? (
+          <Button
+            title={t('requests.nextStep')}
+            variant="primary"
+            onPress={handleNext}
+            style={styles.navButton}
+            accessibilityLabel={t('requests.nextStep')}
+          />
+        ) : (
+          <Button
+            title={t('requests.submitToDispatcher')}
+            variant="primary"
+            onPress={handleSubmit}
+            loading={submitting || uploadingPhoto}
+            disabled={submitting || uploadingPhoto}
+            style={styles.navButton}
+            accessibilityLabel={t('requests.submitToDispatcher')}
+          />
+        )}
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  topNav: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
   },
-  backBtn: {
-    padding: 4,
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
   },
-  navTitle: {
-    fontSize: 16,
+  headerTitle: {
+    fontSize: 17,
     fontWeight: '700',
-    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  stepIndicatorText: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  progressTrack: {
+    height: 3,
+    width: '100%',
+  },
+  progressFill: {
+    height: '100%',
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
   },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
+  stepSection: {
+    width: '100%',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
     marginBottom: 8,
-    marginTop: 8,
   },
-  chipGrid: {
+  sectionSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  categoriesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    gap: 12,
+    marginTop: 10,
   },
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  chipText: {
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '600',
-  },
-  chipTextActive: {
-    color: '#FFFFFF',
-  },
-  priorityRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  priorityItem: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  priorityItemActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  priorityText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  photoUploadBox: {
+  categoryTile: {
+    width: '47.5%',
+    minHeight: 104,
+    borderRadius: 16,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: Colors.primary,
-    borderRadius: 14,
-    padding: 20,
+    padding: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primaryBg,
-    marginBottom: 20,
-    gap: 8,
   },
-  photoUploadText: {
+  tileIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  categoryLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    color: Colors.primaryDark,
+    textAlign: 'center',
   },
-  errorText: {
-    color: Colors.danger,
-    fontSize: 13,
-    marginBottom: 12,
+  multilineInput: {
+    minHeight: 110,
+    textAlignVertical: 'top',
   },
-  submitBtn: {
+  photosCard: {
+    padding: 16,
+  },
+  prioritiesList: {
+    gap: 12,
     marginTop: 8,
+  },
+  priorityCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 16,
+  },
+  priorityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  checkDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  priorityDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  navButton: {
+    flex: 1,
+  },
+  successContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  successCard: {
+    alignItems: 'center',
+    maxWidth: 380,
+  },
+  successIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: -0.3,
+  },
+  successSubtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });

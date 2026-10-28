@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Modal,
   Share,
-  Alert,
+  Platform,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { AuthApi } from '../../api/auth';
 import {
@@ -23,33 +23,54 @@ import {
   StreamEndpoints,
 } from '../../api/access';
 import { getApiErrorMessage } from '../../api/client';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
-import { Badge } from '../../components/common/Badge';
+import { useTheme } from '../../theme/ThemeContext';
+import { useToast } from '../../context/ToastContext';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
+import { safeHaptic } from '../../lib/haptics';
+import {
+  Card,
+  Badge,
+  BadgeVariant,
+  Button,
+  IconButton,
+  Input,
+  SkeletonCard,
+  EmptyState,
+  AnimatedEntrance,
+  Divider,
+} from '../../components/ui';
 import { HoldToOpenButton } from '../../components/access/HoldToOpenButton';
 import { PinEntryModal } from '../../components/access/PinEntryModal';
-import { LoadingState } from '../../components/common/LoadingState';
-import { Colors } from '../../constants/colors';
 import {
   ShieldCheck,
   UserPlus,
   Video,
   Share2,
+  Copy,
   X,
   Clock,
   Car,
-  CheckCircle2,
   KeyRound,
   ChevronRight,
+  ShieldAlert,
+  Sliders,
+  QrCode,
+  Shield,
+  Trash2,
 } from 'lucide-react-native';
 
 export const AccessScreen: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { theme } = useTheme();
+  const { showToast } = useToast();
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset(24);
+
   const { user } = useAuth();
-  const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
+  const tenantId =
+    user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
   const primaryUnitId = user?.ownerships?.[0]?.unitId;
   const isVerified = user?.ownerships?.[0]?.isVerified;
 
@@ -61,7 +82,9 @@ export const AccessScreen: React.FC = () => {
   // 2FA PIN states
   const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
-  const [selectedBarrier, setSelectedBarrier] = useState<AccessPoint | null>(null);
+  const [selectedBarrier, setSelectedBarrier] = useState<AccessPoint | null>(
+    null
+  );
   const [pinError, setPinError] = useState<string | null>(null);
   const [openingWithPin, setOpeningWithPin] = useState(false);
 
@@ -79,115 +102,116 @@ export const AccessScreen: React.FC = () => {
 
   // Camera stream modal
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
-  const [selectedStream, setSelectedStream] = useState<StreamEndpoints | null>(null);
+  const [selectedStream, setSelectedStream] = useState<StreamEndpoints | null>(
+    null
+  );
   const [loadingStream, setLoadingStream] = useState(false);
 
-  const fetchPinStatus = async () => {
+  const fetchPinStatus = useCallback(async () => {
     try {
       const res = await AuthApi.getPinStatus();
       setIsPinSet(res.isPinSet);
     } catch (err) {
       console.warn('Failed to load PIN status:', err);
     }
-  };
+  }, []);
 
-  const fetchGuestPasses = async () => {
+  const fetchGuestPasses = useCallback(async () => {
     if (!primaryUnitId || !isVerified) {
       setGuestPasses([]);
       return;
     }
     try {
       setLoadingPasses(true);
-      const data = await AccessApi.getUnitGuestPasses(primaryUnitId);
-      setGuestPasses(data);
+      const passes = await AccessApi.getUnitGuestPasses(primaryUnitId);
+      setGuestPasses(passes || []);
     } catch (err) {
       console.warn('Failed to load guest passes:', err);
     } finally {
       setLoadingPasses(false);
     }
-  };
+  }, [primaryUnitId, isVerified]);
 
-  const fetchPoints = async () => {
+  const fetchPoints = useCallback(async () => {
     if (!tenantId) {
       setLoading(false);
       return;
     }
-
     try {
       const [data] = await Promise.all([
         AccessApi.getAccessPoints(tenantId),
-        fetchPinStatus(),
         fetchGuestPasses(),
+        fetchPinStatus(),
       ]);
-      setPoints(data);
+      setPoints(data || []);
     } catch (err) {
       console.warn('Failed to load access points:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [tenantId, fetchGuestPasses, fetchPinStatus]);
 
   useEffect(() => {
     fetchPoints();
-  }, [tenantId, primaryUnitId, isVerified]);
+  }, [fetchPoints]);
 
   useEffect(() => {
     if (isFocused) {
       fetchPinStatus();
       fetchGuestPasses();
     }
-  }, [isFocused]);
+  }, [isFocused, fetchPinStatus, fetchGuestPasses]);
 
   const onRefresh = () => {
     setRefreshing(true);
+    safeHaptic.selection();
     fetchPoints();
   };
 
-  const handleRevokePass = (pass: GuestPass) => {
-    Alert.alert(
-      t('access.revokeConfirmTitle'),
-      t('access.revokeConfirmMsg'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('access.revokePassBtn'),
-          style: 'destructive',
-          onPress: async () => {
-            setRevokingPassId(pass.id);
-            try {
-              await AccessApi.revokeGuestPass(pass.id);
-              Alert.alert(t('common.success'), t('access.revokedSuccess'));
-              fetchGuestPasses();
-            } catch (err: any) {
-              Alert.alert(t('common.error'), getApiErrorMessage(err));
-            } finally {
-              setRevokingPassId(null);
-            }
-          },
-        },
-      ],
-    );
+  const handleRevokePass = async (pass: GuestPass) => {
+    safeHaptic.selection();
+    setRevokingPassId(pass.id);
+    try {
+      await AccessApi.revokeGuestPass(pass.id);
+      safeHaptic.notification();
+      showToast({
+        type: 'success',
+        title: t('common.success'),
+        message: t('access.revokedSuccess'),
+      });
+      fetchGuestPasses();
+      if (createdPass?.id === pass.id) {
+        setCreatedPass(null);
+      }
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: t('common.error'),
+        message: getApiErrorMessage(err),
+      });
+    } finally {
+      setRevokingPassId(null);
+    }
   };
 
   const handleTriggerOpenBarrier = (barrier: AccessPoint) => {
     if (!isVerified) {
-      Alert.alert(
-        t('access.accessRestrictedTitle'),
-        t('access.accessRestrictedMsg'),
-      );
+      showToast({
+        type: 'warning',
+        title: t('access.accessRestrictedTitle'),
+        message: t('access.accessRestrictedMsg'),
+      });
       return;
     }
 
     if (isPinSet === false) {
-      Alert.alert(
-        t('access.pinNotSetTitle'),
-        t('access.pinNotSetMsg'),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          { text: t('access.setupPinBtn'), onPress: () => navigation.navigate('PinSetup') },
-        ],
-      );
+      showToast({
+        type: 'warning',
+        title: t('access.pinNotSetTitle'),
+        message: t('access.pinNotSetMsg'),
+        onPress: () => navigation.navigate('PinSetup'),
+      });
       return;
     }
 
@@ -203,749 +227,1137 @@ export const AccessScreen: React.FC = () => {
     setPinError(null);
 
     try {
-      const res = await AccessApi.openBarrier(selectedBarrier.id, pin, primaryUnitId);
+      const res = await AccessApi.openBarrier(
+        selectedBarrier.id,
+        pin,
+        primaryUnitId
+      );
       setPinModalVisible(false);
       setSelectedBarrier(null);
-      Alert.alert(t('access.openSuccessTitle'), res.message || t('access.openSuccessMsg'));
+      safeHaptic.notification();
+
+      showToast({
+        type: 'success',
+        title: t('access.openSuccessTitle'),
+        message: res.message || t('access.openSuccessMsg'),
+      });
     } catch (e: any) {
       const msg = getApiErrorMessage(e);
+      safeHaptic.notification();
       if (msg.includes('PIN_NOT_SET')) {
         setIsPinSet(false);
         setPinModalVisible(false);
-        Alert.alert(
-          t('access.pinNotSetTitle'),
-          t('access.profilePinSetupMsg'),
-          [
-            { text: t('access.laterBtn'), style: 'cancel' },
-            { text: t('access.setupPinBtn'), onPress: () => navigation.navigate('PinSetup') },
-          ],
-        );
+        showToast({
+          type: 'error',
+          title: t('access.pinNotSetTitle'),
+          message: t('access.profilePinSetupMsg'),
+          onPress: () => navigation.navigate('PinSetup'),
+        });
       } else {
-        setPinError(msg);
+        setPinError(msg || t('access.incorrectPin'));
       }
     } finally {
       setOpeningWithPin(false);
     }
   };
 
-  const handleCreateGuestPass = async () => {
-    if (!primaryUnitId || !isVerified) {
-      Alert.alert(
-        t('common.error'),
-        t('access.passRestrictedMsg'),
-      );
+  const handleCreatePass = async () => {
+    if (!primaryUnitId) {
+      showToast({
+        type: 'error',
+        title: t('common.error'),
+        message: t('access.noUnitAttachedError'),
+      });
       return;
     }
+
     if (!guestName.trim()) {
-      Alert.alert(t('common.error'), t('access.enterGuestNameWarning'));
+      showToast({
+        type: 'warning',
+        title: t('common.error'),
+        message: t('access.enterGuestNameWarning'),
+      });
       return;
     }
 
     setCreatingPass(true);
+    safeHaptic.selection();
+
     try {
       const now = new Date();
-      const validTo = new Date(now.getTime() + 12 * 3600 * 1000); // 12 hours
-
+      const expiry = new Date(now.getTime() + 12 * 60 * 60 * 1000);
       const pass = await AccessApi.createGuestPass({
         unitId: primaryUnitId,
         guestName: guestName.trim(),
         guestPlateNumber: guestPlate.trim() || undefined,
         validFrom: now.toISOString(),
-        validTo: validTo.toISOString(),
+        validTo: expiry.toISOString(),
       });
 
       setCreatedPass(pass);
       setGuestName('');
       setGuestPlate('');
+      safeHaptic.notification();
       fetchGuestPasses();
+
+      showToast({
+        type: 'success',
+        title: t('common.success'),
+        message: t('access.passCreatedSuccess', { code: pass.accessCode }),
+      });
     } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      showToast({
+        type: 'error',
+        title: t('common.error'),
+        message: getApiErrorMessage(e),
+      });
     } finally {
       setCreatingPass(false);
     }
   };
 
   const handleSharePass = async (pass: GuestPass) => {
+    safeHaptic.selection();
     try {
-      await Share.share({
-        message: t('access.shareTemplateTitle', {
-          complex: user?.tenant?.name || t('dashboard.defaultComplex'),
-          guest: pass.guestName,
-          plateLine: pass.guestPlateNumber ? `${t('access.guestPlateLabel', { plate: pass.guestPlateNumber })}\n` : '',
-          code: pass.accessCode,
-          time: new Date(pass.validTo).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+      const plateLine = pass.guestPlateNumber
+        ? `${t('access.guestPlateLabel', { plate: pass.guestPlateNumber })}\n`
+        : '';
+      const message = t('access.shareTemplateTitle', {
+        complex: user?.tenant?.name || t('dashboard.defaultComplex'),
+        guest: pass.guestName,
+        plateLine,
+        code: pass.accessCode,
+        time: new Date(pass.validTo).toLocaleTimeString(i18n.language, {
+          hour: '2-digit',
+          minute: '2-digit',
         }),
       });
+
+      await Share.share({ message });
     } catch (e) {
       console.warn('Share error:', e);
     }
   };
 
-  const handleViewCamera = async (pointId: string) => {
-    setLoadingStream(true);
-    setCameraModalVisible(true);
+  const handleCopyCode = async (code: string) => {
+    safeHaptic.selection();
+    if (
+      Platform.OS === 'web' &&
+      typeof navigator !== 'undefined' &&
+      navigator.clipboard
+    ) {
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (err) {
+        console.warn('Clipboard write error:', err);
+      }
+    }
+    showToast({
+      type: 'success',
+      title: t('common.success'),
+      message: t('access.codeCopied'),
+    });
+  };
+
+  const handleOpenIntercom = async (pointId: string) => {
+    if (!isVerified) {
+      showToast({
+        type: 'warning',
+        title: t('access.accessRestrictedTitle'),
+        message: t('access.accessRestrictedMsg'),
+      });
+      return;
+    }
+
+    setOpeningPointId(pointId);
+    safeHaptic.selection();
+
     try {
-      const stream = await AccessApi.getCameraStream(pointId);
-      setSelectedStream(stream);
+      const res = await AccessApi.openBarrier(pointId, '', primaryUnitId);
+      safeHaptic.notification();
+      showToast({
+        type: 'success',
+        title: t('access.openSuccessTitle'),
+        message: res.message || t('access.openSuccessMsg'),
+      });
     } catch (e: any) {
-      Alert.alert(t('access.cameraUnavailableTitle'), getApiErrorMessage(e));
-      setCameraModalVisible(false);
+      showToast({
+        type: 'error',
+        title: t('common.error'),
+        message: getApiErrorMessage(e),
+      });
+    } finally {
+      setOpeningPointId(null);
+    }
+  };
+
+  const handleWatchCamera = async (point: AccessPoint) => {
+    setLoadingStream(true);
+    safeHaptic.selection();
+    try {
+      const streams = await AccessApi.getCameraStream(point.id);
+      setSelectedStream(streams);
+      setCameraModalVisible(true);
+    } catch (e: any) {
+      showToast({
+        type: 'error',
+        title: t('access.cameraUnavailableTitle'),
+        message: getApiErrorMessage(e),
+      });
     } finally {
       setLoadingStream(false);
     }
   };
 
-  if (loading) {
-    return <LoadingState />;
-  }
+  const getPassRemainingTime = (validTo: string): string => {
+    const diff = new Date(validTo).getTime() - Date.now();
+    if (diff <= 0) return t('access.statusExpired');
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) return `${hours} ${t('common.hoursShort')} ${mins} ${t('common.minsShort')}`;
+    return `${mins} ${t('common.minsShort')}`;
+  };
 
-  const barriers = points.filter((p) => p.type === 'BARRIER' || p.type === 'GATE');
-  const intercoms = points.filter((p) => p.type === 'DOOR_INTERCOM');
-  const cameras = points.filter((p) => p.type === 'CAMERA');
+  const activePasses = guestPasses.filter(
+    (p) => p.status === 'ACTIVE' && new Date(p.validTo).getTime() > Date.now()
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
-        }
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Top Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: Math.max(insets.top, 16) + 8,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('access.title')}</Text>
-          <Text style={styles.subtitle}>
+        <View style={styles.headerTextWrap}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>
+            {t('access.title')}
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
             {t('access.subtitle')}
           </Text>
         </View>
 
+        <TouchableOpacity
+          onPress={() => {
+            safeHaptic.selection();
+            navigation.navigate('PinSetup');
+          }}
+          style={[
+            styles.pinStatusBtn,
+            {
+              backgroundColor: isPinSet
+                ? theme.colors.primaryBg
+                : theme.colors.warningBg,
+              borderColor: isPinSet
+                ? theme.colors.primary
+                : theme.colors.warning,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="PIN 2FA"
+        >
+          <KeyRound
+            size={14}
+            color={isPinSet ? theme.colors.primary : theme.colors.warning}
+          />
+          <Text
+            style={[
+              styles.pinStatusText,
+              {
+                color: isPinSet
+                  ? theme.colors.primary
+                  : theme.colors.warning,
+              },
+            ]}
+          >
+            {isPinSet ? t('common.configured') : 'PIN 2FA'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: tabBarInset },
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {/* Verification Warning Notice if unverified */}
         {!isVerified && (
-          <View style={styles.unverifiedBanner}>
-            <Text style={styles.unverifiedBannerText}>
-              {t('access.unverifiedNotice')}
+          <AnimatedEntrance index={0}>
+            <Card
+              style={[
+                styles.warningBanner,
+                {
+                  backgroundColor: theme.colors.warningBg,
+                  borderColor: theme.colors.warningBorder,
+                },
+              ]}
+            >
+              <View style={styles.warningRow}>
+                <ShieldAlert size={20} color={theme.colors.warning} />
+                <Text
+                  style={[styles.warningText, { color: theme.colors.warning }]}
+                >
+                  {t('access.unverifiedNotice')}
+                </Text>
+              </View>
+            </Card>
+          </AnimatedEntrance>
+        )}
+
+        {/* 2FA PIN Recommendation Banner if PIN not set */}
+        {isPinSet === false && (
+          <AnimatedEntrance index={1}>
+            <Card
+              onPress={() => {
+                safeHaptic.selection();
+                navigation.navigate('PinSetup');
+              }}
+              style={[
+                styles.pinPromoCard,
+                {
+                  backgroundColor: theme.colors.infoBg,
+                  borderColor: theme.colors.infoBorder,
+                },
+              ]}
+              accessibilityLabel={t('access.pinBannerTitle')}
+            >
+              <View style={styles.pinPromoRow}>
+                <View
+                  style={[
+                    styles.pinIconCircle,
+                    { backgroundColor: theme.colors.info },
+                  ]}
+                >
+                  <KeyRound size={20} color="#FFFFFF" />
+                </View>
+                <View style={styles.pinPromoTextWrap}>
+                  <Text
+                    style={[styles.pinPromoTitle, { color: theme.colors.info }]}
+                  >
+                    {t('access.pinBannerTitle')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.pinPromoSub,
+                      { color: theme.colors.textMuted },
+                    ]}
+                  >
+                    {t('access.pinBannerSub')}
+                  </Text>
+                </View>
+                <ChevronRight size={18} color={theme.colors.info} />
+              </View>
+            </Card>
+          </AnimatedEntrance>
+        )}
+
+        {/* SECTION 1: Barriers & Gates */}
+        <AnimatedEntrance index={2}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              {t('access.barriersSection')}
             </Text>
           </View>
-        )}
 
-        {isPinSet === false && (
-          <TouchableOpacity
-            style={styles.pinWarningBanner}
-            onPress={() => navigation.navigate('PinSetup')}
-            activeOpacity={0.8}
-          >
-            <KeyRound color="#B45309" size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.pinWarningTitle}>{t('access.pinBannerTitle')}</Text>
-              <Text style={styles.pinWarningSub}>
-                {t('access.pinBannerSub')}
+          {loading ? (
+            <SkeletonCard style={{ height: 160 }} />
+          ) : points.length === 0 ? (
+            <Card style={styles.emptyCard}>
+              <Text
+                style={[styles.emptyCardText, { color: theme.colors.textMuted }]}
+              >
+                {t('access.noBarriers')}
               </Text>
+            </Card>
+          ) : (
+            <View style={styles.pointsList}>
+              {points.map((point) => {
+                const isIntercom = point.type === 'DOOR_INTERCOM';
+                const isOpening = openingPointId === point.id;
+
+                return (
+                  <Card key={point.id} style={styles.pointCard}>
+                    <View style={styles.pointCardHeader}>
+                      <View style={styles.pointLeftWrap}>
+                        <View
+                          style={[
+                            styles.pointIconWrap,
+                            {
+                              backgroundColor: theme.colors.primaryBg,
+                              borderColor: theme.colors.primary,
+                            },
+                          ]}
+                        >
+                          <ShieldCheck size={22} color={theme.colors.primary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={[
+                              styles.pointName,
+                              { color: theme.colors.text },
+                            ]}
+                          >
+                            {point.name}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.pointMeta,
+                              { color: theme.colors.textMuted },
+                            ]}
+                          >
+                            {point.type === 'BARRIER'
+                              ? t('access.pointTypeBarrier')
+                              : point.type === 'GATE'
+                              ? t('access.pointTypeGate')
+                              : t('access.pointTypeIntercom')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.pointRightWrap}>
+                        <Badge
+                          label={
+                            point.isActive
+                              ? t('access.pointOnline')
+                              : t('access.pointOffline')
+                          }
+                          variant={point.isActive ? 'success' : 'neutral'}
+                          size="sm"
+                          showDot
+                        />
+
+                        {Boolean(point.streamName) && (
+                          <IconButton
+                            icon={<Video size={18} color={theme.colors.primary} />}
+                            onPress={() => handleWatchCamera(point)}
+                            variant="surface"
+                            size={36}
+                            accessibilityLabel={t('access.watchCamera')}
+                          />
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Action: HoldToOpenButton for Barrier / Gate / Intercom */}
+                    <HoldToOpenButton
+                      title={
+                        isIntercom
+                          ? t('access.holdToOpenIntercom')
+                          : t('access.holdToOpen')
+                      }
+                      onConfirmed={() => {
+                        if (isIntercom) {
+                          return handleOpenIntercom(point.id);
+                        } else {
+                          return handleTriggerOpenBarrier(point);
+                        }
+                      }}
+                      loading={isOpening}
+                      disabled={!isVerified}
+                    />
+                  </Card>
+                );
+              })}
             </View>
-            <ChevronRight color="#B45309" size={18} />
-          </TouchableOpacity>
-        )}
+          )}
+        </AnimatedEntrance>
 
-        {/* Section: Intercoms */}
-        <Text style={styles.sectionHeading}>{t('access.intercomsSection')}</Text>
-
-        {intercoms.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{t('access.noIntercoms')}</Text>
-          </Card>
-        ) : (
-          intercoms.map((intercom) => (
-            <Card key={intercom.id} style={styles.barrierCard}>
-              <View style={styles.barrierHeader}>
-                <View style={styles.barrierInfo}>
-                  <Text style={styles.barrierName}>{intercom.name}</Text>
-                  <Text style={styles.barrierType}>
-                    {t('access.pointTypeIntercom')}
-                  </Text>
-                </View>
-                <Badge label={t('access.barrierActive')} variant="success" />
-              </View>
-
-              <View style={styles.buttonWrapper}>
-                <HoldToOpenButton
-                  title={t('access.holdToOpenIntercom')}
-                  onConfirmed={() => handleTriggerOpenBarrier(intercom)}
-                  loading={openingWithPin && selectedBarrier?.id === intercom.id}
-                  disabled={!isVerified}
-                />
-              </View>
-            </Card>
-          ))
-        )}
-
-        {/* Section: Barriers */}
-        <Text style={styles.sectionHeading}>{t('access.barriersSection')}</Text>
-
-        {barriers.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{t('access.noBarriers')}</Text>
-          </Card>
-        ) : (
-          barriers.map((b) => (
-            <Card key={b.id} style={styles.barrierCard}>
-              <View style={styles.barrierHeader}>
-                <View style={styles.barrierInfo}>
-                  <Text style={styles.barrierName}>{b.name}</Text>
-                  <Text style={styles.barrierType}>
-                    {b.type === 'BARRIER' ? t('access.pointTypeBarrier') : t('access.pointTypeGate')}
-                  </Text>
-                </View>
-                <Badge label={t('access.barrierActive')} variant="success" />
-              </View>
-
-              <View style={styles.buttonWrapper}>
-                <HoldToOpenButton
-                  title={t('access.holdToOpen')}
-                  onConfirmed={() => handleTriggerOpenBarrier(b)}
-                  loading={openingWithPin && selectedBarrier?.id === b.id}
-                  disabled={!isVerified}
-                />
-              </View>
-            </Card>
-          ))
-        )}
-
-        {/* Section: Guest Passes */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>{t('access.guestPassesSection')}</Text>
-          <Button
-            title={t('access.createPassBtn')}
-            onPress={() => {
-              setCreatedPass(null);
-              setGuestModalVisible(true);
-            }}
-            variant="outline"
-            size="sm"
-            disabled={!isVerified}
-          />
-        </View>
-
-        <Card style={styles.guestPromoCard}>
-          <View style={styles.guestPromoRow}>
-            <UserPlus color={Colors.primary} size={32} />
+        {/* SECTION 2: Guest Passes */}
+        <AnimatedEntrance index={3}>
+          <View style={styles.sectionHeaderRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.guestPromoTitle}>{t('access.guestPromoTitle')}</Text>
-              <Text style={styles.guestPromoSub}>
+              <Text
+                style={[styles.sectionHeading, { color: theme.colors.text }]}
+              >
+                {t('access.guestPassesSection')}
+              </Text>
+              <Text
+                style={[styles.sectionSubheading, { color: theme.colors.textMuted }]}
+              >
                 {t('access.guestPromoSub')}
               </Text>
             </View>
+
+            <Button
+              title={t('access.createPassBtn')}
+              onPress={() => {
+                safeHaptic.selection();
+                setGuestModalVisible(true);
+              }}
+              variant="primary"
+              size="sm"
+              leftIcon={<UserPlus size={16} color={theme.colors.onPrimary} />}
+              disabled={!isVerified}
+              accessibilityLabel={t('access.createPassBtn')}
+            />
           </View>
-        </Card>
 
-        {/* Guest Passes History */}
-        {guestPasses.length > 0 && (
-          <View style={styles.historyContainer}>
-            <Text style={styles.historyHeading}>{t('access.historySectionTitle')}</Text>
-            {guestPasses.map((pass) => {
-              const statusVariant =
-                pass.status === 'ACTIVE'
-                  ? 'success'
-                  : pass.status === 'REVOKED'
-                  ? 'danger'
-                  : pass.status === 'USED'
-                  ? 'info'
-                  : 'default';
-
-              const statusLabel =
-                pass.status === 'ACTIVE'
-                  ? t('access.statusActive')
-                  : pass.status === 'REVOKED'
-                  ? t('access.statusRevoked')
-                  : pass.status === 'USED'
-                  ? t('access.statusUsed')
-                  : t('access.statusExpired');
-
-              return (
-                <Card key={pass.id} style={styles.historyCard}>
-                  <View style={styles.historyCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.historyGuestName}>{pass.guestName}</Text>
-                      {pass.guestPlateNumber ? (
-                        <View style={styles.historyPlateRow}>
-                          <Car size={14} color={Colors.textMuted} />
-                          <Text style={styles.historyPlateText}>{pass.guestPlateNumber}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Badge label={statusLabel} variant={statusVariant} />
-                  </View>
-
-                  <View style={styles.historyCardBottom}>
-                    <View style={styles.historyValidRow}>
-                      <Clock size={13} color={Colors.textMuted} />
-                      <Text style={styles.historyValidText}>
-                        {t('access.validUntil', {
-                          time: new Date(pass.validTo).toLocaleString(i18n.language, {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          }),
-                        })}
-                      </Text>
-                    </View>
-
-                    {pass.status === 'ACTIVE' && (
-                      <Button
-                        title={t('access.revokePassBtn')}
-                        onPress={() => handleRevokePass(pass)}
-                        loading={revokingPassId === pass.id}
-                        variant="outline"
-                        size="sm"
-                        style={styles.revokeButton}
-                      />
-                    )}
-                  </View>
-                </Card>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Section: Cameras */}
-        <Text style={styles.sectionHeading}>{t('access.camerasSection')}</Text>
-
-        {cameras.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>{t('access.noCameras')}</Text>
-          </Card>
-        ) : (
-          cameras.map((c) => (
-            <Card key={c.id} style={styles.cameraCard}>
-              <View style={styles.cameraRow}>
-                <View style={styles.cameraIcon}>
-                  <Video color={Colors.primary} size={24} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cameraName}>{c.name}</Text>
-                  <Text style={styles.cameraSub}>{t('access.cameraSub')}</Text>
-                </View>
-                <Button
-                  title={t('access.watchCamera')}
-                  onPress={() => handleViewCamera(c.id)}
-                  variant="primary"
-                  size="sm"
-                />
-              </View>
-            </Card>
-          ))
-        )}
-      </ScrollView>
-
-      {/* CREATE GUEST PASS MODAL */}
-      <Modal visible={guestModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('access.guestModalTitle')}</Text>
-              <TouchableOpacity onPress={() => setGuestModalVisible(false)}>
-                <X color={Colors.textMuted} size={24} />
-              </TouchableOpacity>
-            </View>
-
-            {createdPass ? (
-              // Display created QR Pass
-              <View style={styles.qrResultContainer}>
-                <View style={styles.qrBox}>
-                  <QRCode
-                    value={createdPass.qrCodeUrl || createdPass.accessCode}
-                    size={160}
-                    color="#111827"
-                    backgroundColor="#FFFFFF"
+          {/* If created pass is active, display detailed QR Card */}
+          {createdPass && (
+            <Card
+              style={[
+                styles.qrHeroCard,
+                {
+                  backgroundColor: theme.colors.surfaceElevated,
+                  borderColor: theme.colors.primary,
+                },
+              ]}
+            >
+              <View style={styles.qrCardHeader}>
+                <View style={styles.qrBadgeRow}>
+                  <Badge
+                    label={t('access.passActive')}
+                    variant="success"
+                    size="sm"
+                    showDot
                   />
-                </View>
-
-                <Text style={styles.passCodeTitle}>{t('access.passCodeTitle')}</Text>
-                <Text style={styles.passCode}>{createdPass.accessCode}</Text>
-
-                <View style={styles.passMetaBlock}>
-                  <Text style={styles.passMetaText}>
-                    {t('access.guestNameLabel', { name: createdPass.guestName })}
-                  </Text>
-                  {createdPass.guestPlateNumber ? (
-                    <Text style={styles.passMetaText}>
-                      {t('access.guestPlateLabel', { plate: createdPass.guestPlateNumber })}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.passMetaText}>
-                    {t('access.valid12Hours', {
-                      time: new Date(createdPass.validTo).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+                  <Text
+                    style={[
+                      styles.qrExpireText,
+                      { color: theme.colors.textMuted },
+                    ]}
+                  >
+                    {t('access.passExpiresIn', {
+                      time: getPassRemainingTime(createdPass.validTo),
                     })}
                   </Text>
                 </View>
 
+                <TouchableOpacity
+                  onPress={() => setCreatedPass(null)}
+                  style={styles.qrCloseBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('common.close')}
+                >
+                  <X size={18} color={theme.colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.qrCodeBox}>
+                <View style={styles.qrCodeCanvasWrap}>
+                  <QRCode
+                    value={`SHANYRAQ:PASS:${createdPass.id}:${createdPass.accessCode}`}
+                    size={160}
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
+                  />
+                </View>
+
+                <View style={styles.codeMetaBox}>
+                  <Text
+                    style={[
+                      styles.codeLabel,
+                      { color: theme.colors.textMuted },
+                    ]}
+                  >
+                    {t('access.passCodeTitle')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.codeDigits,
+                      { color: theme.colors.primary },
+                    ]}
+                  >
+                    {createdPass.accessCode}
+                  </Text>
+                  <Text
+                    style={[styles.guestName, { color: theme.colors.text }]}
+                  >
+                    {t('access.guestNameLabel', { name: createdPass.guestName })}
+                  </Text>
+                  {Boolean(createdPass.guestPlateNumber) && (
+                    <Text
+                      style={[styles.guestPlate, { color: theme.colors.textMuted }]}
+                    >
+                      {t('access.guestPlateLabel', {
+                        plate: createdPass.guestPlateNumber,
+                      })}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Actions row: Share, Copy, Revoke */}
+              <View
+                style={[
+                  styles.qrActionsRow,
+                  { borderTopColor: theme.colors.border },
+                ]}
+              >
                 <Button
                   title={t('access.sharePassBtn')}
                   onPress={() => handleSharePass(createdPass)}
                   variant="primary"
-                  size="lg"
-                  icon={<Share2 color="#FFFFFF" size={20} />}
-                  style={{ width: '100%', marginTop: 16 }}
+                  size="sm"
+                  leftIcon={<Share2 size={16} color={theme.colors.onPrimary} />}
+                  style={styles.qrActionBtn}
                 />
-              </View>
-            ) : (
-              // Input form
-              <View>
-                <Input
-                  label={t('access.guestInputLabel')}
-                  placeholder={t('access.guestInputPlaceholder')}
-                  value={guestName}
-                  onChangeText={setGuestName}
-                />
-                <Input
-                  label={t('access.plateInputLabel')}
-                  placeholder={t('access.plateInputPlaceholder')}
-                  value={guestPlate}
-                  onChangeText={setGuestPlate}
-                  leftIcon={<Car color={Colors.textMuted} size={18} />}
-                  helper={t('access.plateHelper')}
-                />
-
                 <Button
-                  title={t('access.generateQrBtn')}
-                  onPress={handleCreateGuestPass}
-                  loading={creatingPass}
-                  size="lg"
-                  style={{ marginTop: 12 }}
+                  title={t('access.copyCode')}
+                  onPress={() => handleCopyCode(createdPass.accessCode)}
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Copy size={16} color={theme.colors.text} />}
+                  style={styles.qrActionBtn}
+                />
+                <Button
+                  title={t('access.revokePassBtn')}
+                  onPress={() => handleRevokePass(createdPass)}
+                  variant="destructive"
+                  size="sm"
+                  style={styles.qrActionBtn}
                 />
               </View>
-            )}
+            </Card>
+          )}
+
+          {/* Active Guest Passes List */}
+          {activePasses.length > 0 ? (
+            <View style={styles.activePassesList}>
+              {activePasses.map((pass) => (
+                <Card key={pass.id} style={styles.passMiniCard}>
+                  <View style={styles.passMiniRow}>
+                    <View
+                      style={[
+                        styles.passMiniIcon,
+                        { backgroundColor: theme.colors.primaryBg },
+                      ]}
+                    >
+                      <QrCode size={20} color={theme.colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[styles.passMiniName, { color: theme.colors.text }]}
+                      >
+                        {pass.guestName}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.passMiniCode,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        {pass.accessCode}
+                        {pass.guestPlateNumber ? ` • ${pass.guestPlateNumber}` : ''}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.passMiniExpiry,
+                          { color: theme.colors.textMuted },
+                        ]}
+                      >
+                        {t('access.validUntil', {
+                          time: new Date(pass.validTo).toLocaleTimeString(
+                            i18n.language,
+                            { hour: '2-digit', minute: '2-digit' }
+                          ),
+                        })}
+                      </Text>
+                    </View>
+
+                    <View style={styles.passMiniActions}>
+                      <IconButton
+                        icon={<Share2 size={16} color={theme.colors.primary} />}
+                        onPress={() => handleSharePass(pass)}
+                        variant="surface"
+                        size={36}
+                        accessibilityLabel={t('access.sharePassBtn')}
+                      />
+                      <IconButton
+                        icon={<Trash2 size={16} color={theme.colors.danger} />}
+                        onPress={() => handleRevokePass(pass)}
+                        variant="surface"
+                        size={36}
+                        disabled={revokingPassId === pass.id}
+                        accessibilityLabel={t('access.revokePassBtn')}
+                      />
+                    </View>
+                  </View>
+                </Card>
+              ))}
+            </View>
+          ) : !createdPass ? (
+            <EmptyState
+              title={t('access.noHistory')}
+              description={t('access.guestPromoSub')}
+              actionTitle={t('access.createPassBtn')}
+              onActionPress={() => {
+                safeHaptic.selection();
+                setGuestModalVisible(true);
+              }}
+            />
+          ) : null}
+        </AnimatedEntrance>
+      </ScrollView>
+
+      {/* 2FA PIN Modal */}
+      {selectedBarrier && (
+        <PinEntryModal
+          visible={pinModalVisible}
+          accessPointName={selectedBarrier.name}
+          loading={openingWithPin}
+          error={pinError}
+          onConfirm={handleConfirmPin}
+          onCancel={() => {
+            setPinModalVisible(false);
+            setSelectedBarrier(null);
+          }}
+          onForgotPin={() => {
+            setPinModalVisible(false);
+            navigation.navigate('PinSetup');
+          }}
+        />
+      )}
+
+      {/* Guest Pass Creation Modal */}
+      <Modal
+        visible={guestModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGuestModalVisible(false)}
+      >
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: theme.colors.overlay },
+          ]}
+        >
+          <View
+            style={[
+              styles.createModalCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
+                ...theme.shadows.floating,
+              },
+            ]}
+          >
+            <View style={styles.modalHeaderRow}>
+              <Text
+                style={[styles.modalTitle, { color: theme.colors.text }]}
+              >
+                {t('access.guestModalTitle')}
+              </Text>
+              <IconButton
+                icon={<X size={20} color={theme.colors.textMuted} />}
+                onPress={() => setGuestModalVisible(false)}
+                variant="ghost"
+                size={36}
+                accessibilityLabel={t('common.close')}
+              />
+            </View>
+
+            <Input
+              label={t('access.guestInputLabel')}
+              placeholder={t('access.guestInputPlaceholder')}
+              value={guestName}
+              onChangeText={setGuestName}
+              containerStyle={{ marginBottom: 14 }}
+            />
+
+            <Input
+              label={t('access.plateInputLabel')}
+              placeholder={t('access.plateInputPlaceholder')}
+              value={guestPlate}
+              onChangeText={setGuestPlate}
+              helper={t('access.plateHelper')}
+              containerStyle={{ marginBottom: 20 }}
+            />
+
+            <Button
+              title={t('access.generateQrBtn')}
+              onPress={async () => {
+                await handleCreatePass();
+                setGuestModalVisible(false);
+              }}
+              loading={creatingPass}
+              variant="primary"
+              size="lg"
+              leftIcon={<QrCode size={20} color={theme.colors.onPrimary} />}
+              style={{ width: '100%' }}
+              accessibilityLabel={t('access.generateQrBtn')}
+            />
           </View>
         </View>
       </Modal>
 
-      {/* CAMERA VIEWER MODAL */}
-      <Modal visible={cameraModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { height: 360 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedStream?.name || t('access.liveCameraTitle')}
-              </Text>
-              <TouchableOpacity onPress={() => setCameraModalVisible(false)}>
-                <X color={Colors.textMuted} size={24} />
-              </TouchableOpacity>
-            </View>
+      {/* Camera Live Stream Modal */}
+      {selectedStream && (
+        <Modal
+          visible={cameraModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCameraModalVisible(false)}
+        >
+          <View
+            style={[
+              styles.modalOverlay,
+              { backgroundColor: theme.colors.overlay },
+            ]}
+          >
+            <View
+              style={[
+                styles.createModalCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <View style={styles.modalHeaderRow}>
+                <Text
+                  style={[styles.modalTitle, { color: theme.colors.text }]}
+                >
+                  {t('access.liveCameraTitle')}
+                </Text>
+                <IconButton
+                  icon={<X size={20} color={theme.colors.textMuted} />}
+                  onPress={() => setCameraModalVisible(false)}
+                  variant="ghost"
+                  size={36}
+                  accessibilityLabel={t('common.close')}
+                />
+              </View>
 
-            <View style={styles.streamContainer}>
-              <View style={styles.streamMockPlaceholder}>
-                <Video color="#FFFFFF" size={48} />
-                <Text style={styles.streamMockText}>
-                  {t('access.cameraPlaybackUnavailable')}
+              <View
+                style={[
+                  styles.cameraStreamBox,
+                  { backgroundColor: theme.colors.overlay },
+                ]}
+              >
+                <Video size={36} color={theme.colors.primary} />
+                <Text style={styles.streamConnectingText}>
+                  {t('access.connectingStream')}
+                </Text>
+                <Text style={[styles.streamEndpointText, { color: theme.colors.textMuted }]}>
+                  {selectedStream.endpoints?.hls || selectedStream.endpoints?.webPlayer || 'Live Stream'}
                 </Text>
               </View>
+
+              <Button
+                title={t('common.close')}
+                variant="secondary"
+                onPress={() => setCameraModalVisible(false)}
+                style={{ marginTop: 14, width: '100%' }}
+              />
             </View>
           </View>
-        </View>
-      </Modal>
-
-      {/* 2FA PIN ENTRY MODAL */}
-      <PinEntryModal
-        visible={pinModalVisible}
-        accessPointName={selectedBarrier?.name || t('access.pointTypeBarrier')}
-        loading={openingWithPin}
-        error={pinError}
-        onConfirm={handleConfirmPin}
-        onCancel={() => {
-          setPinModalVisible(false);
-          setSelectedBarrier(null);
-          setPinError(null);
-        }}
-        onForgotPin={() => {
-          setPinModalVisible(false);
-          navigation.navigate('PinSetup');
-        }}
-      />
-    </SafeAreaView>
+        </Modal>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
   },
   header: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  headerTextWrap: {
+    flex: 1,
   },
   title: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 4,
+    marginTop: 2,
     lineHeight: 18,
   },
-  unverifiedBanner: {
-    backgroundColor: '#FEF3C7',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  unverifiedBannerText: {
-    fontSize: 13,
-    color: '#92400E',
-    lineHeight: 18,
-  },
-  pinWarningBanner: {
+  pinStatusBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FEF3C7',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+  },
+  pinStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scrollContent: {
+    padding: 16,
+    gap: 20,
+  },
+  warningBanner: {
     padding: 14,
-    borderRadius: 14,
-    marginBottom: 16,
+    borderWidth: 1,
   },
-  pinWarningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  pinWarningSub: {
-    fontSize: 12,
-    color: '#B45309',
-    marginTop: 2,
-  },
-  sectionHeading: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 12,
-    marginTop: 12,
-  },
-  sectionHeaderRow: {
+  warningRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 16,
+    gap: 10,
   },
-  barrierCard: {
-    marginBottom: 12,
-  },
-  barrierHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  barrierInfo: {
+  warningText: {
     flex: 1,
-  },
-  barrierName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  barrierType: {
     fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 2,
+    lineHeight: 18,
+    fontWeight: '500',
   },
-  buttonWrapper: {
-    marginTop: 4,
+  pinPromoCard: {
+    padding: 14,
+    borderWidth: 1.5,
   },
-  guestPromoCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-    marginBottom: 16,
-  },
-  guestPromoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  guestPromoTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#166534',
-  },
-  guestPromoSub: {
-    fontSize: 12,
-    color: '#15803D',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  cameraCard: {
-    marginBottom: 10,
-  },
-  cameraRow: {
+  pinPromoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  cameraIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primaryBg,
+  pinIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
+  pinPromoTextWrap: {
+    flex: 1,
   },
-  cameraSub: {
+  pinPromoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  pinPromoSub: {
     fontSize: 12,
-    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    gap: 12,
+  },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  sectionSubheading: {
+    fontSize: 12,
     marginTop: 2,
   },
   emptyCard: {
-    padding: 16,
+    padding: 24,
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 13,
-    color: Colors.textMuted,
+  emptyCardText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
-  modalOverlay: {
+  pointsList: {
+    gap: 12,
+  },
+  pointCard: {
+    padding: 16,
+    gap: 14,
+  },
+  pointCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  pointLeftWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
   },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '90%',
+  pointIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modalHeader: {
+  pointName: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  pointMeta: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  pointRightWrap: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  qrHeroCard: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    marginBottom: 14,
+    alignItems: 'center',
+  },
+  qrCardHeader: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  qrBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  qrExpireText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  qrCloseBtn: {
+    padding: 4,
+  },
+  qrCodeBox: {
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  qrCodeCanvasWrap: {
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 14,
+  },
+  codeMetaBox: {
+    alignItems: 'center',
+  },
+  codeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  codeDigits: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 4,
+    marginVertical: 4,
+  },
+  guestName: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  guestPlate: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  qrActionsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    paddingTop: 14,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  qrActionBtn: {
+    flex: 1,
+  },
+  activePassesList: {
+    gap: 10,
+    marginTop: 8,
+  },
+  passMiniCard: {
+    padding: 14,
+  },
+  passMiniRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  passMiniIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passMiniName: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  passMiniCode: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  passMiniExpiry: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  passMiniActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  createModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    padding: 20,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: Colors.text,
+    letterSpacing: -0.3,
   },
-  qrResultContainer: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  qrBox: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 12,
-  },
-  passCodeTitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 6,
-  },
-  passCode: {
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: 4,
-    color: Colors.primary,
-  },
-  passMetaBlock: {
+  cameraStreamBox: {
     width: '100%',
-    backgroundColor: Colors.background,
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 12,
-    gap: 4,
-  },
-  passMetaText: {
-    fontSize: 13,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  streamContainer: {
-    flex: 1,
-    backgroundColor: '#000000',
+    height: 200,
     borderRadius: 16,
-    overflow: 'hidden',
-  },
-  streamMockPlaceholder: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1E293B',
+    padding: 16,
+    marginBottom: 12,
   },
-  streamMockText: {
+  streamConnectingText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
     marginTop: 10,
   },
-  historyContainer: {
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  historyHeading: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  historyCard: {
-    padding: 12,
-    marginBottom: 8,
-  },
-  historyCardTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  historyGuestName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  historyPlateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
-  },
-  historyPlateText: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    fontWeight: '500',
-  },
-  historyCardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
-    paddingTop: 8,
-  },
-  historyValidRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flex: 1,
-  },
-  historyValidText: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  revokeButton: {
-    marginLeft: 8,
-    borderColor: Colors.danger,
+  streamEndpointText: {
+    fontSize: 11,
+    marginTop: 4,
   },
 });

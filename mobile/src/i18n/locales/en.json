@@ -33,7 +33,9 @@
     "all": "All",
     "unitShort": "apt.",
     "sqm": "m²",
-    "kazakhAlphabet": "Kazakh alphabet: Ә І Ң Ғ Ү Ұ Қ Ө Һ"
+    "kazakhAlphabet": "Kazakh alphabet: Ә І Ң Ғ Ү Ұ Қ Ө Һ",
+    "hoursShort": "h",
+    "minsShort": "m"
   },
   "navigation": {
     "home": "Home",
@@ -133,7 +135,17 @@
     "sharePercentHelper": "Default is 100% if you own the entire unit",
     "submitClaimBtn": "Submit to Management",
     "selectUnitError": "Please select your apartment from the list",
-    "claimSentSuccess": "Apartment link request submitted to management!"
+    "claimSentSuccess": "Apartment link request submitted to management!",
+    "stepComplex": "Complex",
+    "stepBlock": "Block",
+    "stepUnit": "Unit",
+    "stepConfirm": "Confirmation",
+    "chooseBlock": "Select block / entrance",
+    "chooseUnit": "Select apartment or unit",
+    "noBlocksFound": "No blocks added in this complex yet",
+    "noUnitsFound": "No units found in selected block",
+    "selectedComplex": "Selected complex",
+    "selectedUnit": "Selected unit"
   },
   "access": {
     "title": "Access Control",
@@ -237,7 +249,17 @@
     "intercomsSection": "Intercoms",
     "noIntercoms": "No intercoms configured for your complex yet",
     "pointTypeIntercom": "Intercom",
-    "holdToOpenIntercom": "Hold to open door"
+    "holdToOpenIntercom": "Hold to open door",
+    "copyCode": "Copy code",
+    "codeCopied": "Code copied to clipboard",
+    "pointOnline": "Online",
+    "pointOffline": "Offline",
+    "passActive": "Pass active",
+    "passExpiresIn": "Expires in {{time}}",
+    "keypadClear": "C",
+    "keypadBackspace": "Delete",
+    "keypadSubmit": "Confirm",
+    "incorrectPin": "Incorrect access PIN"
   },
   "votings": {
     "title": "General Meetings (HOA)",
@@ -351,7 +373,26 @@
     "prioLow": "Low",
     "prioMedium": "Normal",
     "prioHigh": "High",
-    "prioEmergency": "Emergency"
+    "prioEmergency": "Emergency",
+    "timelineTitle": "Progress timeline",
+    "commentsTitle": "Comments & discussion",
+    "commentPlaceholder": "Write a comment...",
+    "sendComment": "Send",
+    "stepCategory": "Category",
+    "stepDescription": "Description",
+    "stepPhotos": "Photos",
+    "stepPriority": "Priority",
+    "stepConfirmation": "Confirmation",
+    "photosOptional": "Attach photos (up to 5)",
+    "viewPhoto": "View photo",
+    "closePhoto": "Close",
+    "selectCategory": "Select problem category",
+    "nextStep": "Next",
+    "prevStep": "Back",
+    "priorityLowDesc": "Routine tasks with no rush",
+    "priorityMediumDesc": "Standard request within 24h",
+    "priorityHighDesc": "Resolution required within 4h",
+    "priorityEmergencyDesc": "Emergency, immediate dispatch"
   },
   "announcements": {
     "title": "News & Announcements",
@@ -359,7 +400,10 @@
     "emptyNewsTitle": "No news yet",
     "emptyNewsSubtitle": "Management announcements, reports, and maintenance notices will be posted here",
     "urgentBadgeText": "URGENT ANNOUNCEMENT",
-    "regularBadgeText": "Announcement"
+    "regularBadgeText": "Announcement",
+    "readMore": "Read more",
+    "showLess": "Show less",
+    "publishedAt": "Published: {{date}}"
   },
   "dashboard": {
     "welcome": "Welcome back, {{name}}!",
@@ -542,7 +586,10 @@
       "ACTIVE": "Active",
       "RESOLVED": "Resolved",
       "FALSE_ALARM": "False Alarm"
-    }
+    },
+    "pressAndHold": "Press and hold 1.5s",
+    "signalSent": "SOS signal sent",
+    "timelineDate": "Alert time: {{date}}"
   },
   "communityBoard": {
     "screenTitle": "Community Board",
@@ -605,7 +652,13 @@
     "dispatcherFallback": "Dispatcher",
     "supportTeam": "Support Team",
     "today": "Today",
-    "photoLabel": "Photo"
+    "photoLabel": "Photo",
+    "delivered": "Delivered",
+    "sent": "Sent",
+    "read": "Read",
+    "yesterday": "Yesterday",
+    "attachPhoto": "Photo",
+    "connecting": "Connecting to chat..."
   },
   "errors": {
     "AUTH": {
@@ -1025,6 +1078,23 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago",
-    "allRead": "All notifications read"
+    "allRead": "All notifications read",
+    "sectionToday": "Today",
+    "sectionYesterday": "Yesterday",
+    "sectionEarlier": "Earlier",
+    "markAsRead": "Mark as read"
+  },
+  "roles": {
+    "RESIDENT_OWNER": "Owner",
+    "RESIDENT_TENANT": "Tenant",
+    "RESIDENT": "Resident",
+    "HOA_ADMIN": "HOA Manager",
+    "HOA_CHAIRMAN": "HOA Chairman",
+    "DISPATCHER": "Dispatcher",
+    "SECURITY": "Security",
+    "SUPERADMIN": "Super Admin",
+    "OWNER": "Owner",
+    "TENANT": "Tenant",
+    "FAMILY_MEMBER": "Family Member"
   }
 }

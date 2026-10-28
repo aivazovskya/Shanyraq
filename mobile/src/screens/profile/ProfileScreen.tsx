@@ -27,6 +27,8 @@ import { Divider } from '../../components/ui/Divider';
 import { BottomSheet } from '../../components/ui/BottomSheet';
 import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
 import { safeHaptic } from '../../lib/haptics';
+import { roleLabel } from '../../lib/role-label';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import {
   Phone,
   PhoneOff,
@@ -57,6 +59,7 @@ export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset(24);
   const { user, logout, refreshProfile } = useAuth();
   const { theme, mode, setThemeMode } = useTheme();
   const { t, i18n } = useTranslation();
@@ -161,7 +164,7 @@ export const ProfileScreen: React.FC = () => {
           styles.scrollContent,
           {
             paddingTop: Math.max(insets.top, 16) + 12,
-            paddingBottom: Math.max(insets.bottom, 24) + 90, // safe clearance over floating tab bar
+            paddingBottom: tabBarInset,
           },
         ]}
       >
@@ -189,7 +192,7 @@ export const ProfileScreen: React.FC = () => {
                 </View>
                 <View style={styles.userBadgeRow}>
                   <Badge
-                    label={user?.role === 'RESIDENT' ? t('profile.tenantRole') : user?.role || t('profile.ownerRole')}
+                    label={roleLabel(user?.role, t)}
                     variant="primary"
                     size="sm"
                   />
@@ -275,7 +278,7 @@ export const ProfileScreen: React.FC = () => {
                   <Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>
                     {t('profile.roleLabel')}{' '}
                     <Text style={[styles.metaValue, { color: theme.colors.text }]}>
-                      {o.ownershipType === 'OWNER' ? t('profile.ownerRole') : t('profile.tenantRole')}
+                      {roleLabel(o.ownershipType, t)}
                     </Text>
                   </Text>
                   <Text style={[styles.metaLabel, { color: theme.colors.textMuted }]}>

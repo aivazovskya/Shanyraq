@@ -9,8 +9,11 @@ import {
 } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
+import { useReducedMotion } from 'react-native-reanimated';
+import { useTheme } from '../../theme/ThemeContext';
+import { safeHaptic } from '../../lib/haptics';
 
-interface SosHoldButtonProps {
+export interface SosHoldButtonProps {
   onConfirmed: () => Promise<void> | void;
   loading?: boolean;
   disabled?: boolean;
@@ -24,6 +27,9 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
   holdDurationMs = 1500,
 }) => {
   const { t } = useTranslation();
+  const { theme } = useTheme();
+  const reducedMotion = useReducedMotion();
+
   const [isHolding, setIsHolding] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,15 +38,18 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
     if (disabled || loading) return;
 
     setIsHolding(true);
+    safeHaptic.selection();
+
     Animated.timing(progressAnim, {
       toValue: 1,
-      duration: holdDurationMs,
+      duration: reducedMotion ? 100 : holdDurationMs,
       useNativeDriver: false,
     }).start();
 
     timeoutRef.current = setTimeout(async () => {
       setIsHolding(false);
       progressAnim.setValue(0);
+      safeHaptic.notification();
       await onConfirmed();
     }, holdDurationMs);
   };
@@ -53,7 +62,7 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
     setIsHolding(false);
     Animated.timing(progressAnim, {
       toValue: 0,
-      duration: 200,
+      duration: 150,
       useNativeDriver: false,
     }).start();
   };
@@ -63,18 +72,36 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
     outputRange: ['0%', '100%'],
   });
 
+  const progressBg = theme.colors.dangerDark;
+
   return (
     <TouchableWithoutFeedback
       onPressIn={startHold}
       onPressOut={cancelHold}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={isHolding ? t('sos.holding') : t('sos.buttonTitle')}
+      accessibilityHint={isHolding ? t('sos.releaseToCancel') : t('sos.buttonSubtitle')}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
-      <View style={[styles.container, disabled && styles.disabled]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: theme.colors.danger,
+            shadowColor: theme.colors.danger,
+          },
+          disabled && styles.disabled,
+        ]}
+      >
         {/* Animated filling background */}
         <Animated.View
           style={[
             styles.progressBar,
-            { width: widthInterpolation },
+            {
+              width: widthInterpolation,
+              backgroundColor: progressBg,
+            },
           ]}
         />
 
@@ -83,8 +110,8 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <>
-              <View style={styles.iconCircle}>
-                <AlertTriangle color="#DC2626" size={24} />
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.surface }]}>
+                <AlertTriangle color={theme.colors.danger} size={24} />
               </View>
               <View style={styles.textContainer}>
                 <Text style={styles.title}>
@@ -106,10 +133,8 @@ const styles = StyleSheet.create({
   container: {
     height: 76,
     borderRadius: 16,
-    backgroundColor: '#DC2626',
     overflow: 'hidden',
     justifyContent: 'center',
-    shadowColor: '#DC2626',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
@@ -124,7 +149,6 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: '#991B1B', // Darker red on hold fill
   },
   contentRow: {
     flexDirection: 'row',
@@ -136,7 +160,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
@@ -151,7 +174,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   subtitle: {
-    color: '#FEE2E2',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
