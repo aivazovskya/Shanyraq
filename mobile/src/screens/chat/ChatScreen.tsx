@@ -1,20 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Modal,
-  Pressable,
-} from 'react-native';
+import { View, StyleSheet, SafeAreaView, FlatList, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';

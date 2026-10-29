@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, Text, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle, TextStyle } from 'react-native';
+import { Text } from './AppText';
 import { useTheme } from '../../theme/ThemeContext';
 
 export type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'primary' | 'neutral';

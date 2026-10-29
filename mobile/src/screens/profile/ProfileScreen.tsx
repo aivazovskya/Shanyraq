@@ -1,13 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  TouchableOpacity,
-  Switch,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Switch } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';

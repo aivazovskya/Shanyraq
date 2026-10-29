@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Шаңырақ — направление дизайна</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;500;700;800&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0C2233; --tengri:#1D74B8; --sky:#D9ECF7; --sun:#F4B63D;
+  --felt:#EEF2F4; --paper:#FFFFFF; --steppe:#2E8B6A; --coral:#D4483B;
+  --muted:#5B6F7E; --line:#DCE4E9;
+  --display:'Geologica',system-ui,sans-serif; --text:'Onest',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--felt);color:var(--ink);font-family:var(--text);line-height:1.5;padding:40px 24px 80px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font:800 44px/1.05 var(--display);letter-spacing:-.02em}
+h2{font:700 13px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:56px 0 16px}
+.lead{max-width:640px;margin-top:14px;color:var(--muted);font-size:17px}
+.chips{display:flex;flex-wrap:wrap;gap:12px}
+.chip{width:168px;border-radius:14px;overflow:hidden;background:var(--paper);border:1px solid var(--line)}
+.chip i{display:block;height:64px}
+.chip b{display:block;padding:10px 12px 0;font:600 14px var(--text)}
+.chip span{display:block;padding:0 12px 12px;font-size:12px;color:var(--muted)}
+.type{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:24px}
+.card .big{font:800 40px/1.1 var(--display);letter-spacing:-.02em}
+.card .kz{font:500 20px var(--display);margin-top:10px}
+.card p{margin-top:10px;font-size:15px;color:var(--muted)}
+.stage{display:grid;grid-template-columns:360px 1fr;gap:40px;align-items:start}
+
+/* phone */
+.phone{width:360px;border-radius:44px;background:var(--ink);padding:10px}
+.screen{border-radius:36px;background:var(--felt);overflow:hidden;min-height:880px;position:relative;padding-bottom:84px}
+.hd{background:var(--ink);color:#fff;padding:26px 22px 78px;position:relative;overflow:hidden}
+.hd small{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8FB1C8}
+.hd h3{font:700 24px/1.15 var(--display);margin-top:6px}
+.hd p{font-size:13px;color:#A9C3D4;margin-top:4px}
+.mark{position:absolute;right:-70px;top:-70px;opacity:.16}
+.bal{margin:-58px 14px 0;background:var(--paper);border-radius:24px;padding:18px;position:relative;box-shadow:0 10px 30px rgba(12,34,51,.12);display:grid;grid-template-columns:132px 1fr;gap:14px;align-items:center}
+.bal .k{font-size:12px;color:var(--muted)}
+.bal .v{font:800 30px/1 var(--display);letter-spacing:-.02em;margin-top:2px}
+.bal .v em{font-style:normal;font-weight:300;color:var(--muted)}
+.legend{list-style:none;padding:0;margin-top:10px;font-size:12px;display:grid;gap:4px}
+.legend li{display:flex;align-items:center;gap:8px}
+.legend i{width:8px;height:8px;border-radius:50%}
+.pay{grid-column:1/-1;display:flex;gap:8px}
+.btn{flex:1;text-align:center;padding:12px;border-radius:14px;font:600 14px var(--text)}
+.btn.p{background:var(--tengri);color:#fff}.btn.s{background:var(--sky);color:var(--tengri)}
+.note{margin:12px 14px 0;padding:12px 14px;background:var(--paper);border-radius:16px;border-left:4px solid var(--sun);font-size:13px}
+.note b{display:block;font:600 13px var(--text)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 14px 0}
+.tile{background:var(--paper);border-radius:18px;padding:14px;font-size:13px;color:var(--muted)}
+.tile b{display:block;font:600 15px var(--text);color:var(--ink);margin-top:10px}
+.ic{width:34px;height:34px;border-radius:11px;background:var(--sky);display:grid;place-items:center}
+.sos{margin:12px 14px 0;background:var(--coral);color:#fff;border-radius:18px;padding:14px 16px;font:700 14px var(--display);display:flex;justify-content:space-between;align-items:center}
+.sos small{display:block;font:400 12px var(--text);opacity:.85;margin-top:2px}
+.tab{position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--paper);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center;font-size:11px;color:var(--muted)}
+.tab span.on{color:var(--tengri);font-weight:600;position:relative}
+.tab span.on::before{content:"";position:absolute;top:-14px;left:50%;width:22px;height:3px;margin-left:-11px;border-radius:3px;background:var(--sun)}
+
+/* desktop */
+.desk{border-radius:20px;background:var(--paper);border:1px solid var(--line);overflow:hidden;display:grid;grid-template-columns:210px 1fr;min-height:880px}
+.rail{background:var(--ink);color:#C5D6E2;padding:22px 16px;font-size:14px}
+.rail .logo{display:flex;align-items:center;gap:10px;color:#fff;font:700 18px var(--display);margin-bottom:28px}
+.rail a{display:block;padding:10px 12px;border-radius:10px;margin-bottom:2px}
+.rail a.on{background:rgba(255,255,255,.09);color:#fff;box-shadow:inset 3px 0 0 var(--sun)}
+.main{padding:28px 32px;background:var(--felt)}
+.main h3{font:700 26px var(--display);letter-spacing:-.01em}
+.main .sub{color:var(--muted);font-size:14px;margin-bottom:22px}
+.row{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+.panel{background:var(--paper);border-radius:20px;padding:22px;border:1px solid var(--line)}
+.panel h4{font:600 14px var(--text);color:var(--muted);margin-bottom:14px}
+.req{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.req:first-of-type{border-top:0}
+.tag{font:600 12px var(--text);padding:4px 10px;border-radius:99px;background:var(--sky);color:var(--tengri)}
+.tag.ok{background:#DDF0E8;color:var(--steppe)}
+@media(max-width:1000px){.stage,.type,.row{grid-template-columns:1fr}.desk{grid-template-columns:1fr}.rail{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Дом с открытым небом</h1>
+  <p class="lead">Направление для всех трёх интерфейсов: мобильного приложения, веб-кабинета жителя и админки УК. Основа — шаңырақ, купол юрты. Круг с лучами показывает, как оплачены услуги месяца: один луч — одна услуга. Макет на данных кв. 101.</p>
+
+  <h2>Палитра</h2>
+  <div class="chips">
+    <div class="chip"><i style="background:#0C2233"></i><b>Ночное небо</b><span>#0C2233 · текст, шапки</span></div>
+    <div class="chip"><i style="background:#1D74B8"></i><b>Тәңір</b><span>#1D74B8 · действия</span></div>
+    <div class="chip"><i style="background:#D9ECF7"></i><b>Рассвет</b><span>#D9ECF7 · фон акцентов</span></div>
+    <div class="chip"><i style="background:#F4B63D"></i><b>Солнце</b><span>#F4B63D · только маркер «здесь»</span></div>
+    <div class="chip"><i style="background:#EEF2F4"></i><b>Войлок</b><span>#EEF2F4 · фон страниц</span></div>
+    <div class="chip"><i style="background:#2E8B6A"></i><b>Степь</b><span>#2E8B6A · оплачено, ок</span></div>
+    <div class="chip"><i style="background:#D4483B"></i><b>Тревога</b><span>#D4483B · SOS, долг</span></div>
+  </div>
+
+  <h2>Шрифты (проверены на казахских буквах и ₸)</h2>
+  <div class="type">
+    <div class="card"><div class="big">Geologica</div><div class="kz">Қош келдіңіз, Арман! 420 ₸</div><p>Заголовки и суммы. Плотные начертания 700–800, для крупных цифр лёгкий 300 рядом с жирным.</p></div>
+    <div class="card"><div class="big" style="font-family:var(--text);font-weight:600">Onest</div><div class="kz" style="font-family:var(--text);font-weight:400;font-size:18px">Әр жылу, су, жарық — бір қарауда. Ұлы дала үшін.</div><p>Основной текст, подписи и формы. Хорошо читается мелким кеглем на телефоне.</p></div>
+  </div>
+
+  <h2>Главный экран жителя</h2>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="hd">
+        <svg class="mark" width="240" height="240" viewBox="0 0 240 240" fill="none" stroke="#fff" stroke-width="3"><circle cx="120" cy="120" r="110"/><circle cx="120" cy="120" r="28"/><g><path d="M120 10v82M120 148v82M10 120h82M148 120h82M42 42l58 58M140 140l58 58M198 42l-58 58M100 140l-58 58"/></g></svg>
+        <small>Чт, 29 октября</small>
+        <h3>Добрый вечер,<br>Арман</h3>
+        <p>ЖК «Шаңырақ Премиум» · кв. 101</p>
+      </div>
+      <div class="bal">
+        <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label="Оплачено 3 из 4 услуг месяца"><g transform="translate(66 66)" fill="none" stroke-width="13" stroke-linecap="round"><circle r="46" stroke="#2E8B6A" stroke-dasharray="64 225.04" transform="rotate(-86)"/><circle r="46" stroke="#2E8B6A" stroke-dasharray="64 225.04" transform="rotate(4)"/><circle r="46" stroke="#2E8B6A" stroke-dasharray="64 225.04" transform="rotate(94)"/><circle r="46" stroke="#D4483B" stroke-dasharray="64 225.04" transform="rotate(184)"/></g><circle cx="66" cy="66" r="24" fill="#0C2233"/><circle cx="66" cy="66" r="5" fill="#F4B63D"/></svg>
+        <div>
+          <div class="k">Баланс лицевого счёта</div>
+          <div class="v">420 <em>₸</em></div>
+          <ul class="legend">
+            <li><i style="background:#2E8B6A"></i>Отопление</li>
+            <li><i style="background:#2E8B6A"></i>Вода</li>
+            <li><i style="background:#2E8B6A"></i>Электричество</li>
+            <li><i style="background:#D4483B"></i>Содержание дома</li>
+          </ul>
+        </div>
+        <div class="pay"><div class="btn p">Оплатить</div><div class="btn s">Квитанция</div></div>
+      </div>
+      <div class="note"><b>Опрессовка отопления, 15 октября</b>С 09:00 до 18:00 вода в батареях будет отключена.</div>
+      <div class="grid">
+        <div class="tile"><div class="ic">▭</div><b>Открыть шлагбаум</b>Въезд</div>
+        <div class="tile"><div class="ic">▦</div><b>Гостевой QR</b>Для курьера и гостей</div>
+        <div class="tile"><div class="ic">✎</div><b>Вызвать мастера</b>Сантехник, электрик</div>
+        <div class="tile"><div class="ic">≈</div><b>Передать показания</b>Вода, свет</div>
+      </div>
+      <div class="sos"><div>Экстренный вызов<small>Удерживайте 1,5 секунды — охрана получит сигнал</small></div><div style="font-size:22px">●</div></div>
+      <div class="tab"><span class="on">Главная</span><span>ОСС</span><span>Доступ</span><span>Заявки</span><span>Профиль</span></div>
+    </div></div>
+
+    <div class="desk">
+      <aside class="rail">
+        <div class="logo"><svg width="26" height="26" viewBox="0 0 240 240" fill="none" stroke="#F4B63D" stroke-width="16"><circle cx="120" cy="120" r="104"/><path d="M120 16v208M16 120h208M46 46l148 148M194 46L46 194" stroke-width="12"/></svg>Шаңырақ</div>
+        <a class="on">Главная</a><a>Счета и оплата</a><a>Заявки</a><a>Доступ и гости</a><a>Счётчики</a><a>Голосования</a><a>Объявления</a><a>Чат</a><a>Жильцы квартиры</a>
+      </aside>
+      <section class="main">
+        <h3>Добрый вечер, Арман</h3>
+        <div class="sub">кв. 101 · Блок А · ЖК «Шаңырақ Премиум» · собственник</div>
+        <div class="row">
+          <div class="panel"><h4>Услуги месяца</h4>
+            <div class="req"><span>Отопление</span><span class="tag ok">Оплачено</span></div>
+            <div class="req"><span>Вода</span><span class="tag ok">Оплачено</span></div>
+            <div class="req"><span>Электричество</span><span class="tag ok">Оплачено</span></div>
+            <div class="req"><span>Содержание дома</span><span class="tag" style="background:#F8DEDA;color:var(--coral)">Нужно оплатить</span></div>
+          </div>
+          <div class="panel"><h4>Мои заявки</h4>
+            <div class="req"><span>Протечка в ванной</span><span class="tag">В работе</span></div>
+            <div class="req"><span>Лампа в подъезде</span><span class="tag ok">Готово</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>

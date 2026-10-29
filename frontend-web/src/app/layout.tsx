@@ -1,6 +1,21 @@
 import type { Metadata } from 'next';
+import { Geologica, Onest } from 'next/font/google';
 import './globals.css';
 import LocaleSync from '@/components/LocaleSync';
+
+const onest = Onest({
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
+  variable: '--font-onest',
+  display: 'swap',
+  adjustFontFallback: false,
+});
+
+const geologica = Geologica({
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
+  variable: '--font-geologica',
+  display: 'swap',
+  adjustFontFallback: false,
+});
 
 export const metadata: Metadata = {
   title: 'Shanyraq (Шаңырақ) — Панель управления ОСИ и УК',
@@ -13,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ru">
+    <html lang="ru" className={`${onest.variable} ${geologica.variable}`}>
       <body>
         <LocaleSync />
         {children}

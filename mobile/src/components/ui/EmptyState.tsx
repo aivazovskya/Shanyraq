@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, Text, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Text } from './AppText';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 import { Button } from './Button';
@@ -30,7 +31,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             cx="60"
             cy="60"
             r="54"
-            fill={theme.isDark ? '#064E3B' : '#ECFDF5'}
+            fill={theme.isDark ? '#0B2A3E' : '#EAF4FB'}
             opacity={0.6}
           />
           <Rect

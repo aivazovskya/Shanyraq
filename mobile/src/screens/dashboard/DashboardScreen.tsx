@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -299,8 +292,8 @@ export const DashboardScreen: React.FC = () => {
             <LinearGradient
               colors={
                 theme.isDark
-                  ? ['#047857', '#065F46', '#022C22']
-                  : ['#059669', '#047857', '#065F46']
+                  ? ['#16405F', '#0F2D45', '#0A1F30']
+                  : ['#0C2233', '#12395A', '#1A6BAA']
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
@@ -308,7 +301,7 @@ export const DashboardScreen: React.FC = () => {
             >
               <View style={styles.heroTopRow}>
                 <View style={styles.heroBadgeRow}>
-                  <CreditCard size={18} color="#D1FAE5" />
+                  <CreditCard size={18} color="#BFE0F4" />
                   <Text style={styles.heroCardSubtitle}>{t('dashboard.balanceCardTitle')}</Text>
                 </View>
                 <View style={styles.heroActionArrow}>
@@ -342,7 +335,7 @@ export const DashboardScreen: React.FC = () => {
                   style={styles.heroChipSecondary}
                   onPress={() => navigation.navigate('TransparencyReport')}
                 >
-                  <FileText size={14} color="#D1FAE5" />
+                  <FileText size={14} color="#BFE0F4" />
                   <Text style={styles.heroChipSecondaryText}>{t('dashboard.billsAction')}</Text>
                 </TouchableOpacity>
               </View>
@@ -737,7 +730,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   heroCardSubtitle: {
-    color: '#D1FAE5',
+    color: '#BFE0F4',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -773,7 +766,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   heroChipText: {
-    color: '#065F46',
+    color: '#0C2233',
     fontWeight: '700',
     fontSize: 13,
   },

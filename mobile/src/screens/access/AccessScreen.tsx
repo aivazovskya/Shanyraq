@@ -1,15 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  Modal,
-  Share,
-  Platform,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Modal, Share, Platform } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import QRCode from 'react-native-qrcode-svg';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { View, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Terminal } from 'lucide-react-native';
 import { Config } from '../../constants/config';

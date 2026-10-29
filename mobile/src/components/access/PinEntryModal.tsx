@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Text } from '../ui/AppText';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,

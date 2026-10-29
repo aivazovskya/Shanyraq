@@ -1,12 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableWithoutFeedback,
-  StyleSheet,
-  ActivityIndicator,
-  Animated,
-} from 'react-native';
+import { View, TouchableWithoutFeedback, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { Text } from '../ui/AppText';
 import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../theme/ThemeContext';

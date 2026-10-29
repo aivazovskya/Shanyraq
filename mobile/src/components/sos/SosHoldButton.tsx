@@ -1,12 +1,6 @@
 import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  TouchableWithoutFeedback,
-  Animated,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
+import { View, TouchableWithoutFeedback, Animated, StyleSheet, ActivityIndicator } from 'react-native';
+import { Text } from '../ui/AppText';
 import { AlertTriangle } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from 'react-native-reanimated';

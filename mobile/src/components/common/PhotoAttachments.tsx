@@ -1,13 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Text,
-  View,
-  StyleSheet,
-  Platform,
-} from 'react-native';
+import { ActivityIndicator, Image, Linking, View, StyleSheet, Platform } from 'react-native';
+import { Text } from '../ui/AppText';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useTranslation } from 'react-i18next';

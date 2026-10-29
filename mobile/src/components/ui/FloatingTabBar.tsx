@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  LayoutChangeEvent,
-  Platform,
-} from 'react-native';
+import { StyleSheet, View, TouchableOpacity, LayoutChangeEvent, Platform } from 'react-native';
+import { Text } from './AppText';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import Animated, {
@@ -107,8 +101,8 @@ export const FloatingTabBar: React.FC<BottomTabBarProps> = ({
               styles.activeIndicator,
               {
                 backgroundColor: theme.isDark
-                  ? 'rgba(16, 185, 129, 0.16)'
-                  : 'rgba(5, 150, 105, 0.12)',
+                  ? 'rgba(95, 179, 232, 0.18)'
+                  : 'rgba(26, 107, 170, 0.12)',
               },
               animatedIndicatorStyle,
             ]}

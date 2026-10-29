@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './AppText';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 

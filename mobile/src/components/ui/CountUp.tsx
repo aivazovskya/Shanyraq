@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Text, TextStyle, StyleProp } from 'react-native';
+import { TextStyle, StyleProp } from 'react-native';
+import { Text } from './AppText';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useTheme } from '../../theme/ThemeContext';
 

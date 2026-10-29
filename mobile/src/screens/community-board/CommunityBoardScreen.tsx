@@ -1,17 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  Linking,
-  Image,
-  Alert,
-  TextInput,
-  Platform,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Linking, Image, Alert, TextInput, Platform } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

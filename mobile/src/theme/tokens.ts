@@ -52,111 +52,114 @@ export interface ThemeColors {
 }
 
 export const lightColors: ThemeColors = {
-  primary: '#047857', // 5.48:1 WCAG AA with #FFFFFF
-  primaryDark: '#065F46',
-  primaryLight: '#D1FAE5',
-  primaryBg: '#ECFDF5',
+  primary: '#1A6BAA', // Tengri sky; WCAG AA with #FFFFFF
+  primaryDark: '#14568A',
+  primaryLight: '#D9ECF7',
+  primaryBg: '#EAF4FB',
   onPrimary: '#FFFFFF',
 
-  background: '#F8FAFC',
+  background: '#EEF2F4', // felt
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
-  surfaceSubtle: '#F1F5F9',
-  border: '#E2E8F0',
-  borderFocus: '#047857',
+  surfaceSubtle: '#E4EAEE',
+  border: '#DCE4E9',
+  borderFocus: '#1A6BAA',
 
-  text: '#0F172A',
-  textMuted: '#475569', // 7.58:1 WCAG AA
-  textLight: '#94A3B8',
+  text: '#0C2233', // night sky
+  textMuted: '#4F6372',
+  textLight: '#8A9BA8',
 
-  success: '#047857', // 4.86:1 WCAG AA on #DEF7EC, 5.48:1 with #FFFFFF
-  successBg: '#DEF7EC',
-  successBorder: '#A7F3D0',
+  success: '#23765A', // steppe
+  successBg: '#DDF0E8',
+  successBorder: '#A9D8C5',
   onSuccess: '#FFFFFF',
 
-  warning: '#B45309', // 4.51:1 WCAG AA on #FEF3C7, 5.02:1 with #FFFFFF
+  warning: '#B45309',
   warningBg: '#FEF3C7',
   warningBorder: '#FDE68A',
   onWarning: '#FFFFFF',
 
-  danger: '#B91C1C', // 5.30:1 WCAG AA on #FEE2E2, 5.89:1 with #FFFFFF
-  dangerDark: '#991B1B',
-  dangerBg: '#FEE2E2',
-  dangerBorder: '#FECACA',
+  danger: '#B3342A',
+  dangerDark: '#9E2B21',
+  dangerBg: '#F8DEDA',
+  dangerBorder: '#F0B8B0',
   onDanger: '#FFFFFF',
 
-  info: '#2563EB', // 4.75:1 WCAG AA on #EFF6FF, 5.17:1 with #FFFFFF
+  info: '#2563EB',
   infoBg: '#EFF6FF',
   infoBorder: '#BFDBFE',
   onInfo: '#FFFFFF',
 
   card: '#FFFFFF',
-  overlay: 'rgba(15, 23, 42, 0.45)',
+  overlay: 'rgba(12, 34, 51, 0.45)',
 
-  tabBarBg: 'rgba(255, 255, 255, 0.92)',
-  tabBarBorder: 'rgba(226, 232, 240, 0.9)',
-  tabBarActiveIndicator: '#ECFDF5',
+  tabBarBg: 'rgba(255, 255, 255, 0.94)',
+  tabBarBorder: 'rgba(220, 228, 233, 0.9)',
+  tabBarActiveIndicator: '#D9ECF7',
 
-  shimmerStart: '#E2E8F0',
-  shimmerEnd: '#F8FAFC',
+  shimmerStart: '#DCE4E9',
+  shimmerEnd: '#EEF2F4',
 };
 
 export const darkColors: ThemeColors = {
-  primary: '#10B981',
-  primaryDark: '#059669',
-  primaryLight: '#064E3B',
-  primaryBg: '#022C22',
-  onPrimary: '#062117', // 7.04:1 AAA contrast on #10B981
+  primary: '#5FB3E8',
+  primaryDark: '#3C95CF',
+  primaryLight: '#10405F',
+  primaryBg: '#0B2A3E',
+  onPrimary: '#06202F',
 
-  background: '#090D16',
-  surface: '#111827',
-  surfaceElevated: '#1F2937',
-  surfaceSubtle: '#1E293B',
-  border: '#1E293B',
-  borderFocus: '#10B981',
+  background: '#08141E',
+  surface: '#0F2231',
+  surfaceElevated: '#16303F',
+  surfaceSubtle: '#133040',
+  border: '#1B3B4D',
+  borderFocus: '#5FB3E8',
 
-  text: '#F8FAFC', // 18.57:1 WCAG AAA
-  textMuted: '#94A3B8', // 6.92:1 WCAG AA
-  textLight: '#64748B',
+  text: '#F2F7FA',
+  textMuted: '#9DB4C3',
+  textLight: '#6E8A9C',
 
-  success: '#34D399',
-  successBg: '#064E3B',
-  successBorder: '#059669',
-  onSuccess: '#062117',
+  success: '#4CC49A',
+  successBg: '#0F3A2D',
+  successBorder: '#2E8B6A',
+  onSuccess: '#06231A',
 
   warning: '#FBBF24',
   warningBg: '#451A03',
   warningBorder: '#B45309',
   onWarning: '#062117',
 
-  danger: '#F87171',
+  danger: '#F28B82',
   dangerDark: '#7F1D1D',
-  dangerBg: '#450A0A',
-  dangerBorder: '#B91C1C',
-  onDanger: '#062117',
+  dangerBg: '#3D1512',
+  dangerBorder: '#C03A2E',
+  onDanger: '#2A0A07',
 
-  info: '#93C5FD', // 5.74:1 WCAG AA on #1E3A8A, 9.12:1 with #062117
+  info: '#93C5FD',
   infoBg: '#1E3A8A',
   infoBorder: '#1D4ED8',
   onInfo: '#062117',
 
-  card: '#111827',
+  card: '#0F2231',
   overlay: 'rgba(0, 0, 0, 0.75)',
 
-  tabBarBg: 'rgba(17, 24, 39, 0.92)',
-  tabBarBorder: 'rgba(30, 41, 59, 0.9)',
-  tabBarActiveIndicator: '#1E293B',
+  tabBarBg: 'rgba(15, 34, 49, 0.94)',
+  tabBarBorder: 'rgba(27, 59, 77, 0.9)',
+  tabBarActiveIndicator: '#16303F',
 
-  shimmerStart: '#1E293B',
-  shimmerEnd: '#334155',
+  shimmerStart: '#16303F',
+  shimmerEnd: '#1F4155',
 };
 
 export const fontFamilies = {
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semiBold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  extraBold: 'Inter_800ExtraBold',
+  regular: 'Onest_400Regular',
+  medium: 'Onest_500Medium',
+  semiBold: 'Onest_600SemiBold',
+  bold: 'Onest_700Bold',
+  extraBold: 'Onest_700Bold',
+  displayMedium: 'Geologica_500Medium',
+  display: 'Geologica_700Bold',
+  displayHeavy: 'Geologica_800ExtraBold',
 };
 
 export interface TypographyScale {
@@ -172,14 +175,14 @@ export interface TypographyScale {
 
 export const typography: TypographyScale = {
   display: {
-    fontFamily: fontFamilies.extraBold,
+    fontFamily: fontFamilies.displayHeavy,
     fontSize: 30,
     lineHeight: 36,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   title: {
-    fontFamily: fontFamilies.bold,
+    fontFamily: fontFamilies.display,
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '700',

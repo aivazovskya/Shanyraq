@@ -3,14 +3,18 @@ import { View, StyleSheet, ActivityIndicator, useColorScheme } from 'react-nativ
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
 import {
-  useFonts,
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-} from '@expo-google-fonts/inter';
+  Onest_400Regular,
+  Onest_500Medium,
+  Onest_600SemiBold,
+  Onest_700Bold,
+} from '@expo-google-fonts/onest';
+import {
+  Geologica_500Medium,
+  Geologica_700Bold,
+  Geologica_800ExtraBold,
+} from '@expo-google-fonts/geologica';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { ToastProvider } from './src/context/ToastContext';
@@ -34,11 +38,13 @@ export default function App() {
   const isDarkInitial = colorScheme === 'dark';
 
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
+    Onest_400Regular,
+    Onest_500Medium,
+    Onest_600SemiBold,
+    Onest_700Bold,
+    Geologica_500Medium,
+    Geologica_700Bold,
+    Geologica_800ExtraBold,
   });
 
   if (Config.isMisconfigured) {
@@ -47,8 +53,8 @@ export default function App() {
 
   if (!fontsLoaded) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: isDarkInitial ? '#0F172A' : '#059669' }]}>
-        <ActivityIndicator size="large" color={isDarkInitial ? '#10B981' : '#FFFFFF'} />
+      <View style={[styles.splashContainer, { backgroundColor: isDarkInitial ? '#08141E' : '#0C2233' }]}>
+        <ActivityIndicator size="large" color={isDarkInitial ? '#5FB3E8' : '#F4B63D'} />
       </View>
     );
   }

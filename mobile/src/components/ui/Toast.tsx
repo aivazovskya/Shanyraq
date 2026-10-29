@@ -1,12 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  Platform,
-  PanResponder,
-} from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Platform, PanResponder } from 'react-native';
+import { Text } from './AppText';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -92,7 +86,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ item, onDismiss }) => {
         return {
           bg: theme.colors.successBg,
           border: theme.colors.successBorder,
-          text: theme.isDark ? theme.colors.success : '#065F46',
+          text: theme.isDark ? theme.colors.success : '#1A5C46',
           icon: <CheckCircle2 size={20} color={theme.colors.success} />,
         };
       case 'warning':

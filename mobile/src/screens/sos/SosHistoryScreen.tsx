@@ -1,12 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  SafeAreaView,
-} from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, SafeAreaView } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import {

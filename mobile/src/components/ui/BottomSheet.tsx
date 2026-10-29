@@ -1,13 +1,6 @@
 import React, { useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  Modal,
-  Pressable,
-  Dimensions,
-  Platform,
-} from 'react-native';
+import { StyleSheet, View, Modal, Pressable, Dimensions, Platform } from 'react-native';
+import { Text } from './AppText';
 import {
   GestureDetector,
   Gesture,

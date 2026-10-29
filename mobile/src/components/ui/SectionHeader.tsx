@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ViewStyle } from 'react-native';
+import { Text } from './AppText';
 import { useTheme } from '../../theme/ThemeContext';
 import { ChevronRight } from 'lucide-react-native';
 

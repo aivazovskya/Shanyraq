@@ -1,12 +1,6 @@
 import React from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  LayoutChangeEvent,
-  ViewStyle,
-} from 'react-native';
+import { StyleSheet, View, TouchableOpacity, LayoutChangeEvent, ViewStyle } from 'react-native';
+import { Text } from './AppText';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,

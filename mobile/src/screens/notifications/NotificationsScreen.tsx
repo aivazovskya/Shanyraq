@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SectionList,
-  RefreshControl,
-  TouchableOpacity,
-  PanResponder,
-} from 'react-native';
+import { View, StyleSheet, SectionList, RefreshControl, TouchableOpacity, PanResponder } from 'react-native';
+import { Text } from '../../components/ui/AppText';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
