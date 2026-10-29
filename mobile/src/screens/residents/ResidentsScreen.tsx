@@ -368,7 +368,7 @@ export const ResidentsScreen: React.FC = () => {
                   {activeOwnership?.unit?.building?.blockName || ''}
                 </Text>
                 <Text style={[styles.summarySub, { color: theme.colors.textMuted }]}>
-                  {activeOwnership?.unit?.area} м² • {t('cabinet.maxResidentsPerUnit', 'Лимит до 5 жильцов')}
+                  {activeOwnership?.unit?.area} м² • {t('cabinet.maxResidentsPerUnit', { max: maxAllowed, defaultValue: 'Лимит до {{max}} жильцов' })}
                 </Text>
               </View>
               <Badge
