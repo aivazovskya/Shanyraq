@@ -294,6 +294,7 @@ describe('CommunityBoardService', () => {
             tenantId: mockTenantId,
             status: ListingStatus.ACTIVE,
             type: ListingType.SELL,
+            OR: [{ adEndsAt: null }, { adEndsAt: { gt: expect.any(Date) } }],
           },
         }),
       );
