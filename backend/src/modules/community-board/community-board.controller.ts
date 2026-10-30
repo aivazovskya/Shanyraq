@@ -21,6 +21,8 @@ import {
   ModerateListingDto,
   GetListingsQueryDto,
   UpdatePhoneVisibilityDto,
+  SetAdPricingDto,
+  PinAdDto,
 } from './dto/community-board.dto';
 
 @ApiTags('Community Board (Доска объявлений жильцов)')
@@ -84,5 +86,43 @@ export class CommunityBoardController {
     @Request() req: any,
   ) {
     return this.communityBoardService.updatePhoneVisibility(req.user, dto);
+  }
+
+  @Get('tenants/:tenantId/ad-pricing')
+  @ApiOperation({ summary: 'Цены на рекламу в доске ЖК' })
+  async getAdPricing(@Param('tenantId') tenantId: string, @Request() req: any) {
+    return this.communityBoardService.getAdPricing(tenantId, req.user);
+  }
+
+  @Patch('tenants/:tenantId/ad-pricing')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Изменить цены на рекламу (владелец сервиса)' })
+  async setAdPricing(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: SetAdPricingDto,
+    @Request() req: any,
+  ) {
+    return this.communityBoardService.setAdPricing(tenantId, req.user, dto);
+  }
+
+  @Patch('listings/:id/ad/approve')
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Одобрить рекламу после проверки' })
+  async approveAd(@Param('id') id: string, @Request() req: any) {
+    return this.communityBoardService.approveAd(id, req.user);
+  }
+
+  @Patch('listings/:id/ad/paid')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Подтвердить оплату рекламы (владелец сервиса)' })
+  async markAdPaid(@Param('id') id: string, @Request() req: any) {
+    return this.communityBoardService.markAdPaid(id, req.user);
+  }
+
+  @Patch('listings/:id/ad/pin')
+  @Roles(UserRole.SUPERADMIN)
+  @ApiOperation({ summary: 'Закрепить рекламу наверху ленты (владелец сервиса)' })
+  async pinAd(@Param('id') id: string, @Body() dto: PinAdDto, @Request() req: any) {
+    return this.communityBoardService.pinAd(id, req.user, dto);
   }
 }

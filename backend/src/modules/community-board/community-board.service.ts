@@ -5,16 +5,22 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UserRole, ListingType, ListingStatus } from '@prisma/client';
+import { UserRole, ListingType, ListingStatus, AdPaymentStatus } from '@prisma/client';
 import {
   CreateListingDto,
   UpdateListingDto,
   ModerateListingDto,
   GetListingsQueryDto,
   UpdatePhoneVisibilityDto,
+  SetAdPricingDto,
+  PinAdDto,
 } from './dto/community-board.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
 import { AuditLogService } from '../audit-log/audit-log.service';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const AD_MONTH_DAYS = 30;
+const STAFF_ROLES: UserRole[] = [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN];
 
 @Injectable()
 export class CommunityBoardService {
@@ -65,6 +71,8 @@ export class CommunityBoardService {
     if (!isStaff) {
       // Обычные жители никогда не видят снятые модератором или закрытые объявления в общей ленте
       whereClause.status = ListingStatus.ACTIVE;
+      // Реклама пропадает ровно в момент окончания оплаченного срока, не дожидаясь ночного крона
+      whereClause.OR = [{ adEndsAt: null }, { adEndsAt: { gt: new Date() } }];
     } else if (query.status) {
       whereClause.status = query.status;
     }
@@ -97,7 +105,13 @@ export class CommunityBoardService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return listings.map((listing) => {
+    const now = Date.now();
+    const isPinned = (l: { pinnedUntil: Date | null }) =>
+      l.pinnedUntil != null && l.pinnedUntil.getTime() > now;
+    // Закреплённая реклама сверху, остальное по дате (порядок БД сохраняется)
+    const ordered = [...listings].sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
+
+    return ordered.map((listing) => {
       const { hidePhoneInListings, ...authorPublic } = listing.author;
       const shouldMask =
         !isStaff &&
@@ -120,8 +134,12 @@ export class CommunityBoardService {
   async createListing(tenantId: string, user: any, dto: CreateListingDto) {
     const isStaff = await this.assertAccessToTenant(user, tenantId);
 
-    // Персонал без подтвержденного владения не может публиковать объявления жильцов
-    if (isStaff && user.role !== UserRole.SUPERADMIN) {
+    const isAd = dto.type === ListingType.AD;
+    const isStaffRole = STAFF_ROLES.includes(user.role);
+
+    // Персонал без подтвержденного владения не может публиковать объявления жильцов.
+    // Исключение: реклама, которую персонал заводит от имени бизнеса ЖК.
+    if (isStaff && user.role !== UserRole.SUPERADMIN && !isAd) {
       const hasVerifiedOwnership = await this.prisma.unitOwnership.findFirst({
         where: {
           userId: user.id,
@@ -140,6 +158,10 @@ export class CommunityBoardService {
             'Публикация объявлений доступна только верифицированным жителям данного ЖК',
         });
       }
+    }
+
+    if (isAd) {
+      return this.createAd(tenantId, user, dto, isStaffRole);
     }
 
     // Валидация цены: для "Отдам даром" цена не должна указываться
@@ -338,6 +360,249 @@ export class CommunityBoardService {
     });
 
     return updated;
+  }
+
+  /**
+   * Заявка на рекламу. Первое размещение жителя бесплатно (TRIAL),
+   * дальше цена берётся из настроек ЖК. Публикуется только после проверки.
+   */
+  private async createAd(tenantId: string, user: any, dto: CreateListingDto, isStaffRole: boolean) {
+    if (!dto.adBusinessName?.trim()) {
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.AD_BUSINESS_NAME_REQUIRED',
+        message: 'Для рекламы укажите название бизнеса',
+      });
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { adPriceMonthly: true, adTrialDays: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException({
+        code: 'COMMUNITY_BOARD.TENANT_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
+    }
+
+    // Бесплатный пробный период только жителю и только на первую рекламу
+    let isTrial = false;
+    if (!isStaffRole && tenant.adTrialDays > 0) {
+      const previousAds = await this.prisma.communityListing.count({
+        where: { authorId: user.id, type: ListingType.AD },
+      });
+      isTrial = previousAds === 0;
+    }
+
+    const months = isTrial ? 1 : (dto.adMonths ?? 1);
+
+    return this.prisma.communityListing.create({
+      data: {
+        tenantId,
+        authorId: user.id,
+        type: ListingType.AD,
+        title: dto.title.trim(),
+        description: dto.description.trim(),
+        price: null,
+        photoUrls: dto.photoUrls || [],
+        status: ListingStatus.PENDING_REVIEW,
+        adBusinessName: dto.adBusinessName.trim(),
+        adContactPhone: dto.adContactPhone?.trim() || null,
+        adPaymentStatus: isTrial ? AdPaymentStatus.TRIAL : AdPaymentStatus.UNPAID,
+        adMonths: months,
+        adPriceKzt: isTrial ? 0 : tenant.adPriceMonthly * months,
+      },
+      include: CommunityBoardService.AD_INCLUDE,
+    });
+  }
+
+  private static readonly AD_INCLUDE = {
+    author: {
+      select: { id: true, firstName: true, lastName: true, phone: true, role: true },
+    },
+  };
+
+  private assertStaffOfListing(user: any, listing: { tenantId: string }) {
+    if (!STAFF_ROLES.includes(user.role)) {
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.MODERATE_FORBIDDEN',
+        message: 'Недостаточно прав для модерации объявлений',
+      });
+    }
+    if (user.role !== UserRole.SUPERADMIN && user.tenantId !== listing.tenantId) {
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.MODERATE_CROSS_TENANT_FORBIDDEN',
+        message: 'Вы можете модерировать объявления только своего жилого комплекса',
+      });
+    }
+  }
+
+  private async getAdOrThrow(id: string) {
+    const listing = await this.prisma.communityListing.findUnique({ where: { id } });
+    if (!listing || listing.type !== ListingType.AD) {
+      throw new NotFoundException({
+        code: 'COMMUNITY_BOARD.AD_NOT_FOUND',
+        message: 'Рекламное объявление не найдено',
+      });
+    }
+    return listing;
+  }
+
+  /**
+   * Проверка рекламы персоналом ЖК. Бесплатная (TRIAL) сразу выходит в ленту,
+   * платная ждёт оплаты.
+   */
+  async approveAd(id: string, user: any) {
+    const listing = await this.getAdOrThrow(id);
+    this.assertStaffOfListing(user, listing);
+
+    if (listing.status !== ListingStatus.PENDING_REVIEW) {
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.AD_NOT_PENDING_REVIEW',
+        message: 'Реклама уже обработана или не ожидает проверки',
+      });
+    }
+
+    let updated;
+    if (listing.adPaymentStatus === AdPaymentStatus.TRIAL) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: listing.tenantId },
+        select: { adTrialDays: true },
+      });
+      const now = new Date();
+      updated = await this.prisma.communityListing.update({
+        where: { id },
+        data: {
+          status: ListingStatus.ACTIVE,
+          adStartsAt: now,
+          adEndsAt: new Date(now.getTime() + (tenant?.adTrialDays ?? 30) * DAY_MS),
+        },
+        include: CommunityBoardService.AD_INCLUDE,
+      });
+    } else {
+      updated = await this.prisma.communityListing.update({
+        where: { id },
+        data: { status: ListingStatus.AWAITING_PAYMENT },
+        include: CommunityBoardService.AD_INCLUDE,
+      });
+    }
+
+    await this.auditLogService.log({
+      tenantId: listing.tenantId,
+      actorId: user.id,
+      action: 'AD_APPROVED',
+      targetType: 'CommunityListing',
+      targetId: id,
+      metadata: { newStatus: updated.status, paymentStatus: listing.adPaymentStatus },
+    });
+    return updated;
+  }
+
+  /**
+   * Подтверждение оплаты рекламы. Деньги получает платформа, поэтому
+   * только владелец сервиса.
+   */
+  async markAdPaid(id: string, user: any) {
+    if (user.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.AD_PAYMENT_SUPERADMIN_ONLY',
+        message: 'Оплату рекламы подтверждает только владелец сервиса',
+      });
+    }
+    const listing = await this.getAdOrThrow(id);
+
+    if (listing.status !== ListingStatus.AWAITING_PAYMENT) {
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.AD_NOT_AWAITING_PAYMENT',
+        message: 'Реклама не ожидает оплаты: сначала она должна пройти проверку',
+      });
+    }
+
+    const now = new Date();
+    const months = listing.adMonths ?? 1;
+    const updated = await this.prisma.communityListing.update({
+      where: { id },
+      data: {
+        status: ListingStatus.ACTIVE,
+        adPaymentStatus: AdPaymentStatus.PAID,
+        adStartsAt: now,
+        adEndsAt: new Date(now.getTime() + months * AD_MONTH_DAYS * DAY_MS),
+      },
+      include: CommunityBoardService.AD_INCLUDE,
+    });
+
+    await this.auditLogService.log({
+      tenantId: listing.tenantId,
+      actorId: user.id,
+      action: 'AD_PAID',
+      targetType: 'CommunityListing',
+      targetId: id,
+      metadata: { months, priceKzt: listing.adPriceKzt },
+    });
+    return updated;
+  }
+
+  /**
+   * Закрепление рекламы наверху ленты (платная опция, как и оплата: владелец сервиса).
+   */
+  async pinAd(id: string, user: any, dto: PinAdDto) {
+    if (user.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.AD_PIN_SUPERADMIN_ONLY',
+        message: 'Закрепление рекламы подтверждает только владелец сервиса',
+      });
+    }
+    const listing = await this.getAdOrThrow(id);
+    if (listing.status !== ListingStatus.ACTIVE) {
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.AD_NOT_ACTIVE',
+        message: 'Закрепить можно только опубликованную рекламу',
+      });
+    }
+
+    const base =
+      listing.pinnedUntil && listing.pinnedUntil.getTime() > Date.now()
+        ? listing.pinnedUntil.getTime()
+        : Date.now();
+    return this.prisma.communityListing.update({
+      where: { id },
+      data: { pinnedUntil: new Date(base + dto.weeks * 7 * DAY_MS) },
+      include: CommunityBoardService.AD_INCLUDE,
+    });
+  }
+
+  /** Текущие цены рекламы ЖК, видны всем с доступом к доске. */
+  async getAdPricing(tenantId: string, user: any) {
+    await this.assertAccessToTenant(user, tenantId);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { adPriceMonthly: true, adPinPriceWeekly: true, adTrialDays: true },
+    });
+    if (!tenant) {
+      throw new NotFoundException({
+        code: 'COMMUNITY_BOARD.TENANT_NOT_FOUND',
+        message: 'Жилой комплекс не найден',
+      });
+    }
+    return tenant;
+  }
+
+  async setAdPricing(tenantId: string, user: any, dto: SetAdPricingDto) {
+    if (user.role !== UserRole.SUPERADMIN) {
+      throw new ForbiddenException({
+        code: 'COMMUNITY_BOARD.AD_PRICING_SUPERADMIN_ONLY',
+        message: 'Цены на рекламу задаёт только владелец сервиса',
+      });
+    }
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(dto.adPriceMonthly !== undefined && { adPriceMonthly: dto.adPriceMonthly }),
+        ...(dto.adPinPriceWeekly !== undefined && { adPinPriceWeekly: dto.adPinPriceWeekly }),
+        ...(dto.adTrialDays !== undefined && { adTrialDays: dto.adTrialDays }),
+      },
+      select: { adPriceMonthly: true, adPinPriceWeekly: true, adTrialDays: true },
+    });
   }
 
   /**

@@ -120,6 +120,11 @@ model Tenant {
   importBatches     ImportBatch[]
   budgetLines       BudgetLine[]
 
+  // Реклама на доске: цены задаёт владелец платформы (₸)
+  adPriceMonthly    Int               @default(3000)
+  adPinPriceWeekly  Int               @default(2000)
+  adTrialDays       Int               @default(30)
+
   @@map("tenants")
 }
 
@@ -878,6 +883,7 @@ enum ListingType {
   RENT
   GIVE_AWAY
   OTHER
+  AD // платная реклама бизнеса
 }
 
 enum ListingStatus {
@@ -885,6 +891,15 @@ enum ListingStatus {
   CLOSED    // author marked resolved (sold / given away / no longer needed)
   REMOVED   // moderator took it down
   ARCHIVED  // system auto-archived after N days of inactivity
+  PENDING_REVIEW   // реклама: ждёт проверки персоналом
+  AWAITING_PAYMENT // реклама: одобрена, ждёт оплаты
+  EXPIRED          // реклама: срок размещения закончился
+}
+
+enum AdPaymentStatus {
+  TRIAL  // первое размещение бесплатно
+  UNPAID
+  PAID
 }
 
 model CommunityListing {
@@ -897,6 +912,17 @@ model CommunityListing {
   price         Float?        // null for GIVE_AWAY or a non-priced OTHER post
   photoUrls     String[]      @default([])
   status        ListingStatus @default(ACTIVE)
+
+  // Реклама (type = AD)
+  adBusinessName  String?
+  adContactPhone  String?
+  adPaymentStatus AdPaymentStatus?
+  adMonths        Int?
+  adPriceKzt      Int?
+  adStartsAt      DateTime?
+  adEndsAt        DateTime?
+  pinnedUntil     DateTime?
+
   removedById   String?
   removedReason String?
   createdAt     DateTime      @default(now())

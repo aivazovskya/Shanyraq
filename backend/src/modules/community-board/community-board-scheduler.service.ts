@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { ListingStatus } from '@prisma/client';
+import { ListingStatus, ListingType } from '@prisma/client';
 
 export interface CommunityBoardArchivalSummary {
   listingsChecked: number;
@@ -10,6 +10,10 @@ export interface CommunityBoardArchivalSummary {
 }
 
 export const ARCHIVE_THRESHOLD_DAYS = 90;
+
+export interface AdExpirySummary {
+  adsExpired: number;
+}
 
 @Injectable()
 export class CommunityBoardSchedulerService {
@@ -39,6 +43,7 @@ export class CommunityBoardSchedulerService {
       listings = await this.prisma.communityListing.findMany({
         where: {
           status: ListingStatus.ACTIVE,
+          type: { not: ListingType.AD }, // у рекламы свой срок (adEndsAt)
           createdAt: { lt: cutoff },
         },
         select: {
@@ -88,5 +93,49 @@ export class CommunityBoardSchedulerService {
     );
 
     return { listingsChecked, listingsArchived };
+  }
+
+  /**
+   * Ежедневно снимает рекламу с истёкшим сроком и сообщает автору.
+   * Лента и так скрывает её по adEndsAt, крон только меняет статус.
+   */
+  @Cron('30 4 * * *', { timeZone: 'Asia/Almaty' })
+  async handleExpiredAds(): Promise<AdExpirySummary> {
+    let adsExpired = 0;
+
+    let ads: any[] = [];
+    try {
+      ads = await this.prisma.communityListing.findMany({
+        where: {
+          type: ListingType.AD,
+          status: ListingStatus.ACTIVE,
+          adEndsAt: { lt: new Date() },
+        },
+        select: { id: true, authorId: true, title: true },
+      });
+    } catch (err: any) {
+      this.logger.error(`[CRON] Failed to fetch expired ads: ${err.message}`, err.stack);
+      return { adsExpired };
+    }
+
+    for (const ad of ads) {
+      try {
+        await this.prisma.communityListing.update({
+          where: { id: ad.id },
+          data: { status: ListingStatus.EXPIRED },
+        });
+        await this.notificationsService.sendToUser(ad.authorId, {
+          title: '⏱ Срок рекламы закончился',
+          body: `Размещение "${ad.title}" завершено. Чтобы продлить, подайте рекламу снова.`,
+          data: { type: 'COMMUNITY_AD_EXPIRED', listingId: ad.id },
+        });
+        adsExpired++;
+      } catch (itemErr: any) {
+        this.logger.error(`[CRON] Error expiring ad ${ad.id}: ${itemErr.message}`, itemErr.stack);
+      }
+    }
+
+    this.logger.log(`[CRON] Expired ads processed: ${adsExpired}`);
+    return { adsExpired };
   }
 }

@@ -6,6 +6,8 @@ import {
   IsString,
   IsArray,
   IsBoolean,
+  IsInt,
+  Max,
   Min,
   MinLength,
   MaxLength,
@@ -37,6 +39,24 @@ export class CreateListingDto {
   @IsArray()
   @IsString({ each: true })
   photoUrls?: string[];
+
+  // Только для type = AD
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  adBusinessName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  adContactPhone?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  adMonths?: number;
 }
 
 export class UpdateListingDto {
@@ -85,4 +105,29 @@ export class GetListingsQueryDto {
 export class UpdatePhoneVisibilityDto {
   @IsBoolean()
   hidePhoneInListings: boolean;
+}
+
+export class SetAdPricingDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  adPriceMonthly?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  adPinPriceWeekly?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  adTrialDays?: number;
+}
+
+export class PinAdDto {
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  weeks: number;
 }

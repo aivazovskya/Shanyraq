@@ -1,0 +1,21 @@
+ALTER TYPE "ListingType" ADD VALUE 'AD';
+ALTER TYPE "ListingStatus" ADD VALUE 'PENDING_REVIEW';
+ALTER TYPE "ListingStatus" ADD VALUE 'AWAITING_PAYMENT';
+ALTER TYPE "ListingStatus" ADD VALUE 'EXPIRED';
+
+CREATE TYPE "AdPaymentStatus" AS ENUM ('TRIAL', 'UNPAID', 'PAID');
+
+ALTER TABLE "tenants"
+  ADD COLUMN "adPriceMonthly" INTEGER NOT NULL DEFAULT 3000,
+  ADD COLUMN "adPinPriceWeekly" INTEGER NOT NULL DEFAULT 2000,
+  ADD COLUMN "adTrialDays" INTEGER NOT NULL DEFAULT 30;
+
+ALTER TABLE "community_listings"
+  ADD COLUMN "adBusinessName" TEXT,
+  ADD COLUMN "adContactPhone" TEXT,
+  ADD COLUMN "adPaymentStatus" "AdPaymentStatus",
+  ADD COLUMN "adMonths" INTEGER,
+  ADD COLUMN "adPriceKzt" INTEGER,
+  ADD COLUMN "adStartsAt" TIMESTAMP(3),
+  ADD COLUMN "adEndsAt" TIMESTAMP(3),
+  ADD COLUMN "pinnedUntil" TIMESTAMP(3);
