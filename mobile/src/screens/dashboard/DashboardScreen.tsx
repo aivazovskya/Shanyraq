@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Text } from '../../components/ui/AppText';
+import { ChargesRing, buildRingSegments, segmentColor } from '../../components/ui/ChargesRing';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -276,6 +277,7 @@ export const DashboardScreen: React.FC = () => {
             const selectedAccount = accounts.find((a) => a.unit?.id === primaryOwnership?.unitId) || accounts[0];
             const totalBalance = selectedAccount ? selectedAccount.balance : accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
             const hasAccounts = accounts.length > 0;
+            const ringSegments = buildRingSegments(selectedAccount?.charges);
             return (
           <TouchableOpacity
             activeOpacity={0.92}
@@ -309,7 +311,8 @@ export const DashboardScreen: React.FC = () => {
                 </View>
               </View>
 
-              <View style={styles.heroBalanceWrap}>
+              <View style={[styles.heroBalanceWrap, styles.heroBalanceRow]}>
+                <View style={{ flex: 1 }}>
                 {accountsLoading ? (
                   <Skeleton width={140} height={36} borderRadius={8} />
                 ) : accountsError || !hasAccounts ? (
@@ -321,7 +324,25 @@ export const DashboardScreen: React.FC = () => {
                     style={styles.heroBalanceText}
                   />
                 )}
+                </View>
+                {!accountsLoading && !accountsError && ringSegments.length > 0 && (
+                  <View style={styles.heroRing}>
+                    <ChargesRing segments={ringSegments} />
+                  </View>
+                )}
               </View>
+              {!accountsLoading && !accountsError && ringSegments.length > 0 && (
+                <View style={styles.heroLegend}>
+                  {ringSegments.map((seg, i) => (
+                    <View key={seg.label + i} style={styles.heroLegendItem}>
+                      <View style={[styles.heroLegendDot, { backgroundColor: segmentColor(i) }]} />
+                      <Text style={styles.heroLegendText} numberOfLines={1}>
+                        {seg.label} · {Math.round(seg.amount).toLocaleString()} ₸
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
               <View style={styles.heroFooter}>
                 <TouchableOpacity
@@ -746,6 +767,34 @@ const styles = StyleSheet.create({
   },
   heroBalanceWrap: {
     marginVertical: 14,
+  },
+  heroBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroRing: {
+    marginLeft: 12,
+  },
+  heroLegend: {
+    gap: 4,
+    marginBottom: 12,
+  },
+  heroLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  heroLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  heroLegendText: {
+    color: '#D9ECF7',
+    fontSize: 12,
+    fontWeight: '500',
+    flexShrink: 1,
   },
   heroBalanceText: {
     color: '#FFFFFF',
