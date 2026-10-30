@@ -180,7 +180,7 @@ const STATUS_COLORS: Record<string, string> = {
 const CHART_COLORS = [
   '#0284c7',
   '#0d9488',
-  '#6366f1',
+  '#1A6BAA',
   '#8b5cf6',
   '#ec4899',
   '#f97316',
@@ -1059,7 +1059,7 @@ export default function AnalyticsDashboardPage() {
                                 border: '1px solid #e2e8f0',
                               }}
                             />
-                            <Bar dataKey="count" fill="#6366f1" radius={[0, 6, 6, 0]} />
+                            <Bar dataKey="count" fill="#1A6BAA" radius={[0, 6, 6, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       )}
@@ -1175,7 +1175,7 @@ export default function AnalyticsDashboardPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={[
-                          { name: t('analytics.activity.votesCast'), count: activityData.votesCast, fill: '#6366f1' },
+                          { name: t('analytics.activity.votesCast'), count: activityData.votesCast, fill: '#1A6BAA' },
                           { name: t('analytics.activity.requestsCreated'), count: activityData.requestsCreated, fill: '#0ea5e9' },
                           { name: t('analytics.activity.bookingsCreated'), count: activityData.bookingsCreated, fill: '#14b8a6' },
                           { name: t('analytics.activity.listingsCreated'), count: activityData.listingsCreated, fill: '#f59e0b' },
@@ -1202,7 +1202,7 @@ export default function AnalyticsDashboardPage() {
                         />
                         <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                           {[
-                            '#6366f1',
+                            '#1A6BAA',
                             '#0ea5e9',
                             '#14b8a6',
                             '#f59e0b',
@@ -1221,7 +1221,7 @@ export default function AnalyticsDashboardPage() {
               {/* Grid of Interaction Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center mx-auto mb-2">
                     <Vote className="w-4 h-4" />
                   </div>
                   <div className="text-xl font-bold text-slate-900">{activityData.votesCast}</div>
@@ -1363,7 +1363,7 @@ export default function AnalyticsDashboardPage() {
                     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       {t('analytics.bookings.totalBookings')}
                     </span>
-                    <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                    <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400">
                       <CalendarDays className="w-5 h-5" />
                     </div>
                   </div>

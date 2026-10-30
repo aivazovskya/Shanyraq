@@ -458,7 +458,7 @@ export default function AccessPage() {
       {/* Section: Barriers and Gates */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Radio className="w-5 h-5 text-indigo-600" />
+          <Radio className="w-5 h-5 text-sky-600 dark:text-sky-400" />
           <h2 className="text-lg font-bold text-slate-900">{t('access.barriersSection')}</h2>
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
             {barriers.length}

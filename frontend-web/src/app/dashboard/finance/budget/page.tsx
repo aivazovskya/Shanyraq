@@ -505,7 +505,7 @@ export default function BudgetPage() {
           {/* Link to Audit */}
           <Link
             href="/dashboard/finance/audit"
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-xl border border-indigo-200 shadow-sm transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-700 dark:text-sky-300 text-sm font-semibold rounded-xl border border-sky-200 dark:border-sky-800 shadow-sm transition-all"
           >
             <span>{t('budget.goToAudit')}</span>
             <ArrowRight className="w-4 h-4" />
@@ -532,7 +532,7 @@ export default function BudgetPage() {
               onClick={() => setIsImportModalOpen(true)}
               className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
             >
-              <Upload className="w-4 h-4 text-indigo-600" />
+              <Upload className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               <span>{t('budget.importBudgetBtn')}</span>
             </button>
           )}

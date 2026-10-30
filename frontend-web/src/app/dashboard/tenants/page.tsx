@@ -524,7 +524,7 @@ export default function TenantsPage() {
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {t('tenants.totalResidents')}
                 </span>
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                <div className="p-2 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 rounded-xl">
                   <Users className="w-5 h-5" />
                 </div>
               </div>
@@ -532,7 +532,7 @@ export default function TenantsPage() {
                 <div className="text-2xl font-bold text-slate-900">
                   {platformOverview.totalResidentsCount}
                 </div>
-                <div className="flex items-center gap-1.5 mt-1 text-xs text-indigo-600 font-medium">
+                <div className="flex items-center gap-1.5 mt-1 text-xs text-sky-600 dark:text-sky-400 font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>
                     {t('tenants.verifiedResidents', {

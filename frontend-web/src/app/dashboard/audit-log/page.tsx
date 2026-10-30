@@ -195,7 +195,7 @@ export default function AuditLogPage() {
         );
       case 'OWNERSHIP_VERIFIED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
             <UserCheck className="w-3.5 h-3.5" />
             {t(`auditLog.actions.${action}`)}
           </span>
@@ -224,7 +224,7 @@ export default function AuditLogPage() {
         );
       case 'GUEST_PASS_ISSUED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
             <Ticket className="w-3.5 h-3.5" />
             {t(`auditLog.actions.${action}`)}
           </span>

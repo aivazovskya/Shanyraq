@@ -201,7 +201,7 @@ export function GlobalSearch() {
           }}
           placeholder={needsScope && !tenantId ? t('shell.searchScope') : t('globalSearch.placeholder')}
           disabled={needsScope && !tenantId}
-          className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white text-xs text-slate-900 pl-9 pr-8 py-2 rounded-lg border border-slate-200 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all outline-none"
+          className="w-full bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-900 text-xs text-slate-900 dark:text-slate-100 pl-9 pr-8 py-2 rounded-lg border border-slate-200 dark:border-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all outline-none"
         />
         {loading ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600 absolute right-2.5" />
@@ -209,7 +209,7 @@ export function GlobalSearch() {
           <button
             aria-label={t('shell.clearSearch')}
             onClick={handleClear}
-            className="absolute right-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
+            className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -218,20 +218,20 @@ export function GlobalSearch() {
 
       {/* Popover Dropdown */}
       {isOpen && isQueryValid && (
-        <div id="global-search-results" aria-live="polite" className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden max-h-96 overflow-y-auto">
+        <div id="global-search-results" aria-live="polite" className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-50 overflow-hidden max-h-96 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+            <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
               <span>{t('globalSearch.searching')}</span>
             </div>
           ) : error ? (
-            <div className="p-4 text-sm text-slate-600"><p>{t('shell.searchError')}</p><button className="mt-2 font-semibold text-sky-700" onClick={() => executeSearch(query)}>{t('common.refresh')}</button></div>
+            <div className="p-4 text-sm text-slate-600 dark:text-slate-300"><p>{t('shell.searchError')}</p><button className="mt-2 font-semibold text-sky-700" onClick={() => executeSearch(query)}>{t('common.refresh')}</button></div>
           ) : !hasResults ? (
-            <div className="p-4 text-center text-xs text-slate-500">
+            <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
               {t('globalSearch.noResults')}
             </div>
           ) : (
-            <div className="py-2 divide-y divide-slate-100">
+            <div className="py-2 divide-y divide-slate-100 dark:divide-slate-800">
               {/* Residents Section */}
               {results.residents.length > 0 && (
                 <div className="p-2">
@@ -244,16 +244,16 @@ export function GlobalSearch() {
                       <button
                         key={r.id}
                         onClick={() => handleSelect('residents')}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs text-slate-700 transition group"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 transition group"
                       >
                         <div className="truncate">
-                          <span className="font-medium text-slate-900 group-hover:text-sky-600">
+                          <span className="font-medium text-slate-900 dark:text-white group-hover:text-sky-600">
                             {r.firstName} {r.lastName}
                           </span>
                           <span className="text-slate-400 ml-2">{r.phone}</span>
                         </div>
                         {r.unitNumber && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-mono bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
+                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-mono bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shrink-0">
                             {t('globalSearch.unitPrefix')} {r.unitNumber}
                           </span>
                         )}
@@ -275,12 +275,12 @@ export function GlobalSearch() {
                       <button
                         key={req.id}
                         onClick={() => handleSelect('requests')}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs text-slate-700 transition group"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 transition group"
                       >
-                        <div className="truncate font-medium text-slate-900 group-hover:text-amber-600">
+                        <div className="truncate font-medium text-slate-900 dark:text-white group-hover:text-amber-600">
                           {req.title}
                         </div>
-                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0 font-mono">
+                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0 font-mono">
                           {req.status}
                         </span>
                       </button>
@@ -301,10 +301,10 @@ export function GlobalSearch() {
                       <button
                         key={acc.id}
                         onClick={() => handleSelect('finance')}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs text-slate-700 transition group"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 transition group"
                       >
                         <div className="truncate">
-                          <span className="font-medium text-slate-900 group-hover:text-emerald-600">
+                          <span className="font-medium text-slate-900 dark:text-white group-hover:text-emerald-600">
                             {acc.accountNumber}
                           </span>
                           {acc.unitNumber && (

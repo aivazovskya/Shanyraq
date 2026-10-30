@@ -195,7 +195,7 @@ export default function ShiftHandoverPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList className="h-7 w-7 text-indigo-600" />
+            <ClipboardList className="h-7 w-7 text-sky-600 dark:text-sky-400" />
             {t('shiftHandover.pageTitle')}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -205,8 +205,8 @@ export default function ShiftHandoverPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           {currentUser?.role === 'SUPERADMIN' && (
-            <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm">
-              <Building2 className="h-4 w-4 text-indigo-600 flex-shrink-0" />
+            <div className="flex items-center gap-2 bg-white border border-sky-200 dark:border-sky-800 rounded-lg px-3 py-1.5 shadow-sm">
+              <Building2 className="h-4 w-4 text-sky-600 dark:text-sky-400 flex-shrink-0" />
               <select
                 value={tenantId}
                 onChange={(e) => {
@@ -283,7 +283,7 @@ export default function ShiftHandoverPage() {
             <div className="lg:col-span-1">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-8">
                 <div className="flex items-center gap-2 text-slate-900 font-semibold mb-4 text-base">
-                  <ClipboardList className="w-5 h-5 text-indigo-600" />
+                  <ClipboardList className="w-5 h-5 text-sky-600 dark:text-sky-400" />
                   <span>{t('shiftHandover.composeTitle')}</span>
                 </div>
 
@@ -309,7 +309,7 @@ export default function ShiftHandoverPage() {
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       disabled={isSubmitting || !tenantId}
-                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y disabled:bg-gray-50"
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-y disabled:bg-gray-50"
                     />
                     <div className="flex justify-end mt-1 text-xs text-slate-400">
                       <span>{content.length} / 2000</span>
@@ -319,7 +319,7 @@ export default function ShiftHandoverPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting || !content.trim() || !tenantId}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 text-white rounded-xl text-sm font-semibold hover:bg-sky-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isSubmitting ? (
                       <>
@@ -353,7 +353,7 @@ export default function ShiftHandoverPage() {
 
             {loading ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
-                <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-3" />
+                <RefreshCw className="w-8 h-8 text-sky-500 animate-spin mx-auto mb-3" />
                 <p className="text-sm text-gray-500">
                   {t('common.loading') || 'Загрузка...'}
                 </p>
@@ -396,7 +396,7 @@ export default function ShiftHandoverPage() {
                       {/* Note Header: Author & Timestamp */}
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                          <div className="w-8 h-8 rounded-full bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 flex items-center justify-center font-bold text-xs">
                             {initials}
                           </div>
                           <div>

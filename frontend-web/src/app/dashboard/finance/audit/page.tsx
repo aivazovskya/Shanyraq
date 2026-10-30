@@ -216,7 +216,7 @@ export default function AuditPage() {
             </Link>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 shadow-sm">
+            <div className="p-2.5 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 rounded-xl border border-sky-100 dark:border-sky-800 shadow-sm">
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
@@ -448,7 +448,7 @@ export default function AuditPage() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
             <p className="text-sm">{t('common.loading')}</p>
           </div>
         ) : !data || data.categories.length === 0 ? (
@@ -457,7 +457,7 @@ export default function AuditPage() {
             <p className="text-sm">{t('audit.emptyData')}</p>
             <Link
               href="/dashboard/finance/budget"
-              className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-sm"
+              className="mt-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-xl shadow-sm"
             >
               {t('audit.goToBudget')}
             </Link>
@@ -503,7 +503,7 @@ export default function AuditPage() {
                     <td className="py-2.5 px-4 font-semibold text-slate-800 sticky left-0 bg-white z-10 border-r border-slate-200 max-w-[220px]">
                       <button
                         onClick={() => handleDrillDownYear(row.category)}
-                        className="text-left hover:text-indigo-600 hover:underline transition-colors truncate block w-full"
+                        className="text-left hover:text-sky-600 dark:hover:text-sky-400 hover:underline transition-colors truncate block w-full"
                         title={t('audit.drillDownHint')}
                       >
                         {row.category}
@@ -526,7 +526,7 @@ export default function AuditPage() {
                           <td
                             key={m.month}
                             onClick={() => handleDrillDownMonth(row.category, m.month)}
-                            className="py-2 px-2 border-r border-slate-100 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
+                            className="py-2 px-2 border-r border-slate-100 cursor-pointer hover:ring-2 hover:ring-sky-300 transition-all"
                             title={t('audit.drillDownHint')}
                           >
                             <div className={`p-1.5 rounded-lg border text-[11px] ${cellColorClass}`}>
@@ -574,7 +574,7 @@ export default function AuditPage() {
                           <td
                             key={q.quarter}
                             onClick={() => handleDrillDownQuarter(row.category, q.quarter)}
-                            className="py-2 px-2.5 border-r border-slate-100 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
+                            className="py-2 px-2.5 border-r border-slate-100 cursor-pointer hover:ring-2 hover:ring-sky-300 transition-all"
                             title={t('audit.drillDownHint')}
                           >
                             <div className={`p-2 rounded-lg border text-xs ${cellColorClass}`}>
@@ -606,7 +606,7 @@ export default function AuditPage() {
                     {/* Year Total Column */}
                     <td
                       onClick={() => handleDrillDownYear(row.category)}
-                      className="py-2 px-3 border-l border-slate-200 bg-slate-50/60 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all"
+                      className="py-2 px-3 border-l border-slate-200 bg-slate-50/60 cursor-pointer hover:ring-2 hover:ring-sky-300 transition-all"
                       title={t('audit.drillDownHint')}
                     >
                       <div className="text-xs space-y-0.5">
@@ -797,7 +797,7 @@ export default function AuditPage() {
 
           {/* Budget without Actual */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-            <div className="flex items-center gap-2 text-indigo-600 font-bold text-sm">
+            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold text-sm">
               <Info className="w-4 h-4 shrink-0" />
               <span>{t('audit.withoutActualTitle')}</span>
             </div>

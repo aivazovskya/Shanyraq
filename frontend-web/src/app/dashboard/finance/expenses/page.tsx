@@ -603,9 +603,9 @@ function ExpensesContent() {
             {/* Link to Imports */}
             <Link
               href="/dashboard/finance/imports"
-              className="flex items-center gap-2 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium rounded-xl border border-indigo-200 shadow-sm transition-all"
+              className="flex items-center gap-2 px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-sky-700 dark:text-sky-300 text-sm font-medium rounded-xl border border-sky-200 dark:border-sky-800 shadow-sm transition-all"
             >
-              <UploadCloud className="w-4 h-4 text-indigo-600" />
+              <UploadCloud className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               <span>{t('finance.expenses.importsBtn', { defaultValue: 'Импорт расходов' })}</span>
             </Link>
 
@@ -623,7 +623,7 @@ function ExpensesContent() {
               href="/dashboard/finance/audit"
               className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
             >
-              <BarChart3 className="w-4 h-4 text-indigo-600" />
+              <BarChart3 className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               <span>{t('finance.auditBtn')}</span>
             </Link>
 

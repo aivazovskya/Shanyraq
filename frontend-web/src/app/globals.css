@@ -6,6 +6,11 @@
   --foreground-rgb: 12, 34, 51;
   --background-start-rgb: 248, 250, 252;
   --background-end-rgb: 241, 245, 249;
+  --chart-grid: #f1f5f9;
+  --chart-axis: #64748b;
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #e2e8f0;
+  --tooltip-text: #0f172a;
 }
 
 body {
@@ -16,11 +21,130 @@ body {
 
 html.dark {
   color-scheme: dark;
+  --chart-grid: #17303F;
+  --chart-axis: #8FA2B0;
+  --tooltip-bg: #0F2231;
+  --tooltip-border: #17303F;
+  --tooltip-text: #F2F7FA;
 }
 
 html.dark body {
   color: #F2F7FA;
   background-color: #08141E;
+}
+
+/* Centralized Dark Theme Rules for Admin Dashboard (Open Sky Palette: slate-950 #08141E, slate-900 #0F2231, slate-800 #17303F, slate-700 #36495A) */
+html.dark [data-admin-root] .bg-white:not([class*="dark:bg-"]) {
+  background-color: #0F2231;
+}
+
+html.dark [data-admin-root] .border-slate-200:not([class*="dark:border-"]) {
+  border-color: #17303F;
+}
+
+html.dark [data-admin-root] .border-slate-300:not([class*="dark:border-"]) {
+  border-color: #36495A;
+}
+
+html.dark [data-admin-root] .text-slate-900:not([class*="dark:text-"]) {
+  color: #F2F7FA;
+}
+
+html.dark [data-admin-root] .text-slate-800:not([class*="dark:text-"]) {
+  color: #EAF0F3;
+}
+
+html.dark [data-admin-root] .text-slate-700:not([class*="dark:text-"]) {
+  color: #DCE4E9;
+}
+
+html.dark [data-admin-root] .text-slate-600:not([class*="dark:text-"]) {
+  color: #C3CFD7;
+}
+
+html.dark [data-admin-root] .text-slate-500:not([class*="dark:text-"]) {
+  color: #8FA2B0;
+}
+
+html.dark [data-admin-root] .bg-slate-50:not([class*="dark:bg-"]) {
+  background-color: #08141E;
+}
+
+html.dark [data-admin-root] .bg-slate-100:not([class*="dark:bg-"]) {
+  background-color: #17303F;
+}
+
+html.dark [data-admin-root] .hover\:bg-slate-50:not([class*="dark:hover\:bg-"]):hover {
+  background-color: rgba(23, 48, 63, 0.6);
+}
+
+html.dark [data-admin-root] .hover\:bg-slate-100:not([class*="dark:hover\:bg-"]):hover {
+  background-color: rgba(54, 73, 90, 0.6);
+}
+
+html.dark [data-admin-root] .bg-sky-50:not([class*="dark:bg-"]) {
+  background-color: rgba(14, 53, 80, 0.4);
+}
+
+html.dark [data-admin-root] .hover\:bg-sky-50:not([class*="dark:hover\:bg-"]):hover {
+  background-color: rgba(14, 53, 80, 0.5);
+}
+
+html.dark [data-admin-root] .bg-emerald-50:not([class*="dark:bg-"]) {
+  background-color: rgba(15, 58, 45, 0.4);
+}
+
+html.dark [data-admin-root] .bg-red-50:not([class*="dark:bg-"]) {
+  background-color: rgba(69, 10, 10, 0.4);
+}
+
+html.dark [data-admin-root] .bg-amber-50:not([class*="dark:bg-"]) {
+  background-color: rgba(69, 38, 0, 0.4);
+}
+
+html.dark [data-admin-root] .divide-slate-100:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]),
+html.dark [data-admin-root] .divide-slate-200:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) {
+  border-color: #17303F;
+}
+
+html.dark [data-admin-root] input:not([type="checkbox"]):not([type="radio"]):not([class*="dark:bg-"]),
+html.dark [data-admin-root] select:not([class*="dark:bg-"]),
+html.dark [data-admin-root] textarea:not([class*="dark:bg-"]) {
+  background-color: #0F2231;
+  color: #F2F7FA;
+  border-color: #36495A;
+}
+
+html.dark [data-admin-root] option {
+  background-color: #0F2231;
+  color: #F2F7FA;
+}
+
+html.dark dialog {
+  background-color: #0F2231;
+  color: #F2F7FA;
+  border-color: #17303F;
+}
+
+/* Recharts styling */
+html.dark .recharts-default-tooltip {
+  background-color: #0F2231 !important;
+  border-color: #17303F !important;
+  color: #F2F7FA !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+}
+
+html.dark .recharts-tooltip-item,
+html.dark .recharts-tooltip-label {
+  color: #F2F7FA !important;
+}
+
+html.dark .recharts-cartesian-grid line {
+  stroke: #17303F !important;
+}
+
+html.dark .recharts-text.recharts-cartesian-axis-tick-value {
+  fill: #8FA2B0 !important;
 }
 
 @layer base {

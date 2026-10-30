@@ -37,7 +37,7 @@ import {
 import { getStoredSession, clearSession, apiLogout, AuthUser } from '@/lib/api';
 import { isResidentRole } from '@/lib/role-routing';
 import { CabinetApi, ResidentProfile } from '@/lib/cabinet-api';
-import { getStoredTheme, toggleTheme, ThemeMode } from '@/lib/theme';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 
 const LANGUAGE_LABELS: Record<SupportedLocale, string> = {
@@ -55,7 +55,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
   const [profile, setProfile] = useState<ResidentProfile | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+
 
   // Close mobile drawer on navigation
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
 
     setUser(session.user);
     setIsCheckingAuth(false);
-    setThemeMode(getStoredTheme());
+
 
     CabinetApi.getMe()
       .then((data) => setProfile(data))
@@ -93,10 +93,6 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
     router.replace('/');
   };
 
-  const handleToggleTheme = () => {
-    const next = toggleTheme();
-    setThemeMode(next);
-  };
 
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLocale) || 'ru';
 
@@ -191,19 +187,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
             {/* Right: Controls (Theme, Language, Notification Bell, Profile) */}
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Theme toggle */}
-              <button
-                type="button"
-                onClick={handleToggleTheme}
-                className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                aria-label={t('cabinet.theme')}
-                title={themeMode === 'dark' ? t('cabinet.themeLight') : t('cabinet.themeDark')}
-              >
-                {themeMode === 'dark' ? (
-                  <Sun className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Moon className="w-4 h-4 text-slate-600" />
-                )}
-              </button>
+              <ThemeToggle />
 
               {/* Language Selector */}
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs">

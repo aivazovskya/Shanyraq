@@ -35,6 +35,7 @@ import {
 import { getStoredSession, clearSession, apiLogout, AuthUser } from '@/lib/api';
 import { isResidentRole } from '@/lib/role-routing';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { GlobalSearch } from '@/components/GlobalSearch';
 
 const LANGUAGE_LABELS: Record<SupportedLocale, string> = {
@@ -142,10 +143,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Если сессия не проверена или отсутствует, предотвращаем рендер приватного контента
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
-          <p className="text-sm font-medium text-slate-500">{t('dashboard.authChecking')}</p>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('dashboard.authChecking')}</p>
         </div>
       </div>
     );
@@ -189,27 +190,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="min-h-dvh bg-slate-50 lg:pl-[264px]">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:p-3 focus:text-slate-900">{t('shell.skipContent')}</a>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] lg:block">{sidebar}</aside>
+    <div className="min-h-dvh bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 lg:pl-[264px]">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white dark:focus:bg-slate-900 focus:p-3 focus:text-slate-900 dark:focus:text-white">{t('shell.skipContent')}</a>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] border-r border-slate-800/80 lg:block">{sidebar}</aside>
       <dialog ref={menuDialog} aria-label={t('shell.navigation')} onCancel={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)}
         onClick={(event) => { if (event.target === event.currentTarget) setMenuOpen(false); }}
         className="m-0 h-dvh max-h-none w-[min(320px,88vw)] max-w-none border-0 bg-slate-950 p-0 backdrop:bg-slate-950/50 lg:hidden">{sidebar}</dialog>
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3">
-          <button ref={menuButton} onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-label={t('shell.openMenu')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden"><Menu size={21} /></button>
-          <div className="min-w-0 flex-1"><p className="truncate text-xs text-slate-500">{user?.tenantName || t('dashboard.defaultComplex')}</p><p className="truncate text-sm font-semibold text-slate-900">{activeItem?.name || t('navigation.dashboard')}</p></div>
+          <button ref={menuButton} onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-label={t('shell.openMenu')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 lg:hidden"><Menu size={21} /></button>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs text-slate-500 dark:text-slate-400">{user?.tenantName || t('dashboard.defaultComplex')}</p><p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{activeItem?.name || t('navigation.dashboard')}</p></div>
           <div className="order-last w-full lg:order-none lg:w-72 xl:w-96"><GlobalSearch /></div>
+          <ThemeToggle className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" />
           <NotificationBell />
-          <div className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 px-2">
+          <div className="flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 px-2">
             <Globe className="hidden h-4 w-4 text-slate-400 sm:block" aria-hidden="true" />
-            <select value={currentLang} onChange={handleLanguageChange} aria-label={t('common.language')} className="max-w-24 bg-transparent py-2 text-xs font-medium text-slate-700 sm:max-w-none">
-              {SUPPORTED_LOCALES.map((code) => <option key={code} value={code}>{LANGUAGE_LABELS[code]}</option>)}
+            <select value={currentLang} onChange={handleLanguageChange} aria-label={t('common.language')} className="max-w-24 bg-transparent py-2 text-xs font-medium text-slate-700 dark:text-slate-200 sm:max-w-none">
+              {SUPPORTED_LOCALES.map((code) => <option key={code} value={code} className="dark:bg-slate-900">{LANGUAGE_LABELS[code]}</option>)}
             </select>
           </div>
         </div>
       </header>
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1664px] min-w-0 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main id="main-content" data-admin-root tabIndex={-1} className="mx-auto max-w-[1664px] min-w-0 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">{children}</main>
     </div>
   );
 }
