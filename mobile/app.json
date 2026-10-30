@@ -9,11 +9,11 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#059669",
+      "backgroundColor": "#0C2233",
       "dark": {
         "image": "./assets/splash-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0F172A"
+        "backgroundColor": "#08141E"
       }
     },
     "ios": {
@@ -26,7 +26,7 @@
       "userInterfaceStyle": "automatic",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#059669"
+        "backgroundColor": "#0C2233"
       }
     },
     "web": {
