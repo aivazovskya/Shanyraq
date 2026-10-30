@@ -869,7 +869,6 @@ export default function LoginPage() {
               <ShieldCheck className="w-4 h-4" />
               <span>{t('auth.rbacNote')}</span>
             </div>
-            <p>{t('auth.accessNote')}</p>
           </div>
         </div>
       </div>
