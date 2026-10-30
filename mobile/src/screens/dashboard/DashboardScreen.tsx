@@ -370,20 +370,20 @@ export const DashboardScreen: React.FC = () => {
         {urgentAnnouncement && (
           <AnimatedEntrance index={2}>
             <Card
-              style={styles.urgentCard}
+              style={[styles.urgentCard, { backgroundColor: theme.colors.dangerBg, borderColor: theme.colors.dangerBorder }]}
               onPress={() => navigation.navigate('Announcements')}
             >
               <View style={styles.urgentRow}>
-                <View style={styles.urgentIconCircle}>
-                  <AlertTriangle color="#DC2626" size={22} />
+                <View style={[styles.urgentIconCircle, { backgroundColor: theme.colors.surface }]}>
+                  <AlertTriangle color={theme.colors.danger} size={22} />
                 </View>
                 <View style={styles.urgentTextContainer}>
-                  <Text style={styles.urgentTitle}>{urgentAnnouncement.title}</Text>
-                  <Text style={styles.urgentContent} numberOfLines={2}>
+                  <Text style={[styles.urgentTitle, { color: theme.colors.danger }]}>{urgentAnnouncement.title}</Text>
+                  <Text style={[styles.urgentContent, { color: theme.colors.text }]} numberOfLines={2}>
                     {urgentAnnouncement.content}
                   </Text>
                 </View>
-                <ChevronRight size={18} color="#DC2626" />
+                <ChevronRight size={18} color={theme.colors.danger} />
               </View>
             </Card>
           </AnimatedEntrance>
