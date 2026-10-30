@@ -516,11 +516,11 @@ export default function AuditPage() {
                         const cellColorClass =
                           m.actual > 0 && m.planned > 0
                             ? m.isOverBudget
-                              ? 'bg-rose-50/70 border-rose-200 text-rose-900'
-                              : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                              ? 'bg-rose-50/70 border-rose-200 text-rose-900 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300'
+                              : 'bg-emerald-50/70 border-emerald-200 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-300'
                             : m.actual > 0 && m.planned === 0
-                            ? 'bg-slate-50 border-slate-200 text-slate-700'
-                            : 'bg-white border-transparent text-slate-500';
+                            ? 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                            : 'bg-white border-transparent text-slate-500 dark:bg-slate-900 dark:text-slate-400';
 
                         return (
                           <td
@@ -564,11 +564,11 @@ export default function AuditPage() {
                         const cellColorClass =
                           q.actual > 0 && q.planned > 0
                             ? q.isOverBudget
-                              ? 'bg-rose-50/70 border-rose-200 text-rose-900'
-                              : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                              ? 'bg-rose-50/70 border-rose-200 text-rose-900 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-300'
+                              : 'bg-emerald-50/70 border-emerald-200 text-emerald-900 dark:bg-emerald-950/40 dark:border-emerald-900/60 dark:text-emerald-300'
                             : q.actual > 0 && q.planned === 0
-                            ? 'bg-slate-50 border-slate-200 text-slate-700'
-                            : 'bg-white border-transparent text-slate-500';
+                            ? 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                            : 'bg-white border-transparent text-slate-500 dark:bg-slate-900 dark:text-slate-400';
 
                         return (
                           <td
@@ -759,7 +759,7 @@ export default function AuditPage() {
                           +{item.delta.toLocaleString()} ₸
                         </span>
                         {item.deltaPercent !== null && (
-                          <span className="text-[10px] text-rose-500">
+                          <span className="text-[10px] text-rose-500 dark:text-rose-400">
                             +{item.deltaPercent}%
                           </span>
                         )}

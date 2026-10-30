@@ -176,9 +176,9 @@ export function GlobalSearch() {
   return (
     <div ref={containerRef} className="relative w-full" onKeyDown={(event) => { if (event.key === 'Escape') { setIsOpen(false); inputRef.current?.focus(); } }}>
       {needsScope && <select aria-label={t('shell.searchScope')} value={tenantId || ''}
-        className="mb-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+        className="mb-1 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-2 py-1 text-xs"
         onChange={(event) => { requestId.current++; if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); setTenantId(event.target.value || null); setQuery(''); setResults({ residents: [], requests: [], accounts: [] }); setIsOpen(false); setLoading(false); setError(false); }}>
-        <option value="">{t('shell.searchScope')}</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
+        <option value="" className="dark:bg-slate-900">{t('shell.searchScope')}</option>{tenants.map((tenant) => <option key={tenant.id} value={tenant.id} className="dark:bg-slate-900">{tenant.name}</option>)}
       </select>}
       {needsScope && !tenantId && error && <div role="alert" className="mb-2 text-xs text-red-700"><p>{t('shell.searchError')}</p><button onClick={() => {
         setError(false);

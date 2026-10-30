@@ -171,7 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {groups.map((group) => {
           const items = group.paths.map((path) => visibleNavigation.find((item) => item.href === (path === 'dashboard' ? '/dashboard' : `/dashboard/${path}`))).filter((item): item is typeof navigation[number] => Boolean(item));
           if (!items.length) return null;
-          return <div key={group.key}><p className="mb-2 px-3 text-xs font-semibold tracking-wide text-slate-500">{t(`shell.${group.key}`)}</p><div className="space-y-1">{items.map((item) => {
+          return <div key={group.key}><p className="mb-2 px-3 text-xs font-semibold tracking-wide text-slate-400">{t(`shell.${group.key}`)}</p><div className="space-y-1">{items.map((item) => {
             const Icon = item.icon;
             const active = item === activeItem;
             return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} aria-current={active ? 'page' : undefined}
@@ -190,7 +190,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="min-h-dvh bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 lg:pl-[264px]">
+    <div data-admin-root className="min-h-dvh bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 lg:pl-[264px]">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white dark:focus:bg-slate-900 focus:p-3 focus:text-slate-900 dark:focus:text-white">{t('shell.skipContent')}</a>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] border-r border-slate-800/80 lg:block">{sidebar}</aside>
       <dialog ref={menuDialog} aria-label={t('shell.navigation')} onCancel={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)}

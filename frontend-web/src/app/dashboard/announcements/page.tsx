@@ -368,7 +368,7 @@ export default function AnnouncementsPage() {
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                       {t('announcements.urgentCheckbox')}
                     </span>
-                    <p className="text-[11px] text-amber-800/80 mt-0.5">
+                    <p className="text-[11px] text-amber-800/80 dark:text-amber-300 mt-0.5">
                       {t('announcements.urgentHelper')}
                     </p>
                   </div>

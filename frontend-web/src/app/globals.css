@@ -38,81 +38,185 @@ html.dark [data-admin-root] .bg-white:not([class*="dark:bg-"]) {
   background-color: #0F2231;
 }
 
-html.dark [data-admin-root] .border-slate-200:not([class*="dark:border-"]) {
-  border-color: #17303F;
-}
-
-html.dark [data-admin-root] .border-slate-300:not([class*="dark:border-"]) {
-  border-color: #36495A;
-}
-
-html.dark [data-admin-root] .text-slate-900:not([class*="dark:text-"]) {
-  color: #F2F7FA;
-}
-
-html.dark [data-admin-root] .text-slate-800:not([class*="dark:text-"]) {
-  color: #EAF0F3;
-}
-
-html.dark [data-admin-root] .text-slate-700:not([class*="dark:text-"]) {
-  color: #DCE4E9;
-}
-
-html.dark [data-admin-root] .text-slate-600:not([class*="dark:text-"]) {
-  color: #C3CFD7;
-}
-
-html.dark [data-admin-root] .text-slate-500:not([class*="dark:text-"]) {
-  color: #8FA2B0;
-}
-
-html.dark [data-admin-root] .bg-slate-50:not([class*="dark:bg-"]) {
+html.dark [data-admin-root] [class*="bg-slate-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-gray-50"]:not([class*="dark:bg-"]) {
   background-color: #08141E;
 }
 
-html.dark [data-admin-root] .bg-slate-100:not([class*="dark:bg-"]) {
+html.dark [data-admin-root] [class*="bg-slate-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-gray-100"]:not([class*="dark:bg-"]) {
   background-color: #17303F;
 }
 
-html.dark [data-admin-root] .hover\:bg-slate-50:not([class*="dark:hover\:bg-"]):hover {
-  background-color: rgba(23, 48, 63, 0.6);
+html.dark [data-admin-root] [class*="bg-slate-200"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-gray-200"]:not([class*="dark:bg-"]) {
+  background-color: #36495A;
 }
 
-html.dark [data-admin-root] .hover\:bg-slate-100:not([class*="dark:hover\:bg-"]):hover {
-  background-color: rgba(54, 73, 90, 0.6);
+/* Hover backgrounds */
+html.dark [data-admin-root] [class*="hover:bg-slate-50"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-slate-100"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-gray-50"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-gray-100"]:not([class*="dark:hover:bg-"]):hover {
+  background-color: rgba(23, 48, 63, 0.7);
 }
 
-html.dark [data-admin-root] .bg-sky-50:not([class*="dark:bg-"]) {
-  background-color: rgba(14, 53, 80, 0.4);
+/* Semantic Badges & Tiles Backgrounds (Open Sky Palette) */
+/* Red / Rose */
+html.dark [data-admin-root] [class*="bg-red-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-red-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-rose-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-rose-100"]:not([class*="dark:bg-"]) {
+  background-color: rgba(69, 10, 10, 0.45);
 }
 
-html.dark [data-admin-root] .hover\:bg-sky-50:not([class*="dark:hover\:bg-"]):hover {
-  background-color: rgba(14, 53, 80, 0.5);
+/* Amber / Orange / Sun / Yellow */
+html.dark [data-admin-root] [class*="bg-amber-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-amber-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-orange-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-orange-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-yellow-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-yellow-100"]:not([class*="dark:bg-"]) {
+  background-color: rgba(69, 38, 0, 0.45);
 }
 
-html.dark [data-admin-root] .bg-emerald-50:not([class*="dark:bg-"]) {
-  background-color: rgba(15, 58, 45, 0.4);
+/* Steppe / Emerald / Green / Teal */
+html.dark [data-admin-root] [class*="bg-emerald-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-emerald-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-green-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-green-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-teal-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-teal-100"]:not([class*="dark:bg-"]) {
+  background-color: rgba(15, 58, 45, 0.45);
 }
 
-html.dark [data-admin-root] .bg-red-50:not([class*="dark:bg-"]) {
-  background-color: rgba(69, 10, 10, 0.4);
+/* Sky / Blue / Tengri */
+html.dark [data-admin-root] [class*="bg-sky-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-sky-100"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-blue-50"]:not([class*="dark:bg-"]),
+html.dark [data-admin-root] [class*="bg-blue-100"]:not([class*="dark:bg-"]) {
+  background-color: rgba(14, 53, 80, 0.45);
 }
 
-html.dark [data-admin-root] .bg-amber-50:not([class*="dark:bg-"]) {
-  background-color: rgba(69, 38, 0, 0.4);
+/* Hover semantic backgrounds */
+html.dark [data-admin-root] [class*="hover:bg-sky-50"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-blue-50"]:not([class*="dark:hover:bg-"]):hover {
+  background-color: rgba(14, 53, 80, 0.6);
+}
+html.dark [data-admin-root] [class*="hover:bg-emerald-50"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-green-50"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-teal-50"]:not([class*="dark:hover:bg-"]):hover {
+  background-color: rgba(15, 58, 45, 0.6);
+}
+html.dark [data-admin-root] [class*="hover:bg-rose-50"]:not([class*="dark:hover:bg-"]):hover,
+html.dark [data-admin-root] [class*="hover:bg-red-50"]:not([class*="dark:hover:bg-"]):hover {
+  background-color: rgba(69, 10, 10, 0.6);
 }
 
-html.dark [data-admin-root] .divide-slate-100:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]),
-html.dark [data-admin-root] .divide-slate-200:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) {
+/* --- Borders --- */
+html.dark [data-admin-root] [class*="border-slate-100"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-slate-200"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-gray-100"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-gray-200"]:not([class*="dark:border-"]) {
   border-color: #17303F;
 }
 
-html.dark [data-admin-root] input:not([type="checkbox"]):not([type="radio"]):not([class*="dark:bg-"]),
-html.dark [data-admin-root] select:not([class*="dark:bg-"]),
-html.dark [data-admin-root] textarea:not([class*="dark:bg-"]) {
-  background-color: #0F2231;
-  color: #F2F7FA;
+html.dark [data-admin-root] [class*="border-slate-300"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-gray-300"]:not([class*="dark:border-"]) {
   border-color: #36495A;
+}
+
+html.dark [data-admin-root] [class*="border-red-"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-rose-"]:not([class*="dark:border-"]) {
+  border-color: rgba(127, 29, 29, 0.6);
+}
+
+html.dark [data-admin-root] [class*="border-amber-"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-orange-"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-yellow-"]:not([class*="dark:border-"]) {
+  border-color: rgba(120, 53, 15, 0.6);
+}
+
+html.dark [data-admin-root] [class*="border-emerald-"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-green-"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-teal-"]:not([class*="dark:border-"]) {
+  border-color: rgba(21, 74, 57, 0.6);
+}
+
+html.dark [data-admin-root] [class*="border-sky-"]:not([class*="dark:border-"]),
+html.dark [data-admin-root] [class*="border-blue-"]:not([class*="dark:border-"]) {
+  border-color: rgba(16, 68, 105, 0.6);
+}
+
+html.dark [data-admin-root] [class*="divide-slate-"]:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]),
+html.dark [data-admin-root] [class*="divide-gray-"]:not([class*="dark:divide-"]) > :not([hidden]) ~ :not([hidden]) {
+  border-color: #17303F;
+}
+
+/* --- Text & Foreground Colors --- */
+/* Slate / Gray */
+html.dark [data-admin-root] .text-slate-900:not([class*="dark:text-"]),
+html.dark [data-admin-root] .text-gray-900:not([class*="dark:text-"]) {
+  color: #F2F7FA;
+}
+
+html.dark [data-admin-root] .text-slate-800:not([class*="dark:text-"]),
+html.dark [data-admin-root] .text-gray-800:not([class*="dark:text-"]) {
+  color: #EAF0F3;
+}
+
+html.dark [data-admin-root] .text-slate-700:not([class*="dark:text-"]),
+html.dark [data-admin-root] .text-gray-700:not([class*="dark:text-"]) {
+  color: #DCE4E9;
+}
+
+html.dark [data-admin-root] .text-slate-600:not([class*="dark:text-"]),
+html.dark [data-admin-root] .text-gray-600:not([class*="dark:text-"]) {
+  color: #C3CFD7;
+}
+
+html.dark [data-admin-root] .text-slate-500:not([class*="dark:text-"]),
+html.dark [data-admin-root] .text-gray-500:not([class*="dark:text-"]) {
+  color: #8FA2B0;
+}
+
+html.dark [data-admin-root] .text-slate-400:not([class*="dark:text-"]),
+html.dark [data-admin-root] .text-gray-400:not([class*="dark:text-"]) {
+  color: #8FA2B0;
+}
+
+/* Brand Blue / Tengri (#5FA5D6) */
+html.dark [data-admin-root] [class*="text-sky-"]:not([class*="dark:text-"]),
+html.dark [data-admin-root] [class*="text-blue-"]:not([class*="dark:text-"]) {
+  color: #5FA5D6;
+}
+
+/* Steppe / Emerald / Green (#4CC49A) */
+html.dark [data-admin-root] [class*="text-emerald-"]:not([class*="dark:text-"]),
+html.dark [data-admin-root] [class*="text-green-"]:not([class*="dark:text-"]),
+html.dark [data-admin-root] [class*="text-teal-"]:not([class*="dark:text-"]) {
+  color: #4CC49A;
+}
+
+/* Sun / Amber / Orange (#F4B63D) */
+html.dark [data-admin-root] [class*="text-amber-"]:not([class*="dark:text-"]),
+html.dark [data-admin-root] [class*="text-orange-"]:not([class*="dark:text-"]),
+html.dark [data-admin-root] [class*="text-yellow-"]:not([class*="dark:text-"]) {
+  color: #F4B63D;
+}
+
+/* Red / Rose (#F87171) */
+html.dark [data-admin-root] [class*="text-red-"]:not([class*="dark:text-"]),
+html.dark [data-admin-root] [class*="text-rose-"]:not([class*="dark:text-"]) {
+  color: #F87171;
+}
+
+html.dark [data-admin-root] input:not([type="checkbox"]):not([type="radio"]):not([class*="dark:bg-"]),
+html.dark [data-admin-root] select,
+html.dark [data-admin-root] textarea:not([class*="dark:bg-"]) {
+  background-color: #0F2231 !important;
+  color: #F2F7FA !important;
+  border-color: #36495A !important;
 }
 
 html.dark [data-admin-root] option {
