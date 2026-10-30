@@ -162,7 +162,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
                 </div>
                 <div className="flex flex-col">
                   <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white leading-none">
-                    Shanyraq <span className="text-emerald-600">Шаңырақ</span>
+                    Shanyraq
                   </span>
                   <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-tight">
                     {t('cabinet.title')}

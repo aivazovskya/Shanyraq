@@ -414,7 +414,7 @@ export default function LoginPage() {
           <BrandMark className="w-10 h-10" />
         </div>
         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Shanyraq <span className="text-emerald-600">Шаңырақ</span>
+          Shanyraq
         </h2>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           {t('auth.subtitle')}
