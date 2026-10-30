@@ -1,7 +1,15 @@
 import { apiClient } from './client';
 
-export type ListingType = 'SELL' | 'RENT' | 'GIVE_AWAY' | 'OTHER';
-export type ListingStatus = 'ACTIVE' | 'CLOSED' | 'REMOVED' | 'ARCHIVED';
+export type ListingType = 'SELL' | 'RENT' | 'GIVE_AWAY' | 'OTHER' | 'AD';
+export type ListingStatus =
+  | 'ACTIVE'
+  | 'CLOSED'
+  | 'REMOVED'
+  | 'ARCHIVED'
+  | 'PENDING_REVIEW'
+  | 'AWAITING_PAYMENT'
+  | 'EXPIRED';
+export type AdPaymentStatus = 'TRIAL' | 'UNPAID' | 'PAID';
 
 export interface CommunityListing {
   id: string;
@@ -13,6 +21,14 @@ export interface CommunityListing {
   price: number | null;
   photoUrls: string[];
   status: ListingStatus;
+  adBusinessName?: string | null;
+  adContactPhone?: string | null;
+  adPaymentStatus?: AdPaymentStatus | null;
+  adMonths?: number | null;
+  adPriceKzt?: number | null;
+  adStartsAt?: string | null;
+  adEndsAt?: string | null;
+  pinnedUntil?: string | null;
   removedById: string | null;
   removedReason: string | null;
   createdAt: string;
@@ -21,7 +37,7 @@ export interface CommunityListing {
     id: string;
     firstName: string;
     lastName: string;
-    phone: string;
+    phone: string | null;
     role: string;
   };
   removedBy?: {
@@ -31,12 +47,21 @@ export interface CommunityListing {
   };
 }
 
+export interface AdPricing {
+  adPriceMonthly: number;
+  adPinPriceWeekly: number;
+  adTrialDays: number;
+}
+
 export interface CreateListingData {
   type: ListingType;
   title: string;
   description: string;
   price?: number;
   photoUrls?: string[];
+  adBusinessName?: string;
+  adContactPhone?: string;
+  adMonths?: number;
 }
 
 export interface UpdateListingData {
@@ -84,6 +109,11 @@ export const CommunityBoardApi = {
       '/community-board/my-phone-visibility',
       { hidePhoneInListings },
     );
+    return res.data;
+  },
+
+  async getAdPricing(tenantId: string): Promise<AdPricing> {
+    const res = await apiClient.get<AdPricing>(`/community-board/tenants/${tenantId}/ad-pricing`);
     return res.data;
   },
 };

@@ -16,6 +16,8 @@ import {
   Search,
   X,
   XCircle,
+  Pin,
+  Briefcase,
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import * as Haptics from 'expo-haptics';
@@ -96,7 +98,7 @@ export const CommunityBoardScreen: React.FC = () => {
     loadData();
   };
 
-  const handleCall = (phone?: string) => {
+  const handleCall = (phone?: string | null) => {
     safeHaptic.selection();
     if (!phone) {
       Alert.alert(t('common.error'), t('communityBoard.phoneNotAvailable'));
@@ -144,6 +146,8 @@ export const CommunityBoardScreen: React.FC = () => {
 
   const getTypeLabel = (type: ListingType) => {
     switch (type) {
+      case 'AD':
+        return t('communityBoard.typeAd');
       case 'SELL':
         return t('communityBoard.typeSell');
       case 'RENT':
@@ -158,6 +162,8 @@ export const CommunityBoardScreen: React.FC = () => {
 
   const getTypeBadgeVariant = (type: ListingType) => {
     switch (type) {
+      case 'AD':
+        return 'warning';
       case 'SELL':
         return 'primary';
       case 'RENT':
@@ -174,6 +180,12 @@ export const CommunityBoardScreen: React.FC = () => {
     switch (status) {
       case 'ACTIVE':
         return <Badge label={t('communityBoard.statusActive')} variant="success" size="sm" />;
+      case 'PENDING_REVIEW':
+        return <Badge label={t('communityBoard.statusPendingReview')} variant="warning" size="sm" />;
+      case 'AWAITING_PAYMENT':
+        return <Badge label={t('communityBoard.statusAwaitingPayment')} variant="info" size="sm" />;
+      case 'EXPIRED':
+        return <Badge label={t('communityBoard.statusExpired')} variant="neutral" size="sm" />;
       case 'CLOSED':
         return <Badge label={t('communityBoard.statusClosed')} variant="neutral" size="sm" />;
       case 'REMOVED':
@@ -319,7 +331,7 @@ export const CommunityBoardScreen: React.FC = () => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterRow}
           >
-            {(['ALL', 'SELL', 'RENT', 'GIVE_AWAY', 'OTHER'] as const).map((cat) => {
+            {(['ALL', 'SELL', 'RENT', 'GIVE_AWAY', 'OTHER', 'AD'] as const).map((cat) => {
               const isActive = selectedType === cat;
               return (
                 <TouchableOpacity
@@ -399,6 +411,8 @@ export const CommunityBoardScreen: React.FC = () => {
                     ? `${item.author.firstName} ${item.author.lastName}`.trim()
                     : t('communityBoard.authorUnknown');
                   const hasPhotos = item.photoUrls && item.photoUrls.length > 0;
+                  const contactPhone = item.adContactPhone || item.author?.phone;
+                  const isPinned = item.pinnedUntil != null && new Date(item.pinnedUntil).getTime() > Date.now();
 
                   return (
                     <Card
@@ -407,7 +421,8 @@ export const CommunityBoardScreen: React.FC = () => {
                         styles.listingCard,
                         {
                           backgroundColor: theme.colors.surface,
-                          borderColor: theme.colors.border,
+                          borderColor: isPinned ? theme.colors.warning : theme.colors.border,
+                          borderWidth: isPinned ? 2 : 1,
                         },
                       ]}
                     >
@@ -421,13 +436,25 @@ export const CommunityBoardScreen: React.FC = () => {
                       ) : null}
 
                       <View style={styles.cardBody}>
-                        {/* Header Row: Category Badge + Date */}
+                        {/* Header Row: Category Badge + Pin Badge + Date */}
                         <View style={styles.cardHeaderRow}>
-                          <Badge
-                            label={getTypeLabel(item.type)}
-                            variant={getTypeBadgeVariant(item.type)}
-                            size="sm"
-                          />
+                          <View style={styles.badgeGroupRow}>
+                            <Badge
+                              label={getTypeLabel(item.type)}
+                              variant={getTypeBadgeVariant(item.type)}
+                              size="sm"
+                            />
+                            {isPinned ? (
+                              <View style={styles.pinnedBadgeWrap}>
+                                <Pin size={11} color={theme.colors.warning} />
+                                <Badge
+                                  label={t('communityBoard.adPinnedBadge')}
+                                  variant="warning"
+                                  size="sm"
+                                />
+                              </View>
+                            ) : null}
+                          </View>
                           <View style={styles.dateMetaRow}>
                             <Clock size={12} color={theme.colors.textMuted} />
                             <Text style={[styles.cardDate, { color: theme.colors.textMuted }]}>
@@ -435,6 +462,16 @@ export const CommunityBoardScreen: React.FC = () => {
                             </Text>
                           </View>
                         </View>
+
+                        {/* Business Name if AD */}
+                        {item.type === 'AD' && item.adBusinessName ? (
+                          <View style={styles.businessRow}>
+                            <Briefcase size={13} color={theme.colors.primary} />
+                            <Text style={[styles.businessNameText, { color: theme.colors.primary }]}>
+                              {item.adBusinessName}
+                            </Text>
+                          </View>
+                        ) : null}
 
                         {/* Title */}
                         <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
@@ -453,7 +490,11 @@ export const CommunityBoardScreen: React.FC = () => {
                             },
                           ]}
                         >
-                          {item.type === 'GIVE_AWAY'
+                          {item.type === 'AD'
+                            ? item.adPriceKzt != null
+                              ? `${item.adPriceKzt.toLocaleString(i18n.language)} ₸`
+                              : '0 ₸'
+                            : item.type === 'GIVE_AWAY'
                             ? t('communityBoard.typeGiveAway')
                             : item.price != null
                             ? `${item.price.toLocaleString(i18n.language)} ₸`
@@ -492,7 +533,7 @@ export const CommunityBoardScreen: React.FC = () => {
                             </Text>
                           </View>
 
-                          {item.author?.phone ? (
+                          {contactPhone ? (
                             <TouchableOpacity
                               style={[
                                 styles.callButton,
@@ -501,7 +542,7 @@ export const CommunityBoardScreen: React.FC = () => {
                                   borderColor: theme.colors.primary,
                                 },
                               ]}
-                              onPress={() => handleCall(item.author?.phone)}
+                              onPress={() => handleCall(contactPhone)}
                               accessibilityRole="button"
                               accessibilityLabel={`${t('communityBoard.callAction')} ${authorName}`}
                             >
@@ -549,6 +590,15 @@ export const CommunityBoardScreen: React.FC = () => {
                         {getStatusBadge(item.status)}
                       </View>
 
+                      {item.type === 'AD' && item.adBusinessName ? (
+                        <View style={styles.businessRow}>
+                          <Briefcase size={13} color={theme.colors.primary} />
+                          <Text style={[styles.businessNameText, { color: theme.colors.primary }]}>
+                            {item.adBusinessName}
+                          </Text>
+                        </View>
+                      ) : null}
+
                       <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
                         {item.title}
                       </Text>
@@ -564,7 +614,11 @@ export const CommunityBoardScreen: React.FC = () => {
                           },
                         ]}
                       >
-                        {item.type === 'GIVE_AWAY'
+                        {item.type === 'AD'
+                          ? item.adPriceKzt != null
+                            ? `${item.adPriceKzt.toLocaleString(i18n.language)} ₸`
+                            : '0 ₸'
+                          : item.type === 'GIVE_AWAY'
                           ? t('communityBoard.typeGiveAway')
                           : item.price != null
                           ? `${item.price.toLocaleString(i18n.language)} ₸`
@@ -823,5 +877,25 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 10,
     marginTop: 8,
+  },
+  badgeGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pinnedBadgeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  businessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  businessNameText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

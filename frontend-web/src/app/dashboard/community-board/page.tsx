@@ -20,11 +20,26 @@ import {
   X,
   Building2,
   Archive,
+  CreditCard,
+  Pin,
+  Plus,
+  DollarSign,
+  Briefcase,
+  UploadCloud,
 } from 'lucide-react';
 import { apiRequest, getStoredSession, AuthUser } from '@/lib/api';
+import { compressImage } from '@/lib/image-compress';
 
-export type ListingType = 'SELL' | 'RENT' | 'GIVE_AWAY' | 'OTHER';
-export type ListingStatus = 'ACTIVE' | 'CLOSED' | 'REMOVED' | 'ARCHIVED';
+export type ListingType = 'SELL' | 'RENT' | 'GIVE_AWAY' | 'OTHER' | 'AD';
+export type ListingStatus =
+  | 'ACTIVE'
+  | 'CLOSED'
+  | 'REMOVED'
+  | 'ARCHIVED'
+  | 'PENDING_REVIEW'
+  | 'AWAITING_PAYMENT'
+  | 'EXPIRED';
+export type AdPaymentStatus = 'TRIAL' | 'UNPAID' | 'PAID';
 
 export interface CommunityListingItem {
   id: string;
@@ -36,6 +51,14 @@ export interface CommunityListingItem {
   price: number | null;
   photoUrls: string[];
   status: ListingStatus;
+  adBusinessName?: string | null;
+  adContactPhone?: string | null;
+  adPaymentStatus?: AdPaymentStatus | null;
+  adMonths?: number | null;
+  adPriceKzt?: number | null;
+  adStartsAt?: string | null;
+  adEndsAt?: string | null;
+  pinnedUntil?: string | null;
   removedById: string | null;
   removedReason: string | null;
   createdAt: string;
@@ -44,7 +67,7 @@ export interface CommunityListingItem {
     id: string;
     firstName: string;
     lastName: string;
-    phone: string;
+    phone: string | null;
     role: string;
   };
   removedBy?: {
@@ -61,6 +84,12 @@ export interface TenantItem {
   address?: string;
 }
 
+export interface AdPricing {
+  adPriceMonthly: number;
+  adPinPriceWeekly: number;
+  adTrialDays: number;
+}
+
 export default function CommunityBoardModerationPage() {
   const { t, i18n } = useTranslation();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -71,6 +100,7 @@ export default function CommunityBoardModerationPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Filters
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -83,8 +113,58 @@ export default function CommunityBoardModerationPage() {
   const [submittingRemoval, setSubmittingRemoval] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
+  // Pin Modal
+  const [pinningListing, setPinningListing] = useState<CommunityListingItem | null>(null);
+  const [pinWeeks, setPinWeeks] = useState<number>(1);
+  const [submittingPin, setSubmittingPin] = useState(false);
+
+  // Action in progress (approve, pay, pin)
+  const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
+
   // Photo viewer modal
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Ad Pricing block (SUPERADMIN only)
+  const [pricing, setPricing] = useState<AdPricing | null>(null);
+  const [pricingMonthly, setPricingMonthly] = useState<number>(3000);
+  const [pricingWeekly, setPricingWeekly] = useState<number>(2000);
+  const [pricingTrial, setPricingTrial] = useState<number>(30);
+  const [savingPricing, setSavingPricing] = useState(false);
+
+  // Create Ad Modal (Staff on behalf of business)
+  const [showCreateAdModal, setShowCreateAdModal] = useState(false);
+  const [createAdBusinessName, setCreateAdBusinessName] = useState('');
+  const [createAdContactPhone, setCreateAdContactPhone] = useState('');
+  const [createAdTitle, setCreateAdTitle] = useState('');
+  const [createAdDescription, setCreateAdDescription] = useState('');
+  const [createAdMonths, setCreateAdMonths] = useState<number>(1);
+  const [createAdPhotos, setCreateAdPhotos] = useState<string[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [submittingCreateAd, setSubmittingCreateAd] = useState(false);
+  const [createAdError, setCreateAdError] = useState<string | null>(null);
+
+  const isStaffRole =
+    currentUser?.role === 'SUPERADMIN' ||
+    currentUser?.role === 'HOA_ADMIN' ||
+    currentUser?.role === 'HOA_CHAIRMAN' ||
+    currentUser?.role === 'DISPATCHER';
+
+  const isSuperadmin = currentUser?.role === 'SUPERADMIN';
+
+  const loadPricing = useCallback(async (tId: string) => {
+    if (!tId) return;
+    try {
+      const data = await apiRequest<AdPricing>(`/community-board/tenants/${tId}/ad-pricing`);
+      if (data) {
+        setPricing(data);
+        setPricingMonthly(data.adPriceMonthly ?? 3000);
+        setPricingWeekly(data.adPinPriceWeekly ?? 2000);
+        setPricingTrial(data.adTrialDays ?? 30);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load ad pricing:', err);
+    }
+  }, []);
 
   const loadListings = useCallback(
     async (tId: string, isSilent = false) => {
@@ -125,6 +205,14 @@ export default function CommunityBoardModerationPage() {
         apiRequest<TenantItem[]>('/properties/tenants')
           .then((data) => {
             setTenants(data || []);
+            const defaultId = session.user.tenantId || (data && data[0]?.id) || '';
+            if (defaultId) {
+              setTenantId(defaultId);
+              loadListings(defaultId);
+              loadPricing(defaultId);
+            } else {
+              setLoading(false);
+            }
           })
           .catch((err) => {
             console.error('Failed to load tenants for superadmin:', err);
@@ -132,13 +220,6 @@ export default function CommunityBoardModerationPage() {
           .finally(() => {
             setLoadingTenants(false);
           });
-
-        if (session.user.tenantId) {
-          setTenantId(session.user.tenantId);
-          loadListings(session.user.tenantId);
-        } else {
-          setLoading(false);
-        }
       } else {
         const effectiveTenantId = session.user.tenantId;
         if (!effectiveTenantId) {
@@ -148,19 +229,108 @@ export default function CommunityBoardModerationPage() {
         }
         setTenantId(effectiveTenantId);
         loadListings(effectiveTenantId);
+        loadPricing(effectiveTenantId);
       }
     } else {
       setErrorMsg(t('common.userNotAuthorizedOrLinked'));
       setLoading(false);
     }
-  }, [loadListings, t]);
+  }, [loadListings, loadPricing, t]);
 
   const handleRefresh = () => {
     if (tenantId) {
       loadListings(tenantId, true);
+      loadPricing(tenantId);
     }
   };
 
+  // Actions for Ads
+  const handleApproveAd = async (listing: CommunityListingItem) => {
+    setActionInProgressId(listing.id);
+    setErrorMsg(null);
+    try {
+      await apiRequest(`/community-board/listings/${listing.id}/ad/approve`, {
+        method: 'PATCH',
+      });
+      setSuccessMsg(t('communityBoard.adApproveSuccess'));
+      await loadListings(tenantId, true);
+    } catch (err: any) {
+      setErrorMsg(err.message || t('common.error'));
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
+
+  const handleConfirmPaid = async (listing: CommunityListingItem) => {
+    setActionInProgressId(listing.id);
+    setErrorMsg(null);
+    try {
+      await apiRequest(`/community-board/listings/${listing.id}/ad/paid`, {
+        method: 'PATCH',
+      });
+      setSuccessMsg(t('communityBoard.adPaidSuccess'));
+      await loadListings(tenantId, true);
+    } catch (err: any) {
+      setErrorMsg(err.message || t('common.error'));
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
+
+  const handleOpenPinModal = (listing: CommunityListingItem) => {
+    setPinningListing(listing);
+    setPinWeeks(1);
+    setModalError(null);
+  };
+
+  const handleClosePinModal = () => {
+    setPinningListing(null);
+    setPinWeeks(1);
+    setModalError(null);
+  };
+
+  const handleConfirmPin = async () => {
+    if (!pinningListing) return;
+    setSubmittingPin(true);
+    setModalError(null);
+    try {
+      await apiRequest(`/community-board/listings/${pinningListing.id}/ad/pin`, {
+        method: 'PATCH',
+        body: JSON.stringify({ weeks: pinWeeks }),
+      });
+      handleClosePinModal();
+      setSuccessMsg(t('communityBoard.adPinSuccess'));
+      await loadListings(tenantId, true);
+    } catch (err: any) {
+      setModalError(err.message || t('common.error'));
+    } finally {
+      setSubmittingPin(false);
+    }
+  };
+
+  const handleSavePricing = async () => {
+    if (!tenantId) return;
+    setSavingPricing(true);
+    setErrorMsg(null);
+    try {
+      const updated = await apiRequest<AdPricing>(`/community-board/tenants/${tenantId}/ad-pricing`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          adPriceMonthly: pricingMonthly,
+          adPinPriceWeekly: pricingWeekly,
+          adTrialDays: pricingTrial,
+        }),
+      });
+      setPricing(updated);
+      setSuccessMsg(t('communityBoard.pricingSavedSuccess'));
+    } catch (err: any) {
+      setErrorMsg(err.message || t('communityBoard.pricingSaveError'));
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  // Moderate / Remove Modal
   const handleOpenRemoveModal = (listing: CommunityListingItem) => {
     setModeratingListing(listing);
     setRemovalReason('');
@@ -200,21 +370,115 @@ export default function CommunityBoardModerationPage() {
     }
   };
 
+  // Upload Photo for Ad Creation
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (createAdPhotos.length >= 5) return;
+
+    setUploadingPhoto(true);
+    setCreateAdError(null);
+
+    try {
+      const file = files[0];
+      const compressed = await compressImage(file);
+
+      const formData = new FormData();
+      formData.append('file', compressed, file.name);
+
+      const res = await apiRequest<{ url: string }>(
+        '/uploads?category=media',
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
+
+      if (res && res.url) {
+        setCreateAdPhotos((prev) => [...prev, res.url].slice(0, 5));
+      }
+    } catch (err: any) {
+      setCreateAdError(err.message || t('common.error'));
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemovePhoto = (urlToRemove: string) => {
+    setCreateAdPhotos((prev) => prev.filter((u) => u !== urlToRemove));
+  };
+
+  const handleCreateAdSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createAdBusinessName.trim() || createAdBusinessName.trim().length < 2) {
+      setCreateAdError(t('communityBoard.adBusinessNameLabel'));
+      return;
+    }
+    if (!createAdTitle.trim() || createAdTitle.trim().length < 3) {
+      setCreateAdError(t('common.requiredFields'));
+      return;
+    }
+    if (!createAdDescription.trim() || createAdDescription.trim().length < 5) {
+      setCreateAdError(t('common.requiredFields'));
+      return;
+    }
+
+    setSubmittingCreateAd(true);
+    setCreateAdError(null);
+
+    try {
+      await apiRequest(`/community-board/tenants/${tenantId}/listings`, {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'AD',
+          title: createAdTitle.trim(),
+          description: createAdDescription.trim(),
+          adBusinessName: createAdBusinessName.trim(),
+          adContactPhone: createAdContactPhone.trim() || undefined,
+          adMonths: createAdMonths,
+          photoUrls: createAdPhotos,
+        }),
+      });
+
+      setShowCreateAdModal(false);
+      setCreateAdBusinessName('');
+      setCreateAdContactPhone('');
+      setCreateAdTitle('');
+      setCreateAdDescription('');
+      setCreateAdMonths(1);
+      setCreateAdPhotos([]);
+      setSuccessMsg(t('communityBoard.adCreateSuccess'));
+      await loadListings(tenantId, true);
+    } catch (err: any) {
+      setCreateAdError(err.message || t('common.error'));
+    } finally {
+      setSubmittingCreateAd(false);
+    }
+  };
+
   // Filter listings by search query
   const filteredListings = listings.filter((item) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     const titleMatch = item.title.toLowerCase().includes(q);
     const descMatch = item.description.toLowerCase().includes(q);
+    const businessMatch = item.adBusinessName
+      ? item.adBusinessName.toLowerCase().includes(q)
+      : false;
     const authorMatch = item.author
       ? `${item.author.firstName} ${item.author.lastName}`.toLowerCase().includes(q)
       : false;
-    const phoneMatch = item.author?.phone?.includes(q);
-    return titleMatch || descMatch || authorMatch || phoneMatch;
+    const phoneMatch =
+      (item.author?.phone && item.author.phone.includes(q)) ||
+      (item.adContactPhone && item.adContactPhone.includes(q));
+    return titleMatch || descMatch || businessMatch || authorMatch || phoneMatch;
   });
 
   const getTypeLabel = (type: ListingType) => {
     switch (type) {
+      case 'AD':
+        return t('communityBoard.typeAd');
       case 'SELL':
         return t('communityBoard.typeSell');
       case 'RENT':
@@ -229,6 +493,8 @@ export default function CommunityBoardModerationPage() {
 
   const getTypeBadgeClass = (type: ListingType) => {
     switch (type) {
+      case 'AD':
+        return 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
       case 'SELL':
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'RENT':
@@ -248,6 +514,27 @@ export default function CommunityBoardModerationPage() {
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
             <CheckCircle2 className="w-3 h-3 mr-1" />
             {t('communityBoard.statusActive')}
+          </span>
+        );
+      case 'PENDING_REVIEW':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+            <Clock className="w-3 h-3 mr-1" />
+            {t('communityBoard.statusPendingReview')}
+          </span>
+        );
+      case 'AWAITING_PAYMENT':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-300">
+            <CreditCard className="w-3 h-3 mr-1" />
+            {t('communityBoard.statusAwaitingPayment')}
+          </span>
+        );
+      case 'EXPIRED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 border border-zinc-200">
+            <Clock className="w-3 h-3 mr-1" />
+            {t('communityBoard.statusExpired')}
           </span>
         );
       case 'CLOSED':
@@ -276,6 +563,33 @@ export default function CommunityBoardModerationPage() {
     }
   };
 
+  const getPaymentStatusBadge = (status?: AdPaymentStatus | null) => {
+    switch (status) {
+      case 'TRIAL':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+            {t('communityBoard.paymentStatusTrial')}
+          </span>
+        );
+      case 'PAID':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+            {t('communityBoard.paymentStatusPaid')}
+          </span>
+        );
+      case 'UNPAID':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+            {t('communityBoard.paymentStatusUnpaid')}
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const calculatedFormPrice = (pricing?.adPriceMonthly ?? pricingMonthly) * createAdMonths;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -301,8 +615,10 @@ export default function CommunityBoardModerationPage() {
                   setTenantId(newTId);
                   if (newTId) {
                     loadListings(newTId);
+                    loadPricing(newTId);
                   } else {
                     setListings([]);
+                    setPricing(null);
                   }
                 }}
                 disabled={loadingTenants}
@@ -318,6 +634,19 @@ export default function CommunityBoardModerationPage() {
             </div>
           )}
 
+          {Boolean(tenantId) && isStaffRole && (
+            <button
+              onClick={() => {
+                setCreateAdError(null);
+                setShowCreateAdModal(true);
+              }}
+              className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              {t('communityBoard.addAdAction')}
+            </button>
+          )}
+
           <button
             onClick={handleRefresh}
             disabled={refreshing || loading || !tenantId}
@@ -329,13 +658,93 @@ export default function CommunityBoardModerationPage() {
         </div>
       </div>
 
-      {/* Error notification */}
+      {/* Notifications */}
       {errorMsg && (
         <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800">{t('common.error')}</h3>
             <p className="text-sm text-red-700 mt-0.5">{errorMsg}</p>
+          </div>
+          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-r-lg flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-green-800">{t('common.success')}</h3>
+            <p className="text-sm text-green-700 mt-0.5">{successMsg}</p>
+          </div>
+          <button onClick={() => setSuccessMsg(null)} className="text-green-400 hover:text-green-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Pricing Settings Block (SUPERADMIN only) */}
+      {isSuperadmin && Boolean(tenantId) && (
+        <div className="bg-white p-5 rounded-xl border border-indigo-100 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-base font-bold text-gray-900">
+                {t('communityBoard.adPricingTitle')}
+              </h2>
+            </div>
+            <button
+              onClick={handleSavePricing}
+              disabled={savingPricing}
+              className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
+            >
+              {savingPricing && (
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5" />
+              )}
+              {t('communityBoard.savePricingBtn')}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                {t('communityBoard.adPriceMonthlyLabel')}
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={pricingMonthly}
+                onChange={(e) => setPricingMonthly(parseInt(e.target.value, 10) || 0)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                {t('communityBoard.adPinPriceWeeklyLabel')}
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={pricingWeekly}
+                onChange={(e) => setPricingWeekly(parseInt(e.target.value, 10) || 0)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                {t('communityBoard.adTrialDaysLabel')}
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={365}
+                value={pricingTrial}
+                onChange={(e) => setPricingTrial(parseInt(e.target.value, 10) || 0)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -364,6 +773,7 @@ export default function CommunityBoardModerationPage() {
               className="border border-gray-300 rounded-lg text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               <option value="ALL">{t('communityBoard.filterAllTypes')}</option>
+              <option value="AD">{t('communityBoard.typeAd')}</option>
               <option value="SELL">{t('communityBoard.typeSell')}</option>
               <option value="RENT">{t('communityBoard.typeRent')}</option>
               <option value="GIVE_AWAY">{t('communityBoard.typeGiveAway')}</option>
@@ -381,6 +791,9 @@ export default function CommunityBoardModerationPage() {
             >
               <option value="ALL">{t('communityBoard.filterAllStatuses')}</option>
               <option value="ACTIVE">{t('communityBoard.statusActive')}</option>
+              <option value="PENDING_REVIEW">{t('communityBoard.statusPendingReview')}</option>
+              <option value="AWAITING_PAYMENT">{t('communityBoard.statusAwaitingPayment')}</option>
+              <option value="EXPIRED">{t('communityBoard.statusExpired')}</option>
               <option value="CLOSED">{t('communityBoard.statusClosed')}</option>
               <option value="REMOVED">{t('communityBoard.statusRemoved')}</option>
               <option value="ARCHIVED">{t('communityBoard.statusArchived')}</option>
@@ -421,22 +834,45 @@ export default function CommunityBoardModerationPage() {
             const authorName = item.author
               ? `${item.author.firstName} ${item.author.lastName}`.trim()
               : t('communityBoard.authorUnknown');
-            const authorPhone = item.author?.phone || '';
+            const contactPhone = item.adContactPhone || item.author?.phone || '';
+            const isPinned =
+              item.pinnedUntil != null && new Date(item.pinnedUntil).getTime() > Date.now();
+            const formattedPinnedDate = item.pinnedUntil
+              ? new Date(item.pinnedUntil).toLocaleDateString(i18n.language)
+              : '';
 
             return (
               <div
                 key={item.id}
                 className={`bg-white border rounded-xl shadow-sm overflow-hidden flex flex-col justify-between transition hover:shadow-md ${
-                  item.status === 'REMOVED'
+                  isPinned
+                    ? 'ring-2 ring-amber-400 border-amber-300'
+                    : item.status === 'REMOVED'
                     ? 'border-red-200 bg-red-50/20'
                     : item.status === 'CLOSED'
                     ? 'border-gray-200 opacity-80'
-                    : item.status === 'ARCHIVED'
-                    ? 'border-slate-200 opacity-70'
+                    : item.status === 'EXPIRED'
+                    ? 'border-zinc-200 bg-zinc-50/40 opacity-75'
+                    : item.status === 'PENDING_REVIEW'
+                    ? 'border-amber-200 bg-amber-50/20'
+                    : item.status === 'AWAITING_PAYMENT'
+                    ? 'border-sky-200 bg-sky-50/20'
                     : 'border-gray-200'
                 }`}
               >
                 <div>
+                  {/* Pinned top indicator banner */}
+                  {isPinned && (
+                    <div className="bg-amber-500 text-white text-xs font-bold px-3 py-1 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Pin className="w-3.5 h-3.5 fill-white" />
+                        <span>
+                          {t('communityBoard.adPinnedUntil', { date: formattedPinnedDate })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Photo Preview Strip */}
                   {item.photoUrls && item.photoUrls.length > 0 ? (
                     <div className="relative h-44 bg-gray-100 overflow-hidden group">
@@ -461,9 +897,9 @@ export default function CommunityBoardModerationPage() {
 
                   <div className="p-4 space-y-3">
                     {/* Header Badges */}
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getTypeBadgeClass(
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs border ${getTypeBadgeClass(
                           item.type,
                         )}`}
                       >
@@ -472,13 +908,25 @@ export default function CommunityBoardModerationPage() {
                       {getStatusBadge(item.status)}
                     </div>
 
+                    {/* Business Name if AD */}
+                    {item.type === 'AD' && item.adBusinessName && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                        <Briefcase className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+                        <span className="truncate">{item.adBusinessName}</span>
+                      </div>
+                    )}
+
                     {/* Title & Price */}
                     <div>
                       <h3 className="text-base font-bold text-gray-900 line-clamp-1">
                         {item.title}
                       </h3>
                       <p className="text-lg font-extrabold text-indigo-600 mt-0.5">
-                        {item.type === 'GIVE_AWAY'
+                        {item.type === 'AD'
+                          ? item.adPriceKzt != null
+                            ? `${item.adPriceKzt.toLocaleString(i18n.language)} ₸`
+                            : '0 ₸'
+                          : item.type === 'GIVE_AWAY'
                           ? t('communityBoard.typeGiveAway')
                           : item.price != null
                           ? `${item.price.toLocaleString(i18n.language)} ₸`
@@ -486,25 +934,51 @@ export default function CommunityBoardModerationPage() {
                       </p>
                     </div>
 
+                    {/* Ad Details: Payment status & placement dates */}
+                    {item.type === 'AD' && (
+                      <div className="p-2 bg-gray-50 rounded-lg text-xs space-y-1.5 border border-gray-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500 font-medium">
+                            {t('communityBoard.adPeriod')}:
+                          </span>
+                          <span className="font-semibold text-gray-800">
+                            {item.adMonths} {t(`communityBoard.months${item.adMonths}` as any) || `${item.adMonths} мес.`}
+                          </span>
+                        </div>
+                        {item.adPaymentStatus && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500 font-medium">{t('communityBoard.paymentLabel')}:</span>
+                            {getPaymentStatusBadge(item.adPaymentStatus)}
+                          </div>
+                        )}
+                        {item.adStartsAt && item.adEndsAt && (
+                          <div className="text-[11px] text-gray-500">
+                            {new Date(item.adStartsAt).toLocaleDateString(i18n.language)} —{' '}
+                            {new Date(item.adEndsAt).toLocaleDateString(i18n.language)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Description */}
                     <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
                       {item.description}
                     </p>
 
-                    {/* Author info */}
+                    {/* Author & Contact info */}
                     <div className="pt-2 border-t border-gray-100 space-y-1.5 text-xs text-gray-600">
                       <div className="flex items-center gap-1.5">
                         <UserIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                         <span className="font-semibold text-gray-800">{authorName}</span>
                       </div>
-                      {authorPhone && (
+                      {contactPhone && (
                         <div className="flex items-center gap-1.5">
                           <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                           <a
-                            href={`tel:${authorPhone}`}
+                            href={`tel:${contactPhone}`}
                             className="text-blue-600 hover:underline font-medium"
                           >
-                            {authorPhone}
+                            {contactPhone}
                           </a>
                         </div>
                       )}
@@ -543,8 +1017,53 @@ export default function CommunityBoardModerationPage() {
                   </div>
                 </div>
 
-                {/* Moderation action */}
-                <div className="p-4 pt-0">
+                {/* Actions Bar */}
+                <div className="p-4 pt-0 space-y-2">
+                  {/* Approve button for staff (PENDING_REVIEW) */}
+                  {item.type === 'AD' && item.status === 'PENDING_REVIEW' && isStaffRole && (
+                    <button
+                      onClick={() => handleApproveAd(item)}
+                      disabled={actionInProgressId === item.id}
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-green-300 text-xs font-semibold rounded-lg text-white bg-green-600 hover:bg-green-700 transition shadow-sm disabled:opacity-50"
+                    >
+                      {actionInProgressId === item.id ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                      )}
+                      {t('communityBoard.approveAction')}
+                    </button>
+                  )}
+
+                  {/* Confirm payment button (SUPERADMIN only, AWAITING_PAYMENT) */}
+                  {item.type === 'AD' && item.status === 'AWAITING_PAYMENT' && isSuperadmin && (
+                    <button
+                      onClick={() => handleConfirmPaid(item)}
+                      disabled={actionInProgressId === item.id}
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-sky-300 text-xs font-semibold rounded-lg text-white bg-sky-600 hover:bg-sky-700 transition shadow-sm disabled:opacity-50"
+                    >
+                      {actionInProgressId === item.id ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+                      )}
+                      {t('communityBoard.confirmPaymentAction')}
+                    </button>
+                  )}
+
+                  {/* Pin button (SUPERADMIN only, ACTIVE) */}
+                  {item.type === 'AD' && item.status === 'ACTIVE' && isSuperadmin && (
+                    <button
+                      onClick={() => handleOpenPinModal(item)}
+                      disabled={actionInProgressId === item.id}
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-amber-300 text-xs font-semibold rounded-lg text-amber-900 bg-amber-50 hover:bg-amber-100 transition shadow-sm"
+                    >
+                      <Pin className="w-3.5 h-3.5 mr-1.5" />
+                      {t('communityBoard.pinAction')}
+                    </button>
+                  )}
+
+                  {/* Moderate / Remove action */}
                   {item.status !== 'REMOVED' ? (
                     <button
                       onClick={() => handleOpenRemoveModal(item)}
@@ -562,6 +1081,72 @@ export default function CommunityBoardModerationPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pin Ad Modal */}
+      {pinningListing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Pin className="h-5 w-5 text-amber-600" />
+                {t('communityBoard.pinModalTitle')}
+              </h3>
+              <button
+                onClick={handleClosePinModal}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm text-gray-700 font-semibold">{pinningListing.title}</p>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {t('communityBoard.pinWeeksLabel')}
+                </label>
+                <select
+                  value={pinWeeks}
+                  onChange={(e) => setPinWeeks(parseInt(e.target.value, 10) || 1)}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  {[1, 2, 3, 4, 8, 12].map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {modalError && (
+                <p className="text-xs font-medium text-red-600 mt-1">{modalError}</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={handleClosePinModal}
+                disabled={submittingPin}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPin}
+                disabled={submittingPin}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {submittingPin && (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                {t('communityBoard.pinConfirmBtn')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -628,6 +1213,184 @@ export default function CommunityBoardModerationPage() {
                 {t('communityBoard.confirmRemoveBtn')}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Ad Modal */}
+      {showCreateAdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-indigo-600" />
+                {t('communityBoard.addAdModalTitle')}
+              </h3>
+              <button
+                onClick={() => setShowCreateAdModal(false)}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdSubmit} className="space-y-4">
+              {createAdError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                  {createAdError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {t('communityBoard.adBusinessNameLabel')} *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={createAdBusinessName}
+                  onChange={(e) => setCreateAdBusinessName(e.target.value)}
+                  placeholder={t('communityBoard.adBusinessNamePlaceholder')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {t('communityBoard.adPhoneLabel')}
+                </label>
+                <input
+                  type="tel"
+                  value={createAdContactPhone}
+                  onChange={(e) => setCreateAdContactPhone(e.target.value)}
+                  placeholder={t('communityBoard.adPhonePlaceholder')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {t('communityBoard.titleLabel')} *
+                </label>
+                <input
+                  type="text"
+                  required
+                  minLength={3}
+                  maxLength={150}
+                  value={createAdTitle}
+                  onChange={(e) => setCreateAdTitle(e.target.value)}
+                  placeholder={t('communityBoard.titleLabel')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {t('communityBoard.descLabel')} *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={createAdDescription}
+                  onChange={(e) => setCreateAdDescription(e.target.value)}
+                  placeholder={t('communityBoard.descLabel')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    {t('communityBoard.adMonthsLabel')}
+                  </label>
+                  <select
+                    value={createAdMonths}
+                    onChange={(e) => setCreateAdMonths(parseInt(e.target.value, 10) || 1)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value={1}>{t('communityBoard.months1')}</option>
+                    <option value={3}>{t('communityBoard.months3')}</option>
+                    <option value={6}>{t('communityBoard.months6')}</option>
+                    <option value={12}>{t('communityBoard.months12')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    {t('communityBoard.priceLabel')}
+                  </label>
+                  <div className="h-9 px-3 flex items-center bg-gray-50 border border-gray-200 rounded-lg font-bold text-indigo-700 text-sm">
+                    {t('communityBoard.adCalculatedPrice', {
+                      price: calculatedFormPrice.toLocaleString(i18n.language),
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Photos upload with compression */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  {t('communityBoard.adPhotosLabel')}
+                </label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {createAdPhotos.map((url, idx) => (
+                    <div
+                      key={idx}
+                      className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 group"
+                    >
+                      <img src={url} alt="Photo" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePhoto(url)}
+                        className="absolute inset-0 bg-red-600/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {createAdPhotos.length < 5 && (
+                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 hover:border-indigo-500 flex flex-col items-center justify-center cursor-pointer transition text-gray-400 hover:text-indigo-600 bg-gray-50">
+                      {uploadingPhoto ? (
+                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <UploadCloud className="w-5 h-5 mb-0.5" />
+                          <span className="text-[10px] font-medium">{t('communityBoard.photoCount')}</span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingPhoto}
+                        onChange={handlePhotoSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateAdModal(false)}
+                  disabled={submittingCreateAd}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingCreateAd || uploadingPhoto}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {submittingCreateAd && (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {t('communityBoard.addAdAction')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

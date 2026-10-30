@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Text } from '../../components/ui/AppText';
 import { useNavigation } from '@react-navigation/native';
@@ -7,7 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
   AlertCircle,
-  Tag,
+  Briefcase,
+  Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import * as Haptics from 'expo-haptics';
@@ -23,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   CommunityBoardApi,
   ListingType,
+  AdPricing,
 } from '../../api/community-board';
 import { getApiErrorMessage } from '../../api/client';
 
@@ -34,6 +36,11 @@ export const CreateListingScreen: React.FC = () => {
   const { user } = useAuth();
 
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
+  const isStaff =
+    user?.role === 'SUPERADMIN' ||
+    user?.role === 'HOA_ADMIN' ||
+    user?.role === 'HOA_CHAIRMAN' ||
+    user?.role === 'DISPATCHER';
 
   const [type, setType] = useState<ListingType>('SELL');
   const [title, setTitle] = useState('');
@@ -42,16 +49,63 @@ export const CreateListingScreen: React.FC = () => {
   const [descError, setDescError] = useState<string | undefined>();
   const [priceStr, setPriceStr] = useState('');
   const [priceError, setPriceError] = useState<string | undefined>();
+
+  // Ad fields
+  const [adBusinessName, setAdBusinessName] = useState('');
+  const [adBusinessNameError, setAdBusinessNameError] = useState<string | undefined>();
+  const [adContactPhone, setAdContactPhone] = useState('');
+  const [adMonths, setAdMonths] = useState<number>(1);
+  const [pricing, setPricing] = useState<AdPricing | null>(null);
+  const [isTrial, setIsTrial] = useState(false);
+
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tenantId) return;
+
+    // Load pricing and check trial status
+    const initPricing = async () => {
+      try {
+        const [pData, myListings] = await Promise.all([
+          CommunityBoardApi.getAdPricing(tenantId).catch(() => null),
+          CommunityBoardApi.getMyListings().catch(() => []),
+        ]);
+
+        if (pData) {
+          setPricing(pData);
+        }
+
+        // Resident with no previous ads of type AD gets trial
+        if (!isStaff && (pData?.adTrialDays ?? 30) > 0) {
+          const hasPriorAds = (myListings || []).some((l) => l.type === 'AD');
+          setIsTrial(!hasPriorAds);
+        } else {
+          setIsTrial(false);
+        }
+      } catch (err) {
+        console.warn('Failed to load ad pricing/trial status:', err);
+      }
+    };
+
+    initPricing();
+  }, [tenantId, isStaff]);
 
   const categories: Array<{ value: ListingType; label: string }> = [
     { value: 'SELL', label: t('communityBoard.typeSell') },
     { value: 'RENT', label: t('communityBoard.typeRent') },
     { value: 'GIVE_AWAY', label: t('communityBoard.typeGiveAway') },
     { value: 'OTHER', label: t('communityBoard.typeOther') },
+    { value: 'AD', label: t('communityBoard.typeAd') },
+  ];
+
+  const monthOptions = [
+    { value: '1', label: t('communityBoard.months1') },
+    { value: '3', label: t('communityBoard.months3') },
+    { value: '6', label: t('communityBoard.months6') },
+    { value: '12', label: t('communityBoard.months12') },
   ];
 
   const handleSubmit = async () => {
@@ -77,8 +131,17 @@ export const CreateListingScreen: React.FC = () => {
       setDescError(undefined);
     }
 
+    if (type === 'AD') {
+      if (!adBusinessName.trim() || adBusinessName.trim().length < 2) {
+        setAdBusinessNameError(t('communityBoard.adBusinessNameValidation'));
+        hasErrors = true;
+      } else {
+        setAdBusinessNameError(undefined);
+      }
+    }
+
     let parsedPrice: number | undefined = undefined;
-    if (type !== 'GIVE_AWAY' && priceStr.trim()) {
+    if (type !== 'GIVE_AWAY' && type !== 'AD' && priceStr.trim()) {
       const num = parseFloat(priceStr.replace(/\s+/g, '').replace(',', '.'));
       if (isNaN(num) || num < 0) {
         setPriceError(t('communityBoard.priceValidation'));
@@ -104,16 +167,22 @@ export const CreateListingScreen: React.FC = () => {
         type,
         title: title.trim(),
         description: description.trim(),
-        price: type === 'GIVE_AWAY' ? undefined : parsedPrice,
+        price: type === 'GIVE_AWAY' || type === 'AD' ? undefined : parsedPrice,
         photoUrls: photos.length > 0 ? photos : undefined,
+        adBusinessName: type === 'AD' ? adBusinessName.trim() : undefined,
+        adContactPhone: type === 'AD' && adContactPhone.trim() ? adContactPhone.trim() : undefined,
+        adMonths: type === 'AD' ? adMonths : undefined,
       });
 
       safeHaptic.notification(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        t('common.success'),
-        t('communityBoard.createSuccessMessage'),
-        [{ text: t('common.ok'), onPress: () => navigation.goBack() }],
-      );
+      const successMsg =
+        type === 'AD'
+          ? t('communityBoard.adSubmittedReviewNotice')
+          : t('communityBoard.createSuccessMessage');
+
+      Alert.alert(t('common.success'), successMsg, [
+        { text: t('common.ok'), onPress: () => navigation.goBack() },
+      ]);
     } catch (e: any) {
       safeHaptic.notification(Haptics.NotificationFeedbackType.Error);
       setGeneralError(getApiErrorMessage(e));
@@ -121,6 +190,8 @@ export const CreateListingScreen: React.FC = () => {
       setSubmitting(false);
     }
   };
+
+  const calculatedAdPrice = (pricing?.adPriceMonthly ?? 3000) * adMonths;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -169,13 +240,93 @@ export const CreateListingScreen: React.FC = () => {
               onChange={(v) => {
                 safeHaptic.selection();
                 setType(v as ListingType);
-                if (v === 'GIVE_AWAY') {
+                if (v === 'GIVE_AWAY' || v === 'AD') {
                   setPriceStr('');
                   setPriceError(undefined);
                 }
               }}
             />
           </View>
+
+          {/* Ad Specific Fields */}
+          {type === 'AD' && (
+            <View style={styles.adSection}>
+              {/* Business Name */}
+              <Input
+                label={`${t('communityBoard.adBusinessNameLabel')} *`}
+                value={adBusinessName}
+                onChangeText={(v) => {
+                  setAdBusinessName(v);
+                  if (adBusinessNameError) setAdBusinessNameError(undefined);
+                }}
+                placeholder={t('communityBoard.adBusinessNamePlaceholder')}
+                error={adBusinessNameError}
+                leftIcon={<Briefcase size={16} color={theme.colors.textMuted} />}
+              />
+
+              {/* Business Phone */}
+              <Input
+                label={t('communityBoard.adPhoneLabel')}
+                value={adContactPhone}
+                onChangeText={setAdContactPhone}
+                placeholder={t('communityBoard.adPhonePlaceholder')}
+                keyboardType="phone-pad"
+              />
+
+              {/* Placement Duration */}
+              <Text style={[styles.sectionLabel, { color: theme.colors.text, marginTop: 4 }]}>
+                {t('communityBoard.adMonthsLabel')}
+              </Text>
+              <View style={styles.categoryWrap}>
+                <SegmentedControl
+                  options={monthOptions}
+                  value={String(adMonths)}
+                  onChange={(v) => {
+                    safeHaptic.selection();
+                    setAdMonths(parseInt(v, 10) || 1);
+                  }}
+                />
+              </View>
+
+              {/* Trial or Price Banner */}
+              <View
+                style={[
+                  styles.pricingBanner,
+                  {
+                    backgroundColor: isTrial
+                      ? theme.colors.successBg
+                      : theme.colors.surfaceSubtle,
+                    borderColor: isTrial
+                      ? theme.colors.successBorder
+                      : theme.colors.border,
+                  },
+                ]}
+              >
+                <Sparkles
+                  size={18}
+                  color={isTrial ? theme.colors.success : theme.colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.pricingBannerText,
+                    {
+                      color: isTrial
+                        ? theme.colors.success
+                        : theme.colors.text,
+                    },
+                  ]}
+                >
+                  {isTrial
+                    ? t('communityBoard.firstAdFree', {
+                        days: pricing?.adTrialDays ?? 30,
+                      })
+                    : t('communityBoard.adCalculatedCost', {
+                        price: calculatedAdPrice.toLocaleString(),
+                      })}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Title Input */}
           <Input
@@ -190,8 +341,8 @@ export const CreateListingScreen: React.FC = () => {
             error={titleError}
           />
 
-          {/* Price Input (Hidden if GIVE_AWAY) */}
-          {type !== 'GIVE_AWAY' && (
+          {/* Price Input (Hidden if GIVE_AWAY or AD) */}
+          {type !== 'GIVE_AWAY' && type !== 'AD' && (
             <Input
               label={t('communityBoard.priceLabel')}
               value={priceStr}
@@ -311,6 +462,23 @@ const styles = StyleSheet.create({
   },
   categoryWrap: {
     marginBottom: 16,
+  },
+  adSection: {
+    marginBottom: 8,
+  },
+  pricingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  pricingBannerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
   },
   currencyText: {
     fontSize: 16,

@@ -18,6 +18,50 @@ interface Props {
   maxPhotos?: number;
 }
 
+async function compressImageWeb(
+  sourceUri: string,
+  maxDimension = 1600,
+  quality = 0.75,
+): Promise<string> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return sourceUri;
+  }
+  return new Promise((resolve) => {
+    const img = new (window as any).Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let { width, height } = img;
+      const maxSide = Math.max(width, height);
+      if (maxSide > maxDimension) {
+        const scale = maxDimension / maxSide;
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(sourceUri);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      try {
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const approxSize = Math.round((dataUrl.length - (dataUrl.indexOf(',') + 1)) * 0.75);
+        if (approxSize > 1024 * 1024) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        }
+        resolve(dataUrl);
+      } catch {
+        resolve(sourceUri);
+      }
+    };
+    img.onerror = () => resolve(sourceUri);
+    img.src = sourceUri;
+  });
+}
+
 /** Only completed uploads become form values; failed uploads can be retried. */
 export function PhotoAttachments({
   value,
@@ -111,23 +155,25 @@ export function PhotoAttachments({
         return;
       }
 
-      // Normalize HEIC/other camera formats to JPEG on native
+      // Normalize HEIC/other camera formats to JPEG on native and web (1600px, 0.75)
       let uri = asset.uri;
       if (Platform.OS !== 'web') {
         const context = ImageManipulator.manipulate(asset.uri);
-        if (Math.max(asset.width, asset.height) > 2048) {
-          context.resize(asset.width >= asset.height ? { width: 2048 } : { height: 2048 });
+        if (Math.max(asset.width, asset.height) > 1600) {
+          context.resize(asset.width >= asset.height ? { width: 1600 } : { height: 1600 });
         }
         try {
           const image = await context.renderAsync();
           try {
-            uri = (await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 })).uri;
+            uri = (await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.75 })).uri;
           } finally {
             image.release();
           }
         } finally {
           context.release();
         }
+      } else {
+        uri = await compressImageWeb(asset.uri, 1600, 0.75);
       }
 
       if (!active.current) return;
