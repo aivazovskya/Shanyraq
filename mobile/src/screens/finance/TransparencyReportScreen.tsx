@@ -354,13 +354,11 @@ export const TransparencyReportScreen: React.FC = () => {
                 </Text>
                 <View style={styles.kpiFooterRow}>
                   <Text style={[styles.kpiSub, { color: theme.colors.textMuted }]}>
-                    {t('finance.transparencyExpenseCount', 'Статей')}:
+                    {t('finance.plan', 'План')}:
                   </Text>
-                  <Badge
-                    label={String(report.byExpenseCategory.length)}
-                    variant="neutral"
-                    size="sm"
-                  />
+                  <Text style={[styles.kpiSub, { color: theme.colors.text, fontWeight: '600' }]}>
+                    {report.totalPlannedExpenses ? `${report.totalPlannedExpenses.toLocaleString()} ₸` : '—'}
+                  </Text>
                 </View>
               </Card>
             </View>
@@ -643,14 +641,102 @@ export const TransparencyReportScreen: React.FC = () => {
                             </Svg>
                           </View>
 
-                          <Text style={[styles.breakdownShare, { color: theme.colors.textMuted }]}>
-                            {t('finance.shareOfExpenses', { percent: sharePercent })}
-                          </Text>
+                          <View style={styles.expenseDetailsRow}>
+                            <Text style={[styles.breakdownShare, { color: theme.colors.textMuted }]}>
+                              {t('finance.shareOfExpenses', { percent: item.percentageOfTotal !== undefined ? item.percentageOfTotal : sharePercent })}
+                            </Text>
+                            {item.plannedAmount !== undefined && item.plannedAmount > 0 && (
+                              <View style={styles.expensePlanWrap}>
+                                <Text style={[styles.expensePlanText, { color: theme.colors.textMuted }]}>
+                                  {t('finance.plan')}: {item.plannedAmount.toLocaleString()} ₸
+                                </Text>
+                                <Badge
+                                  label={
+                                    item.amount > item.plannedAmount
+                                      ? t('finance.overBudget')
+                                      : t('finance.withinBudget')
+                                  }
+                                  variant={item.amount > item.plannedAmount ? 'danger' : 'success'}
+                                  size="sm"
+                                />
+                              </View>
+                            )}
+                          </View>
                         </View>
                       );
                     })}
                   </View>
                 )}
+              </Card>
+            )}
+
+            {/* SECTION 3: Recent Major Expenses */}
+            {(activeSection === 'ALL' || activeSection === 'EXPENSES') && report.recentExpenses && report.recentExpenses.length > 0 && (
+              <Card
+                style={[
+                  styles.chartCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.sectionCardHeader}>
+                  <View
+                    style={[
+                      styles.sectionIconWrap,
+                      { backgroundColor: theme.colors.primaryBg },
+                    ]}
+                  >
+                    <Receipt color={theme.colors.primary} size={18} />
+                  </View>
+                  <View style={styles.sectionTitleWrap}>
+                    <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                      {t('finance.recentExpensesTitle')}
+                    </Text>
+                    <Text style={[styles.sectionSub, { color: theme.colors.textMuted }]}>
+                      {t('finance.recentExpensesSub')}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.breakdownList}>
+                  {report.recentExpenses.map((exp, idx) => (
+                    <View
+                      key={exp.id || `recent-${idx}`}
+                      style={[
+                        styles.recentExpenseRow,
+                        idx < report.recentExpenses!.length - 1 && {
+                          borderBottomWidth: 1,
+                          borderBottomColor: theme.colors.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.recentExpenseTop}>
+                        <Text
+                          style={[styles.recentExpenseDesc, { color: theme.colors.text }]}
+                          numberOfLines={1}
+                        >
+                          {exp.description || exp.category}
+                        </Text>
+                        <Text style={[styles.recentExpenseAmount, { color: theme.colors.danger }]}>
+                          -{exp.amount.toLocaleString()} ₸
+                        </Text>
+                      </View>
+                      <View style={styles.recentExpenseBottom}>
+                        <Text
+                          style={[styles.recentExpenseCounterparty, { color: theme.colors.textMuted }]}
+                          numberOfLines={1}
+                        >
+                          {exp.counterparty || exp.category}
+                        </Text>
+                        <Text style={[styles.recentExpenseDate, { color: theme.colors.textMuted }]}>
+                          {exp.date ? new Date(exp.date).toLocaleDateString('ru-RU') : ''}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
               </Card>
             )}
 

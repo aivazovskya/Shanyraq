@@ -857,6 +857,197 @@ async function main() {
     });
   }
 
+    // 14. Демо-помещения и начисления/сборы ЖКУ ЖК (135 помещений, собираемость 85-95% за авг-окт 2026)
+  const demoUnitsDef: Array<{
+    buildingId: string;
+    unitNumber: string;
+    accountNumber: string;
+    area: number;
+    floor: number;
+    entrance: number;
+    idx: number;
+  }> = [];
+
+  // Блок А: 68 квартир (103..170)
+  for (let i = 0; i < 68; i++) {
+    const unitNumber = String(103 + i);
+    const area = 60 + ((i * 7) % 35);
+    const floor = Math.floor(i / 6) + 1;
+    const entrance = (i % 2) + 1;
+    demoUnitsDef.push({
+      buildingId: blockA.id,
+      unitNumber,
+      accountNumber: `DEMO-ACC-A-${unitNumber}`,
+      area,
+      floor,
+      entrance,
+      idx: i,
+    });
+  }
+
+  // Блок Б: 67 квартир (201..268, пропуск кв. 205)
+  let bCount = 0;
+  for (let num = 201; bCount < 67; num++) {
+    if (num === 205) continue;
+    const i = 68 + bCount;
+    const unitNumber = String(num);
+    const area = 62 + ((bCount * 11) % 33);
+    const floor = Math.floor(bCount / 6) + 1;
+    const entrance = (bCount % 2) + 3;
+    demoUnitsDef.push({
+      buildingId: blockB.id,
+      unitNumber,
+      accountNumber: `DEMO-ACC-B-${unitNumber}`,
+      area,
+      floor,
+      entrance,
+      idx: i,
+    });
+    bCount++;
+  }
+
+  const createdDemoAccounts: Array<{
+    account: { id: string; accountNumber: string };
+    bills: { rszh: number; intercom: number; elevator: number; water: number; total: number };
+    idx: number;
+  }> = [];
+
+  for (const def of demoUnitsDef) {
+    const unit = await prisma.unit.create({
+      data: {
+        buildingId: def.buildingId,
+        unitNumber: def.unitNumber,
+        floor: def.floor,
+        entrance: def.entrance,
+        area: def.area,
+      },
+    });
+
+    const account = await prisma.personalAccount.create({
+      data: {
+        unitId: unit.id,
+        accountNumber: def.accountNumber,
+        balance: 0,
+      },
+    });
+
+    const rszh = Math.round(def.area * tariffService.rate);
+    const intercom = Math.round(tariffIntercom.rate);
+    const elevator = Math.round(tariffElevator.rate);
+    const waterM3 = 8 + (def.idx % 7);
+    const water = Math.round(waterM3 * tariffWater.rate);
+    const total = rszh + intercom + elevator + water;
+
+    createdDemoAccounts.push({
+      account,
+      bills: { rszh, intercom, elevator, water, total },
+      idx: def.idx,
+    });
+  }
+
+  // Начисления за месяцы 8, 9, 10
+  const chargesData: any[] = [];
+  for (const item of createdDemoAccounts) {
+    const accId = item.account.id;
+    const { rszh, intercom, elevator, water } = item.bills;
+    for (const month of [8, 9, 10]) {
+      chargesData.push({ accountId: accId, tariffItemId: tariffService.id, periodMonth: month, periodYear: 2026, amount: rszh });
+      chargesData.push({ accountId: accId, tariffItemId: tariffIntercom.id, periodMonth: month, periodYear: 2026, amount: intercom });
+      chargesData.push({ accountId: accId, tariffItemId: tariffElevator.id, periodMonth: month, periodYear: 2026, amount: elevator });
+      chargesData.push({ accountId: accId, tariffItemId: tariffWater.id, periodMonth: month, periodYear: 2026, amount: water });
+    }
+  }
+  await prisma.charge.createMany({ data: chargesData });
+
+  // Оплаты со сбалансированной собираемостью 85-95%
+  const augLate = new Set([0, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121]);
+  const sepLate = new Set([1, 8, 15, 23, 31, 39, 47, 56, 64, 72, 81, 89, 97, 105, 113, 120, 127, 131, 134]);
+  const octLate = new Set<number>();
+  for (let k = 0; octLate.size < 28; k += 7) {
+    octLate.add(k % 135);
+  }
+
+  const paymentsData: any[] = [];
+  for (const item of createdDemoAccounts) {
+    const acc = item.account;
+    const total = item.bills.total;
+    const idx = item.idx;
+
+    if (!augLate.has(idx)) {
+      const day = 10 + (idx % 15);
+      paymentsData.push({
+        accountId: acc.id,
+        amount: total,
+        paidAt: new Date(`2026-08-${String(day).padStart(2, '0')}T10:00:00.000Z`),
+        method: PaymentMethod.MANUAL,
+        recordedById: adminUser.id,
+        note: `Оплата ЖКУ за 08.2026 (DEMO:${acc.accountNumber})`,
+      });
+    } else {
+      paymentsData.push({
+        accountId: acc.id,
+        amount: total,
+        paidAt: new Date(`2026-09-03T11:00:00.000Z`),
+        method: PaymentMethod.MANUAL,
+        recordedById: adminUser.id,
+        note: `Оплата просрочки ЖКУ за 08.2026 (DEMO:${acc.accountNumber})`,
+      });
+    }
+
+    if (!sepLate.has(idx)) {
+      const day = 10 + (idx % 16);
+      paymentsData.push({
+        accountId: acc.id,
+        amount: total,
+        paidAt: new Date(`2026-09-${String(day).padStart(2, '0')}T10:00:00.000Z`),
+        method: PaymentMethod.MANUAL,
+        recordedById: adminUser.id,
+        note: `Оплата ЖКУ за 09.2026 (DEMO:${acc.accountNumber})`,
+      });
+    } else {
+      paymentsData.push({
+        accountId: acc.id,
+        amount: total,
+        paidAt: new Date(`2026-10-04T12:00:00.000Z`),
+        method: PaymentMethod.MANUAL,
+        recordedById: adminUser.id,
+        note: `Оплата просрочки ЖКУ за 09.2026 (DEMO:${acc.accountNumber})`,
+      });
+    }
+
+    if (!octLate.has(idx)) {
+      const day = 10 + (idx % 16);
+      paymentsData.push({
+        accountId: acc.id,
+        amount: total,
+        paidAt: new Date(`2026-10-${String(day).padStart(2, '0')}T10:00:00.000Z`),
+        method: PaymentMethod.MANUAL,
+        recordedById: adminUser.id,
+        note: `Оплата ЖКУ за 10.2026 (DEMO:${acc.accountNumber})`,
+      });
+    }
+  }
+  await prisma.payment.createMany({ data: paymentsData });
+
+  // Обновление балансов лицевых счетов
+  for (const item of createdDemoAccounts) {
+    const acc = item.account;
+    const chargesSum = await prisma.charge.aggregate({
+      where: { accountId: acc.id },
+      _sum: { amount: true },
+    });
+    const paymentsSum = await prisma.payment.aggregate({
+      where: { accountId: acc.id },
+      _sum: { amount: true },
+    });
+    const charged = chargesSum._sum.amount || 0;
+    const paid = paymentsSum._sum.amount || 0;
+    await prisma.personalAccount.update({
+      where: { id: acc.id },
+      data: { balance: Math.round((paid - charged) * 100) / 100 },
+    });
+  }
+
   console.log('✅ База данных успешно наполнена тестовыми данными ЖК «Шаңырақ Премиум»!');
 }
 

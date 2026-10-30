@@ -251,8 +251,7 @@ export const DashboardScreen: React.FC = () => {
                   borderColor: theme.colors.border,
                 },
               ]}
-              accessibilityRole="button"
-              accessibilityLabel={t('notifications.title')}
+                accessibilityLabel={t('notifications.title')}
             >
               <Bell size={22} color={theme.colors.text} />
               {unreadNotifsCount > 0 && (
@@ -283,7 +282,6 @@ export const DashboardScreen: React.FC = () => {
           <TouchableOpacity
             activeOpacity={0.92}
             onPress={() => navigation.navigate('FinanceAccount')}
-            accessibilityRole="button"
             accessibilityLabel={
               accountsLoading
                 ? `${t('dashboard.balanceCardTitle')}: ${t('common.loading')}`
@@ -355,7 +353,7 @@ export const DashboardScreen: React.FC = () => {
 
                 <TouchableOpacity
                   style={styles.heroChipSecondary}
-                  onPress={() => navigation.navigate('TransparencyReport')}
+                  onPress={() => navigation.navigate('FinanceAccount')}
                 >
                   <FileText size={14} color="#BFE0F4" />
                   <Text style={styles.heroChipSecondaryText}>{t('dashboard.billsAction')}</Text>
@@ -365,6 +363,54 @@ export const DashboardScreen: React.FC = () => {
           </TouchableOpacity>
             );
           })()}
+        </AnimatedEntrance>
+
+        {/* Transparency Report Card ("Куда уходят деньги") */}
+        <AnimatedEntrance index={1}>
+          <Card
+            style={[
+              styles.transparencyCard,
+              {
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={() => navigation.navigate('TransparencyReport')}
+            accessibilityLabel={t('dashboard.transparencyCardTitle')}
+          >
+            <View style={styles.transparencyCardContent}>
+              <View
+                style={[
+                  styles.transparencyIconWrap,
+                  { backgroundColor: theme.colors.primaryBg },
+                ]}
+              >
+                <PieChart size={22} color={theme.colors.primary} />
+              </View>
+              <View style={styles.transparencyTextWrap}>
+                <View style={styles.transparencyHeaderRow}>
+                  <Text
+                    style={[styles.transparencyTitle, { color: theme.colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {t('dashboard.transparencyCardTitle')}
+                  </Text>
+                  <Badge
+                    label={t('dashboard.transparencyCardBadge')}
+                    variant="info"
+                    size="sm"
+                  />
+                </View>
+                <Text
+                  style={[styles.transparencySubtitle, { color: theme.colors.textMuted }]}
+                  numberOfLines={2}
+                >
+                  {t('dashboard.transparencyCardSubtitle')}
+                </Text>
+              </View>
+              <ChevronRight size={18} color={theme.colors.textMuted} />
+            </View>
+          </Card>
         </AnimatedEntrance>
 
         {/* Urgent Announcement Alert if any */}
@@ -396,7 +442,6 @@ export const DashboardScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.sosHistoryRow}
             onPress={() => navigation.navigate('SosHistory')}
-            accessibilityRole="button"
             accessibilityLabel={t('sos.viewHistoryLink')}
           >
             <Text style={[styles.sosHistoryText, { color: theme.colors.textMuted }]}>
