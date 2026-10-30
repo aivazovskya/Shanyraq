@@ -90,6 +90,68 @@ export interface AdPricing {
   adTrialDays: number;
 }
 
+function ListingCardImage({
+  src,
+  alt,
+  onClick,
+}: {
+  src: string;
+  alt: string;
+  onClick?: () => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
+        <ImageIcon className="w-8 h-8 opacity-40" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setHasError(true)}
+      className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
+      onClick={onClick}
+    />
+  );
+}
+
+function ModalThumbnail({
+  src,
+  onRemove,
+}: {
+  src: string;
+  onRemove: () => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 group flex items-center justify-center">
+      {hasError ? (
+        <ImageIcon className="w-5 h-5 text-slate-400 dark:text-slate-500 opacity-50" />
+      ) : (
+        <img
+          src={src}
+          alt="Thumbnail"
+          onError={() => setHasError(true)}
+          className="w-full h-full object-cover"
+        />
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute inset-0 bg-red-600/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function CommunityBoardModerationPage() {
   const { t, i18n } = useTranslation();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -494,16 +556,16 @@ export default function CommunityBoardModerationPage() {
   const getTypeBadgeClass = (type: ListingType) => {
     switch (type) {
       case 'AD':
-        return 'bg-amber-100 text-amber-800 border-amber-300 font-bold';
+        return 'bg-amber-100 text-amber-900 border-amber-300 font-bold dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-700';
       case 'SELL':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800';
       case 'RENT':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
+        return 'bg-steppe-100 text-steppe-800 border-steppe-200 dark:bg-steppe-950/40 dark:text-steppe-300 dark:border-steppe-800';
       case 'GIVE_AWAY':
-        return 'bg-green-100 text-green-800 border-green-200';
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800';
       case 'OTHER':
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     }
   };
 
@@ -511,49 +573,49 @@ export default function CommunityBoardModerationPage() {
     switch (status) {
       case 'ACTIVE':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
             <CheckCircle2 className="w-3 h-3 mr-1" />
             {t('communityBoard.statusActive')}
           </span>
         );
       case 'PENDING_REVIEW':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700">
             <Clock className="w-3 h-3 mr-1" />
             {t('communityBoard.statusPendingReview')}
           </span>
         );
       case 'AWAITING_PAYMENT':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-300">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800">
             <CreditCard className="w-3 h-3 mr-1" />
             {t('communityBoard.statusAwaitingPayment')}
           </span>
         );
       case 'EXPIRED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 border border-zinc-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
             <Clock className="w-3 h-3 mr-1" />
             {t('communityBoard.statusExpired')}
           </span>
         );
       case 'CLOSED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
             <Clock className="w-3 h-3 mr-1" />
             {t('communityBoard.statusClosed')}
           </span>
         );
       case 'REMOVED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800">
             <XCircle className="w-3 h-3 mr-1" />
             {t('communityBoard.statusRemoved')}
           </span>
         );
       case 'ARCHIVED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
             <Archive className="w-3 h-3 mr-1" />
             {t('communityBoard.statusArchived')}
           </span>
@@ -567,19 +629,19 @@ export default function CommunityBoardModerationPage() {
     switch (status) {
       case 'TRIAL':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800">
             {t('communityBoard.paymentStatusTrial')}
           </span>
         );
       case 'PAID':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
             {t('communityBoard.paymentStatusPaid')}
           </span>
         );
       case 'UNPAID':
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700">
             {t('communityBoard.paymentStatusUnpaid')}
           </span>
         );
@@ -593,21 +655,21 @@ export default function CommunityBoardModerationPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ShoppingBag className="h-7 w-7 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <ShoppingBag className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
             {t('communityBoard.pageTitle')}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {t('communityBoard.pageSubtitle')}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {currentUser?.role === 'SUPERADMIN' && (
-            <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg px-3 py-1.5 shadow-sm">
-              <Building2 className="h-4 w-4 text-indigo-600 flex-shrink-0" />
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800/60 rounded-lg px-3 py-1.5 shadow-sm">
+              <Building2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
               <select
                 value={tenantId}
                 onChange={(e) => {
@@ -622,11 +684,11 @@ export default function CommunityBoardModerationPage() {
                   }
                 }}
                 disabled={loadingTenants}
-                className="text-sm font-medium text-gray-800 bg-transparent focus:outline-none cursor-pointer"
+                className="text-sm font-medium text-slate-800 dark:text-slate-200 bg-transparent focus:outline-none cursor-pointer"
               >
-                <option value="">{t('communityBoard.selectTenantPlaceholder')}</option>
+                <option value="" className="dark:bg-slate-900">{t('communityBoard.selectTenantPlaceholder')}</option>
                 {tenants.map((item) => (
-                  <option key={item.id} value={item.id}>
+                  <option key={item.id} value={item.id} className="dark:bg-slate-900">
                     {item.name} {item.city ? `(${item.city})` : ''}
                   </option>
                 ))}
@@ -640,7 +702,7 @@ export default function CommunityBoardModerationPage() {
                 setCreateAdError(null);
                 setShowCreateAdModal(true);
               }}
-              className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition"
+              className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition"
             >
               <Plus className="h-4 w-4 mr-1.5" />
               {t('communityBoard.addAdAction')}
@@ -650,7 +712,7 @@ export default function CommunityBoardModerationPage() {
           <button
             onClick={handleRefresh}
             disabled={refreshing || loading || !tenantId}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm transition disabled:opacity-50"
+            className="inline-flex items-center px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {t('common.refresh')}
@@ -660,26 +722,26 @@ export default function CommunityBoardModerationPage() {
 
       {/* Notifications */}
       {errorMsg && (
-        <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex items-start gap-3">
+        <div className="p-4 bg-red-50 dark:bg-red-950/30 border-l-4 border-red-500 rounded-r-lg flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-red-800">{t('common.error')}</h3>
-            <p className="text-sm text-red-700 mt-0.5">{errorMsg}</p>
+            <h3 className="text-sm font-medium text-red-800 dark:text-red-200">{t('common.error')}</h3>
+            <p className="text-sm text-red-700 dark:text-red-300 mt-0.5">{errorMsg}</p>
           </div>
-          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-600">
+          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-600 dark:hover:text-red-200">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-4 bg-green-50 border-l-4 border-green-500 rounded-r-lg flex items-start gap-3">
-          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+        <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border-l-4 border-emerald-500 rounded-r-lg flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-medium text-green-800">{t('common.success')}</h3>
-            <p className="text-sm text-green-700 mt-0.5">{successMsg}</p>
+            <h3 className="text-sm font-medium text-emerald-800 dark:text-emerald-200">{t('common.success')}</h3>
+            <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-0.5">{successMsg}</p>
           </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-green-400 hover:text-green-600">
+          <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-600 dark:hover:text-emerald-200">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -687,18 +749,18 @@ export default function CommunityBoardModerationPage() {
 
       {/* Pricing Settings Block (SUPERADMIN only) */}
       {isSuperadmin && Boolean(tenantId) && (
-        <div className="bg-white p-5 rounded-xl border border-indigo-100 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-emerald-100 dark:border-emerald-950/60 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-base font-bold text-gray-900">
+              <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 {t('communityBoard.adPricingTitle')}
               </h2>
             </div>
             <button
               onClick={handleSavePricing}
               disabled={savingPricing}
-              className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
+              className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
             >
               {savingPricing && (
                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5" />
@@ -709,7 +771,7 @@ export default function CommunityBoardModerationPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 {t('communityBoard.adPriceMonthlyLabel')}
               </label>
               <input
@@ -717,11 +779,11 @@ export default function CommunityBoardModerationPage() {
                 min={0}
                 value={pricingMonthly}
                 onChange={(e) => setPricingMonthly(parseInt(e.target.value, 10) || 0)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 {t('communityBoard.adPinPriceWeeklyLabel')}
               </label>
               <input
@@ -729,11 +791,11 @@ export default function CommunityBoardModerationPage() {
                 min={0}
                 value={pricingWeekly}
                 onChange={(e) => setPricingWeekly(parseInt(e.target.value, 10) || 0)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 {t('communityBoard.adTrialDaysLabel')}
               </label>
               <input
@@ -742,7 +804,7 @@ export default function CommunityBoardModerationPage() {
                 max={365}
                 value={pricingTrial}
                 onChange={(e) => setPricingTrial(parseInt(e.target.value, 10) || 0)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
           </div>
@@ -750,27 +812,27 @@ export default function CommunityBoardModerationPage() {
       )}
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
             placeholder={t('communityBoard.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Filter Type */}
           <div className="flex items-center gap-1.5">
-            <Tag className="h-4 w-4 text-gray-500" />
+            <Tag className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="border border-gray-300 rounded-lg text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="border border-slate-300 dark:border-slate-700 rounded-lg text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               <option value="ALL">{t('communityBoard.filterAllTypes')}</option>
               <option value="AD">{t('communityBoard.typeAd')}</option>
@@ -783,11 +845,11 @@ export default function CommunityBoardModerationPage() {
 
           {/* Filter Status */}
           <div className="flex items-center gap-1.5">
-            <Filter className="h-4 w-4 text-gray-500" />
+            <Filter className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="border border-gray-300 rounded-lg text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="border border-slate-300 dark:border-slate-700 rounded-lg text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
             >
               <option value="ALL">{t('communityBoard.filterAllStatuses')}</option>
               <option value="ACTIVE">{t('communityBoard.statusActive')}</option>
@@ -804,27 +866,27 @@ export default function CommunityBoardModerationPage() {
 
       {/* Main Content Area */}
       {!tenantId ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
-          <Building2 className="mx-auto h-12 w-12 text-indigo-500 mb-3" />
-          <h3 className="text-base font-semibold text-gray-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-12 text-center shadow-sm">
+          <Building2 className="mx-auto h-12 w-12 text-emerald-500 dark:text-emerald-400 mb-3" />
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
             {t('communityBoard.selectTenantPromptTitle')}
           </h3>
-          <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
             {t('communityBoard.selectTenantPromptSub')}
           </p>
         </div>
       ) : loading ? (
         <div className="py-16 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-600 border-t-transparent mb-3" />
-          <p className="text-sm font-medium text-gray-500">{t('common.loading')}</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-600 border-t-transparent mb-3" />
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('common.loading')}</p>
         </div>
       ) : filteredListings.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-          <ShoppingBag className="mx-auto h-12 w-12 text-gray-400 mb-3" />
-          <h3 className="text-base font-semibold text-gray-900">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-12 text-center">
+          <ShoppingBag className="mx-auto h-12 w-12 text-slate-400 dark:text-slate-600 mb-3" />
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
             {t('communityBoard.noListingsTitle')}
           </h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {t('communityBoard.noListingsSub')}
           </p>
         </div>
@@ -844,20 +906,20 @@ export default function CommunityBoardModerationPage() {
             return (
               <div
                 key={item.id}
-                className={`bg-white border rounded-xl shadow-sm overflow-hidden flex flex-col justify-between transition hover:shadow-md ${
+                className={`bg-white dark:bg-slate-900 border rounded-xl shadow-sm overflow-hidden flex flex-col justify-between transition hover:shadow-md ${
                   isPinned
-                    ? 'ring-2 ring-amber-400 border-amber-300'
+                    ? 'ring-2 ring-amber-400 border-amber-300 dark:border-amber-600'
                     : item.status === 'REMOVED'
-                    ? 'border-red-200 bg-red-50/20'
+                    ? 'border-red-200 dark:border-red-900/40 bg-red-50/20 dark:bg-red-950/20'
                     : item.status === 'CLOSED'
-                    ? 'border-gray-200 opacity-80'
+                    ? 'border-slate-200 dark:border-slate-800 opacity-80'
                     : item.status === 'EXPIRED'
-                    ? 'border-zinc-200 bg-zinc-50/40 opacity-75'
+                    ? 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/40 dark:bg-zinc-900/40 opacity-75'
                     : item.status === 'PENDING_REVIEW'
-                    ? 'border-amber-200 bg-amber-50/20'
+                    ? 'border-amber-200 dark:border-amber-900/40 bg-amber-50/20 dark:bg-amber-950/20'
                     : item.status === 'AWAITING_PAYMENT'
-                    ? 'border-sky-200 bg-sky-50/20'
-                    : 'border-gray-200'
+                    ? 'border-sky-200 dark:border-sky-900/40 bg-sky-50/20 dark:bg-sky-950/20'
+                    : 'border-slate-200 dark:border-slate-800'
                 }`}
               >
                 <div>
@@ -873,24 +935,23 @@ export default function CommunityBoardModerationPage() {
                     </div>
                   )}
 
-                  {/* Photo Preview Strip */}
+                  {/* Photo Preview Strip with placeholder fallback */}
                   {item.photoUrls && item.photoUrls.length > 0 ? (
-                    <div className="relative h-44 bg-gray-100 overflow-hidden group">
-                      <img
+                    <div className="relative h-44 bg-slate-100 dark:bg-slate-800 overflow-hidden group">
+                      <ListingCardImage
                         src={item.photoUrls[0]}
                         alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
                         onClick={() => setSelectedImage(item.photoUrls[0])}
                       />
                       {item.photoUrls.length > 1 && (
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1 font-medium">
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1 font-medium pointer-events-none">
                           <ImageIcon className="w-3 h-3" />
                           +{item.photoUrls.length - 1}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="h-28 bg-gray-50 flex items-center justify-center text-gray-400 border-b border-gray-100">
+                    <div className="h-28 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
                       <ImageIcon className="w-8 h-8 opacity-40" />
                     </div>
                   )}
@@ -910,18 +971,18 @@ export default function CommunityBoardModerationPage() {
 
                     {/* Business Name if AD */}
                     {item.type === 'AD' && item.adBusinessName && (
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                        <Briefcase className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-800">
+                        <Briefcase className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 flex-shrink-0" />
                         <span className="truncate">{item.adBusinessName}</span>
                       </div>
                     )}
 
                     {/* Title & Price */}
                     <div>
-                      <h3 className="text-base font-bold text-gray-900 line-clamp-1">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white line-clamp-1">
                         {item.title}
                       </h3>
-                      <p className="text-lg font-extrabold text-indigo-600 mt-0.5">
+                      <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
                         {item.type === 'AD'
                           ? item.adPriceKzt != null
                             ? `${item.adPriceKzt.toLocaleString(i18n.language)} ₸`
@@ -936,23 +997,23 @@ export default function CommunityBoardModerationPage() {
 
                     {/* Ad Details: Payment status & placement dates */}
                     {item.type === 'AD' && (
-                      <div className="p-2 bg-gray-50 rounded-lg text-xs space-y-1.5 border border-gray-100">
+                      <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs space-y-1.5 border border-slate-100 dark:border-slate-800">
                         <div className="flex items-center justify-between">
-                          <span className="text-gray-500 font-medium">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium">
                             {t('communityBoard.adPeriod')}:
                           </span>
-                          <span className="font-semibold text-gray-800">
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
                             {item.adMonths} {t(`communityBoard.months${item.adMonths}` as any) || `${item.adMonths} мес.`}
                           </span>
                         </div>
                         {item.adPaymentStatus && (
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500 font-medium">{t('communityBoard.paymentLabel')}:</span>
+                            <span className="text-slate-500 dark:text-slate-400 font-medium">{t('communityBoard.paymentLabel')}:</span>
                             {getPaymentStatusBadge(item.adPaymentStatus)}
                           </div>
                         )}
                         {item.adStartsAt && item.adEndsAt && (
-                          <div className="text-[11px] text-gray-500">
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
                             {new Date(item.adStartsAt).toLocaleDateString(i18n.language)} —{' '}
                             {new Date(item.adEndsAt).toLocaleDateString(i18n.language)}
                           </div>
@@ -961,28 +1022,28 @@ export default function CommunityBoardModerationPage() {
                     )}
 
                     {/* Description */}
-                    <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed">
                       {item.description}
                     </p>
 
                     {/* Author & Contact info */}
-                    <div className="pt-2 border-t border-gray-100 space-y-1.5 text-xs text-gray-600">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1.5">
-                        <UserIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                        <span className="font-semibold text-gray-800">{authorName}</span>
+                        <UserIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{authorName}</span>
                       </div>
                       {contactPhone && (
                         <div className="flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                           <a
                             href={`tel:${contactPhone}`}
-                            className="text-blue-600 hover:underline font-medium"
+                            className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium"
                           >
                             {contactPhone}
                           </a>
                         </div>
                       )}
-                      <div className="flex items-center gap-1.5 text-gray-400">
+                      <div className="flex items-center gap-1.5 text-slate-400">
                         <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                         <span>
                           {new Date(item.createdAt).toLocaleDateString(i18n.language)}{' '}
@@ -996,19 +1057,19 @@ export default function CommunityBoardModerationPage() {
 
                     {/* Moderation Details if Removed */}
                     {item.status === 'REMOVED' && (
-                      <div className="p-2.5 bg-red-100/60 border border-red-200 rounded-lg text-xs space-y-1 mt-2">
-                        <div className="font-bold text-red-800 flex items-center gap-1">
+                      <div className="p-2.5 bg-red-100/60 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs space-y-1 mt-2">
+                        <div className="font-bold text-red-800 dark:text-red-300 flex items-center gap-1">
                           <XCircle className="w-3.5 h-3.5" />
                           {t('communityBoard.removedByStaff')}
                         </div>
                         {item.removedBy && (
-                          <div className="text-red-700">
+                          <div className="text-red-700 dark:text-red-400">
                             {t('communityBoard.moderator')}: {item.removedBy.firstName}{' '}
                             {item.removedBy.lastName}
                           </div>
                         )}
                         {item.removedReason && (
-                          <div className="text-red-900 italic">
+                          <div className="text-red-900 dark:text-red-200 italic">
                             «{item.removedReason}»
                           </div>
                         )}
@@ -1024,7 +1085,7 @@ export default function CommunityBoardModerationPage() {
                     <button
                       onClick={() => handleApproveAd(item)}
                       disabled={actionInProgressId === item.id}
-                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-green-300 text-xs font-semibold rounded-lg text-white bg-green-600 hover:bg-green-700 transition shadow-sm disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm disabled:opacity-50"
                     >
                       {actionInProgressId === item.id ? (
                         <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5" />
@@ -1040,7 +1101,7 @@ export default function CommunityBoardModerationPage() {
                     <button
                       onClick={() => handleConfirmPaid(item)}
                       disabled={actionInProgressId === item.id}
-                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-sky-300 text-xs font-semibold rounded-lg text-white bg-sky-600 hover:bg-sky-700 transition shadow-sm disabled:opacity-50"
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-sky-300 dark:border-sky-700 text-xs font-semibold rounded-lg text-white bg-sky-600 hover:bg-sky-700 transition shadow-sm disabled:opacity-50"
                     >
                       {actionInProgressId === item.id ? (
                         <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin mr-1.5" />
@@ -1056,7 +1117,7 @@ export default function CommunityBoardModerationPage() {
                     <button
                       onClick={() => handleOpenPinModal(item)}
                       disabled={actionInProgressId === item.id}
-                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-amber-300 text-xs font-semibold rounded-lg text-amber-900 bg-amber-50 hover:bg-amber-100 transition shadow-sm"
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-amber-300 dark:border-amber-700 text-xs font-semibold rounded-lg text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition shadow-sm"
                     >
                       <Pin className="w-3.5 h-3.5 mr-1.5" />
                       {t('communityBoard.pinAction')}
@@ -1067,13 +1128,13 @@ export default function CommunityBoardModerationPage() {
                   {item.status !== 'REMOVED' ? (
                     <button
                       onClick={() => handleOpenRemoveModal(item)}
-                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-red-200 text-xs font-semibold rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition shadow-sm"
+                      className="w-full inline-flex items-center justify-center px-3 py-2 border border-red-200 dark:border-red-800 text-xs font-semibold rounded-lg text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 transition shadow-sm"
                     >
                       <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                       {t('communityBoard.removeAction')}
                     </button>
                   ) : (
-                    <div className="text-center text-xs text-gray-400 py-1.5 italic">
+                    <div className="text-center text-xs text-slate-400 dark:text-slate-500 py-1.5 italic">
                       {t('communityBoard.alreadyRemoved')}
                     </div>
                   )}
@@ -1087,33 +1148,33 @@ export default function CommunityBoardModerationPage() {
       {/* Pin Ad Modal */}
       {pinningListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Pin className="h-5 w-5 text-amber-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Pin className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                 {t('communityBoard.pinModalTitle')}
               </h3>
               <button
                 onClick={handleClosePinModal}
-                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg p-1"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm text-gray-700 font-semibold">{pinningListing.title}</p>
+              <p className="text-sm text-slate-700 dark:text-slate-300 font-semibold">{pinningListing.title}</p>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.pinWeeksLabel')}
                 </label>
                 <select
                   value={pinWeeks}
                   onChange={(e) => setPinWeeks(parseInt(e.target.value, 10) || 1)}
-                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
                   {[1, 2, 3, 4, 8, 12].map((w) => (
-                    <option key={w} value={w}>
+                    <option key={w} value={w} className="dark:bg-slate-900">
                       {w}
                     </option>
                   ))}
@@ -1121,16 +1182,16 @@ export default function CommunityBoardModerationPage() {
               </div>
 
               {modalError && (
-                <p className="text-xs font-medium text-red-600 mt-1">{modalError}</p>
+                <p className="text-xs font-medium text-red-600 dark:text-red-400 mt-1">{modalError}</p>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={handleClosePinModal}
                 disabled={submittingPin}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
               >
                 {t('common.cancel')}
               </button>
@@ -1153,29 +1214,29 @@ export default function CommunityBoardModerationPage() {
       {/* Remove Moderation Modal */}
       {moderatingListing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 {t('communityBoard.removeModalTitle')}
               </h3>
               <button
                 onClick={handleCloseRemoveModal}
-                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg p-1"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 {t('communityBoard.confirmRemoveNotice', {
                   title: moderatingListing.title,
                 })}
               </p>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.removalReasonLabel')} *
                 </label>
                 <textarea
@@ -1183,21 +1244,21 @@ export default function CommunityBoardModerationPage() {
                   value={removalReason}
                   onChange={(e) => setRemovalReason(e.target.value)}
                   placeholder={t('communityBoard.removalReasonPlaceholder')}
-                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
               {modalError && (
-                <p className="text-xs font-medium text-red-600 mt-1">{modalError}</p>
+                <p className="text-xs font-medium text-red-600 dark:text-red-400 mt-1">{modalError}</p>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={handleCloseRemoveModal}
                 disabled={submittingRemoval}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
               >
                 {t('common.cancel')}
               </button>
@@ -1220,15 +1281,15 @@ export default function CommunityBoardModerationPage() {
       {/* Add Ad Modal */}
       {showCreateAdModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-indigo-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Briefcase className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 {t('communityBoard.addAdModalTitle')}
               </h3>
               <button
                 onClick={() => setShowCreateAdModal(false)}
-                className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg p-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1236,13 +1297,13 @@ export default function CommunityBoardModerationPage() {
 
             <form onSubmit={handleCreateAdSubmit} className="space-y-4">
               {createAdError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300 rounded-lg">
                   {createAdError}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.adBusinessNameLabel')} *
                 </label>
                 <input
@@ -1251,12 +1312,12 @@ export default function CommunityBoardModerationPage() {
                   value={createAdBusinessName}
                   onChange={(e) => setCreateAdBusinessName(e.target.value)}
                   placeholder={t('communityBoard.adBusinessNamePlaceholder')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.adPhoneLabel')}
                 </label>
                 <input
@@ -1264,12 +1325,12 @@ export default function CommunityBoardModerationPage() {
                   value={createAdContactPhone}
                   onChange={(e) => setCreateAdContactPhone(e.target.value)}
                   placeholder={t('communityBoard.adPhonePlaceholder')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.titleLabel')} *
                 </label>
                 <input
@@ -1280,12 +1341,12 @@ export default function CommunityBoardModerationPage() {
                   value={createAdTitle}
                   onChange={(e) => setCreateAdTitle(e.target.value)}
                   placeholder={t('communityBoard.titleLabel')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.descLabel')} *
                 </label>
                 <textarea
@@ -1294,19 +1355,19 @@ export default function CommunityBoardModerationPage() {
                   value={createAdDescription}
                   onChange={(e) => setCreateAdDescription(e.target.value)}
                   placeholder={t('communityBoard.descLabel')}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     {t('communityBoard.adMonthsLabel')}
                   </label>
                   <select
                     value={createAdMonths}
                     onChange={(e) => setCreateAdMonths(parseInt(e.target.value, 10) || 1)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value={1}>{t('communityBoard.months1')}</option>
                     <option value={3}>{t('communityBoard.months3')}</option>
@@ -1315,10 +1376,10 @@ export default function CommunityBoardModerationPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     {t('communityBoard.priceLabel')}
                   </label>
-                  <div className="h-9 px-3 flex items-center bg-gray-50 border border-gray-200 rounded-lg font-bold text-indigo-700 text-sm">
+                  <div className="h-9 px-3 flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-emerald-700 dark:text-emerald-300 text-sm">
                     {t('communityBoard.adCalculatedPrice', {
                       price: calculatedFormPrice.toLocaleString(i18n.language),
                     })}
@@ -1328,30 +1389,22 @@ export default function CommunityBoardModerationPage() {
 
               {/* Photos upload with compression */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   {t('communityBoard.adPhotosLabel')}
                 </label>
                 <div className="flex flex-wrap gap-2 items-center">
                   {createAdPhotos.map((url, idx) => (
-                    <div
+                    <ModalThumbnail
                       key={idx}
-                      className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 group"
-                    >
-                      <img src={url} alt="Photo" className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePhoto(url)}
-                        className="absolute inset-0 bg-red-600/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                      src={url}
+                      onRemove={() => handleRemovePhoto(url)}
+                    />
                   ))}
 
                   {createAdPhotos.length < 5 && (
-                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 hover:border-indigo-500 flex flex-col items-center justify-center cursor-pointer transition text-gray-400 hover:text-indigo-600 bg-gray-50">
+                    <label className="w-16 h-16 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-50 dark:bg-slate-800/60">
                       {uploadingPhoto ? (
-                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                       ) : (
                         <>
                           <UploadCloud className="w-5 h-5 mb-0.5" />
@@ -1370,19 +1423,19 @@ export default function CommunityBoardModerationPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowCreateAdModal(false)}
                   disabled={submittingCreateAd}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submittingCreateAd || uploadingPhoto}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-50 inline-flex items-center gap-1.5"
                 >
                   {submittingCreateAd && (
                     <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />

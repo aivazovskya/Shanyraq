@@ -18,6 +18,7 @@ import {
   XCircle,
   Pin,
   Briefcase,
+  Image as ImageIcon,
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import * as Haptics from 'expo-haptics';
@@ -41,6 +42,27 @@ import {
 import { getApiErrorMessage } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 
+function ListingCardPhoto({ uri }: { uri: string }) {
+  const [hasError, setHasError] = useState(false);
+  const { theme } = useTheme();
+
+  if (hasError) {
+    return (
+      <View style={[styles.cardImagePlaceholder, { backgroundColor: theme.colors.surfaceSubtle }]}>
+        <ImageIcon size={32} color={theme.colors.textMuted} style={{ opacity: 0.6 }} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={{ uri }}
+      style={styles.cardImage}
+      resizeMode="cover"
+      onError={() => setHasError(true)}
+    />
+  );
+}
 export const CommunityBoardScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { t, i18n } = useTranslation();
@@ -428,11 +450,7 @@ export const CommunityBoardScreen: React.FC = () => {
                     >
                       {/* Photo preview banner */}
                       {hasPhotos ? (
-                        <Image
-                          source={{ uri: item.photoUrls[0] }}
-                          style={styles.cardImage}
-                          resizeMode="cover"
-                        />
+                        <ListingCardPhoto uri={item.photoUrls[0]} />
                       ) : null}
 
                       <View style={styles.cardBody}>
@@ -786,6 +804,12 @@ const styles = StyleSheet.create({
   cardImage: {
     width: '100%',
     height: 180,
+  },
+  cardImagePlaceholder: {
+    width: '100%',
+    height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardBody: {
     padding: 16,
