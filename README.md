@@ -51,7 +51,7 @@ Shanyraq/
 ├── docs/                  # Техническая документация, ТЗ и диаграммы архитектуры
 ├── infra/                 # Конфигурация медиасервера камер (go2rtc)
 ├── .github/workflows/     # CI/CD автоматизация тестирования и сборки
-└── docker-compose.yml     # PostgreSQL 16, Redis 7, MinIO S3, go2rtc шлюз
+└── docker-compose.yml     # PostgreSQL 16, Redis 7, SeaweedFS S3, go2rtc шлюз
 ```
 
 ---
@@ -76,7 +76,7 @@ docker compose up -d
 Запустит:
 * **PostgreSQL** (`localhost:5432`)
 * **Redis** (`localhost:6379`)
-* **MinIO S3** (`localhost:9000`, консоль: `localhost:9001`)
+* **SeaweedFS S3** (`localhost:9000`, консоль: `localhost:9001`)
 * **go2rtc WebRTC Gateway** (`localhost:1984`)
 
 ### 4. Запуск Backend (Shanyraq Core API)
@@ -140,18 +140,18 @@ cp .env.example .env
 ```
 
 > [!IMPORTANT]
-> В `docker-compose.prod.yml` используется строгая fail-fast валидация секретов через синтаксис `${VAR:?required}` (`POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ROOT_PASSWORD`, `JWT_ACCESS_SECRET`, `PII_ENCRYPTION_KEY` и др.). Если хотя бы один пароль не задан, запуск контейнеров будет заблокирован Docker Compose до устранения уязвимости.
+> В `docker-compose.prod.yml` используется строгая fail-fast валидация секретов через синтаксис `${VAR:?required}` (`POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `S3_SECRET_KEY`, `JWT_ACCESS_SECRET`, `PII_ENCRYPTION_KEY` и др.). Если хотя бы один пароль не задан, запуск контейнеров будет заблокирован Docker Compose до устранения уязвимости.
 
 ### 2. Сборка и запуск контейнеров
-Запуск полного стека (PostgreSQL 16, Redis 7 с паролем, MinIO S3, go2rtc, Backend API и Next.js Web Admin):
+Запуск полного стека (PostgreSQL 16, Redis 7 с паролем, SeaweedFS S3, go2rtc, Backend API и Next.js Web Admin):
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 **Архитектура безопасности и изоляция сервисов**:
-1. **Сетевая изоляция БД и кэша**: порты `postgres` (5432) и `redis` (6379), а также внутренний S3 API `minio` (9000) **не публикуются на хост** и доступны исключительно внутри изолированной Docker-сети для сервиса `backend`.
+1. **Сетевая изоляция БД и кэша**: порты `postgres` (5432) и `redis` (6379), а также внутренний S3 API `s3` (9000) **не публикуются на хост** и доступны исключительно внутри изолированной Docker-сети для сервиса `backend`.
 2. **Парольная защита Redis**: Redis запускается с флагом `--requirepass` и требует аутентификации при обращениях и healthcheck (`redis-cli -a ... ping`).
-3. **Безопасность консоли MinIO**: порт консоли MinIO (`9001`) жестко привязан к локальному интерфейсу `127.0.0.1:9001` для безопасного администрирования.
+3. **Безопасность консоли S3**: порт консоли SeaweedFS (`9001`) жестко привязан к локальному интерфейсу `127.0.0.1:9001` для безопасного администрирования.
 4. **Камеры видеонаблюдения (`go2rtc`)**: сервис `go2rtc` (образ `alexxit/go2rtc:v1.9.4`) включен в prod-стек с конфигурацией `infra/go2rtc.yaml`, авторизацией API по логину/паролю и публикацией только WebRTC TCP/UDP порта `8555:8555` (порты API `1984` и RTSP `8554` не публикуются на хост).
 5. **Ротация логов**: для всех контейнеров настроен драйвер `json-file` с лимитом размера `max-size: 10m` и глубиной ротации `max-file: 3`.
 

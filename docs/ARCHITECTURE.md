@@ -29,7 +29,7 @@ flowchart TB
     subgraph Storage["Хранилище данных и очередей"]
         Postgres[("PostgreSQL 16<br/>Реляционная БД")]
         Redis[("Redis 7<br/>Кэш, Сессии, BullMQ")]
-        MinIO[("MinIO S3<br/>Документы, Фотоотчеты")]
+        S3[("SeaweedFS S3<br/>Документы, Фотоотчеты")]
     end
 
     subgraph External["Внешние шлюзы и оборудование"]
@@ -49,7 +49,7 @@ flowchart TB
 
     AuthMod & PropMod & VotingMod & DeskMod & AccessMod & NewsMod --> Postgres
     AuthMod & DeskMod --> Redis
-    DeskMod & VotingMod --> MinIO
+    DeskMod & VotingMod --> S3
 
     AccessMod -->|API / MQTT| IoT
     AccessMod -->|RTSP / WebRTC| Cameras
