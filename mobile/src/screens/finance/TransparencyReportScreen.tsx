@@ -38,7 +38,7 @@ type TransparencyReportRouteProp = RouteProp<RootStackParamList, 'TransparencyRe
 export const TransparencyReportScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<TransparencyReportRouteProp>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -931,5 +931,53 @@ const styles = StyleSheet.create({
   noticeText: {
     fontSize: 12,
     lineHeight: 18,
+  },
+  expenseDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    gap: 8,
+  },
+  expensePlanWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  expensePlanText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  recentExpenseRow: {
+    paddingVertical: 10,
+    gap: 4,
+  },
+  recentExpenseTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  recentExpenseDesc: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  recentExpenseAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  recentExpenseBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  recentExpenseCounterparty: {
+    fontSize: 12,
+    flex: 1,
+  },
+  recentExpenseDate: {
+    fontSize: 11,
   },
 });

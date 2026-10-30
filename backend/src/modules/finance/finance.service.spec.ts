@@ -75,11 +75,14 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
       },
       expense: {
         findUnique: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn(),
         update: jest.fn(),
         aggregate: jest.fn(),
         groupBy: jest.fn(),
+      },
+      budgetLine: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
 
@@ -1518,8 +1521,8 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         ]);
 
         expect(report.byExpenseCategory).toEqual([
-          { category: 'Зарплата персонала', amount: 30000 },
-          { category: 'Сантехника', amount: 15000 },
+          { category: 'Зарплата персонала', amount: 30000, plannedAmount: 0, percentageOfTotal: 66.7 },
+          { category: 'Сантехника', amount: 15000, plannedAmount: 0, percentageOfTotal: 33.3 },
         ]);
 
         // Проверяем, что в запрос расходов передается фильтр isVoided: false
@@ -1561,6 +1564,80 @@ describe('FinanceService (Лицевые счета, тарифы, начисл�
         expect(json).not.toContain('SHAN-101');
         expect(json).not.toContain('-15000');
         expect(json).not.toContain('topDebtors');
+      });
+
+      it('возвращает plannedAmount по категориям из BudgetLine и totalPlannedExpenses', async () => {
+        prismaMock.budgetLine.findMany.mockResolvedValueOnce([
+          { id: 'b-1', tenantId, year: periodYear, month: periodMonth, category: 'Зарплата персонала', plannedAmount: 35000 },
+          { id: 'b-2', tenantId, year: periodYear, month: periodMonth, category: 'Сантехника', plannedAmount: 20000 },
+          { id: 'b-3', tenantId, year: periodYear, month: periodMonth, category: 'Лифты', plannedAmount: 15000 },
+        ]);
+
+        const report = await service.getTransparencyReport(tenantId, verifiedOwner, {
+          month: periodMonth,
+          year: periodYear,
+        });
+
+        expect(report.totalPlannedExpenses).toBe(70000);
+        expect(report.byExpenseCategory).toContainEqual({
+          category: 'Зарплата персонала',
+          amount: 30000,
+          plannedAmount: 35000,
+          percentageOfTotal: 66.7,
+        });
+        expect(report.byExpenseCategory).toContainEqual({
+          category: 'Сантехника',
+          amount: 15000,
+          plannedAmount: 20000,
+          percentageOfTotal: 33.3,
+        });
+        expect(report.byExpenseCategory).toContainEqual({
+          category: 'Лифты',
+          amount: 0,
+          plannedAmount: 15000,
+          percentageOfTotal: 0,
+        });
+      });
+
+      it('возвращает recentExpenses только с безопасными полями (без ПДн жителей)', async () => {
+        prismaMock.expense.findMany.mockResolvedValueOnce([
+          {
+            id: 'exp-1',
+            expenseDate: new Date('2026-09-15T10:00:00.000Z'),
+            category: 'Сантехника',
+            amount: 15000,
+            description: 'Замена шарового крана в подвале',
+            counterparty: 'ТОО СантехМастер',
+          },
+        ]);
+
+        const report = await service.getTransparencyReport(tenantId, verifiedOwner, {
+          month: periodMonth,
+          year: periodYear,
+        });
+
+        expect(report.recentExpenses).toBeDefined();
+        expect(report.recentExpenses).toHaveLength(1);
+        expect(report.recentExpenses[0]).toEqual({
+          id: 'exp-1',
+          date: '2026-09-15T10:00:00.000Z',
+          category: 'Сантехника',
+          amount: 15000,
+          description: 'Замена шарового крана в подвале',
+          counterparty: 'ТОО СантехМастер',
+        });
+        expect(report.recentExpenses[0]).not.toHaveProperty('recordedById');
+        expect(report.recentExpenses[0]).not.toHaveProperty('resident');
+      });
+
+      it('запрещает доступ к отчету чужого ЖК для жителя с 403 Forbidden', async () => {
+        prismaMock.unitOwnership.findFirst.mockResolvedValueOnce(null);
+        await expect(
+          service.getTransparencyReport('foreign-tenant-uuid', verifiedOwner, {
+            month: periodMonth,
+            year: periodYear,
+          }),
+        ).rejects.toThrow(ForbiddenException);
       });
 
       it('числа доходов строго совпадают со staff-версией getFinanceAnalytics (без дрифта)', async () => {

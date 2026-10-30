@@ -38,6 +38,7 @@ import {
   ArrowUpRight,
   FileText,
   Clock,
+  PieChart,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -1014,5 +1015,43 @@ const styles = StyleSheet.create({
   newsDate: {
     fontSize: 11,
     marginTop: 8,
+  },
+  transparencyCard: {
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 16,
+  },
+  transparencyCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  transparencyIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transparencyTextWrap: {
+    flex: 1,
+  },
+  transparencyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  transparencyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  transparencySubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

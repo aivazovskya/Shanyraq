@@ -471,7 +471,10 @@
     "billsAction": "Квитанция",
     "metersAction": "Счётчики",
     "bookingsAction": "Бронирования",
-    "boardAction": "Объявления"
+    "boardAction": "Объявления",
+    "transparencyCardTitle": "Куда уходят деньги",
+    "transparencyCardSubtitle": "Финансовый отчёт ЖК: доходы, расходы и баланс",
+    "transparencyCardBadge": "Открытый бюджет"
   },
   "finance": {
     "title": "Лицевой счет",
@@ -521,7 +524,18 @@
     "receiptOfflineNotice": "Квитанция формируется автоматически в начале каждого расчетного месяца",
     "shareOfAccruals": "{{percent}}% от начислений",
     "shareOfExpenses": "{{percent}}% от всех расходов",
-    "methodManual": "Внесено вручную"
+    "methodManual": "Внесено вручную",
+    "plannedExpenses": "Плановые расходы",
+    "planVsFact": "План / Факт",
+    "plan": "План",
+    "fact": "Факт",
+    "deviation": "Отклонение",
+    "withinBudget": "В рамках плана",
+    "overBudget": "Превышение плана",
+    "recentExpensesTitle": "Последние крупные расходы",
+    "recentExpensesSub": "Детализация фактических платежей дома",
+    "recentExpensesNoData": "Платежи за выбранный период отсутствуют",
+    "expenseRecipient": "Контрагент"
   },
   "meters": {
     "title": "Показания счётчиков",

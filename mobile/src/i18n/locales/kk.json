@@ -471,7 +471,10 @@
     "billsAction": "Түбіртек",
     "metersAction": "Есептегіштер",
     "bookingsAction": "Брондаулар",
-    "boardAction": "Хабарландырулар"
+    "boardAction": "Хабарландырулар",
+    "transparencyCardTitle": "Ақша қайда кетеді",
+    "transparencyCardSubtitle": "ТК қаржылық есебі: кірістер, шығыстар және баланс",
+    "transparencyCardBadge": "Ашық бюджет"
   },
   "finance": {
     "title": "Дербес шот",
@@ -521,7 +524,18 @@
     "receiptOfflineNotice": "Түбіртек әр есептік айдың басында автоматты түрде жасалады",
     "shareOfAccruals": "есептеулердің {{percent}}%",
     "shareOfExpenses": "барлық шығындардың {{percent}}%",
-    "methodManual": "Қолмен енгізілген"
+    "methodManual": "Қолмен енгізілген",
+    "plannedExpenses": "Жоспарланған шығыстар",
+    "planVsFact": "Жоспар / Нақты",
+    "plan": "Жоспар",
+    "fact": "Нақты",
+    "deviation": "Ауытқу",
+    "withinBudget": "Жоспар шегінде",
+    "overBudget": "Жоспардан асу",
+    "recentExpensesTitle": "Соңғы ірі шығыстар",
+    "recentExpensesSub": "Үйдің нақты төлемдерінің егжей-тегжейі",
+    "recentExpensesNoData": "Таңдалған кезең үшін төлемдер жоқ",
+    "expenseRecipient": "Контрагент"
   },
   "meters": {
     "title": "Есептегіштер көрсеткіші",

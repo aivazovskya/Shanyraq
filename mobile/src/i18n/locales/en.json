@@ -471,7 +471,10 @@
     "billsAction": "Receipt",
     "metersAction": "Meters",
     "bookingsAction": "Bookings",
-    "boardAction": "Board"
+    "boardAction": "Board",
+    "transparencyCardTitle": "Where the money goes",
+    "transparencyCardSubtitle": "Building financial report: income, expenses & balance",
+    "transparencyCardBadge": "Open budget"
   },
   "finance": {
     "title": "Personal Account",
@@ -521,7 +524,18 @@
     "receiptOfflineNotice": "Receipt is generated automatically at the beginning of each billing month",
     "shareOfAccruals": "{{percent}}% of accruals",
     "shareOfExpenses": "{{percent}}% of all expenses",
-    "methodManual": "Recorded manually"
+    "methodManual": "Recorded manually",
+    "plannedExpenses": "Planned expenses",
+    "planVsFact": "Plan / Actual",
+    "plan": "Plan",
+    "fact": "Actual",
+    "deviation": "Deviation",
+    "withinBudget": "Within budget",
+    "overBudget": "Over budget",
+    "recentExpensesTitle": "Recent major expenses",
+    "recentExpensesSub": "Breakdown of actual building payments",
+    "recentExpensesNoData": "No payments recorded for the selected period",
+    "expenseRecipient": "Counterparty"
   },
   "meters": {
     "title": "Meter Readings",

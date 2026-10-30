@@ -60,6 +60,17 @@ export interface TariffBreakdownItem {
 export interface TransparencyExpenseCategoryItem {
   category: string;
   amount: number;
+  plannedAmount?: number;
+  percentageOfTotal?: number;
+}
+
+export interface TransparencyRecentExpenseItem {
+  id: string;
+  date: string;
+  category: string;
+  counterparty: string;
+  description: string;
+  amount: number;
 }
 
 export interface FinancialTransparencyReport {
@@ -70,7 +81,9 @@ export interface FinancialTransparencyReport {
   collectionRatePercent: number;
   byTariff: TariffBreakdownItem[];
   totalExpenses: number;
+  totalPlannedExpenses?: number;
   byExpenseCategory: TransparencyExpenseCategoryItem[];
+  recentExpenses?: TransparencyRecentExpenseItem[];
   netBalance: number;
 }
 

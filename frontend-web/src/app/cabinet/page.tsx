@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import {
   CreditCard,
+  PieChart,
   AlertTriangle,
   Wrench,
   KeyRound,
@@ -403,6 +404,36 @@ export default function CabinetHomePage() {
         </div>
       </div>
 
+      {/* Financial Transparency Banner Card */}
+      <div className="bg-gradient-to-r from-emerald-900/10 via-sky-900/10 to-transparent dark:from-emerald-950/40 dark:via-sky-950/30 dark:to-slate-900/40 border border-emerald-500/30 dark:border-emerald-500/20 rounded-2xl p-5 shadow-sm hover:border-emerald-500/60 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start sm:items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600/15 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <PieChart className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                {t('cabinet.transparencyCardTitle')}
+              </h2>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                {t('cabinet.transparencyCardBadge')}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+              {t('cabinet.transparencyCardSubtitle')}
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/cabinet/transparency"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors shrink-0 self-start sm:self-auto"
+        >
+          <span>{t('cabinet.transparencyViewReport')}</span>
+          <ChevronRight className="w-4 h-4" />
+        </Link>
+      </div>
+
       {/* Quick Actions Grid */}
       <div>
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">

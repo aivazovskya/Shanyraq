@@ -216,7 +216,8 @@
     "cabinetCommunity": "Хабарландыру тақтасы",
     "cabinetNotifications": "Хабарламалар",
     "cabinetSos": "SOS тарихы",
-    "cabinetProfile": "Менің профилім"
+    "cabinetProfile": "Менің профилім",
+    "cabinetTransparency": "Ақша қайда кетеді"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -2473,7 +2474,35 @@
     "invitationAlreadyPending": "Бұл нөмірге шақыру күтілуде",
     "leaseDatePastError": "Жалдау мерзімі болашақта болуы керек",
     "invalidPhoneFormat": "Дұрыс телефон нөмірін көрсетіңіз (+7...)",
-    "roleFamilyMember": "Отбасы мүшесі"
+    "roleFamilyMember": "Отбасы мүшесі",
+    "transparencyCardTitle": "Ақша қайда кетеді",
+    "transparencyCardSubtitle": "ТК қаржылық есебі: кірістер, шығыстар және баланс",
+    "transparencyCardBadge": "Ашық бюджет",
+    "transparencyViewReport": "Есепті көру",
+    "transparencyCardHint": "Соңғы айлардағы шығыстар бойынша ашық есеп",
+    "transparencyTitle": "Ақша қайда кетеді",
+    "transparencySubtitle": "Басқарушы компания мен МИБ кірістері мен шығыстары туралы ашық есеп",
+    "plannedExpenses": "Шығыстар жоспары",
+    "budgetSurplus": "Бюджет профициті (түсімдер шығыстардан асады)",
+    "budgetDeficit": "Бюджет тапшылығы (шығыстар түсімдерден асады)",
+    "breakdownByCategory": "Санаттар бойынша шығыстар",
+    "shareOfExpenses": "Үлесі: {{percent}}%",
+    "planVsFact": "Жоспар vs Нақты",
+    "fact": "Нақты",
+    "plan": "Жоспар",
+    "deviation": "Ауытқу",
+    "withinBudget": "Бюджет шегінде",
+    "overBudget": "Бюджеттен асу",
+    "recentExpensesTitle": "Соңғы ірі шығыстар",
+    "expenseDate": "Күні",
+    "expenseCategory": "Санаты",
+    "expenseRecipient": "Алушы / Жеткізуші",
+    "expenseDescription": "Мақсаты / Сипаттамасы",
+    "expenseAmount": "Сомасы",
+    "downloadCsvReport": "CSV жүктеп алу",
+    "privacySafeNotice": "Барлық шығыстар тұрғындардың жеке деректерінсіз көрсетіледі. Тек жеткізушілермен ресми шарттар мен орындалған жұмыстар актілері жарияланады.",
+    "noRecentExpenses": "Таңдалған кезеңде шығыстар жоқ",
+    "totalExpenses": "Жұмсалды"
   },
   "amenities": {
     "types": {

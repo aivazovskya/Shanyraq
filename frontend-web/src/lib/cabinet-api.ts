@@ -154,6 +154,22 @@ export interface PersonalAccount {
   unit: UserUnit;
 }
 
+export interface TransparencyExpenseCategoryItem {
+  category: string;
+  amount: number;
+  plannedAmount?: number;
+  percentageOfTotal?: number;
+}
+
+export interface TransparencyRecentExpenseItem {
+  id: string;
+  date: string;
+  category: string;
+  amount: number;
+  description?: string | null;
+  counterparty?: string | null;
+}
+
 export interface TransparencyReport {
   periodMonth: number;
   periodYear: number;
@@ -166,10 +182,9 @@ export interface TransparencyReport {
     amount: number;
   }>;
   totalExpenses: number;
-  byExpenseCategory: Array<{
-    category: string;
-    amount: number;
-  }>;
+  totalPlannedExpenses?: number;
+  byExpenseCategory: TransparencyExpenseCategoryItem[];
+  recentExpenses?: TransparencyRecentExpenseItem[];
   netBalance: number;
 }
 
@@ -481,6 +496,17 @@ export const CabinetApi = {
   ): Promise<TransparencyReport> {
     const q = params ? `?month=${params.month || ''}&year=${params.year || ''}` : '';
     return apiRequest<TransparencyReport>(`/finance/tenants/${tenantId}/transparency-report${q}`);
+  },
+
+  async downloadTransparencyReportCsv(
+    tenantId: string,
+    params?: { month?: number; year?: number },
+  ): Promise<void> {
+    const { apiDownload } = await import('@/lib/api');
+    const m = params?.month || (new Date().getMonth() + 1);
+    const y = params?.year || new Date().getFullYear();
+    const filename = `transparency-report-${tenantId}-${y}-${String(m).padStart(2, '0')}.csv`;
+    await apiDownload(`/finance/tenants/${tenantId}/transparency-report/export?month=${m}&year=${y}`, filename);
   },
 
   // Requests

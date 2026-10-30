@@ -1349,9 +1349,100 @@ export class FinanceService {
       orderBy: { category: 'asc' },
     });
 
-    const byExpenseCategory = groupedExpenses.map((g) => ({
-      category: g.category,
-      amount: g._sum.amount ? Math.round(g._sum.amount * 100) / 100 : 0,
+    // 2b. Плановый бюджет из BudgetLine на целевой период (месяц/год)
+    const budgetLines = this.prisma.budgetLine
+      ? await this.prisma.budgetLine.findMany({
+          where: {
+            tenantId,
+            year: periodYear,
+            month: periodMonth,
+          },
+        })
+      : [];
+
+    const categoryMap = new Map<
+      string,
+      { category: string; amount: number; plannedAmount: number }
+    >();
+
+    for (const g of groupedExpenses) {
+      const cat = g.category.trim();
+      const key = cat.toLowerCase();
+      const amt = g._sum.amount ? Math.round(g._sum.amount * 100) / 100 : 0;
+      categoryMap.set(key, {
+        category: cat,
+        amount: amt,
+        plannedAmount: 0,
+      });
+    }
+
+    let totalPlannedExpenses = 0;
+    for (const bl of budgetLines) {
+      const cat = bl.category.trim();
+      const key = cat.toLowerCase();
+      const planned = Math.round(bl.plannedAmount * 100) / 100;
+      totalPlannedExpenses += planned;
+      if (categoryMap.has(key)) {
+        categoryMap.get(key)!.plannedAmount += planned;
+      } else {
+        categoryMap.set(key, {
+          category: cat,
+          amount: 0,
+          plannedAmount: planned,
+        });
+      }
+    }
+
+    const byExpenseCategory = Array.from(categoryMap.values())
+      .sort((a, b) => b.amount - a.amount || a.category.localeCompare(b.category, 'ru'))
+      .map((item) => ({
+        category: item.category,
+        amount: Math.round(item.amount * 100) / 100,
+        plannedAmount: Math.round(item.plannedAmount * 100) / 100,
+        percentageOfTotal:
+          totalExpenses > 0
+            ? Math.round((item.amount / totalExpenses) * 1000) / 10
+            : 0,
+      }));
+
+    // 2c. Список последних крупных расходов за период (без ПДн жителей, только поставщик/описание)
+    const recentExpensesDb = this.prisma.expense.findMany
+      ? await this.prisma.expense.findMany({
+          where: {
+            tenantId,
+            isVoided: false,
+            expenseDate: {
+              gte: startOfMonth,
+              lt: endOfMonth,
+            },
+          },
+          orderBy: [
+            { expenseDate: 'desc' },
+            { amount: 'desc' },
+          ],
+          take: 20,
+          select: {
+            id: true,
+            expenseDate: true,
+            category: true,
+            amount: true,
+            description: true,
+            counterparty: true,
+          },
+        })
+      : [];
+
+    const recentExpenses = (recentExpensesDb || []).map((exp) => ({
+      id: exp.id,
+      date: exp.expenseDate
+        ? typeof (exp.expenseDate as any).toISOString === 'function'
+          ? (exp.expenseDate as any).toISOString()
+          : String(exp.expenseDate)
+        : '',
+      category: exp.category,
+      amount: exp.amount,
+      description: exp.description,
+      counterparty: exp.counterparty,
     }));
 
     // 3. Сальдо (чистый баланс) = собрано - потрачено
@@ -1365,7 +1456,9 @@ export class FinanceService {
       collectionRatePercent,
       byTariff,
       totalExpenses,
+      totalPlannedExpenses: Math.round(totalPlannedExpenses * 100) / 100,
       byExpenseCategory,
+      recentExpenses,
       netBalance,
     };
   }
@@ -1402,10 +1495,31 @@ export class FinanceService {
 
     rows.push([]);
     rows.push(['Расходы по категориям']);
-    rows.push(['Категория', 'Сумма (₸)']);
+    rows.push(['Категория', 'Сумма (₸)', 'План (₸)', 'Доля (%)']);
 
     for (const item of report.byExpenseCategory) {
-      rows.push([item.category, item.amount]);
+      rows.push([
+        item.category,
+        item.amount,
+        item.plannedAmount ?? 0,
+        item.percentageOfTotal !== undefined ? `${item.percentageOfTotal}%` : '—',
+      ]);
+    }
+
+    if (report.recentExpenses && report.recentExpenses.length > 0) {
+      rows.push([]);
+      rows.push(['Журнал последних расходов']);
+      rows.push(['Дата', 'Категория', 'Получатель / Поставщик', 'Описание', 'Сумма (₸)']);
+      for (const exp of report.recentExpenses) {
+        const d = exp.date ? exp.date.slice(0, 10) : '';
+        rows.push([
+          d,
+          exp.category,
+          exp.counterparty || '—',
+          exp.description || '—',
+          exp.amount,
+        ]);
+      }
     }
 
     const buffer = buildCsv(rows);

@@ -18,6 +18,8 @@ async function main() {
   await prisma.tariffItem.deleteMany();
   await prisma.vote.deleteMany();
   await prisma.agendaItem.deleteMany();
+  await prisma.expense.deleteMany();
+  await prisma.budgetLine.deleteMany();
   await prisma.meetingProtocol.deleteMany();
   await prisma.meeting.deleteMany();
   await prisma.requestAttachment.deleteMany();
@@ -559,6 +561,301 @@ async function main() {
     where: { id: acc101.id },
     data: { balance: payment1.amount - (charge1.amount + charge2.amount + charge3.amount) },
   });
+
+  // 12. Плановый бюджет ЖК (BudgetLine) на 2026 год по 8 ключевым категориям
+  const budgetCategories = [
+    { category: 'Зарплата персонала', planned: 450000 },
+    { category: 'Уборка и вывоз мусора', planned: 180000 },
+    { category: 'Лифты и обслуживание', planned: 120000 },
+    { category: 'Электричество общедомовое', planned: 95000 },
+    { category: 'Отопление и вода', planned: 150000 },
+    { category: 'Ремонт и благоустройство', planned: 100000 },
+    { category: 'Охрана и видеонаблюдение', planned: 200000 },
+    { category: 'Налоги и банковские комиссии', planned: 40000 },
+  ];
+
+  for (let month = 1; month <= 12; month++) {
+    for (const b of budgetCategories) {
+      await prisma.budgetLine.create({
+        data: {
+          tenantId: tenant.id,
+          year: 2026,
+          month,
+          category: b.category,
+          plannedAmount: b.planned,
+          note: `Плановый бюджет на ${month}.2026: ${b.category}`,
+          createdById: adminUser.id,
+        },
+      });
+    }
+  }
+
+  // 13. Реалистичные фактические расходы ЖК (Expense) за последние 3 месяца (Август, Сентябрь, Октябрь 2026)
+  const demoExpenses = [
+    // --- Август 2026 (месяц 8) ---
+    {
+      category: 'Охрана и видеонаблюдение',
+      amount: 200000,
+      expenseDate: new Date('2026-08-01T10:00:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ТОО «Кузет Секьюрити»',
+      documentNumber: 'АКТ-08/01',
+      description: 'Услуги физической охраны КПП, патрулирование территории ЖК',
+    },
+    {
+      category: 'Лифты и обслуживание',
+      amount: 120000,
+      expenseDate: new Date('2026-08-05T11:30:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ТОО «Астана Лифт Сервис»',
+      documentNumber: 'АКТ-08/14',
+      description: 'Техническое обслуживание и диспетчеризация пассажирских лифтов (4 подъезда)',
+    },
+    {
+      category: 'Зарплата персонала',
+      amount: 450000,
+      expenseDate: new Date('2026-08-10T09:00:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ФОТ ОСИ «Шаңырақ Премиум»',
+      documentNumber: 'ВЕД-08/01',
+      description: 'Выплата заработной платы управляющему, сантехнику, электрику и бухгалтеру',
+    },
+    {
+      category: 'Уборка и вывоз мусора',
+      amount: 180000,
+      expenseDate: new Date('2026-08-15T14:00:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ТОО «Clean City NC»',
+      documentNumber: 'ЭСФ-08/331',
+      description: 'Вывоз крупногабаритного и бытового мусора ТБО, санобработка контейнеров',
+    },
+    {
+      category: 'Ремонт и благоустройство',
+      amount: 85000,
+      expenseDate: new Date('2026-08-18T16:00:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ИП «Мастер Строй Сервис»',
+      documentNumber: 'АКТ-08/88',
+      description: 'Покраска ограждений, ремонт скамеек и детской площадки во дворе',
+    },
+    {
+      category: 'Электричество общедомовое',
+      amount: 92400,
+      expenseDate: new Date('2026-08-20T12:00:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ТОО «Астанаэнергосбыт»',
+      documentNumber: 'СЧЕТ-08/4512',
+      description: 'Оплата общедомового электропотребления (освещение подъездов, паркинг, насосная)',
+    },
+    {
+      category: 'Отопление и вода',
+      amount: 65000,
+      expenseDate: new Date('2026-08-24T10:30:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'ГКП «Астана Су Арнасы»',
+      documentNumber: 'ЭСФ-08/7721',
+      description: 'Холодное водоснабжение на общедомовые нужды и полив газонов',
+    },
+    {
+      category: 'Налоги и банковские комиссии',
+      amount: 34500,
+      expenseDate: new Date('2026-08-28T17:00:00.000Z'),
+      periodMonth: 8,
+      periodYear: 2026,
+      counterparty: 'АО «Kaspi Bank»',
+      documentNumber: 'МЕМ-08/99',
+      description: 'Комиссия за эквайринг и расчетно-кассовое обслуживание текущего счета ОСИ',
+    },
+
+    // --- Сентябрь 2026 (месяц 9) ---
+    {
+      category: 'Охрана и видеонаблюдение',
+      amount: 200000,
+      expenseDate: new Date('2026-09-01T10:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'ТОО «Кузет Секьюрити»',
+      documentNumber: 'АКТ-09/01',
+      description: 'Охрана объекта и круглосуточный мониторинг шлагбаума',
+    },
+    {
+      category: 'Лифты и обслуживание',
+      amount: 145000,
+      expenseDate: new Date('2026-09-08T11:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'ТОО «Астана Лифт Сервис»',
+      documentNumber: 'АКТ-09/18',
+      description: 'Плановое ТО лифтов и замена тяговых канатов в блоке Б',
+    },
+    {
+      category: 'Зарплата персонала',
+      amount: 450000,
+      expenseDate: new Date('2026-09-10T09:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'ФОТ ОСИ «Шаңырақ Премиум»',
+      documentNumber: 'ВЕД-09/01',
+      description: 'Выплата заработной платы штатному персоналу за август',
+    },
+    {
+      category: 'Ремонт и благоустройство',
+      amount: 160000,
+      expenseDate: new Date('2026-09-14T15:30:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'ИП «Мастер Строй Сервис»',
+      documentNumber: 'АКТ-09/52',
+      description: 'Замена доводчиков входных групп и ремонт плитки крыльца 1-го подъезда',
+    },
+    {
+      category: 'Уборка и вывоз мусора',
+      amount: 175000,
+      expenseDate: new Date('2026-09-16T14:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'ТОО «Clean City NC»',
+      documentNumber: 'ЭСФ-09/214',
+      description: 'Ежемесячный вывоз ТБО и мойка мусорокамер',
+    },
+    {
+      category: 'Электричество общедомовое',
+      amount: 88500,
+      expenseDate: new Date('2026-09-22T12:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'ТОО «Астанаэнергосбыт»',
+      documentNumber: 'СЧЕТ-09/3982',
+      description: 'Оплата электроэнергии на общедомовые нужды (ОДН)',
+    },
+    {
+      category: 'Отопление и вода',
+      amount: 110000,
+      expenseDate: new Date('2026-09-25T10:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'АО «Астана-Теплотранзит»',
+      documentNumber: 'АКТ-09/901',
+      description: 'Подпитка теплосети и технологическая промывка системы отопления к зиме',
+    },
+    {
+      category: 'Налоги и банковские комиссии',
+      amount: 36200,
+      expenseDate: new Date('2026-09-28T17:00:00.000Z'),
+      periodMonth: 9,
+      periodYear: 2026,
+      counterparty: 'АО «Kaspi Bank»',
+      documentNumber: 'МЕМ-09/112',
+      description: 'Банковская комиссия за прием коммунальных платежей через Kaspi Pay',
+    },
+
+    // --- Октябрь 2026 (месяц 10) ---
+    {
+      category: 'Охрана и видеонаблюдение',
+      amount: 200000,
+      expenseDate: new Date('2026-10-01T10:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'ТОО «Кузет Секьюрити»',
+      documentNumber: 'АКТ-10/01',
+      description: 'Физическая охрана и технический надзор систем контроля доступа',
+    },
+    {
+      category: 'Лифты и обслуживание',
+      amount: 120000,
+      expenseDate: new Date('2026-10-06T11:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'ТОО «Астана Лифт Сервис»',
+      documentNumber: 'АКТ-10/22',
+      description: 'Ежемесячное сервисное обслуживание лифтового оборудования',
+    },
+    {
+      category: 'Зарплата персонала',
+      amount: 450000,
+      expenseDate: new Date('2026-10-10T09:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'ФОТ ОСИ «Шаңырақ Премиум»',
+      documentNumber: 'ВЕД-10/01',
+      description: 'Выплата заработной платы штатному персоналу за сентябрь',
+    },
+    {
+      category: 'Уборка и вывоз мусора',
+      amount: 180000,
+      expenseDate: new Date('2026-10-15T14:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'ТОО «Clean City NC»',
+      documentNumber: 'ЭСФ-10/118',
+      description: 'Вывоз бытового мусора и влажная уборка подъездов',
+    },
+    {
+      category: 'Ремонт и благоустройство',
+      amount: 75000,
+      expenseDate: new Date('2026-10-18T16:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'ИП «Мастер Строй Сервис»',
+      documentNumber: 'АКТ-10/41',
+      description: 'Утепление входных тамбуров и замена уплотнителей переходных дверей',
+    },
+    {
+      category: 'Электричество общедомовое',
+      amount: 96200,
+      expenseDate: new Date('2026-10-21T12:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'ТОО «Астанаэнергосбыт»',
+      documentNumber: 'СЧЕТ-10/5120',
+      description: 'Электроэнергия МОП, уличное освещение и вентиляция',
+    },
+    {
+      category: 'Отопление и вода',
+      amount: 148000,
+      expenseDate: new Date('2026-10-24T10:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'АО «Астана-Теплотранзит»',
+      documentNumber: 'ЭСФ-10/890',
+      description: 'Тепловая энергия на подогрев воды и начало отопительного сезона',
+    },
+    {
+      category: 'Налоги и банковские комиссии',
+      amount: 35100,
+      expenseDate: new Date('2026-10-28T17:00:00.000Z'),
+      periodMonth: 10,
+      periodYear: 2026,
+      counterparty: 'АО «Kaspi Bank»',
+      documentNumber: 'МЕМ-10/331',
+      description: 'Комиссия банка за эквайринг и ведение спецсчета капремонта',
+    },
+  ];
+
+  for (const exp of demoExpenses) {
+    await prisma.expense.create({
+      data: {
+        tenantId: tenant.id,
+        category: exp.category,
+        amount: exp.amount,
+        expenseDate: exp.expenseDate,
+        periodMonth: exp.periodMonth,
+        periodYear: exp.periodYear,
+        counterparty: exp.counterparty,
+        documentNumber: exp.documentNumber,
+        description: exp.description,
+        source: ExpenseSource.MANUAL,
+        recordedById: adminUser.id,
+      },
+    });
+  }
 
   console.log('✅ База данных успешно наполнена тестовыми данными ЖК «Шаңырақ Премиум»!');
 }

@@ -216,7 +216,8 @@
     "cabinetCommunity": "Community Board",
     "cabinetNotifications": "Notifications",
     "cabinetSos": "SOS History",
-    "cabinetProfile": "My Profile"
+    "cabinetProfile": "My Profile",
+    "cabinetTransparency": "Where the money goes"
   },
   "roles": {
     "superadmin": "Superadministrator",
@@ -2473,7 +2474,35 @@
     "invitationAlreadyPending": "An invitation for this number is already pending",
     "leaseDatePastError": "Lease end date must be in the future",
     "invalidPhoneFormat": "Please provide a valid phone number (+7...)",
-    "roleFamilyMember": "Family Member"
+    "roleFamilyMember": "Family Member",
+    "transparencyCardTitle": "Where the money goes",
+    "transparencyCardSubtitle": "Building financial report: income, expenses & balance",
+    "transparencyCardBadge": "Open budget",
+    "transparencyViewReport": "View report",
+    "transparencyCardHint": "Transparent expense report for recent months",
+    "transparencyTitle": "Where the money goes",
+    "transparencySubtitle": "Transparent report on revenues and expenditures of HOA and management company",
+    "plannedExpenses": "Planned expenses",
+    "budgetSurplus": "Budget surplus (collections exceed spending)",
+    "budgetDeficit": "Budget deficit (spending exceeds collections)",
+    "breakdownByCategory": "Expenses by category",
+    "shareOfExpenses": "Share: {{percent}}%",
+    "planVsFact": "Plan vs Actual",
+    "fact": "Actual",
+    "plan": "Plan",
+    "deviation": "Deviation",
+    "withinBudget": "Within budget",
+    "overBudget": "Over budget",
+    "recentExpensesTitle": "Recent major expenses",
+    "expenseDate": "Date",
+    "expenseCategory": "Category",
+    "expenseRecipient": "Recipient / Vendor",
+    "expenseDescription": "Purpose / Description",
+    "expenseAmount": "Amount",
+    "downloadCsvReport": "Download CSV",
+    "privacySafeNotice": "All expenses are displayed anonymously without residents' personal data. Only official vendor contracts and work completion acts are published.",
+    "noRecentExpenses": "No expenses for the selected period",
+    "totalExpenses": "Total spent"
   },
   "amenities": {
     "types": {

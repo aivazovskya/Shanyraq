@@ -216,7 +216,8 @@
     "cabinetCommunity": "Доска объявлений",
     "cabinetNotifications": "Уведомления",
     "cabinetSos": "SOS история",
-    "cabinetProfile": "Мой профиль"
+    "cabinetProfile": "Мой профиль",
+    "cabinetTransparency": "Куда уходят деньги"
   },
   "roles": {
     "superadmin": "Суперадминистратор",
@@ -2473,7 +2474,35 @@
     "invitationAlreadyPending": "Приглашение для этого номера уже ожидает входа",
     "leaseDatePastError": "Дата окончания аренды должна быть в будущем",
     "invalidPhoneFormat": "Укажите корректный номер телефона (+7...)",
-    "roleFamilyMember": "Член семьи"
+    "roleFamilyMember": "Член семьи",
+    "transparencyCardTitle": "Куда уходят деньги",
+    "transparencyCardSubtitle": "Финансовый отчёт ЖК: доходы, расходы и баланс",
+    "transparencyCardBadge": "Открытый бюджет",
+    "transparencyViewReport": "Смотреть отчёт",
+    "transparencyCardHint": "Прозрачный отчёт по расходам за последние месяцы",
+    "transparencyTitle": "Куда уходят деньги",
+    "transparencySubtitle": "Прозрачный отчёт о поступлениях и расходах управляющей компании и ОСИ",
+    "plannedExpenses": "План расходов",
+    "budgetSurplus": "Профицит бюджета (поступления превышают траты)",
+    "budgetDeficit": "Дефицит бюджета (траты превышают поступления)",
+    "breakdownByCategory": "Расходы по категориям",
+    "shareOfExpenses": "Доля: {{percent}}%",
+    "planVsFact": "План vs Факт",
+    "fact": "Факт",
+    "plan": "План",
+    "deviation": "Отклонение",
+    "withinBudget": "В рамках бюджета",
+    "overBudget": "Превышение бюджета",
+    "recentExpensesTitle": "Последние крупные расходы",
+    "expenseDate": "Дата",
+    "expenseCategory": "Категория",
+    "expenseRecipient": "Получатель / Поставщик",
+    "expenseDescription": "Назначение / Описание",
+    "expenseAmount": "Сумма",
+    "downloadCsvReport": "Скачать CSV",
+    "privacySafeNotice": "Все расходы отображаются обезличенно без персональных данных жителей. Публикуются только официальные договоры с поставщиками и акты выполненных работ.",
+    "noRecentExpenses": "Нет расходов за выбранный период",
+    "totalExpenses": "Израсходовано"
   },
   "amenities": {
     "types": {
