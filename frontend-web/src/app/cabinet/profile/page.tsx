@@ -171,8 +171,8 @@ export default function CabinetProfilePage() {
                               ownership.ownershipType === 'OWNER'
                                 ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
                                 : ownership.ownershipType === 'TENANT'
-                                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                                : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                             }`}
                           >
                             {getRoleLabel(ownership.ownershipType, t)}
@@ -282,7 +282,7 @@ export default function CabinetProfilePage() {
             <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 {currentTheme === 'dark' ? (
-                  <Moon className="w-5 h-5 text-indigo-400" />
+                  <Moon className="w-5 h-5 text-emerald-400" />
                 ) : (
                   <Sun className="w-5 h-5 text-amber-500" />
                 )}

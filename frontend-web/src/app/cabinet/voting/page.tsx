@@ -116,7 +116,7 @@ export default function CabinetVotingPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300';
+        return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300';
       case 'COMPLETED':
         return 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300';
       case 'CANCELLED':
@@ -159,7 +159,7 @@ export default function CabinetVotingPage() {
             <div
               key={m.id}
               onClick={() => openMeetingDetails(m)}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:border-purple-500 cursor-pointer transition-all group"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:border-emerald-500 cursor-pointer transition-all group"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5">
@@ -175,13 +175,13 @@ export default function CabinetVotingPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 font-semibold">
+                <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
                   <span>{t('cabinet.votingQuorum')}: {m.quorumPercent}%</span>
                   <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
 
-              <h3 className="text-base font-bold text-slate-900 dark:text-white mt-2 group-hover:text-purple-600 transition-colors">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white mt-2 group-hover:text-emerald-600 transition-colors">
                 {m.title}
               </h3>
               {m.description && (
@@ -194,7 +194,7 @@ export default function CabinetVotingPage() {
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 text-xs">
                 <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
                   <div
-                    className="bg-purple-600 h-2 rounded-full"
+                    className="bg-emerald-600 h-2 rounded-full"
                     style={{ width: `${Math.min(100, m.quorumPercent)}%` }}
                   />
                 </div>
@@ -249,12 +249,12 @@ export default function CabinetVotingPage() {
             )}
 
             {/* Quorum status block */}
-            <div className="mt-4 p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 flex items-center justify-between text-xs">
+            <div className="mt-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/60 flex items-center justify-between text-xs">
               <div>
-                <span className="font-semibold text-purple-950 dark:text-purple-200">
+                <span className="font-semibold text-emerald-950 dark:text-emerald-200">
                   {t('cabinet.votingQuorum')}: {selectedMeeting.quorumPercent}%
                 </span>
-                <span className="text-purple-700 dark:text-purple-300 ml-2">
+                <span className="text-emerald-700 dark:text-emerald-300 ml-2">
                   ({selectedMeeting.participatedArea} / {selectedMeeting.totalTenantArea} м²)
                 </span>
               </div>
@@ -285,7 +285,7 @@ export default function CabinetVotingPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <span className="font-bold text-purple-600 dark:text-purple-400 mr-2">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 mr-2">
                           #{idx + 1}
                         </span>
                         <span className="font-bold text-slate-900 dark:text-white">
@@ -314,7 +314,7 @@ export default function CabinetVotingPage() {
                               setVoteChoice('FOR');
                               setVoteError(null);
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shrink-0 shadow-sm transition-colors"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shrink-0 shadow-sm transition-colors"
                           >
                             {t('cabinet.votingVoteAction')}
                           </button>
@@ -390,13 +390,13 @@ export default function CabinetVotingPage() {
                     onClick={() => setVoteChoice(choice.key as any)}
                     className={`w-full p-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-between ${
                       voteChoice === choice.key
-                        ? 'border-purple-600 bg-purple-50 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 shadow-sm'
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 shadow-sm'
                         : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     <span>{choice.label}</span>
                     {voteChoice === choice.key && (
-                      <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     )}
                   </button>
                 ))}
@@ -420,7 +420,7 @@ export default function CabinetVotingPage() {
               <button
                 type="submit"
                 disabled={votingSubmitting}
-                className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
               >
                 {votingSubmitting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

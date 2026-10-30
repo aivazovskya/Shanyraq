@@ -324,7 +324,7 @@ export default function CabinetAccessPage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                <Unlock className="w-4 h-4 text-indigo-600" />
+                <Unlock className="w-4 h-4 text-emerald-600" />
                 <span>{t('cabinet.openBarrier')}</span>
               </span>
             </div>
@@ -354,13 +354,13 @@ export default function CabinetAccessPage() {
                 value={barrierPin}
                 onChange={(e) => setBarrierPin(e.target.value)}
                 placeholder={t('cabinet.barrierPinPlaceholder')}
-                className="w-36 text-center tracking-widest font-mono text-base py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-36 text-center tracking-widest font-mono text-base py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 required
               />
               <button
                 type="submit"
                 disabled={barrierLoading || barrierPin.length !== 4}
-                className="flex-1 py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {barrierLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

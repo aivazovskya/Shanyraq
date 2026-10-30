@@ -174,7 +174,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             const Icon = item.icon;
             const active = item === activeItem;
             return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} aria-current={active ? 'page' : undefined}
-              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${active ? 'bg-sky-500/15 font-semibold text-sky-300 ring-1 ring-inset ring-sky-400/20' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${active ? 'bg-sky-500/15 font-semibold text-sky-300 ring-1 ring-inset ring-sky-400/20 shadow-[inset_4px_0_0_#F4B63D]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
               <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span>{item.name}</span>
             </Link>;
           })}</div></div>;

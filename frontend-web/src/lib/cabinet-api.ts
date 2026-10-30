@@ -313,6 +313,18 @@ export interface MeetingItem {
   agendaItems: AgendaItem[];
 }
 
+/** The API nests quorum figures under `quorum`; the UI reads them as flat fields. */
+export function normalizeMeeting(raw: any): MeetingItem {
+  const q = raw?.quorum ?? {};
+  return {
+    ...raw,
+    totalTenantArea: raw?.totalTenantArea ?? q.totalEligibleArea ?? 0,
+    participatedArea: raw?.participatedArea ?? q.totalVotedArea ?? 0,
+    quorumPercent: raw?.quorumPercent ?? q.quorumPercent ?? 0,
+    isQuorumReached: raw?.isQuorumReached ?? q.isQuorumAchieved ?? false,
+  };
+}
+
 export interface BookableResource {
   id: string;
   tenantId: string;
@@ -579,11 +591,12 @@ export const CabinetApi = {
 
   // Votings
   async getMeetings(tenantId: string): Promise<MeetingItem[]> {
-    return apiRequest<MeetingItem[]>(`/votings/tenant/${tenantId}`);
+    const list = await apiRequest<any[]>(`/votings/tenant/${tenantId}`);
+    return (list || []).map(normalizeMeeting);
   },
 
   async getMeetingDetails(meetingId: string): Promise<MeetingItem> {
-    return apiRequest<MeetingItem>(`/votings/${meetingId}`);
+    return normalizeMeeting(await apiRequest<any>(`/votings/${meetingId}`));
   },
 
   async castVote(data: {

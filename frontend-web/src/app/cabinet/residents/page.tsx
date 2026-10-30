@@ -500,8 +500,8 @@ export default function CabinetResidentsPage() {
                             r.ownershipType === 'OWNER'
                               ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
                               : r.ownershipType === 'TENANT'
-                              ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                              : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                           }`}
                         >
                           {getRoleLabel(r.ownershipType, t)}
@@ -618,8 +618,8 @@ export default function CabinetResidentsPage() {
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           inv.ownershipType === 'TENANT'
-                            ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                            : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                         }`}
                       >
                         {getRoleLabel(inv.ownershipType, t)}

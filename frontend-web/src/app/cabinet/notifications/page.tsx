@@ -83,7 +83,7 @@ export default function CabinetNotificationsPage() {
   const getIcon = (item: NotificationItem) => {
     const type = item.data?.type || '';
     if (type.includes('SOS')) return <AlertTriangle className="w-5 h-5 text-red-500" />;
-    if (type.includes('CHAT')) return <MessageSquare className="w-5 h-5 text-purple-500" />;
+    if (type.includes('CHAT')) return <MessageSquare className="w-5 h-5 text-emerald-500" />;
     if (type.includes('REQUEST')) return <Wrench className="w-5 h-5 text-emerald-500" />;
     if (type.includes('FINANCE')) return <CreditCard className="w-5 h-5 text-emerald-500" />;
     return <Bell className="w-5 h-5 text-amber-500" />;

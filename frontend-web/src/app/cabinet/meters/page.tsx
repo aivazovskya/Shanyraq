@@ -149,7 +149,7 @@ export default function CabinetMetersPage() {
       case 'ELECTRICITY':
         return <Zap className="w-5 h-5 text-amber-500" />;
       default:
-        return <Gauge className="w-5 h-5 text-indigo-500" />;
+        return <Gauge className="w-5 h-5 text-emerald-500" />;
     }
   };
 
