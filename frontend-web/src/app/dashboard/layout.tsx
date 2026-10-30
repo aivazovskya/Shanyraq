@@ -32,7 +32,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
+import { getStoredSession, clearSession, apiLogout, AuthUser } from '@/lib/api';
 import { isResidentRole } from '@/lib/role-routing';
 import { NotificationBell } from '@/components/NotificationBell';
 import { GlobalSearch } from '@/components/GlobalSearch';
@@ -111,9 +111,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [router]);
 
-  const handleLogout = (e: React.MouseEvent) => {
+  const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
-    clearSession();
+    await apiLogout();
     router.push('/');
   };
 

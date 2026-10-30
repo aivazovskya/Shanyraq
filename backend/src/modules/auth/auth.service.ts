@@ -460,7 +460,7 @@ export class AuthService {
       }
     }
 
-    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
+    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion, dto.rememberDevice);
 
     return {
       user: {
@@ -708,7 +708,7 @@ export class AuthService {
       };
     }
 
-    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
+    const tokens = this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion, dto.rememberDevice);
 
     return {
       user: {
@@ -917,7 +917,8 @@ export class AuthService {
       });
     }
 
-    return this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion);
+    // Срок сессии сохраняется: «запомненное» устройство остаётся запомненным
+    return this.generateTokens(user.id, user.phone, user.role, user.tenantId, user.tokenVersion, payload.remember);
   }
 
   async logout(userId: string) {
@@ -1126,7 +1127,14 @@ export class AuthService {
     }
   }
 
-  private generateTokens(userId: string, phone: string, role: string, tenantId?: string | null, tokenVersion?: number) {
+  private generateTokens(
+    userId: string,
+    phone: string,
+    role: string,
+    tenantId?: string | null,
+    tokenVersion?: number,
+    remember?: boolean,
+  ) {
     const accessPayload: JwtPayload = {
       sub: userId,
       phone,
@@ -1143,6 +1151,7 @@ export class AuthService {
       tenantId,
       type: 'refresh',
       tokenVersion,
+      remember,
     };
 
     const accessToken = this.jwtService.sign(accessPayload, {
@@ -1152,7 +1161,8 @@ export class AuthService {
 
     const refreshToken = this.jwtService.sign(refreshPayload, {
       secret: this.refreshSecret,
-      expiresIn: '30d',
+      // «Запомнить устройство» 90 дней, иначе сутки; без выбора (старые клиенты) 30 дней
+      expiresIn: remember === true ? '90d' : remember === false ? '1d' : '30d',
     });
 
     return {

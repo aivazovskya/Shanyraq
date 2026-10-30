@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Matches, Length, IsOptional, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsBoolean, IsNotEmpty, IsString, Matches, Length, IsOptional, MinLength } from 'class-validator';
 
 export class RequestOtpDto {
   @ApiProperty({ example: '+77015550101', description: 'Номер телефона в международном формате (+7XXXXXXXXXX)' })
@@ -21,6 +21,11 @@ export class VerifyOtpDto {
   @IsString()
   @Length(6, 6, { message: 'SMS-код должен состоять ровно из 6 цифр' })
   code: string;
+
+  @ApiPropertyOptional({ description: 'Запомнить устройство: сессия 90 дней вместо суток' })
+  @IsOptional()
+  @IsBoolean()
+  rememberDevice?: boolean;
 }
 
 export class LoginPasswordDto {
@@ -33,6 +38,11 @@ export class LoginPasswordDto {
   @IsNotEmpty()
   @IsString()
   password: string;
+
+  @ApiPropertyOptional({ description: 'Запомнить устройство: сессия 90 дней вместо суток' })
+  @IsOptional()
+  @IsBoolean()
+  rememberDevice?: boolean;
 }
 
 export class RefreshTokenDto {

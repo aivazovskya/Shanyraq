@@ -11,6 +11,8 @@ export interface JwtPayload {
   tenantId?: string | null;
   type: 'access' | 'refresh' | 'password_change';
   tokenVersion?: number;
+  /** Только для refresh: пользователь выбрал «запомнить устройство» (длинная сессия) */
+  remember?: boolean;
 }
 
 @Injectable()

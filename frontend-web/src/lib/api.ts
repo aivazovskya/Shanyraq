@@ -14,10 +14,14 @@ export interface AuthUser {
 
 export interface AuthSession {
   token: string;
+  refreshToken?: string;
   user: AuthUser;
+  remember?: boolean;
 }
 
-// Хранение сессии в оперативной памяти (in-memory) для защиты от XSS-эксфильтрации токена
+export const SESSION_STORAGE_KEY = 'shanyraq_web_session';
+
+// Хранение сессии в оперативной памяти (in-memory) для быстрого синхронного доступа
 let inMemorySession: AuthSession | null = null;
 
 export class NoSessionError extends Error {
@@ -27,16 +31,107 @@ export class NoSessionError extends Error {
   }
 }
 
+/**
+ * Синхронное чтение сохраненной сессии:
+ * Если память пуста (например, после обновления страницы F5), восстанавливает из хранилища.
+ */
 export function getStoredSession(): AuthSession | null {
-  return inMemorySession;
+  if (inMemorySession) {
+    return inMemorySession;
+  }
+  if (typeof window !== 'undefined') {
+    try {
+      const raw =
+        window.localStorage.getItem(SESSION_STORAGE_KEY) ||
+        window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.token && parsed.user) {
+          inMemorySession = parsed;
+          return inMemorySession;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse stored session:', e);
+    }
+  }
+  return null;
 }
 
-export function saveSession(session: AuthSession): void {
-  inMemorySession = session;
+/**
+ * Сохранение сессии:
+ * Если «запомнить» включено (remember: true), сохраняет в localStorage,
+ * иначе сохраняет в sessionStorage (на время текущей вкладки).
+ */
+export function saveSession(
+  session: AuthSession,
+  refreshToken?: string,
+  remember?: boolean,
+): void {
+  const token = session.token;
+  const user = session.user;
+  const finalRefreshToken = refreshToken !== undefined ? refreshToken : session.refreshToken;
+  const finalRemember = remember !== undefined ? remember : session.remember;
+
+  const fullSession: AuthSession = {
+    token,
+    refreshToken: finalRefreshToken,
+    user,
+    remember: finalRemember,
+  };
+
+  inMemorySession = fullSession;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const serialized = JSON.stringify(fullSession);
+      if (finalRemember) {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, serialized);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      } else {
+        window.sessionStorage.setItem(SESSION_STORAGE_KEY, serialized);
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    } catch (e) {
+      console.warn('Failed to save session to storage:', e);
+    }
+  }
 }
 
+/**
+ * Очистка сессии из памяти и обоих типов хранилищ (localStorage и sessionStorage).
+ */
 export function clearSession(): void {
   inMemorySession = null;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Failed to clear session from storage:', e);
+    }
+  }
+}
+
+/**
+ * Завершение сессии с вызовом эндпоинта /auth/logout (если сессия активна).
+ */
+export async function apiLogout(): Promise<void> {
+  const session = getStoredSession();
+  if (session?.token) {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.token}`,
+        },
+      });
+    } catch {
+      // Игнорируем сетевые ошибки при выходе
+    }
+  }
+  clearSession();
 }
 
 /**
@@ -51,9 +146,66 @@ export function getAuthSession(): AuthSession {
   return session;
 }
 
+// Защита от параллельных повторных refresh-запросов одним общим промисом
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAuthTokens(): Promise<string | null> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const currentSession = getStoredSession();
+    const refreshToken = currentSession?.refreshToken;
+    if (!refreshToken) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        if ([400, 401, 403].includes(response.status)) {
+          clearSession();
+          return null;
+        }
+        // Ошибка 5xx или другая ошибка сервера: не сбрасываем токены
+        throw new Error(`Refresh failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.accessToken) {
+        return null;
+      }
+
+      saveSession({
+        token: data.accessToken,
+        refreshToken: data.refreshToken || refreshToken,
+        user: currentSession.user,
+        remember: currentSession.remember,
+      });
+
+      return data.accessToken;
+    } catch (err: any) {
+      if (!getStoredSession()) {
+        return null;
+      }
+      throw err;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 /**
- * Универсальный fetch-враппер с поддержкой Bearer токена и обработкой ошибок.
- * При отсутствии активной сессии или ответе 401 очищает сессию и перенаправляет на страницу входа.
+ * Универсальный fetch-враппер с поддержкой Bearer токена, тихим refresh при 401 и обработкой ошибок.
+ * При отсутствии активной сессии или отказе рефреша перенаправляет на страницу входа.
  */
 export async function apiRequest<T = any>(
   endpoint: string,
@@ -79,17 +231,52 @@ export async function apiRequest<T = any>(
     delete headers['Content-Type'];
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (netErr) {
+    // Сетевые ошибки не разлогинивают
+    throw netErr;
+  }
 
-  if (response.status === 401) {
-    clearSession();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/';
+  if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
+    let newToken: string | null = null;
+    try {
+      newToken = await refreshAuthTokens();
+    } catch (refreshErr) {
+      // Сетевая ошибка или 5xx при рефреше — не разлогиниваем, просто пробрасываем ошибку
+      throw refreshErr;
     }
-    throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+
+    if (!newToken) {
+      clearSession();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+      throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+    }
+
+    // Повторяем запрос один раз с новым токеном
+    const retryHeaders: Record<string, string> = {
+      ...headers,
+      Authorization: `Bearer ${newToken}`,
+    };
+
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: retryHeaders,
+    });
+
+    if (response.status === 401) {
+      clearSession();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+      throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+    }
   }
 
   if (!response.ok) {
@@ -143,7 +330,7 @@ export function getApiErrorMessage(
 }
 
 /**
- * Авторизованный fetch-метод для скачивания бинарных файлов (CSV, PDF) через Blob URL.
+ * Авторизованный fetch-метод для скачивания бинарных файлов (CSV, PDF) через Blob URL с тихим refresh.
  */
 export async function apiDownload(
   endpoint: string,
@@ -158,18 +345,46 @@ export async function apiDownload(
     throw new NoSessionError('Требуется авторизация в системе');
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      Authorization: `Bearer ${session.token}`,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        Authorization: `Bearer ${session.token}`,
+      },
+    });
+  } catch (netErr) {
+    throw netErr;
+  }
 
-  if (response.status === 401) {
-    clearSession();
-    if (typeof window !== 'undefined') {
-      window.location.href = '/';
+  if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
+    let newToken: string | null = null;
+    try {
+      newToken = await refreshAuthTokens();
+    } catch (refreshErr) {
+      throw refreshErr;
     }
-    throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+
+    if (!newToken) {
+      clearSession();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+      throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+    }
+
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        Authorization: `Bearer ${newToken}`,
+      },
+    });
+
+    if (response.status === 401) {
+      clearSession();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+      throw new NoSessionError('Срок действия сессии истек. Выполните повторный вход.');
+    }
   }
 
   if (!response.ok) {
@@ -206,5 +421,3 @@ export async function apiDownload(
   link.remove();
   window.URL.revokeObjectURL(blobUrl);
 }
-
-

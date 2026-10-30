@@ -33,7 +33,7 @@ import {
   ShieldAlert,
   Users,
 } from 'lucide-react';
-import { getStoredSession, clearSession, AuthUser } from '@/lib/api';
+import { getStoredSession, clearSession, apiLogout, AuthUser } from '@/lib/api';
 import { isResidentRole } from '@/lib/role-routing';
 import { CabinetApi, ResidentProfile } from '@/lib/cabinet-api';
 import { getStoredTheme, toggleTheme, ThemeMode } from '@/lib/theme';
@@ -86,9 +86,9 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
       .catch(() => {});
   }, [router]);
 
-  const handleLogout = (e: React.MouseEvent) => {
+  const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
-    clearSession();
+    await apiLogout();
     router.replace('/');
   };
 

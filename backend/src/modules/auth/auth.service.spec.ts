@@ -387,6 +387,189 @@ describe('AuthService (Аудит безопасности авторизаци�
     });
   });
 
+  describe('rememberDevice и длительность сессий (TASK-023)', () => {
+    const mockHashedPassword = bcrypt.hashSync('Password123!', 10);
+    const mockUser = {
+      id: 'user-rem-1',
+      phone: '+77011112233',
+      email: 'user-rem@shanyraq.kz',
+      passwordHash: mockHashedPassword,
+      role: UserRole.RESIDENT_OWNER,
+      tenantId: 'tenant-1',
+      tokenVersion: 1,
+      mustChangePassword: false,
+      isActive: true,
+    };
+
+    it('loginWithPassword с rememberDevice: true генерирует refresh-токен на 90d с payload.remember = true', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(mockUser);
+
+      await service.loginWithPassword({
+        login: '+77011112233',
+        password: 'Password123!',
+        rememberDevice: true,
+      });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', sub: 'user-rem-1', remember: true }),
+        expect.objectContaining({ expiresIn: '90d' }),
+      );
+    });
+
+    it('loginWithPassword с rememberDevice: false генерирует refresh-токен на 1d с payload.remember = false', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(mockUser);
+
+      await service.loginWithPassword({
+        login: '+77011112233',
+        password: 'Password123!',
+        rememberDevice: false,
+      });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', sub: 'user-rem-1', remember: false }),
+        expect.objectContaining({ expiresIn: '1d' }),
+      );
+    });
+
+    it('loginWithPassword без rememberDevice генерирует refresh-токен на 30d с payload.remember = undefined', async () => {
+      prismaMock.user.findFirst.mockResolvedValue(mockUser);
+
+      await service.loginWithPassword({
+        login: '+77011112233',
+        password: 'Password123!',
+      });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', sub: 'user-rem-1', remember: undefined }),
+        expect.objectContaining({ expiresIn: '30d' }),
+      );
+    });
+
+    it('verifyOtp с rememberDevice: true генерирует refresh-токен на 90d', async () => {
+      process.env.NODE_ENV = 'test';
+      const otpRes = await service.requestOtp({ phone: '+77011112244' });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-rem-2',
+        phone: '+77011112244',
+        firstName: 'Ерлан',
+        lastName: 'Сериков',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        isVerified: true,
+        ownerships: [],
+      });
+
+      await service.verifyOtp({ phone: '+77011112244', code: otpRes.devCode!, rememberDevice: true });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', sub: 'user-rem-2', remember: true }),
+        expect.objectContaining({ expiresIn: '90d' }),
+      );
+    });
+
+    it('verifyOtp с rememberDevice: false генерирует refresh-токен на 1d', async () => {
+      process.env.NODE_ENV = 'test';
+      const otpRes = await service.requestOtp({ phone: '+77011112255' });
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-rem-3',
+        phone: '+77011112255',
+        firstName: 'Марат',
+        lastName: 'Исаев',
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        isVerified: true,
+        ownerships: [],
+      });
+
+      await service.verifyOtp({ phone: '+77011112255', code: otpRes.devCode!, rememberDevice: false });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', sub: 'user-rem-3', remember: false }),
+        expect.objectContaining({ expiresIn: '1d' }),
+      );
+    });
+
+    it('refreshToken сохраняет срок сессии 90d при remember: true', async () => {
+      jwtServiceMock.verify.mockReturnValueOnce({
+        sub: 'user-1',
+        type: 'refresh',
+        phone: '+77015550101',
+        role: UserRole.RESIDENT_OWNER,
+        tokenVersion: 1,
+        remember: true,
+      });
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        phone: '+77015550101',
+        isActive: true,
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        tokenVersion: 1,
+      });
+
+      await service.refreshToken({ refreshToken: 'jwt_refresh_token_user-1' });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', remember: true }),
+        expect.objectContaining({ expiresIn: '90d' }),
+      );
+    });
+
+    it('refreshToken сохраняет срок сессии 1d при remember: false', async () => {
+      jwtServiceMock.verify.mockReturnValueOnce({
+        sub: 'user-1',
+        type: 'refresh',
+        phone: '+77015550101',
+        role: UserRole.RESIDENT_OWNER,
+        tokenVersion: 1,
+        remember: false,
+      });
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        phone: '+77015550101',
+        isActive: true,
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        tokenVersion: 1,
+      });
+
+      await service.refreshToken({ refreshToken: 'jwt_refresh_token_user-1' });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', remember: false }),
+        expect.objectContaining({ expiresIn: '1d' }),
+      );
+    });
+
+    it('refreshToken сохраняет срок сессии 30d при remember: undefined', async () => {
+      jwtServiceMock.verify.mockReturnValueOnce({
+        sub: 'user-1',
+        type: 'refresh',
+        phone: '+77015550101',
+        role: UserRole.RESIDENT_OWNER,
+        tokenVersion: 1,
+      });
+
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        phone: '+77015550101',
+        isActive: true,
+        role: UserRole.RESIDENT_OWNER,
+        tenantId: 'tenant-1',
+        tokenVersion: 1,
+      });
+
+      await service.refreshToken({ refreshToken: 'jwt_refresh_token_user-1' });
+
+      expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'refresh', remember: undefined }),
+        expect.objectContaining({ expiresIn: '30d' }),
+      );
+    });
+  });
+
   describe('logout', () => {
     it('должен инкрементировать tokenVersion пользователя для отзыва сессии', async () => {
       prismaMock.user.update = jest.fn().mockResolvedValue({ id: 'user-1', tokenVersion: 2 });

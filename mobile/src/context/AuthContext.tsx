@@ -1,8 +1,36 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { TokenStorage } from '../storage/token-storage';
+import { SafeStorage } from '../storage/web-safe-storage';
 import { AuthApi, UserProfile, AuthTokensResponse } from '../api/auth';
 import { setAuthFailureCallback } from '../api/client';
 import { useToast } from './ToastContext';
+
+export const CACHED_PROFILE_KEY = 'shanyraq_cached_profile';
+
+async function getCachedProfile(): Promise<UserProfile | null> {
+  try {
+    const raw = await SafeStorage.getItem(CACHED_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedProfile(profile: UserProfile): Promise<void> {
+  try {
+    await SafeStorage.setItem(CACHED_PROFILE_KEY, JSON.stringify(profile));
+  } catch (e) {
+    console.warn('Failed to cache profile:', e);
+  }
+}
+
+async function clearCachedProfile(): Promise<void> {
+  try {
+    await SafeStorage.removeItem(CACHED_PROFILE_KEY);
+  } catch (e) {
+    console.warn('Failed to clear cached profile:', e);
+  }
+}
 
 export const STAFF_ROLES = [
   'HOA_ADMIN',
@@ -81,14 +109,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleAuthFailure = useCallback(() => {
     setUser(null);
     TokenStorage.clearTokens();
+    clearCachedProfile();
   }, []);
 
   const refreshProfile = useCallback(async () => {
     try {
       const profile = await AuthApi.getMe();
-      setUser((prev) => normalizeProfile({ ...(prev || {}), ...profile }));
-    } catch {
-      handleAuthFailure();
+      const normalized = normalizeProfile(profile);
+      setUser((prev) => {
+        const merged = normalizeProfile({ ...(prev || {}), ...normalized });
+        setCachedProfile(merged);
+        return merged;
+      });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const isAuthError = status === 401 || status === 403;
+      if (isAuthError) {
+        handleAuthFailure();
+      } else {
+        console.warn('refreshProfile skipped logout due to network or server error:', err);
+      }
     }
   }, [handleAuthFailure]);
 
@@ -98,16 +138,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async function initAuth() {
       try {
         const token = await TokenStorage.getAccessToken();
-        if (token) {
+        const refreshToken = await TokenStorage.getRefreshToken();
+        if (!token && !refreshToken) {
+          await TokenStorage.clearTokens();
+          await clearCachedProfile();
+          setUser(null);
+          return;
+        }
+
+        try {
           const profile = await AuthApi.getMe();
-          setUser(normalizeProfile(profile));
+          const normalized = normalizeProfile(profile);
+          setUser(normalized);
+          await setCachedProfile(normalized);
+        } catch (err: any) {
+          const status = err?.response?.status;
+          const isAuthError = status === 401 || status === 403;
+          if (isAuthError) {
+            if (__DEV__) {
+              console.warn('Session expired or invalid, logging out:', err);
+            }
+            await TokenStorage.clearTokens();
+            await clearCachedProfile();
+            setUser(null);
+          } else {
+            // Сетевая ошибка (нет error.response) или 5xx: оставляем токены и подставляем закешированный профиль
+            const cached = await getCachedProfile();
+            if (cached) {
+              setUser(cached);
+            }
+          }
         }
       } catch (err) {
-        if (__DEV__) {
-          console.warn('Session expired or invalid, logging out:', err);
-        }
-        await TokenStorage.clearTokens();
-        setUser(null);
+        console.warn('initAuth unexpected error:', err);
       } finally {
         setIsLoading(false);
       }
@@ -121,17 +184,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await TokenStorage.saveTokens(authData.accessToken, authData.refreshToken);
     const initialUser = normalizeProfile(authData.user);
     setUser(initialUser);
+    await setCachedProfile(initialUser);
 
     // Fetch full profile (e.g. for staff where verify-otp response doesn't include full tenant object)
     try {
       const fullProfile = await AuthApi.getMe();
-      setUser((prev) => {
-        const merged = normalizeProfile({
-          ...(prev || initialUser),
-          ...fullProfile,
-        });
-        return merged;
+      const merged = normalizeProfile({
+        ...initialUser,
+        ...fullProfile,
       });
+      setUser(merged);
+      await setCachedProfile(merged);
     } catch (err) {
       console.warn('Failed to load full profile after login:', err);
     }
@@ -144,6 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Ignore network error on logout
     } finally {
       await TokenStorage.clearTokens();
+      await clearCachedProfile();
       setUser(null);
     }
   };

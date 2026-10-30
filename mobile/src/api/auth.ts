@@ -63,9 +63,18 @@ export const AuthApi = {
     return res.data;
   },
 
-  async verifyOtp(phone: string, code: string): Promise<AuthTokensResponse> {
-    const res = await apiClient.post('/auth/verify-otp', { phone, code });
+  async verifyOtp(phone: string, code: string, rememberDevice = true): Promise<AuthTokensResponse> {
+    const res = await apiClient.post('/auth/verify-otp', { phone, code, rememberDevice });
     return res.data;
+  },
+
+  async loginPassword(login: string, password: string, rememberDevice = true): Promise<AuthTokensResponse> {
+    const res = await apiClient.post('/auth/login-password', { login, password, rememberDevice });
+    return res.data;
+  },
+
+  async loginWithPassword(login: string, password: string, rememberDevice = true): Promise<AuthTokensResponse> {
+    return this.loginPassword(login, password, rememberDevice);
   },
 
   async getMe(): Promise<UserProfile> {

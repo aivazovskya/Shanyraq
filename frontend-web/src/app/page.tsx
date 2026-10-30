@@ -40,6 +40,7 @@ export default function LoginPage() {
 
   // Auth method: by password or by phone SMS OTP
   const [authMethod, setAuthMethod] = useState<'PASSWORD' | 'OTP'>('PASSWORD');
+  const [rememberDevice, setRememberDevice] = useState(true);
 
   // Password login state
   const [login, setLogin] = useState('');
@@ -88,7 +89,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_BASE_URL}/auth/login-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: login.trim(), password }),
+        body: JSON.stringify({ login: login.trim(), password, rememberDevice }),
       });
 
       if (!res.ok) {
@@ -116,7 +117,9 @@ export default function LoginPage() {
 
       saveSession({
         token: data.accessToken,
+        refreshToken: data.refreshToken,
         user: data.user,
+        remember: rememberDevice,
       });
 
       router.push(getHomeRouteForRole(data.user.role));
@@ -184,7 +187,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: otpPhone.trim(), code: otpCode.trim() }),
+        body: JSON.stringify({ phone: otpPhone.trim(), code: otpCode.trim(), rememberDevice }),
       });
 
       if (!res.ok) {
@@ -201,7 +204,9 @@ export default function LoginPage() {
       const data = await res.json();
       saveSession({
         token: data.accessToken,
+        refreshToken: data.refreshToken,
         user: data.user,
+        remember: rememberDevice,
       });
 
       router.push(getHomeRouteForRole(data.user.role));
@@ -260,7 +265,9 @@ export default function LoginPage() {
       const data = await res.json();
       saveSession({
         token: data.accessToken,
+        refreshToken: data.refreshToken,
         user: data.user,
+        remember: rememberDevice,
       });
 
       router.push(getHomeRouteForRole(data.user.role));
@@ -715,6 +722,22 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                <div className="flex items-center">
+                  <input
+                    id="rememberDeviceOtpPhone"
+                    type="checkbox"
+                    checked={rememberDevice}
+                    onChange={(e) => setRememberDevice(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <label
+                    htmlFor="rememberDeviceOtpPhone"
+                    className="ml-2 block text-sm text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                  >
+                    {t('auth.rememberDevice')}
+                  </label>
+                </div>
+
                 <div>
                   <button
                     type="submit"
@@ -776,6 +799,38 @@ export default function LoginPage() {
                       required
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    id="rememberDeviceOtpPhone"
+                    type="checkbox"
+                    checked={rememberDevice}
+                    onChange={(e) => setRememberDevice(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <label
+                    htmlFor="rememberDeviceOtpPhone"
+                    className="ml-2 block text-sm text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                  >
+                    {t('auth.rememberDevice')}
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    id="rememberDeviceOtpCode"
+                    type="checkbox"
+                    checked={rememberDevice}
+                    onChange={(e) => setRememberDevice(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <label
+                    htmlFor="rememberDeviceOtpCode"
+                    className="ml-2 block text-sm text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                  >
+                    {t('auth.rememberDevice')}
+                  </label>
                 </div>
 
                 <div>
@@ -845,6 +900,22 @@ export default function LoginPage() {
                     required
                   />
                 </div>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  id="rememberDevicePassword"
+                  type="checkbox"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800"
+                />
+                <label
+                  htmlFor="rememberDevicePassword"
+                  className="ml-2 block text-sm text-slate-700 dark:text-slate-300 cursor-pointer select-none"
+                >
+                  {t('auth.rememberDevice')}
+                </label>
               </div>
 
               <div>

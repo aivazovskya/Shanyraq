@@ -87,11 +87,14 @@ apiClient.interceptors.response.use(
     originalRequest._retry = true;
     isRefreshing = true;
 
+    let hasRefreshToken = false;
     try {
       const refreshToken = await TokenStorage.getRefreshToken();
       if (!refreshToken) {
+        hasRefreshToken = false;
         throw new Error('No refresh token available');
       }
+      hasRefreshToken = true;
 
       // Direct axios call to avoid interceptor recursion
       const refreshResponse = await axios.post(
@@ -110,11 +113,15 @@ apiClient.interceptors.response.use(
 
       processQueue(null, newAccessToken);
       return apiClient(originalRequest);
-    } catch (refreshErr) {
+    } catch (refreshErr: any) {
       processQueue(refreshErr, null);
-      await TokenStorage.clearTokens();
-      if (onAuthFailureCallback) {
-        onAuthFailureCallback();
+      const status = refreshErr?.response?.status;
+      const isAuthRejected = !hasRefreshToken || (status !== undefined && [400, 401, 403].includes(status));
+      if (isAuthRejected) {
+        await TokenStorage.clearTokens();
+        if (onAuthFailureCallback) {
+          onAuthFailureCallback();
+        }
       }
       return Promise.reject(refreshErr);
     } finally {
