@@ -1,5 +1,6 @@
 'use client';
 
+import BrandMark from '@/components/BrandMark';
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -161,7 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sidebar = (
     <div className="flex h-full flex-col bg-slate-950 text-white">
       <div className="flex min-h-20 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500"><Building2 className="h-6 w-6" aria-hidden="true" /></div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500"><BrandMark className="h-6 w-6" /></div>
         <div className="min-w-0 flex-1"><p className="text-lg font-bold tracking-tight">Shanyraq</p><p className="truncate text-xs text-slate-400" title={user?.tenantName || undefined}>{user?.tenantName || t('dashboard.defaultComplex')}</p></div>
         <button onClick={() => setMenuOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 lg:hidden" aria-label={t('shell.closeMenu')}><X size={20} /></button>
       </div>

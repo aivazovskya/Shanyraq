@@ -1,8 +1,8 @@
 'use client';
 
+import BrandMark from '@/components/BrandMark';
 import React, { useState, useEffect } from 'react';
 import {
-  Building2,
   ShieldCheck,
   ArrowRight,
   Loader2,
@@ -411,7 +411,7 @@ export default function LoginPage() {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 text-white shadow-lg mb-4">
-          <Building2 className="w-9 h-9" />
+          <BrandMark className="w-10 h-10" />
         </div>
         <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
           Shanyraq <span className="text-emerald-600">Шаңырақ</span>

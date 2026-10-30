@@ -1,5 +1,6 @@
 'use client';
 
+import BrandMark from '@/components/BrandMark';
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -7,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 import '@/i18n';
 import { changeWebLanguage, SupportedLocale, SUPPORTED_LOCALES } from '@/i18n';
 import {
-  Building2,
   LayoutDashboard,
   Wrench,
   KeyRound,
@@ -158,7 +158,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
 
               <Link href="/cabinet" className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
-                  <Building2 className="w-5 h-5" />
+                  <BrandMark className="w-6 h-6" />
                 </div>
                 <div className="flex flex-col">
                   <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white leading-none">
@@ -262,7 +262,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
                   href={item.href}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-emerald-600 text-white shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-sm shadow-[inset_4px_0_0_#F4B63D]'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
                   }`}
                 >
@@ -303,7 +303,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
-                  <Building2 className="w-4 h-4" />
+                  <BrandMark className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="text-sm font-bold text-slate-900 dark:text-white">Shanyraq</div>
@@ -345,7 +345,7 @@ export default function CabinetLayout({ children }: { children: React.ReactNode 
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
                       isActive
-                        ? 'bg-emerald-600 text-white shadow-sm'
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-[inset_4px_0_0_#F4B63D]'
                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >

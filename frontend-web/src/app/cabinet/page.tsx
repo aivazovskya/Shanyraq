@@ -1,5 +1,6 @@
 'use client';
 
+import ChargesRing, { RING_COLORS, buildRingSegments } from '@/components/ChargesRing';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -180,6 +181,7 @@ export default function CabinetHomePage() {
   const primaryOwnership = profile?.ownerships?.[0];
   const unitNumber = primaryOwnership?.unit?.unitNumber;
   const balance = account?.balance ?? 0;
+  const ringSegments = buildRingSegments(account?.charges);
   const urgentAnnouncement = announcements.find((a) => a.isUrgent) || announcements[0];
   const activeVotings = votings.filter((v) => v.status === 'ACTIVE');
 
@@ -253,13 +255,14 @@ export default function CabinetHomePage() {
               )}
             </div>
 
-            <div className="mt-3 flex items-baseline gap-3">
+            <div className="mt-3 flex items-center justify-between gap-4">
+            <div className="flex items-baseline gap-3 flex-wrap">
               <span
                 className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${
                   balance < 0
                     ? 'text-red-600 dark:text-red-400'
                     : balance > 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-steppe-600 dark:text-steppe-400'
                     : 'text-slate-900 dark:text-white'
                 }`}
               >
@@ -274,6 +277,23 @@ export default function CabinetHomePage() {
                   : t('cabinet.noDebt')}
               </span>
             </div>
+            {ringSegments.length > 0 && (
+              <div className="shrink-0 hidden sm:block">
+                <ChargesRing segments={ringSegments} />
+              </div>
+            )}
+            </div>
+            {ringSegments.length > 0 && (
+              <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+                {ringSegments.map((seg, i) => (
+                  <li key={seg.label + i} className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: RING_COLORS[i % RING_COLORS.length] }} />
+                    <span className="truncate">{seg.label}</span>
+                    <span className="ml-auto font-semibold tabular-nums">{formatMoney(seg.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-3">
@@ -430,7 +450,7 @@ export default function CabinetHomePage() {
             onClick={() => setShowBarrierModal(true)}
             className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm hover:border-emerald-500 hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <Unlock className="w-5 h-5" />
             </div>
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
@@ -442,7 +462,7 @@ export default function CabinetHomePage() {
             href="/cabinet/chat"
             className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm hover:border-emerald-500 hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group"
           >
-            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <MessageSquare className="w-5 h-5" />
             </div>
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
@@ -555,7 +575,7 @@ export default function CabinetHomePage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-              <Vote className="w-4 h-4 text-purple-600" />
+              <Vote className="w-4 h-4 text-emerald-600" />
               <span>{t('cabinet.votings')}</span>
             </h3>
             <Link
@@ -593,7 +613,7 @@ export default function CabinetHomePage() {
                   {/* Progress bar */}
                   <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 mt-1.5 overflow-hidden">
                     <div
-                      className="bg-purple-600 h-1.5 rounded-full"
+                      className="bg-emerald-600 h-1.5 rounded-full"
                       style={{ width: `${Math.min(100, vote.quorumPercent)}%` }}
                     />
                   </div>
@@ -779,7 +799,7 @@ export default function CabinetHomePage() {
             </button>
 
             <div className="flex items-center gap-2 mb-2">
-              <Unlock className="w-5 h-5 text-indigo-600" />
+              <Unlock className="w-5 h-5 text-emerald-600" />
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 {t('cabinet.openBarrier')}
               </h3>
@@ -818,7 +838,7 @@ export default function CabinetHomePage() {
               <button
                 type="submit"
                 disabled={barrierLoading || !barrierPin}
-                className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {barrierLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
