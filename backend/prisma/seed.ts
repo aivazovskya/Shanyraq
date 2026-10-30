@@ -129,6 +129,20 @@ async function main() {
   });
 
   // 5. Создание пользователей с ролями
+  // Владелец платформы: без привязки к ЖК, видит все ЖК
+  await prisma.user.create({
+    data: {
+      phone: '+77001000000',
+      email: 'owner@shanyraq.kz',
+      passwordHash: defaultPasswordHash,
+      firstName: 'Владелец',
+      lastName: 'Платформы',
+      role: UserRole.SUPERADMIN,
+      tenantId: null,
+      isVerified: true,
+    },
+  });
+
   const adminUser = await prisma.user.create({
     data: {
       phone: '+77001000001',
