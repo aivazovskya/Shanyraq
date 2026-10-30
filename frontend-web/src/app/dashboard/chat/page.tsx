@@ -106,8 +106,8 @@ export default function DispatcherChatPage() {
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const canExportCsv = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(currentUser?.role || '');
-  const canResolveChat = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(currentUser?.role || '');
+  const canExportCsv = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN', 'HOA_CHAIRMAN'].includes(currentUser?.role || '');
+  const canResolveChat = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN', 'HOA_CHAIRMAN'].includes(currentUser?.role || '');
 
   const handleResolveConversation = async () => {
     if (!selectedConversationId || resolving) return;

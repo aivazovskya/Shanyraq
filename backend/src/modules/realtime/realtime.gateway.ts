@@ -151,6 +151,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
         UserRole.HOA_ADMIN,
         UserRole.DISPATCHER,
         UserRole.SECURITY,
+        UserRole.HOA_CHAIRMAN,
       ];
 
       try {

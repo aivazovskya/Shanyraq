@@ -47,7 +47,7 @@ export function isStaffUser(role?: string | null): boolean {
 }
 
 export function canAccessChat(role?: string | null): boolean {
-  return role === 'DISPATCHER' || role === 'HOA_ADMIN';
+  return role === 'DISPATCHER' || role === 'HOA_ADMIN' || role === 'HOA_CHAIRMAN';
 }
 
 export function canAccessRequests(role?: string | null): boolean {

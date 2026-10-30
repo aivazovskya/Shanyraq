@@ -84,7 +84,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: t('navigation.requests'), href: '/dashboard/requests', icon: Wrench },
     { name: t('navigation.verifications'), href: '/dashboard/verifications', icon: UserCheck },
     { name: t('navigation.residents'), href: '/dashboard/residents', icon: Users },
-    { name: t('navigation.chat'), href: '/dashboard/chat', icon: MessageSquare, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER'] },
+    { name: t('navigation.chat'), href: '/dashboard/chat', icon: MessageSquare, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
     { name: t('navigation.meters'), href: '/dashboard/meters', icon: Gauge, roles: ['SUPERADMIN', 'HOA_ADMIN', 'DISPATCHER', 'HOA_CHAIRMAN'] },
     { name: t('navigation.finance'), href: '/dashboard/finance', icon: CreditCard, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },
     { name: t('navigation.budget'), href: '/dashboard/finance/budget', icon: FileSpreadsheet, roles: ['SUPERADMIN', 'HOA_ADMIN', 'HOA_CHAIRMAN'] },

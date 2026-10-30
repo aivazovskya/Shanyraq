@@ -48,11 +48,11 @@ export class ChatController {
   }
 
   // =============================================================
-  // Staff-facing (DISPATCHER, HOA_ADMIN, SUPERADMIN)
+  // Staff-facing (DISPATCHER, HOA_ADMIN, SUPERADMIN, HOA_CHAIRMAN)
   // =============================================================
 
   @Get('tenants/:tenantId/conversations')
-  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN)
   @ApiOperation({ summary: 'Список всех диалогов ЖК для диспетчера' })
   async getTenantConversations(
     @Param('tenantId') tenantId: string,
@@ -65,7 +65,7 @@ export class ChatController {
   }
 
   @Get('conversations/:id/messages')
-  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN)
   @ApiOperation({ summary: 'Сообщения диалога для диспетчера' })
   async getConversationMessages(
     @Param('id') id: string,
@@ -75,7 +75,7 @@ export class ChatController {
   }
 
   @Post('conversations/:id/messages')
-  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN)
   @ApiOperation({ summary: 'Отправка ответа диспетчером в диалог с жителем' })
   async sendStaffMessage(
     @Param('id') id: string,
@@ -86,14 +86,14 @@ export class ChatController {
   }
 
   @Patch('conversations/:id/resolve')
-  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN)
   @ApiOperation({ summary: 'Отметить диалог как решённый' })
   async resolveConversation(@Param('id') id: string, @Request() req: any) {
     return this.chatService.resolveConversation(id, req.user);
   }
 
   @Get('conversations/:id/export')
-  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN)
+  @Roles(UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN)
   @ApiOperation({ summary: 'Экспорт полной переписки диалога в формате CSV' })
   async exportConversationCsv(
     @Param('id') id: string,

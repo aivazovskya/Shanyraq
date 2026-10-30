@@ -42,6 +42,22 @@ describe('RealtimeGateway (WebSocket)', () => {
     tokenVersion: 1,
   };
 
+  const chairmanTenantA = {
+    id: 'chairman-a',
+    role: UserRole.HOA_CHAIRMAN,
+    tenantId: 'tenant-1',
+    isActive: true,
+    tokenVersion: 1,
+  };
+
+  const chairmanTenantB = {
+    id: 'chairman-b',
+    role: UserRole.HOA_CHAIRMAN,
+    tenantId: 'tenant-2',
+    isActive: true,
+    tokenVersion: 1,
+  };
+
   beforeEach(async () => {
     jwtService = {
       verify: jest.fn(),
@@ -283,6 +299,71 @@ describe('RealtimeGateway (WebSocket)', () => {
         'chat:inbox:joined',
         expect.objectContaining({ tenantId: 'tenant-1' }),
       );
+    });
+
+    it('должен разрешать председателю (HOA_CHAIRMAN) ЖК A присоединяться к входящим своего ЖК (TASK-025)', async () => {
+      const socketMock: any = {
+        id: 'sock-chairman-a',
+        user: chairmanTenantA,
+        emit: jest.fn(),
+        join: jest.fn(),
+      };
+
+      chatServiceMock.assertAccessToTenant.mockResolvedValue(true);
+
+      await gateway.handleChatJoin(socketMock, { tenantId: 'tenant-1' });
+      expect(socketMock.join).toHaveBeenCalledWith('chat:tenant:tenant-1:inbox');
+      expect(socketMock.emit).toHaveBeenCalledWith(
+        'chat:inbox:joined',
+        expect.objectContaining({ tenantId: 'tenant-1' }),
+      );
+    });
+
+    it('должен разрешать председателю (HOA_CHAIRMAN) ЖК A присоединяться к диалогу своего ЖК (TASK-025)', async () => {
+      const socketMock: any = {
+        id: 'sock-chairman-a',
+        user: chairmanTenantA,
+        emit: jest.fn(),
+        join: jest.fn(),
+      };
+
+      prismaMock.conversation.findUnique.mockResolvedValue({
+        id: 'conv-101',
+        residentId: 'resident-99',
+        tenantId: 'tenant-1',
+      });
+
+      chatServiceMock.assertAccessToTenant.mockResolvedValue(true);
+
+      await gateway.handleChatJoin(socketMock, { conversationId: 'conv-101' });
+      expect(socketMock.join).toHaveBeenCalledWith('chat:conversation:conv-101');
+      expect(socketMock.emit).toHaveBeenCalledWith(
+        'chat:joined',
+        expect.objectContaining({ conversationId: 'conv-101' }),
+      );
+    });
+
+    it('должен отклонять председателя (HOA_CHAIRMAN) ЖК B при попытке присоединиться к входящим ЖК A (TASK-025)', async () => {
+      const socketMock: any = {
+        id: 'sock-chairman-b',
+        user: chairmanTenantB,
+        emit: jest.fn(),
+        join: jest.fn(),
+      };
+
+      chatServiceMock.assertAccessToTenant.mockImplementation(() => {
+        throw new ForbiddenException({
+          code: 'CHAT.STAFF_CROSS_TENANT_FORBIDDEN',
+          message: 'Персонал имеет доступ только к ресурсам своего жилого комплекса',
+        });
+      });
+
+      await gateway.handleChatJoin(socketMock, { tenantId: 'tenant-1' });
+      expect(socketMock.emit).toHaveBeenCalledWith(
+        'error',
+        expect.objectContaining({ code: 'CHAT.STAFF_CROSS_TENANT_FORBIDDEN' }),
+      );
+      expect(socketMock.join).not.toHaveBeenCalled();
     });
   });
 

@@ -951,6 +951,15 @@ export const StaffHomeScreen: React.FC = () => {
                     }}
                   />
                   <ActionButton
+                    icon={<MessageSquare size={20} color={theme.colors.primary} />}
+                    title={t('staff.home.actionChat')}
+                    bg={theme.colors.primaryBg}
+                    onPress={() => {
+                      safeHaptic.selection();
+                      navigation.navigate('ChatInboxTab');
+                    }}
+                  />
+                  <ActionButton
                     icon={<AlertTriangle size={20} color={theme.colors.danger} />}
                     title={t('staff.home.actionSos')}
                     bg={theme.colors.dangerBg}

@@ -57,7 +57,7 @@ export const StaffChatThreadScreen: React.FC = () => {
   const [resolving, setResolving] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
-  const canResolve = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(user?.role || '');
+  const canResolve = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN', 'HOA_CHAIRMAN'].includes(user?.role || '');
 
   const loadMessages = useCallback(
     async (isSilent = false) => {

@@ -48,7 +48,7 @@ export class ChatService {
   }
 
   /**
-   * Проверка прав сотрудника диспетчерской/УК (DISPATCHER, HOA_ADMIN, SUPERADMIN).
+   * Проверка прав сотрудника диспетчерской/УК/председателя (DISPATCHER, HOA_ADMIN, SUPERADMIN, HOA_CHAIRMAN).
    */
   assertStaffRole(user: any): void {
     if (!user) {
@@ -57,7 +57,12 @@ export class ChatService {
         message: 'Требуется авторизация',
       });
     }
-    const allowedStaffRoles = [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN];
+    const allowedStaffRoles = [
+      UserRole.DISPATCHER,
+      UserRole.HOA_ADMIN,
+      UserRole.SUPERADMIN,
+      UserRole.HOA_CHAIRMAN,
+    ];
     if (!allowedStaffRoles.includes(user.role)) {
       throw new ForbiddenException({
         code: 'CHAT.DISPATCHER_ACCESS_FORBIDDEN',
@@ -301,11 +306,11 @@ export class ChatService {
       },
     });
 
-    // Оповещение персонала ЖК (DISPATCHER, HOA_ADMIN)
+    // Оповещение персонала ЖК (DISPATCHER, HOA_ADMIN, HOA_CHAIRMAN)
     try {
       await this.notificationsService.sendToTenantRoles(
         tenantId,
-        [UserRole.DISPATCHER, UserRole.HOA_ADMIN],
+        [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN],
         {
           title: 'Новое сообщение от жителя',
           body: `${user.firstName || 'Житель'}: ${text || 'Фотография'}`,
@@ -331,7 +336,7 @@ export class ChatService {
   }
 
   // =============================================================
-  // Staff-facing (DISPATCHER, HOA_ADMIN, SUPERADMIN)
+  // Staff-facing (DISPATCHER, HOA_ADMIN, SUPERADMIN, HOA_CHAIRMAN)
   // =============================================================
 
   /**

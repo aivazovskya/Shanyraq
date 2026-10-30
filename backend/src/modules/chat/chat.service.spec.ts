@@ -76,6 +76,14 @@ describe('ChatService', () => {
     lastName: 'Председатель',
   };
 
+  const otherTenantChairman = {
+    id: 'chairman-2',
+    role: UserRole.HOA_CHAIRMAN,
+    tenantId: otherTenantId,
+    firstName: 'Нурлан',
+    lastName: 'ЧужойПредседатель',
+  };
+
   const superAdminUser = {
     id: 'super-1',
     role: UserRole.SUPERADMIN,
@@ -203,7 +211,7 @@ describe('ChatService', () => {
   });
 
   describe('sendResidentMessage', () => {
-    it('allows verified resident to send message and notifies staff (DISPATCHER, HOA_ADMIN)', async () => {
+    it('allows verified resident to send message and notifies staff (DISPATCHER, HOA_ADMIN, HOA_CHAIRMAN)', async () => {
       prismaMock.unitOwnership.findFirst
         .mockResolvedValueOnce({ unitId: 'unit-1', unit: { building: { tenantId: mockTenantId } } })
         .mockResolvedValueOnce({ id: 'own-1', isVerified: true });
@@ -244,7 +252,7 @@ describe('ChatService', () => {
       );
       expect(notificationsMock.sendToTenantRoles).toHaveBeenCalledWith(
         mockTenantId,
-        [UserRole.DISPATCHER, UserRole.HOA_ADMIN],
+        [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN],
         expect.objectContaining({
           title: expect.stringContaining('Новое сообщение'),
         }),
@@ -389,10 +397,23 @@ describe('ChatService', () => {
       });
     });
 
-    it('rejects HOA_CHAIRMAN from viewing dispatcher chat (Decision #6)', async () => {
-      await expect(
-        service.getTenantConversations(mockTenantId, hoaChairmanUser),
-      ).rejects.toThrow(ForbiddenException);
+    it('allows HOA_CHAIRMAN of the tenant to list conversations with unread counts (TASK-025)', async () => {
+      prismaMock.conversation.findMany.mockResolvedValueOnce([]);
+      const result = await service.getTenantConversations(mockTenantId, hoaChairmanUser);
+      expect(result).toEqual([]);
+      expect(prismaMock.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId: mockTenantId },
+        }),
+      );
+    });
+
+    it('rejects HOA_CHAIRMAN from another tenant with ForbiddenException (TASK-025)', async () => {
+      const promise = service.getTenantConversations(mockTenantId, otherTenantChairman);
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'CHAT.STAFF_CROSS_TENANT_FORBIDDEN' },
+      });
     });
 
     it('rejects resident from listing all tenant conversations', async () => {
@@ -480,6 +501,33 @@ describe('ChatService', () => {
 
       await expect(
         service.getConversationMessages(mockConversationId, otherTenantDispatcher),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows HOA_CHAIRMAN of the tenant to view full thread (TASK-025)', async () => {
+      const mockConv = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        residentId: verifiedResident.id,
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(mockConv);
+      prismaMock.conversation.update.mockResolvedValueOnce(mockConv);
+      prismaMock.chatMessage.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.getConversationMessages(mockConversationId, hoaChairmanUser);
+      expect(result.id).toBe(mockConversationId);
+    });
+
+    it('rejects HOA_CHAIRMAN from another tenant from viewing conversation (TASK-025)', async () => {
+      const mockConv = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        residentId: verifiedResident.id,
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(mockConv);
+
+      await expect(
+        service.getConversationMessages(mockConversationId, otherTenantChairman),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -584,6 +632,46 @@ describe('ChatService', () => {
         service.sendStaffMessage(mockConversationId, otherTenantDispatcher, {
           text: 'Тест',
         }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows HOA_CHAIRMAN to reply and notifies resident via sendToUser (TASK-025)', async () => {
+      const mockConv = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        residentId: verifiedResident.id,
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(mockConv);
+      prismaMock.chatMessage.create.mockResolvedValueOnce({
+        id: 'msg-ch-1',
+        conversationId: mockConversationId,
+        senderId: hoaChairmanUser.id,
+        text: 'Здравствуйте! Вопрос взят на контроль председателем.',
+      });
+      prismaMock.conversation.update.mockResolvedValueOnce(mockConv);
+
+      const result = await service.sendStaffMessage(mockConversationId, hoaChairmanUser, {
+        text: 'Здравствуйте! Вопрос взят на контроль председателем.',
+      });
+      expect(result.id).toBe('msg-ch-1');
+      expect(notificationsMock.sendToUser).toHaveBeenCalledWith(
+        verifiedResident.id,
+        expect.objectContaining({
+          title: 'Ответ от диспетчера',
+        }),
+      );
+    });
+
+    it('rejects HOA_CHAIRMAN from another tenant from replying (TASK-025)', async () => {
+      const mockConv = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        residentId: verifiedResident.id,
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(mockConv);
+
+      await expect(
+        service.sendStaffMessage(mockConversationId, otherTenantChairman, { text: 'Чужой ЖК' }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -708,6 +796,27 @@ describe('ChatService', () => {
       expect(result.buffer[2]).toBe(0xbf);
     });
 
+    it('allows HOA_CHAIRMAN of the tenant to export CSV (TASK-025)', async () => {
+      const mockConvWithDetails = {
+        id: mockConversationId,
+        tenantId: mockTenantId,
+        tenant: { name: 'ЖК Сауран' },
+        resident: {
+          id: verifiedResident.id,
+          firstName: 'Айбек',
+          lastName: 'Нурланов',
+          phone: '+77015550101',
+          ownerships: [],
+        },
+      };
+      prismaMock.conversation.findUnique.mockResolvedValueOnce(mockConvWithDetails);
+      prismaMock.chatMessage.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.exportConversationCsv(mockConversationId, hoaChairmanUser);
+      expect(result.buffer).toBeDefined();
+      expect(result.filename).toContain(`chat-conversation-${mockConversationId}`);
+    });
+
     it('выбрасывает NotFoundException, если диалог не найден', async () => {
       prismaMock.conversation.findUnique.mockResolvedValueOnce(null);
 
@@ -725,7 +834,7 @@ describe('ChatService', () => {
       isResolved: false,
     };
 
-    it.each([UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN])(
+    it.each([UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN, UserRole.HOA_CHAIRMAN])(
       'позволяет роли %s отметить диалог как решённый',
       async (role) => {
         const user = { id: 'actor-1', role, tenantId: role === UserRole.SUPERADMIN ? null : mockTenantId };
