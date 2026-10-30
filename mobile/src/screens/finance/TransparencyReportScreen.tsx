@@ -32,6 +32,7 @@ import {
 import { financeApi, FinancialTransparencyReport } from '../../api/finance';
 import { useAuth, isStaffUser } from '../../context/AuthContext';
 import { RootStackParamList } from '../../navigation/types';
+import { getBalanceGradation } from '../../utils/balance';
 
 type TransparencyReportRouteProp = RouteProp<RootStackParamList, 'TransparencyReport'>;
 
@@ -364,42 +365,76 @@ export const TransparencyReportScreen: React.FC = () => {
             </View>
 
             {/* Net Balance Hero Banner */}
-            <Card
-              style={[
-                styles.balanceBanner,
-                {
-                  backgroundColor:
-                    report.netBalance >= 0 ? theme.colors.successBg : theme.colors.dangerBg,
-                  borderColor:
-                    report.netBalance >= 0
-                      ? theme.colors.successBorder
-                      : theme.colors.dangerBorder,
-                },
-              ]}
-            >
-              <View style={styles.balanceBannerLeft}>
-                <Text style={[styles.balanceBannerTitle, { color: theme.colors.text }]}>
-                  {t('finance.transparencyNetBalance', 'Сальдо периода')}
-                </Text>
-                <Text style={[styles.balanceBannerSubtitle, { color: theme.colors.textMuted }]}>
-                  {report.netBalance >= 0
-                    ? t('finance.transparencySurplus', 'Профицит бюджета (поступления превышают траты)')
-                    : t('finance.transparencyDeficit', 'Дефицит бюджета (расходы превышают сборы)')}
-                </Text>
-              </View>
-              <Text
-                style={[
-                  styles.balanceBannerAmount,
-                  {
-                    color: report.netBalance >= 0 ? theme.colors.success : theme.colors.danger,
-                  },
-                ]}
-              >
-                {report.netBalance >= 0
+            {(() => {
+              const balanceStatus = getBalanceGradation(
+                report.netBalance,
+                report.totalExpenses,
+              );
+              const isBalanced = balanceStatus === 'balanced';
+              const isSurplus = balanceStatus === 'surplus';
+
+              const bannerBg = isBalanced
+                ? theme.colors.card
+                : isSurplus
+                ? theme.colors.successBg
+                : theme.colors.dangerBg;
+
+              const bannerBorder = isBalanced
+                ? theme.colors.border
+                : isSurplus
+                ? theme.colors.successBorder
+                : theme.colors.dangerBorder;
+
+              const amountColor = isBalanced
+                ? theme.colors.primary
+                : isSurplus
+                ? theme.colors.success
+                : theme.colors.danger;
+
+              const subtitleText = isBalanced
+                ? t('finance.transparencyBalanced', 'Практически в балансе')
+                : isSurplus
+                ? t('finance.transparencySurplus', 'Профицит бюджета (поступления превышают траты)')
+                : t('finance.transparencyDeficit', 'Дефицит бюджета (расходы превышают сборы)');
+
+              const formattedAmount =
+                report.netBalance > 0
                   ? `+${report.netBalance.toLocaleString()} ₸`
-                  : `-${Math.abs(report.netBalance).toLocaleString()} ₸`}
-              </Text>
-            </Card>
+                  : report.netBalance < 0
+                  ? `-${Math.abs(report.netBalance).toLocaleString()} ₸`
+                  : `0 ₸`;
+
+              return (
+                <Card
+                  style={[
+                    styles.balanceBanner,
+                    {
+                      backgroundColor: bannerBg,
+                      borderColor: bannerBorder,
+                    },
+                  ]}
+                >
+                  <View style={styles.balanceBannerLeft}>
+                    <Text style={[styles.balanceBannerTitle, { color: theme.colors.text }]}>
+                      {t('finance.transparencyNetBalance', 'Сальдо периода')}
+                    </Text>
+                    <Text style={[styles.balanceBannerSubtitle, { color: theme.colors.textMuted }]}>
+                      {subtitleText}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.balanceBannerAmount,
+                      {
+                        color: amountColor,
+                      },
+                    ]}
+                  >
+                    {formattedAmount}
+                  </Text>
+                </Card>
+              );
+            })()}
 
             {/* View Filter: All vs Income vs Expenses */}
             <View style={styles.sectionFilterWrap}>

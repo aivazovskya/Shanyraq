@@ -388,13 +388,12 @@ export const DashboardScreen: React.FC = () => {
                 <PieChart size={22} color={theme.colors.primary} />
               </View>
               <View style={styles.transparencyTextWrap}>
-                <View style={styles.transparencyHeaderRow}>
-                  <Text
-                    style={[styles.transparencyTitle, { color: theme.colors.text }]}
-                    numberOfLines={1}
-                  >
-                    {t('dashboard.transparencyCardTitle')}
-                  </Text>
+                <Text
+                  style={[styles.transparencyTitle, { color: theme.colors.text }]}
+                >
+                  {t('dashboard.transparencyCardTitle')}
+                </Text>
+                <View style={styles.transparencyBadgeRow}>
                   <Badge
                     label={t('dashboard.transparencyCardBadge')}
                     variant="info"
@@ -1083,17 +1082,15 @@ const styles = StyleSheet.create({
   transparencyTextWrap: {
     flex: 1,
   },
-  transparencyHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
   transparencyTitle: {
     fontSize: 15,
     fontWeight: '700',
-    flex: 1,
-    marginRight: 8,
+    marginBottom: 4,
+  },
+  transparencyBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   transparencySubtitle: {
     fontSize: 12,

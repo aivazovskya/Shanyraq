@@ -507,6 +507,7 @@
     "transparencyNetBalance": "Кезең сальдосы",
     "transparencySurplus": "Бюджет профициті (түсімдер шығыстардан асады)",
     "transparencyDeficit": "Бюджет тапшылығы (шығыстар түсімдерден асады)",
+    "transparencyBalanced": "Іс жүзінде баланста",
     "transparencyCharged": "Есептелді",
     "transparencyCollectionRate": "Жинау көрсеткіші",
     "transparencyExpenseCount": "Баптар",

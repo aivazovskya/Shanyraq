@@ -2485,6 +2485,7 @@
     "plannedExpenses": "Шығыстар жоспары",
     "budgetSurplus": "Бюджет профициті (түсімдер шығыстардан асады)",
     "budgetDeficit": "Бюджет тапшылығы (шығыстар түсімдерден асады)",
+    "budgetBalanced": "Іс жүзінде баланста",
     "breakdownByCategory": "Санаттар бойынша шығыстар",
     "shareOfExpenses": "Үлесі: {{percent}}%",
     "planVsFact": "Жоспар vs Нақты",

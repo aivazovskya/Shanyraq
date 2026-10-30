@@ -25,6 +25,7 @@ import {
   TransparencyReport,
   ResidentProfile,
 } from '@/lib/cabinet-api';
+import { getBalanceGradation } from '@/lib/balance';
 
 export default function CabinetFinancePage() {
   const { t, i18n } = useTranslation();
@@ -415,19 +416,39 @@ export default function CabinetFinancePage() {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-                  <div className="text-xs text-slate-500 dark:text-slate-400">{t('cabinet.netBalance')}</div>
-                  <div
-                    className={`text-xl font-extrabold mt-1 ${
-                      transparency.netBalance >= 0
-                        ? 'text-steppe-600 dark:text-steppe-400'
-                        : 'text-red-600 dark:text-red-400'
-                    }`}
-                  >
-                    {transparency.netBalance >= 0 ? '+' : ''}
-                    {formatMoney(transparency.netBalance)}
-                  </div>
-                </div>
+                {(() => {
+                  const balanceStatus = getBalanceGradation(
+                    transparency.netBalance,
+                    transparency.totalExpenses,
+                  );
+                  const isBalanced = balanceStatus === 'balanced';
+                  const isSurplus = balanceStatus === 'surplus';
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t('cabinet.netBalance')}</div>
+                      <div
+                        className={`text-xl font-extrabold mt-1 ${
+                          isBalanced
+                            ? 'text-sky-600 dark:text-sky-400'
+                            : isSurplus
+                            ? 'text-steppe-600 dark:text-steppe-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        {transparency.netBalance > 0 ? '+' : ''}
+                        {formatMoney(transparency.netBalance)}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {isBalanced
+                          ? t('cabinet.budgetBalanced')
+                          : isSurplus
+                          ? t('cabinet.budgetSurplus')
+                          : t('cabinet.budgetDeficit')}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Expenses Breakdown with horizontal bars & Plan vs Fact */}

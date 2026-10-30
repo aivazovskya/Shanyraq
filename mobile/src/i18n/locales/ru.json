@@ -507,6 +507,7 @@
     "transparencyNetBalance": "Сальдо периода",
     "transparencySurplus": "Профицит бюджета (поступления превышают траты)",
     "transparencyDeficit": "Дефицит бюджета (расходы превышают сборы)",
+    "transparencyBalanced": "Практически в балансе",
     "transparencyCharged": "Начислено",
     "transparencyCollectionRate": "Собираемость",
     "transparencyExpenseCount": "Статей",

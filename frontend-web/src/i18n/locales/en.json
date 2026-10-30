@@ -2485,6 +2485,7 @@
     "plannedExpenses": "Planned expenses",
     "budgetSurplus": "Budget surplus (collections exceed spending)",
     "budgetDeficit": "Budget deficit (spending exceeds collections)",
+    "budgetBalanced": "Practically balanced",
     "breakdownByCategory": "Expenses by category",
     "shareOfExpenses": "Share: {{percent}}%",
     "planVsFact": "Plan vs Actual",

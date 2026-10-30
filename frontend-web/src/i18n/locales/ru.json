@@ -2485,6 +2485,7 @@
     "plannedExpenses": "План расходов",
     "budgetSurplus": "Профицит бюджета (поступления превышают траты)",
     "budgetDeficit": "Дефицит бюджета (траты превышают поступления)",
+    "budgetBalanced": "Практически в балансе",
     "breakdownByCategory": "Расходы по категориям",
     "shareOfExpenses": "Доля: {{percent}}%",
     "planVsFact": "План vs Факт",

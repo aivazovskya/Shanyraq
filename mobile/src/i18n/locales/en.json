@@ -507,6 +507,7 @@
     "transparencyNetBalance": "Net Balance",
     "transparencySurplus": "Budget surplus (collections exceed expenses)",
     "transparencyDeficit": "Budget deficit (expenses exceed collections)",
+    "transparencyBalanced": "Practically balanced",
     "transparencyCharged": "Charged",
     "transparencyCollectionRate": "Collection Rate",
     "transparencyExpenseCount": "Categories",
