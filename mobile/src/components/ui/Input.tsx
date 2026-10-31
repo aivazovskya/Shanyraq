@@ -12,7 +12,8 @@ import { useTheme } from '../../theme/ThemeContext';
 import { AlertCircle } from 'lucide-react-native';
 
 export interface InputProps extends Omit<TextInputProps, 'style'> {
-  label: string;
+  label?: string;
+  compact?: boolean;
   error?: string;
   helper?: string;
   leftIcon?: React.ReactNode;
@@ -24,6 +25,7 @@ export interface InputProps extends Omit<TextInputProps, 'style'> {
 
 export const Input: React.FC<InputProps> = ({
   label,
+  compact = false,
   value,
   error,
   helper,
@@ -97,15 +99,17 @@ export const Input: React.FC<InputProps> = ({
   };
 
   // When field is empty and not focused, placeholder is hidden so floating label acts as placeholder
+  const isCompact = compact || !label;
   const showPlaceholder = isFocused || !label;
   const effectivePlaceholder = showPlaceholder ? placeholder : '';
 
   return (
-    <View style={[styles.wrapper, containerStyle]}>
+    <View style={[styles.wrapper, isCompact && styles.wrapperCompact, containerStyle]}>
       <Pressable
         onPress={() => inputRef.current?.focus()}
         style={[
           styles.inputContainer,
+          isCompact && styles.inputContainerCompact,
           rest.multiline && styles.inputContainerMultiline,
           {
             backgroundColor: disabled
@@ -167,7 +171,7 @@ export const Input: React.FC<InputProps> = ({
                   ? hasValue || isFocused
                     ? 22
                     : 6
-                  : hasValue || isFocused
+                  : Boolean(label) && (hasValue || isFocused)
                   ? 14
                   : 0,
               },
@@ -205,11 +209,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     width: '100%',
   },
+  wrapperCompact: {
+    marginBottom: 8,
+    width: '100%',
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 56,
     paddingHorizontal: 14,
+  },
+  inputContainerCompact: {
+    minHeight: 46,
+    height: 46,
+    paddingHorizontal: 12,
+    borderRadius: 14,
   },
   inputContainerMultiline: {
     alignItems: 'flex-start',

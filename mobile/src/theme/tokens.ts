@@ -85,9 +85,9 @@ export const lightColors: ThemeColors = {
   dangerBorder: '#F0B8B0',
   onDanger: '#FFFFFF',
 
-  info: '#2563EB',
-  infoBg: '#EFF6FF',
-  infoBorder: '#BFDBFE',
+  info: '#14568A',
+  infoBg: '#EAF4FB',
+  infoBorder: '#BFE0F4',
   onInfo: '#FFFFFF',
 
   card: '#FFFFFF',
@@ -135,10 +135,10 @@ export const darkColors: ThemeColors = {
   dangerBorder: '#C03A2E',
   onDanger: '#2A0A07',
 
-  info: '#93C5FD',
-  infoBg: '#1E3A8A',
-  infoBorder: '#1D4ED8',
-  onInfo: '#062117',
+  info: '#5FB3E8',
+  infoBg: '#0B2A3E',
+  infoBorder: '#16303F',
+  onInfo: '#06202F',
 
   card: '#0F2231',
   overlay: 'rgba(0, 0, 0, 0.75)',

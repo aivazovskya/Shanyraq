@@ -116,7 +116,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
               styles.sheetContainer,
               {
                 backgroundColor: theme.colors.surface,
-                paddingBottom: Math.max(insets.bottom, 16),
+                paddingBottom: Math.max(insets.bottom, 24),
                 borderTopColor: theme.colors.border,
               },
               animatedSheetStyle,

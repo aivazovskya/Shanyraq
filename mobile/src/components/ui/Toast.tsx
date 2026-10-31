@@ -107,7 +107,7 @@ const ToastCard: React.FC<ToastCardProps> = ({ item, onDismiss }) => {
         return {
           bg: theme.colors.infoBg,
           border: theme.colors.infoBorder,
-          text: theme.isDark ? theme.colors.info : '#1E40AF',
+          text: theme.isDark ? theme.colors.info : theme.colors.primaryDark,
           icon: <Info size={20} color={theme.colors.info} />,
         };
     }
