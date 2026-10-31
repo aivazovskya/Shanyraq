@@ -27,6 +27,7 @@ import {
   EmptyState,
   SkeletonList,
   AnimatedEntrance,
+  ScreenHeader,
 } from '../../components/ui';
 import {
   ClipboardList,
@@ -341,7 +342,6 @@ export const StaffRequestsListScreen: React.FC = () => {
         {/* Search Bar */}
         <View style={styles.searchBar}>
           <Input
-            label={t('common.search')}
             placeholder={t('staff.requests.searchPlaceholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}

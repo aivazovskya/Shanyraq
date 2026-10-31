@@ -31,6 +31,12 @@ import {
   ErrorState,
   CountUp,
   AnimatedEntrance,
+  ScreenHeader,
+  SectionTitle,
+  QuickAction,
+  QuickActionGrid,
+  QuickActionItem,
+  IconButton,
 } from '../../components/ui';
 import { financeApi, PersonalAccountData, ChargeItem, PaymentItem } from '../../api/finance';
 import { useAuth } from '../../context/AuthContext';
@@ -122,41 +128,21 @@ export const AccountScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(insets.top, 16) + 4,
-            borderBottomColor: theme.colors.border,
-            backgroundColor: theme.colors.surface,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => {
-            safeHaptic.selection();
-            navigation.goBack();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', 'Назад')}
-        >
-          <ChevronLeft color={theme.colors.text} size={24} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {t('finance.title')}
-        </Text>
-        <TouchableOpacity
-          style={styles.headerRightBtn}
-          onPress={handleShareReceipt}
-          disabled={!currentAccount}
-          accessibilityRole="button"
-          accessibilityLabel={t('finance.shareReceipt')}
-        >
-          <Share2 color={currentAccount ? theme.colors.primary : 'transparent'} size={20} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title={t('finance.title')}
+        onBack={() => navigation.goBack()}
+        rightElement={
+          currentAccount ? (
+            <IconButton
+              icon={<Share2 color={theme.colors.primary} size={20} />}
+              onPress={handleShareReceipt}
+              accessibilityLabel={t('finance.shareReceipt')}
+              variant="ghost"
+              size={40}
+            />
+          ) : undefined
+        }
+      />
 
       <ScrollView
         style={styles.scrollArea}

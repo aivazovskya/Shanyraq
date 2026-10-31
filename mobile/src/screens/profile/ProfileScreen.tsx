@@ -12,6 +12,7 @@ import { CommunityBoardApi } from '../../api/community-board';
 import { changeAppLanguage, SupportedLocale } from '../../i18n';
 import { ThemeMode } from '../../storage/theme-storage';
 import { Card } from '../../components/ui/Card';
+import { SectionTitle } from '../../components/ui/SectionTitle';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
@@ -199,9 +200,7 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Section: Appearance */}
         <AnimatedEntrance index={2}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-            {t('profile.appearanceSection')}
-          </Text>
+          <SectionTitle title={t('profile.appearanceSection')} />
           <Card style={styles.groupedCard}>
             <ListItem
               title={t('profile.themeTitle')}
@@ -231,22 +230,11 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Section: Properties */}
         <AnimatedEntrance index={3}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-              {t('profile.myProperties', { count: user?.ownerships?.length || 0 })}
-            </Text>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ClaimUnit')}
-              style={styles.addPropertyBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t('profile.addProperty')}
-            >
-              <Plus size={16} color={theme.colors.primary} />
-              <Text style={[styles.addPropertyText, { color: theme.colors.primary }]}>
-                {t('profile.addProperty')}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <SectionTitle
+            title={t('profile.myProperties', { count: user?.ownerships?.length || 0 })}
+            actionText={t('profile.addProperty')}
+            onActionPress={() => navigation.navigate('ClaimUnit')}
+          />
 
           {user?.ownerships && user.ownerships.length > 0 ? (
             user.ownerships.map((o) => (
@@ -419,9 +407,7 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Section: Security & Privacy */}
         <AnimatedEntrance index={5}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-            {t('profile.securitySection')}
-          </Text>
+          <SectionTitle title={t('profile.securitySection')} />
           <Card style={styles.groupedCard}>
             <ListItem
               title={t('profile.signatureTitle')}
@@ -557,7 +543,7 @@ export const ProfileScreen: React.FC = () => {
             }}
           >
             <View style={styles.sheetOptionLeft}>
-              <Moon size={22} color="#60A5FA" />
+              <Moon size={22} color={theme.colors.primary} />
               <Text style={[styles.sheetOptionTitle, { color: theme.colors.text }]}>
                 {t('profile.themeDark')}
               </Text>

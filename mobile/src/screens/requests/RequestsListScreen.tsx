@@ -18,6 +18,7 @@ import {
   SkeletonList,
   EmptyState,
   AnimatedEntrance,
+  ScreenHeader,
 } from '../../components/ui';
 import {
   Plus,
@@ -204,37 +205,24 @@ export const RequestsListScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(insets.top, 16) + 8,
-            borderBottomColor: theme.colors.border,
-          },
-        ]}
-      >
-        <View style={styles.headerTextWrap}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>
-            {t('requests.serviceDesk')}
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>
-            {t('requests.subtitle')}
-          </Text>
-        </View>
-
-        <Button
-          title={t('requests.createBtn')}
-          onPress={() => {
-            safeHaptic.selection();
-            navigation.navigate('CreateRequest');
-          }}
-          variant="primary"
-          size="sm"
-          leftIcon={<Plus color={theme.colors.onPrimary} size={16} />}
-          accessibilityLabel={t('requests.createBtn')}
-        />
-      </View>
+      <ScreenHeader
+        title={t('requests.serviceDesk')}
+        subtitle={t('requests.subtitle')}
+        showBack={false}
+        rightElement={
+          <Button
+            title={t('requests.createBtn')}
+            onPress={() => {
+              safeHaptic.selection();
+              navigation.navigate('CreateRequest');
+            }}
+            variant="primary"
+            size="sm"
+            leftIcon={<Plus color={theme.colors.onPrimary} size={16} />}
+            accessibilityLabel={t('requests.createBtn')}
+          />
+        }
+      />
 
       {/* Segmented Filter */}
       <View style={styles.filterWrap}>

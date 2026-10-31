@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Text } from '../../components/ui/AppText';
 import { ChargesRing, buildRingSegments, segmentColor } from '../../components/ui/ChargesRing';
@@ -21,6 +21,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { CountUp } from '../../components/ui/CountUp';
 import { SectionHeader } from '../../components/ui/SectionHeader';
+import { QuickAction, QuickActionGrid, QuickActionItem, SectionTitle, PromoStories, PromoStoryItem } from '../../components/ui';
+import { useTabBarInset } from '../../hooks/useTabBarInset';
 import { Skeleton, SkeletonCard } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { AnimatedEntrance } from '../../components/ui/AnimatedEntrance';
@@ -39,6 +41,7 @@ import {
   FileText,
   Clock,
   PieChart,
+  MessageSquare,
 } from 'lucide-react-native';
 
 export const DashboardScreen: React.FC = () => {
@@ -46,6 +49,7 @@ export const DashboardScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const tabBarInset = useTabBarInset(36);
   const { user } = useAuth();
 
   const primaryOwnership = user?.ownerships?.[0];
@@ -208,6 +212,96 @@ export const DashboardScreen: React.FC = () => {
     }
   })();
 
+  const promoItems: PromoStoryItem[] = useMemo(() => {
+    if (announcements.length > 0) {
+      return announcements.slice(0, 5).map((a) => ({
+        id: a.id,
+        tag: a.isUrgent ? t('announcements.urgentBadgeText') : t('announcements.regularBadgeText'),
+        title: a.title,
+        onPress: () => navigation.navigate('Announcements'),
+      }));
+    }
+    return [
+      {
+        id: 'promo-bills',
+        tag: t('dashboard.balanceCardTitle'),
+        title: t('dashboard.payAction'),
+        onPress: () => navigation.navigate('FinanceAccount'),
+      },
+      {
+        id: 'promo-votings',
+        tag: t('navigation.votings'),
+        title: t('dashboard.votingInProgress'),
+        onPress: () => navigation.navigate('Main', { screen: 'VotingsTab' }),
+      },
+      {
+        id: 'promo-board',
+        tag: t('dashboard.boardAction'),
+        title: t('dashboard.communityBoardCardSub'),
+        onPress: () => navigation.navigate('CommunityBoard'),
+      },
+    ];
+  }, [announcements, t, navigation]);
+
+  const quickActionsList: QuickActionItem[] = [
+    {
+      id: 'pay',
+      icon: <CreditCard size={24} color={theme.colors.primary} />,
+      label: t('dashboard.payAction'),
+      onPress: () => navigation.navigate('FinanceAccount'),
+      iconBgColor: theme.colors.primaryBg,
+    },
+    {
+      id: 'barrier',
+      icon: <ShieldCheck size={24} color={theme.colors.primary} />,
+      label: t('dashboard.barrier'),
+      onPress: () => navigation.navigate('Main', { screen: 'AccessTab' }),
+      iconBgColor: theme.colors.primaryBg,
+    },
+    {
+      id: 'guestQr',
+      icon: <UserPlus size={24} color={theme.colors.info} />,
+      label: t('dashboard.guestQr'),
+      onPress: () => navigation.navigate('Main', { screen: 'AccessTab' }),
+      iconBgColor: theme.colors.infoBg,
+    },
+    {
+      id: 'master',
+      icon: <Wrench size={24} color={theme.colors.warning} />,
+      label: t('dashboard.master'),
+      onPress: () => navigation.navigate('CreateRequest'),
+      iconBgColor: theme.colors.warningBg,
+    },
+    {
+      id: 'meters',
+      icon: <Gauge size={24} color={theme.colors.info} />,
+      label: t('dashboard.metersAction'),
+      onPress: () => navigation.navigate('Meters'),
+      iconBgColor: theme.colors.infoBg,
+    },
+    {
+      id: 'bookings',
+      icon: <Calendar size={24} color={theme.colors.primary} />,
+      label: t('dashboard.bookingsAction'),
+      onPress: () => navigation.navigate('Bookings'),
+      iconBgColor: theme.colors.primaryBg,
+    },
+    {
+      id: 'board',
+      icon: <ShoppingBag size={24} color={theme.colors.warning} />,
+      label: t('dashboard.boardAction'),
+      onPress: () => navigation.navigate('CommunityBoard'),
+      iconBgColor: theme.colors.warningBg,
+    },
+    {
+      id: 'chat',
+      icon: <MessageSquare size={24} color={theme.colors.success} />,
+      label: t('dashboard.chatCardTitle'),
+      onPress: () => navigation.navigate('Chat'),
+      iconBgColor: theme.colors.successBg,
+    },
+  ];
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
@@ -215,7 +309,7 @@ export const DashboardScreen: React.FC = () => {
           styles.scrollContent,
           {
             paddingTop: Math.max(insets.top, 16) + 8,
-            paddingBottom: Math.max(insets.bottom, 24) + 90, // safe clearance over floating tab bar
+            paddingBottom: tabBarInset + 20, // safe clearance over floating tab bar
           },
         ]}
         refreshControl={
@@ -450,114 +544,22 @@ export const DashboardScreen: React.FC = () => {
           </TouchableOpacity>
         </AnimatedEntrance>
 
-        {/* Quick Actions Bento Grid */}
-        <AnimatedEntrance index={4}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-            {t('dashboard.quickActions')}
-          </Text>
+        {/* Promo / Announcements Stories (Kaspi/Freedom style) */}
+        {promoItems.length > 0 && (
+          <AnimatedEntrance index={3} style={{ marginHorizontal: -16, marginBottom: 12 }}>
+            <PromoStories items={promoItems} />
+          </AnimatedEntrance>
+        )}
 
-          <View style={styles.bentoGrid}>
-            {/* 1. Barrier */}
-            <Card
-              style={styles.bentoCard}
-              onPress={() => navigation.navigate('Main', { screen: 'AccessTab' })}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.colors.primaryBg }]}>
-                <ShieldCheck color={theme.colors.primary} size={24} />
-              </View>
-              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
-                {t('dashboard.barrier')}
-              </Text>
-              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
-                {t('dashboard.openEntry')}
-              </Text>
-            </Card>
-
-            {/* 2. Guest QR */}
-            <Card
-              style={styles.bentoCard}
-              onPress={() => navigation.navigate('Main', { screen: 'AccessTab' })}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.colors.infoBg }]}>
-                <UserPlus color={theme.colors.info} size={24} />
-              </View>
-              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
-                {t('dashboard.guestQr')}
-              </Text>
-              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
-                {t('dashboard.passCourier')}
-              </Text>
-            </Card>
-
-            {/* 3. Call Master */}
-            <Card
-              style={styles.bentoCard}
-              onPress={() => navigation.navigate('CreateRequest')}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.colors.warningBg }]}>
-                <Wrench color={theme.colors.warning} size={24} />
-              </View>
-              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
-                {t('dashboard.master')}
-              </Text>
-              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
-                {t('dashboard.callService')}
-              </Text>
-            </Card>
-
-            {/* 4. Meters */}
-            <Card
-              style={styles.bentoCard}
-              onPress={() => navigation.navigate('Meters')}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#1E3A8A' : '#EFF6FF' }]}>
-                <Gauge color="#2563EB" size={24} />
-              </View>
-              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
-                {t('dashboard.metersAction')}
-              </Text>
-              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
-                {t('dashboard.metersCardSub')}
-              </Text>
-            </Card>
-
-            {/* 5. Bookings */}
-            <Card
-              style={styles.bentoCard}
-              onPress={() => navigation.navigate('Bookings')}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#4C1D95' : '#F5F3FF' }]}>
-                <Calendar color="#8B5CF6" size={24} />
-              </View>
-              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
-                {t('dashboard.bookingsAction')}
-              </Text>
-              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
-                {t('dashboard.bookingsCardSub')}
-              </Text>
-            </Card>
-
-            {/* 6. Community Board */}
-            <Card
-              style={styles.bentoCard}
-              onPress={() => navigation.navigate('CommunityBoard')}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.isDark ? '#78350F' : '#FFFBEB' }]}>
-                <ShoppingBag color="#D97706" size={24} />
-              </View>
-              <Text style={[styles.bentoTitle, { color: theme.colors.text }]}>
-                {t('dashboard.boardAction')}
-              </Text>
-              <Text style={[styles.bentoSub, { color: theme.colors.textMuted }]}>
-                {t('dashboard.communityBoardCardSub')}
-              </Text>
-            </Card>
-          </View>
+        {/* Quick Actions Grid (Kaspi/Freedom style 4-column tiles) */}
+        <AnimatedEntrance index={4} style={{ marginBottom: 12 }}>
+          <SectionTitle title={t('dashboard.quickActions')} />
+          <QuickActionGrid items={quickActionsList} columns={4} />
         </AnimatedEntrance>
 
         {/* Section: Active Votings */}
         <AnimatedEntrance index={5}>
-          <SectionHeader
+          <SectionTitle
             title={t('dashboard.activeVotings', { count: activeVotings.length })}
             actionText={t('common.all')}
             onActionPress={() => navigation.navigate('Main', { screen: 'VotingsTab' })}
@@ -632,7 +634,7 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Section: Open Service Requests */}
         <AnimatedEntrance index={6}>
-          <SectionHeader
+          <SectionTitle
             title={t('dashboard.openRequests', { count: openRequests.length })}
             actionText={t('common.all')}
             onActionPress={() => navigation.navigate('Main', { screen: 'RequestsTab' })}
@@ -683,7 +685,7 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Section: Announcements */}
         <AnimatedEntrance index={7}>
-          <SectionHeader
+          <SectionTitle
             title={t('dashboard.newsAndAnnouncements')}
             actionText={t('dashboard.newsFeed')}
             onActionPress={() => navigation.navigate('Announcements')}

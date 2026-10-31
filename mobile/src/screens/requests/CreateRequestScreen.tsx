@@ -23,6 +23,7 @@ import {
   Badge,
   BadgeVariant,
   AnimatedEntrance,
+  ScreenHeader,
 } from '../../components/ui';
 import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import {
@@ -275,32 +276,11 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(insets.top, 16) + 8,
-            borderBottomColor: theme.colors.border,
-          },
-        ]}
-      >
-        <IconButton
-          icon={<ArrowLeft color={theme.colors.text} size={22} />}
-          onPress={handleBack}
-          variant="ghost"
-          accessibilityLabel={t('common.back')}
-        />
-        <View style={styles.headerTitleWrap}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {t('requests.newRequestTitle')}
-          </Text>
-          <Text style={[styles.stepIndicatorText, { color: theme.colors.textMuted }]}>
-            {step} / 4 • {stepTitles[step - 1]}
-          </Text>
-        </View>
-        <View style={{ width: 44 }} />
-      </View>
+      <ScreenHeader
+        title={t('requests.newRequestTitle')}
+        subtitle={`${step} / 4 • ${stepTitles[step - 1]}`}
+        onBack={handleBack}
+      />
 
       {/* Progress Bar */}
       <View

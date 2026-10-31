@@ -28,6 +28,7 @@ import {
   Badge,
   Button,
   SegmentedControl,
+  ScreenHeader,
   SkeletonList,
   EmptyState,
   ErrorState,
@@ -230,46 +231,24 @@ export const CommunityBoardScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Math.max(insets.top, 16) + 4,
-            borderBottomColor: theme.colors.border,
-            backgroundColor: theme.colors.surface,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => {
-            safeHaptic.selection();
-            navigation.goBack();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back', 'Назад')}
-        >
-          <ChevronLeft color={theme.colors.text} size={24} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {t('communityBoard.screenTitle')}
-        </Text>
-        {isVerified ? (
-          <Button
-            title={t('communityBoard.postAction')}
-            onPress={() => {
-              safeHaptic.selection();
-              navigation.navigate('CreateListing');
-            }}
-            variant="primary"
-            size="sm"
-            leftIcon={<Plus color={theme.colors.onPrimary} size={15} />}
-          />
-        ) : (
-          <View style={styles.headerRightPlaceholder} />
-        )}
-      </View>
+      <ScreenHeader
+        title={t('communityBoard.screenTitle')}
+        onBack={() => navigation.goBack()}
+        rightElement={
+          isVerified ? (
+            <Button
+              title={t('communityBoard.postAction')}
+              onPress={() => {
+                safeHaptic.selection();
+                navigation.navigate('CreateListing');
+              }}
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus color={theme.colors.onPrimary} size={15} />}
+            />
+          ) : undefined
+        }
+      />
 
       {/* Unverified resident warning banner */}
       {!isVerified && (

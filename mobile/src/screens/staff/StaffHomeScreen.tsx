@@ -29,7 +29,7 @@ import {
   EmptyState,
   SkeletonCard,
   AnimatedEntrance,
-  SectionHeader,
+  SectionTitle,
 } from '../../components/ui';
 import {
   Building2,
@@ -681,7 +681,7 @@ export const StaffHomeScreen: React.FC = () => {
         {/* Requires Attention Section */}
         <AnimatedEntrance index={3}>
           <View style={styles.sectionWrap}>
-            <SectionHeader
+            <SectionTitle
               title={t('staff.home.attentionTitle')}
               subtitle={attentionItems.length > 0 ? `${attentionItems.length}` : undefined}
             />
@@ -782,7 +782,7 @@ export const StaffHomeScreen: React.FC = () => {
         {/* Quick Actions Under Role */}
         <AnimatedEntrance index={4}>
           <View style={styles.sectionWrap}>
-            <SectionHeader title={t('staff.home.quickActions')} />
+            <SectionTitle title={t('staff.home.quickActions')} />
 
             <View style={styles.actionsGrid}>
               {/* Security Actions */}
@@ -1130,7 +1130,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
     minHeight: 100,
     padding: 14,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     justifyContent: 'space-between',
   },
@@ -1164,7 +1164,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1.5,
   },
   attentionIconCircle: {
@@ -1195,7 +1195,7 @@ const styles = StyleSheet.create({
   },
   emptyAttentionCard: {
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
   },
   actionsGrid: {
@@ -1207,7 +1207,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
   },
   actionIconCircle: {
