@@ -109,15 +109,18 @@ export const Input: React.FC<InputProps> = ({
         onPress={() => inputRef.current?.focus()}
         style={[
           styles.inputContainer,
-          isCompact && styles.inputContainerCompact,
-          rest.multiline && styles.inputContainerMultiline,
+          rest.multiline
+            ? styles.inputContainerMultiline
+            : isCompact
+            ? styles.inputContainerCompact
+            : styles.inputContainerStandard,
           {
             backgroundColor: disabled
               ? theme.colors.surfaceSubtle
               : theme.colors.surface,
             borderColor: getBorderColor(),
             borderWidth: isFocused ? 2 : 1,
-            borderRadius: theme.radii.lg,
+            borderRadius: isCompact ? 14 : theme.radii.lg,
           },
         ]}
       >
@@ -163,7 +166,11 @@ export const Input: React.FC<InputProps> = ({
             aria-label={label || placeholder || rest.accessibilityLabel}
             style={[
               styles.textInput,
-              rest.multiline && styles.textInputMultiline,
+              rest.multiline
+                ? styles.textInputMultiline
+                : isCompact
+                ? styles.textInputCompact
+                : styles.textInputStandard,
               inputStyle,
               {
                 color: theme.colors.text,
@@ -216,18 +223,21 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 56,
     paddingHorizontal: 14,
   },
+  inputContainerStandard: {
+    height: 56,
+    minHeight: 56,
+  },
   inputContainerCompact: {
-    minHeight: 46,
     height: 46,
+    minHeight: 46,
     paddingHorizontal: 12,
     borderRadius: 14,
   },
   inputContainerMultiline: {
-    alignItems: 'flex-start',
     minHeight: 100,
+    alignItems: 'flex-start',
     paddingVertical: 10,
   },
   leftSlot: {
@@ -240,7 +250,7 @@ const styles = StyleSheet.create({
   },
   inputInnerWrap: {
     flex: 1,
-    height: '100%',
+    alignSelf: 'stretch',
     justifyContent: 'center',
     position: 'relative',
   },
@@ -259,10 +269,12 @@ const styles = StyleSheet.create({
     top: 10,
   },
   textInput: {
-    flex: 1,
+    width: '100%',
     fontSize: 16,
     fontWeight: '600',
-    paddingVertical: 8,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     ...(Platform.OS === 'web'
       ? ({
           outlineStyle: 'none',
@@ -270,7 +282,14 @@ const styles = StyleSheet.create({
         } as any)
       : {}),
   },
+  textInputStandard: {
+    height: 48,
+  },
+  textInputCompact: {
+    height: 40,
+  },
   textInputMultiline: {
+    minHeight: 80,
     textAlignVertical: 'top',
     paddingBottom: 8,
   },
