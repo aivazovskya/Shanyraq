@@ -331,7 +331,6 @@ export const StaffChatInboxScreen: React.FC = () => {
         {/* Search Input */}
         <View style={styles.searchBar}>
           <Input
-            label={t('common.search')}
             placeholder={t('staff.chat.searchPlaceholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}

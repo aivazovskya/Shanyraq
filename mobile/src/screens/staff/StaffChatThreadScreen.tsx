@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView, Image, Alert, Modal, Pressable } from 'react-native';
+import { View, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert, Modal, Pressable } from 'react-native';
 import { Text } from '../../components/ui/AppText';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,7 @@ import {
   Button,
   SkeletonList,
   Avatar,
+  ScreenHeader,
 } from '../../components/ui';
 import {
   ArrowLeft,
@@ -372,7 +373,7 @@ export const StaffChatThreadScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.root, { backgroundColor: theme.colors.background }]}
     >
       <KeyboardAvoidingView
@@ -380,71 +381,32 @@ export const StaffChatThreadScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Custom Header */}
-        <View
-          style={[
-            styles.header,
-            {
-              backgroundColor: theme.colors.surface,
-              borderBottomColor: theme.colors.border,
-            },
-          ]}
-        >
-          <IconButton
-            icon={<ArrowLeft size={22} color={theme.colors.text} />}
-            accessibilityLabel={t('common.back')}
-            onPress={() => {
-              safeHaptic.selection();
-              navigation.goBack();
-            }}
-            variant="ghost"
-            size={40}
-          />
-
-          <View style={styles.headerTitleWrap}>
-            <Text
-              style={[
-                styles.headerName,
-                { color: theme.colors.text },
-                theme.typography.headline,
-              ]}
-              numberOfLines={1}
-            >
-              {residentName || t('staff.chat.threadTitle')}
-            </Text>
-            {Boolean(unitInfo) && (
-              <Text
-                style={[
-                  styles.headerUnit,
-                  { color: theme.colors.textMuted },
-                  theme.typography.caption,
-                ]}
-                numberOfLines={1}
-              >
-                {unitInfo}
-              </Text>
-            )}
-          </View>
-
-          {/* Resolve Button or Badge */}
-          {canResolve && !isResolved && (
-            <Button
-              title={t('staff.chat.resolveBtn')}
-              variant="secondary"
-              size="sm"
-              onPress={handleResolve}
-              loading={resolving}
-              leftIcon={<CheckCircle2 size={15} color={theme.colors.primary} />}
-            />
-          )}
-          {isResolved && (
-            <Badge
-              label={t('staff.chat.resolvedBadge')}
-              variant="success"
-              size="sm"
-            />
-          )}
-        </View>
+        <ScreenHeader
+          title={residentName || t('staff.chat.threadTitle')}
+          subtitle={unitInfo || undefined}
+          onBack={() => {
+            safeHaptic.selection();
+            navigation.goBack();
+          }}
+          rightElement={
+            canResolve && !isResolved ? (
+              <Button
+                title={t('staff.chat.resolveBtn')}
+                variant="secondary"
+                size="sm"
+                onPress={handleResolve}
+                loading={resolving}
+                leftIcon={<CheckCircle2 size={15} color={theme.colors.primary} />}
+              />
+            ) : isResolved ? (
+              <Badge
+                label={t('staff.chat.resolvedBadge')}
+                variant="success"
+                size="sm"
+              />
+            ) : undefined
+          }
+        />
 
         {/* Messages List */}
         {loading ? (
@@ -565,7 +527,7 @@ export const StaffChatThreadScreen: React.FC = () => {
           )}
         </Pressable>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

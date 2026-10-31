@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, FlatList, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { View, StyleSheet, FlatList, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { Text } from '../../components/ui/AppText';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
@@ -26,6 +27,7 @@ import { TokenStorage } from '../../storage/token-storage';
 import { Config } from '../../constants/config';
 import { useTheme } from '../../theme/ThemeContext';
 import { IconButton } from '../../components/ui/IconButton';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonList } from '../../components/ui/Skeleton';
 import { safeHaptic } from '../../lib/haptics';
@@ -39,6 +41,7 @@ interface GroupedItem {
 export const ChatScreen: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { theme } = useTheme();
 
@@ -337,47 +340,21 @@ export const ChatScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Top Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: theme.colors.surface,
-            borderBottomColor: theme.colors.border,
-            borderBottomWidth: 1,
-          },
-        ]}
-      >
-        <IconButton
-          icon={<ArrowLeft color={theme.colors.text} size={22} />}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel={t('common.back')}
-          variant="ghost"
-          size={44}
-        />
-
-        <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]} numberOfLines={1}>
-            {t('chat.screenTitle')}
-          </Text>
-          <View style={styles.onlineBadgeRow}>
-            <View style={[styles.onlineDot, { backgroundColor: theme.colors.success }]} />
-            <Text style={[styles.headerSub, { color: theme.colors.textMuted }]}>
-              {t('chat.screenSubtitle')}
-            </Text>
-          </View>
-        </View>
-
-        <IconButton
-          icon={<RefreshCw color={theme.colors.textMuted} size={20} />}
-          onPress={() => loadConversation()}
-          accessibilityLabel={t('common.refresh')}
-          variant="ghost"
-          size={44}
-        />
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader
+        title={t('chat.screenTitle')}
+        subtitle={t('chat.screenSubtitle')}
+        onBack={() => navigation.goBack()}
+        rightElement={
+          <IconButton
+            icon={<RefreshCw color={theme.colors.textMuted} size={20} />}
+            onPress={() => loadConversation()}
+            accessibilityLabel={t('common.refresh')}
+            variant="ghost"
+            size={40}
+          />
+        }
+      />
       {/* Main Content Area */}
       {loading ? (
         <View style={styles.skeletonContainer}>
@@ -450,6 +427,7 @@ export const ChatScreen: React.FC = () => {
                 backgroundColor: theme.colors.surface,
                 borderTopColor: theme.colors.border,
                 borderTopWidth: 1,
+                paddingBottom: Math.max(insets.bottom, 10),
               },
             ]}
           >
@@ -529,7 +507,7 @@ export const ChatScreen: React.FC = () => {
           </Pressable>
         </Modal>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

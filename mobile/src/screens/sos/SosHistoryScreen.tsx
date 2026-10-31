@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, SafeAreaView } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Text } from '../../components/ui/AppText';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -14,6 +15,7 @@ import {
 import { sosApi, SosAlert } from '../../api/sos';
 import { useTheme } from '../../theme/ThemeContext';
 import { IconButton } from '../../components/ui/IconButton';
+import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SkeletonList } from '../../components/ui/Skeleton';
@@ -22,6 +24,7 @@ export const SosHistoryScreen: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [alerts, setAlerts] = useState<SosAlert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,30 +189,11 @@ export const SosHistoryScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            backgroundColor: theme.colors.surface,
-            borderBottomColor: theme.colors.border,
-            borderBottomWidth: 1,
-          },
-        ]}
-      >
-        <IconButton
-          icon={<ArrowLeft size={22} color={theme.colors.text} />}
-          onPress={() => navigation.goBack()}
-          accessibilityLabel={t('common.back')}
-          variant="ghost"
-          size={44}
-        />
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {t('sos.historyTitle')}
-        </Text>
-        <View style={{ width: 44 }} />
-      </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader
+        title={t('sos.historyTitle')}
+        onBack={() => navigation.goBack()}
+      />
 
       {loading ? (
         <View style={styles.skeletonContainer}>
@@ -227,7 +211,7 @@ export const SosHistoryScreen: React.FC = () => {
           data={alerts}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 24) + 16 }]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -238,7 +222,7 @@ export const SosHistoryScreen: React.FC = () => {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 

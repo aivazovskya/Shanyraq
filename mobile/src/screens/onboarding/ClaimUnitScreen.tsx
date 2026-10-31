@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../../components/ui/AppText';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,7 @@ export const ClaimUnitScreen: React.FC = () => {
   const { t } = useTranslation();
   const { user, refreshProfile, logout } = useAuth();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   // Wizard step: 1 (Complex), 2 (Block), 3 (Unit), 4 (Role & Confirm)
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -165,7 +167,7 @@ export const ClaimUnitScreen: React.FC = () => {
   if (existingOwnership && !existingOwnership.isVerified) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <ScrollView contentContainerStyle={styles.statusContent}>
+        <ScrollView contentContainerStyle={[styles.statusContent, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
           <View style={styles.statusWrapper}>
             <View
               style={[
@@ -277,7 +279,7 @@ export const ClaimUnitScreen: React.FC = () => {
   // State 1: Claim Wizard
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 24) + 32 }]}>
         {/* Top Header with Back Step if > 1 */}
         <View style={styles.topHeader}>
           {step > 1 && (
@@ -372,7 +374,6 @@ export const ClaimUnitScreen: React.FC = () => {
             </Text>
 
             <Input
-              label={t('common.search')}
               placeholder={t('onboarding.searchComplexPlaceholder')}
               value={searchQuery}
               onChangeText={(val) => {

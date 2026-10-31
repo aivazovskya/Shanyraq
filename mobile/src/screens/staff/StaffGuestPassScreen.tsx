@@ -652,14 +652,13 @@ export const StaffGuestPassScreen: React.FC = () => {
       >
         <View style={styles.unitSheetBody}>
           <Input
-            label={t('common.search')}
             placeholder={t('staff.guestPass.searchUnitPlaceholder')}
             value={unitSearchQuery}
             onChangeText={setUnitSearchQuery}
             leftIcon={<Search size={18} color={theme.colors.textMuted} />}
           />
 
-          <ScrollView style={styles.unitListScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.unitListScroll} contentContainerStyle={styles.unitListScrollContent} showsVerticalScrollIndicator={false}>
             {filteredUnits.length > 0 ? (
               filteredUnits.map((u) => {
                 const isSelected = selectedUnit?.id === u.id;
@@ -898,10 +897,13 @@ const styles = StyleSheet.create({
   },
   unitSheetBody: {
     gap: 12,
-    paddingBottom: 24,
+    paddingBottom: 8,
   },
   unitListScroll: {
     maxHeight: 320,
+  },
+  unitListScrollContent: {
+    paddingBottom: 24,
   },
   unitPickItem: {
     flexDirection: 'row',

@@ -257,7 +257,6 @@ export const StaffAccessLogScreen: React.FC = () => {
         {/* Search */}
         <View style={styles.searchBar}>
           <Input
-            label={t('common.search')}
             placeholder={t('staff.accessLog.searchPlaceholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}
