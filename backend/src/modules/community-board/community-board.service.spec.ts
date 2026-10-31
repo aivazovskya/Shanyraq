@@ -8,11 +8,13 @@ import {
 } from '@nestjs/common';
 import { UserRole, ListingType, ListingStatus } from '@prisma/client';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('CommunityBoardService', () => {
   let service: CommunityBoardService;
   let prismaMock: any;
   let auditLogServiceMock: any;
+  let notificationsServiceMock: any;
 
   const mockTenantId = 'tenant-1';
   const otherTenantId = 'tenant-2';
@@ -110,11 +112,17 @@ describe('CommunityBoardService', () => {
       log: jest.fn().mockResolvedValue(undefined),
     };
 
+    notificationsServiceMock = {
+      sendToUser: jest.fn().mockResolvedValue({ sent: 1 }),
+      sendToTenantRoles: jest.fn().mockResolvedValue({ sent: 1 }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommunityBoardService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: AuditLogService, useValue: auditLogServiceMock },
+        { provide: NotificationsService, useValue: notificationsServiceMock },
       ],
     }).compile();
 

@@ -46,7 +46,7 @@ describe('CommunityBoardSchedulerService: реклама', () => {
     expect(summary.adsExpired).toBe(2);
   });
 
-  it('ошибка на одной рекламе не останавливает остальные', async () => {
+  it('ошибка на одной рекламе не останавливает остальные при handleExpiredAds', async () => {
     prismaMock.communityListing.findMany.mockResolvedValue([
       { id: 'bad', authorId: 'u1', title: 'x' },
       { id: 'ok', authorId: 'u2', title: 'y' },
@@ -54,5 +54,63 @@ describe('CommunityBoardSchedulerService: реклама', () => {
     prismaMock.communityListing.update.mockRejectedValueOnce(new Error('db'));
     const summary = await service.handleExpiredAds();
     expect(summary.adsExpired).toBe(1);
+  });
+
+  describe('handleExpiringAds (предупреждение за 3 дня)', () => {
+    it('находит активную рекламу в окне [now+2d, now+3d] и отправляет предупреждение авторам (COMMUNITY_AD_EXPIRING)', async () => {
+      const expDate1 = new Date(Date.now() + 2.5 * 24 * 60 * 60 * 1000);
+      const expDate2 = new Date(Date.now() + 2.8 * 24 * 60 * 60 * 1000);
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        { id: 'ad-exp-1', authorId: 'u1', title: 'Салон красоты', adEndsAt: expDate1 },
+        { id: 'ad-exp-2', authorId: 'u2', title: 'Автомойка', adEndsAt: expDate2 },
+      ]);
+
+      const summary = await service.handleExpiringAds();
+
+      const where = prismaMock.communityListing.findMany.mock.calls[0][0].where;
+      expect(where).toMatchObject({
+        type: ListingType.AD,
+        status: ListingStatus.ACTIVE,
+      });
+      expect(where.adEndsAt.gte).toBeInstanceOf(Date);
+      expect(where.adEndsAt.lte).toBeInstanceOf(Date);
+
+      // Проверка разницы между границами окна: около 1 дня (24 часа)
+      const diffMs = where.adEndsAt.lte.getTime() - where.adEndsAt.gte.getTime();
+      expect(Math.round(diffMs / 86400000)).toBe(1);
+
+      expect(notificationsMock.sendToUser).toHaveBeenCalledTimes(2);
+      expect(notificationsMock.sendToUser).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({
+          title: expect.stringContaining('Реклама закончится через 3 дня'),
+          body: expect.stringContaining('Салон красоты'),
+          data: expect.objectContaining({
+            type: 'COMMUNITY_AD_EXPIRING',
+            listingId: 'ad-exp-1',
+            adEndsAt: expDate1.toISOString(),
+          }),
+        }),
+      );
+      expect(summary.adsWarned).toBe(2);
+    });
+
+    it('ошибка отправки одному пользователю не прерывает отправку остальным', async () => {
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        { id: 'ad-bad', authorId: 'u-fail', title: 'Плохая реклама', adEndsAt: new Date() },
+        { id: 'ad-ok', authorId: 'u-ok', title: 'Хорошая реклама', adEndsAt: new Date() },
+      ]);
+      notificationsMock.sendToUser.mockRejectedValueOnce(new Error('Push token expired'));
+
+      const summary = await service.handleExpiringAds();
+      expect(notificationsMock.sendToUser).toHaveBeenCalledTimes(2);
+      expect(summary.adsWarned).toBe(1);
+    });
+
+    it('сбой БД при выборке возвращает 0 обработанных и не бросает исключение', async () => {
+      prismaMock.communityListing.findMany.mockRejectedValueOnce(new Error('DB unreachable'));
+      const summary = await service.handleExpiringAds();
+      expect(summary.adsWarned).toBe(0);
+    });
   });
 });

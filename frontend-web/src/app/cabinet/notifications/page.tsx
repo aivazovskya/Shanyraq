@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Wrench,
   CreditCard,
+  Megaphone,
 } from 'lucide-react';
 import { CabinetApi, NotificationItem } from '@/lib/cabinet-api';
 
@@ -86,6 +87,7 @@ export default function CabinetNotificationsPage() {
     if (type.includes('CHAT')) return <MessageSquare className="w-5 h-5 text-emerald-500" />;
     if (type.includes('REQUEST')) return <Wrench className="w-5 h-5 text-emerald-500" />;
     if (type.includes('FINANCE')) return <CreditCard className="w-5 h-5 text-emerald-500" />;
+    if (type.includes('COMMUNITY') || type.includes('AD')) return <Megaphone className="w-5 h-5 text-emerald-500" />;
     return <Bell className="w-5 h-5 text-amber-500" />;
   };
 

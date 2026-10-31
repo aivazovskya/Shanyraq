@@ -15,6 +15,10 @@ export interface AdExpirySummary {
   adsExpired: number;
 }
 
+export interface AdExpiringWarningSummary {
+  adsWarned: number;
+}
+
 @Injectable()
 export class CommunityBoardSchedulerService {
   private readonly logger = new Logger(CommunityBoardSchedulerService.name);
@@ -93,6 +97,59 @@ export class CommunityBoardSchedulerService {
     );
 
     return { listingsChecked, listingsArchived };
+  }
+
+  /**
+   * Ежедневно предупреждает авторов активной рекламы за 3 дня до окончания срока.
+   * Окно проверки: adEndsAt между now + 2 дня и now + 3 дня (защита от повторов).
+   */
+  @Cron('15 4 * * *', { timeZone: 'Asia/Almaty' })
+  async handleExpiringAds(): Promise<AdExpiringWarningSummary> {
+    let adsWarned = 0;
+    const now = new Date();
+    const in2Days = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+    let ads: any[] = [];
+    try {
+      ads = await this.prisma.communityListing.findMany({
+        where: {
+          type: ListingType.AD,
+          status: ListingStatus.ACTIVE,
+          adEndsAt: {
+            gte: in2Days,
+            lte: in3Days,
+          },
+        },
+        select: { id: true, authorId: true, title: true, adEndsAt: true },
+      });
+    } catch (err: any) {
+      this.logger.error(`[CRON] Failed to fetch expiring ads: ${err.message}`, err.stack);
+      return { adsWarned };
+    }
+
+    for (const ad of ads) {
+      try {
+        await this.notificationsService.sendToUser(ad.authorId, {
+          title: '⏳ Реклама закончится через 3 дня',
+          body: `Срок размещения рекламы "${ad.title}" истекает через 3 дня. Чтобы продлить, подайте рекламу снова или обратитесь к администрации.`,
+          data: {
+            type: 'COMMUNITY_AD_EXPIRING',
+            listingId: ad.id,
+            adEndsAt: ad.adEndsAt ? ad.adEndsAt.toISOString() : undefined,
+          },
+        });
+        adsWarned++;
+      } catch (itemErr: any) {
+        this.logger.error(
+          `[CRON] Error sending expiring warning for ad ${ad.id}: ${itemErr.message}`,
+          itemErr.stack,
+        );
+      }
+    }
+
+    this.logger.log(`[CRON] Expiring ad warnings processed: ${adsWarned}`);
+    return { adsWarned };
   }
 
   /**

@@ -91,6 +91,7 @@ export const RootNavigator: React.FC = () => {
               <Stack.Screen name="TransparencyReport" component={TransparencyReportScreen} />
               <Stack.Screen name="VotingDetails" component={VotingDetailsScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="CommunityBoard" component={CommunityBoardScreen} />
             </>
           ) : !hasOwnership ? (
             <Stack.Screen name="ClaimUnit" component={ClaimUnitScreen} />

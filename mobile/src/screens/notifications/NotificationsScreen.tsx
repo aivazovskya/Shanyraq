@@ -37,6 +37,7 @@ import {
   CreditCard,
   Calendar,
   Check,
+  Megaphone,
 } from 'lucide-react-native';
 
 interface NotificationCardProps {
@@ -102,6 +103,9 @@ const NotificationCardItem: React.FC<NotificationCardProps> = ({
     }
     if (type.includes('BILL') || type.includes('FINANCE')) {
       return <CreditCard size={20} color={theme.colors.success} />;
+    }
+    if (type.includes('COMMUNITY') || type.includes('AD')) {
+      return <Megaphone size={20} color={theme.colors.primary} />;
     }
     return <Bell size={20} color={theme.colors.primary} />;
   };
@@ -313,6 +317,8 @@ export const NotificationsScreen: React.FC = () => {
       navigation.navigate('Bookings');
     } else if (type.includes('BILL') || type.includes('PAYMENT') || data.invoiceId) {
       navigation.navigate('FinanceAccount');
+    } else if (type.includes('COMMUNITY') || type.includes('AD') || data.listingId) {
+      navigation.navigate('CommunityBoard');
     }
   };
 

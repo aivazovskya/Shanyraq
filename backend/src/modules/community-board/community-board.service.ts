@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -17,6 +18,7 @@ import {
 } from './dto/community-board.dto';
 import { assertAccessToTenant, TenantAccessErrorCodes } from '../../common/guards/tenant.guard';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AD_MONTH_DAYS = 30;
@@ -24,9 +26,12 @@ const STAFF_ROLES: UserRole[] = [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRo
 
 @Injectable()
 export class CommunityBoardService {
+  private readonly logger = new Logger(CommunityBoardService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogService: AuditLogService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private static readonly COMMUNITY_BOARD_ACCESS_ERRORS: TenantAccessErrorCodes = {
@@ -346,6 +351,22 @@ export class CommunityBoardService {
       },
     });
 
+    if (listing.type === ListingType.AD && listing.authorId) {
+      try {
+        await this.notificationsService.sendToUser(listing.authorId, {
+          title: '❌ Реклама отклонена',
+          body: `Реклама "${listing.title}" отклонена модератором. Причина: ${dto.reason.trim()}`,
+          data: {
+            type: 'COMMUNITY_AD_REJECTED',
+            listingId: id,
+            reason: dto.reason.trim(),
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to send ad rejection notification for ad ${id}: ${err.message}`);
+      }
+    }
+
     await this.auditLogService.log({
       tenantId: listing.tenantId,
       actorId: user.id,
@@ -396,7 +417,7 @@ export class CommunityBoardService {
 
     const months = isTrial ? 1 : (dto.adMonths ?? 1);
 
-    return this.prisma.communityListing.create({
+    const created = await this.prisma.communityListing.create({
       data: {
         tenantId,
         authorId: user.id,
@@ -414,6 +435,29 @@ export class CommunityBoardService {
       },
       include: CommunityBoardService.AD_INCLUDE,
     });
+
+    // При создании рекламы жителем оповещаем персонал ЖК о новой заявке на проверку
+    if (!isStaffRole) {
+      try {
+        await this.notificationsService.sendToTenantRoles(
+          tenantId,
+          [UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER],
+          {
+            title: '📢 Новая реклама на проверку',
+            body: `Подана новая реклама на проверку: "${created.title}" (${created.adBusinessName || ''}).`,
+            data: {
+              type: 'COMMUNITY_AD_PENDING',
+              listingId: created.id,
+              tenantId,
+            },
+          },
+        );
+      } catch (err: any) {
+        this.logger.warn(`Failed to send ad pending notification to staff: ${err.message}`);
+      }
+    }
+
+    return created;
   }
 
   private static readonly AD_INCLUDE = {
@@ -479,12 +523,45 @@ export class CommunityBoardService {
         },
         include: CommunityBoardService.AD_INCLUDE,
       });
+
+      try {
+        await this.notificationsService.sendToUser(listing.authorId, {
+          title: '✅ Реклама одобрена и опубликована',
+          body: `Ваша реклама "${listing.title}" одобрена и опубликована.`,
+          data: {
+            type: 'COMMUNITY_AD_APPROVED',
+            listingId: id,
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to send ad approval notification for ad ${id}: ${err.message}`);
+      }
     } else {
       updated = await this.prisma.communityListing.update({
         where: { id },
         data: { status: ListingStatus.AWAITING_PAYMENT },
         include: CommunityBoardService.AD_INCLUDE,
       });
+
+      const priceText = listing.adPriceKzt ? `${listing.adPriceKzt} ₸` : '';
+      const monthsText = listing.adMonths ? `${listing.adMonths} мес.` : '';
+      const detailParts = [priceText, monthsText].filter(Boolean).join(', ');
+      try {
+        await this.notificationsService.sendToUser(listing.authorId, {
+          title: '💳 Реклама одобрена, ожидает оплаты',
+          body: `Реклама "${listing.title}" одобрена и ожидает оплаты${detailParts ? `: ${detailParts}` : ''}. После оплаты она появится на доске.`,
+          data: {
+            type: 'COMMUNITY_AD_AWAITING_PAYMENT',
+            listingId: id,
+            adPriceKzt: listing.adPriceKzt,
+            adMonths: listing.adMonths,
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to send ad awaiting payment notification for ad ${id}: ${err.message}`,
+        );
+      }
     }
 
     await this.auditLogService.log({
@@ -520,16 +597,32 @@ export class CommunityBoardService {
 
     const now = new Date();
     const months = listing.adMonths ?? 1;
+    const adEndsAt = new Date(now.getTime() + months * AD_MONTH_DAYS * DAY_MS);
     const updated = await this.prisma.communityListing.update({
       where: { id },
       data: {
         status: ListingStatus.ACTIVE,
         adPaymentStatus: AdPaymentStatus.PAID,
         adStartsAt: now,
-        adEndsAt: new Date(now.getTime() + months * AD_MONTH_DAYS * DAY_MS),
+        adEndsAt,
       },
       include: CommunityBoardService.AD_INCLUDE,
     });
+
+    const dateStr = adEndsAt.toISOString().slice(0, 10);
+    try {
+      await this.notificationsService.sendToUser(listing.authorId, {
+        title: '✅ Оплата получена, реклама опубликована',
+        body: `Оплата получена, реклама "${listing.title}" опубликована до ${dateStr}.`,
+        data: {
+          type: 'COMMUNITY_AD_PAID',
+          listingId: id,
+          adEndsAt: adEndsAt.toISOString(),
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to send ad paid notification for ad ${id}: ${err.message}`);
+    }
 
     await this.auditLogService.log({
       tenantId: listing.tenantId,

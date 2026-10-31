@@ -175,6 +175,7 @@ export function NotificationBell() {
       if (type.includes('VOTING') || data.meetingId) return '/cabinet/voting';
       if (type.includes('FINANCE') || data.accountId) return '/cabinet/finance';
       if (type.includes('ANNOUNCEMENT') || data.announcementId) return '/cabinet/announcements';
+      if (type.includes('COMMUNITY') || type.includes('AD') || data.listingId) return '/cabinet/community';
       return '/cabinet/notifications';
     }
 
@@ -185,6 +186,7 @@ export function NotificationBell() {
     if (type.includes('ANNOUNCEMENT') || data.announcementId) return '/dashboard/announcements';
     if (type.includes('BOOKING') || data.bookingId) return '/dashboard/bookings';
     if (type.includes('BILL') || type.includes('PAYMENT') || data.invoiceId) return '/dashboard/finance';
+    if (type.includes('COMMUNITY') || type.includes('AD') || data.listingId) return '/dashboard/community-board';
 
     return null;
   };
