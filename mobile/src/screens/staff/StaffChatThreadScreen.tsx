@@ -19,6 +19,8 @@ import {
   SkeletonList,
   Avatar,
   ScreenHeader,
+  EmptyState,
+  ErrorState,
 } from '../../components/ui';
 import {
   ArrowLeft,
@@ -48,6 +50,7 @@ export const StaffChatThreadScreen: React.FC = () => {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
   const [attachedPhoto, setAttachedPhoto] = useState<string | null>(null);
@@ -64,6 +67,7 @@ export const StaffChatThreadScreen: React.FC = () => {
     async (isSilent = false) => {
       if (!conversationId) return;
       if (!isSilent) setLoading(true);
+      setHasError(false);
 
       try {
         const conv = await ChatApi.getConversationMessages(conversationId);
@@ -73,6 +77,7 @@ export const StaffChatThreadScreen: React.FC = () => {
         }
       } catch (err) {
         console.warn('Failed to load conversation messages:', err);
+        setHasError(true);
       } finally {
         setLoading(false);
       }
@@ -408,10 +413,19 @@ export const StaffChatThreadScreen: React.FC = () => {
           }
         />
 
-        {/* Messages List */}
+        {/* Messages List / Error / Loading */}
         {loading ? (
           <View style={styles.loadingWrap}>
             <SkeletonList count={4} />
+          </View>
+        ) : hasError ? (
+          <View style={styles.errorWrap}>
+            <ErrorState
+              title={t('common.error')}
+              message={t('staff.chat.loadMessagesError')}
+              retryTitle={t('common.retry')}
+              onRetry={() => loadMessages(false)}
+            />
           </View>
         ) : (
           <FlatList
@@ -421,6 +435,12 @@ export const StaffChatThreadScreen: React.FC = () => {
             renderItem={renderItem}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                title={t('chat.emptyTitle')}
+                description={t('chat.emptySubtitle')}
+              />
+            }
             onContentSizeChange={() => {
               flatListRef.current?.scrollToEnd({ animated: false });
             }}
@@ -555,6 +575,12 @@ const styles = StyleSheet.create({
   },
   headerUnit: {
     fontWeight: '500',
+  },
+  errorWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
   loadingWrap: {
     padding: 16,

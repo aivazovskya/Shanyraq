@@ -17,6 +17,8 @@ import {
   SkeletonList,
   AnimatedEntrance,
   IconButton,
+  ScreenHeader,
+  ErrorState,
 } from '../../components/ui';
 import {
   Shield,
@@ -50,6 +52,7 @@ export const StaffAccessLogScreen: React.FC = () => {
 
   const [logs, setLogs] = useState<AccessLogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -208,53 +211,16 @@ export const StaffAccessLogScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.headerWrap,
-          {
-            paddingTop: Math.max(insets.top, 16) + 8,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          {canGoBack && (
-            <IconButton
-              icon={<ArrowLeft size={22} color={theme.colors.text} />}
-              accessibilityLabel={t('common.back')}
-              onPress={() => {
-                safeHaptic.selection();
-                navigation.goBack();
-              }}
-              variant="ghost"
-              size={40}
-              style={{ marginRight: 8 }}
-            />
-          )}
+      {/* ScreenHeader */}
+      <ScreenHeader
+        title={t('staff.accessLog.title')}
+        subtitle={t('staff.accessLog.cardSubtitle')}
+        showBack={canGoBack}
+        onBack={canGoBack ? () => navigation.goBack() : undefined}
+      />
 
-          <View style={styles.headerTextWrap}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.colors.text },
-                theme.typography.title,
-              ]}
-            >
-              {t('staff.accessLog.title')}
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                { color: theme.colors.textMuted },
-                theme.typography.caption,
-              ]}
-            >
-              {t('staff.accessLog.cardSubtitle')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Search */}
+      {/* Search & Filters */}
+      <View style={styles.topControls}>
         <View style={styles.searchBar}>
           <Input
             placeholder={t('staff.accessLog.searchPlaceholder')}
@@ -264,7 +230,6 @@ export const StaffAccessLogScreen: React.FC = () => {
           />
         </View>
 
-        {/* Filters */}
         <View style={styles.filterRow}>
           <TouchableOpacity
             style={[
@@ -685,6 +650,15 @@ export const StaffAccessLogScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  topControls: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  errorWrap: {
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
   headerWrap: {
     paddingHorizontal: 16,

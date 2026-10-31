@@ -21,6 +21,8 @@ import {
   BottomSheet,
   AnimatedEntrance,
   Divider,
+  ScreenHeader,
+  SectionTitle,
 } from '../../components/ui';
 import {
   User,
@@ -132,11 +134,15 @@ export const StaffProfileScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ScreenHeader
+        title={t('navigation.profile')}
+        showBack={false}
+      />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingTop: 16,
             paddingBottom: tabBarInset + 24,
           },
         ]}
@@ -256,15 +262,7 @@ export const StaffProfileScreen: React.FC = () => {
 
         {/* Settings Section */}
         <AnimatedEntrance index={2}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.colors.textMuted },
-              theme.typography.caption,
-            ]}
-          >
-            {t('staff.profile.settings')}
-          </Text>
+          <SectionTitle title={t('staff.profile.settings')} />
 
           <Card
             style={[
@@ -311,15 +309,7 @@ export const StaffProfileScreen: React.FC = () => {
 
         {/* Notifications Section */}
         <AnimatedEntrance index={3}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.colors.textMuted },
-              theme.typography.caption,
-            ]}
-          >
-            {t('staff.profile.notifications')}
-          </Text>
+          <SectionTitle title={t('staff.profile.notifications')} />
 
           <Card
             style={[

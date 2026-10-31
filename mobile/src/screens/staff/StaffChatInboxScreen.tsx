@@ -19,6 +19,8 @@ import {
   EmptyState,
   SkeletonList,
   AnimatedEntrance,
+  ScreenHeader,
+  ErrorState,
 } from '../../components/ui';
 import {
   MessageSquare,
@@ -42,6 +44,7 @@ export const StaffChatInboxScreen: React.FC = () => {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterStatus>('ALL');
@@ -288,47 +291,15 @@ export const StaffChatInboxScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.headerWrap,
-          {
-            paddingTop: Math.max(insets.top, 16) + 8,
-          },
-        ]}
-      >
-        <View style={styles.headerTitleRow}>
-          <View
-            style={[
-              styles.headerIconCircle,
-              { backgroundColor: theme.colors.primaryBg },
-            ]}
-          >
-            <MessageSquare size={22} color={theme.colors.primary} />
-          </View>
-          <View style={styles.headerTextWrap}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.colors.text },
-                theme.typography.title,
-              ]}
-            >
-              {t('staff.chat.inboxTitle')}
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                { color: theme.colors.textMuted },
-                theme.typography.caption,
-              ]}
-            >
-              {t('staff.chat.inboxSubtitle')}
-            </Text>
-          </View>
-        </View>
+      {/* ScreenHeader */}
+      <ScreenHeader
+        title={t('staff.chat.inboxTitle')}
+        subtitle={t('staff.chat.inboxSubtitle')}
+        showBack={false}
+      />
 
-        {/* Search Input */}
+      {/* Search & Filters */}
+      <View style={styles.topControls}>
         <View style={styles.searchBar}>
           <Input
             placeholder={t('staff.chat.searchPlaceholder')}
@@ -338,7 +309,6 @@ export const StaffChatInboxScreen: React.FC = () => {
           />
         </View>
 
-        {/* Filters */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -495,6 +465,15 @@ const FilterChip: React.FC<FilterChipProps> = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  topControls: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  errorWrap: {
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
   headerWrap: {
     paddingHorizontal: 16,

@@ -21,6 +21,8 @@ import {
   BottomSheet,
   AnimatedEntrance,
   IconButton,
+  ScreenHeader,
+  ErrorState,
 } from '../../components/ui';
 import {
   BookOpen,
@@ -44,6 +46,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
 
   const [notes, setNotes] = useState<ShiftHandoverNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // BottomSheet creation state
@@ -188,52 +191,14 @@ export const StaffShiftHandoverScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.headerWrap,
-          {
-            paddingTop: Math.max(insets.top, 16) + 8,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          {canGoBack && (
-            <IconButton
-              icon={<ArrowLeft size={22} color={theme.colors.text} />}
-              accessibilityLabel={t('common.back')}
-              onPress={() => {
-                safeHaptic.selection();
-                navigation.goBack();
-              }}
-              variant="ghost"
-              size={40}
-              style={{ marginRight: 8 }}
-            />
-          )}
-
-          <View style={styles.headerTextWrap}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.colors.text },
-                theme.typography.title,
-              ]}
-            >
-              {t('staff.shiftHandover.screenTitle')}
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                { color: theme.colors.textMuted },
-                theme.typography.caption,
-              ]}
-            >
-              {t('staff.shiftHandover.cardSubtitle')}
-            </Text>
-          </View>
-
-          {canPost && (
+      {/* ScreenHeader */}
+      <ScreenHeader
+        title={t('staff.shiftHandover.screenTitle')}
+        subtitle={t('staff.shiftHandover.cardSubtitle')}
+        showBack={canGoBack}
+        onBack={canGoBack ? () => navigation.goBack() : undefined}
+        rightElement={
+          canPost ? (
             <Button
               title={t('staff.shiftHandover.newNote')}
               variant="primary"
@@ -244,9 +209,9 @@ export const StaffShiftHandoverScreen: React.FC = () => {
               }}
               leftIcon={<Plus size={16} color="#FFFFFF" />}
             />
-          )}
-        </View>
-      </View>
+          ) : undefined
+        }
+      />
 
       {/* Notes List */}
       {loading ? (
@@ -356,6 +321,10 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontWeight: '400',
+  },
+  errorWrap: {
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
   loadingWrap: {
     padding: 16,

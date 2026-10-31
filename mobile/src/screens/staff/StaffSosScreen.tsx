@@ -24,6 +24,9 @@ import {
   SegmentedControl,
   AnimatedEntrance,
   CountUp,
+  ScreenHeader,
+  SectionTitle,
+  ErrorState,
 } from '../../components/ui';
 import {
   AlertTriangle,
@@ -49,6 +52,7 @@ export const StaffSosScreen: React.FC = () => {
   const [alerts, setAlerts] = useState<SosAlert[]>([]);
   const [stats, setStats] = useState<SosStatistics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [selectedTab, setSelectedTab] = useState<'ALERTS' | 'STATS'>('ALERTS');
@@ -232,11 +236,26 @@ export const StaffSosScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+            <ScreenHeader
+        title={t('staff.sos.title')}
+        subtitle={t('staff.sos.subtitle')}
+        showBack={false}
+        rightElement={
+          isChairman ? (
+            <Badge
+              label={t('staff.sos.readOnlyNotice')}
+              variant="warning"
+              size="sm"
+            />
+          ) : undefined
+        }
+      />
+
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingTop: 16,
             paddingBottom: tabBarInset + 24,
           },
         ]}
@@ -250,63 +269,19 @@ export const StaffSosScreen: React.FC = () => {
           />
         }
       >
-        {/* Header */}
-        <AnimatedEntrance index={0}>
-          <View style={styles.header}>
-            <View style={styles.headerTitleRow}>
-              <View
-                style={[
-                  styles.headerIconBox,
-                  { backgroundColor: theme.colors.dangerBg },
-                ]}
-              >
-                <ShieldAlert size={24} color={theme.colors.danger} />
-              </View>
-              <View style={styles.headerTextWrap}>
-                <Text
-                  style={[
-                    styles.title,
-                    { color: theme.colors.text },
-                    theme.typography.title,
-                  ]}
-                >
-                  {t('staff.sos.title')}
-                </Text>
-                <Text
-                  style={[
-                    styles.subtitle,
-                    { color: theme.colors.textMuted },
-                    theme.typography.caption,
-                  ]}
-                >
-                  {t('staff.sos.subtitle')}
-                </Text>
-              </View>
-            </View>
-
-            {isChairman && (
-              <View
-                style={[
-                  styles.chairmanNotice,
-                  {
-                    backgroundColor: theme.colors.warningBg,
-                    borderColor: theme.colors.warningBorder,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chairmanNoticeText,
-                    { color: theme.colors.warning },
-                    theme.typography.caption,
-                  ]}
-                >
-                  {t('staff.sos.readOnlyNotice')}
-                </Text>
-              </View>
-            )}
+        {hasError && !loading && (
+          <View style={styles.errorWrap}>
+            <ErrorState
+              title={t('common.error')}
+              message={t('staff.sos.loadError')}
+              retryTitle={t('common.retry')}
+              onRetry={() => {
+                loadAlerts(false);
+                loadStats();
+              }}
+            />
           </View>
-        </AnimatedEntrance>
+        )}
 
         {/* Tab Switcher */}
         <AnimatedEntrance index={1}>
@@ -549,15 +524,7 @@ export const StaffSosScreen: React.FC = () => {
             {/* Resolved Alerts List */}
             {resolvedAlerts.length > 0 && (
               <View style={styles.resolvedSection}>
-                <Text
-                  style={[
-                    styles.resolvedSectionTitle,
-                    { color: theme.colors.textMuted },
-                    theme.typography.headline,
-                  ]}
-                >
-                  {t('staff.sos.history')}
-                </Text>
+                <SectionTitle title={t('staff.sos.history')} />
 
                 {resolvedAlerts.slice(0, 5).map((alert) => (
                   <View
@@ -811,6 +778,10 @@ export const StaffSosScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  errorWrap: {
+    paddingVertical: 12,
+    marginBottom: 16,
   },
   scrollContent: {
     paddingHorizontal: 16,

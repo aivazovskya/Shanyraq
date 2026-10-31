@@ -25,6 +25,7 @@ import {
   Input,
   Button,
   EmptyState,
+  ErrorState,
   SkeletonList,
   AnimatedEntrance,
   ScreenHeader,
@@ -54,17 +55,20 @@ export const StaffRequestsListScreen: React.FC = () => {
 
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   const loadRequests = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
+    setHasError(false);
     try {
       const data = await ServiceRequestsApi.getRequests();
       setRequests(data || []);
     } catch (e) {
       console.warn('Failed to load staff requests:', e);
+      setHasError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -299,47 +303,24 @@ export const StaffRequestsListScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View
-        style={[
-          styles.headerWrap,
-          {
-            paddingTop: Math.max(insets.top, 16) + 8,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          <View style={styles.headerTextWrap}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.colors.text },
-                theme.typography.title,
-              ]}
-            >
-              {t('staff.requests.title')}
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                { color: theme.colors.textMuted },
-                theme.typography.caption,
-              ]}
-            >
-              {t('staff.requests.subtitle')}
-            </Text>
-          </View>
-
-          {isChairman && (
+      {/* ScreenHeader */}
+      <ScreenHeader
+        title={t('staff.requests.title')}
+        subtitle={t('staff.requests.subtitle')}
+        showBack={false}
+        rightElement={
+          isChairman ? (
             <Badge
               label={t('staff.requests.readOnlyBadge')}
               variant="warning"
               size="sm"
             />
-          )}
-        </View>
+          ) : undefined
+        }
+      />
 
-        {/* Search Bar */}
+      {/* Search & Status Filters */}
+      <View style={styles.topControls}>
         <View style={styles.searchBar}>
           <Input
             placeholder={t('staff.requests.searchPlaceholder')}
@@ -349,7 +330,6 @@ export const StaffRequestsListScreen: React.FC = () => {
           />
         </View>
 
-        {/* Status Filters Horizontal Scroll */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -423,10 +403,19 @@ export const StaffRequestsListScreen: React.FC = () => {
         </ScrollView>
       </View>
 
-      {/* Requests List */}
+      {/* Requests List / Error / Loading */}
       {loading ? (
         <View style={styles.loadingWrap}>
           <SkeletonList count={4} />
+        </View>
+      ) : hasError ? (
+        <View style={styles.errorWrap}>
+          <ErrorState
+            title={t('common.error')}
+            message={t('common.networkError')}
+            retryTitle={t('common.retry')}
+            onRetry={() => loadRequests(false)}
+          />
         </View>
       ) : (
         <FlatList
@@ -471,6 +460,15 @@ export const StaffRequestsListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  topControls: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  errorWrap: {
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
   headerWrap: {
     paddingHorizontal: 16,

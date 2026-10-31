@@ -30,6 +30,8 @@ import {
   SkeletonCard,
   AnimatedEntrance,
   SectionTitle,
+  ErrorState,
+  QuickAction,
 } from '../../components/ui';
 import {
   Building2,
@@ -64,6 +66,7 @@ export const StaffHomeScreen: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0);
 
   // Operational metrics state
@@ -76,6 +79,7 @@ export const StaffHomeScreen: React.FC = () => {
   const loadData = useCallback(
     async (isSilent = false) => {
       if (!isSilent) setLoading(true);
+      setHasError(false);
 
       try {
         // Notifications
@@ -146,6 +150,7 @@ export const StaffHomeScreen: React.FC = () => {
         await Promise.all(promises);
       } catch (err) {
         console.warn('StaffHomeScreen loadData error:', err);
+        setHasError(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -309,6 +314,27 @@ export const StaffHomeScreen: React.FC = () => {
             </View>
           </View>
         </AnimatedEntrance>
+
+        {hasError && !loading && (
+          <AnimatedEntrance index={1}>
+            <Card
+              style={[
+                styles.errorCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <ErrorState
+                title={t('common.error')}
+                message={t('common.networkError')}
+                retryTitle={t('common.retry')}
+                onRetry={() => loadData(false)}
+              />
+            </Card>
+          </AnimatedEntrance>
+        )}
 
         {/* Complex / Tenant Info Hero Card */}
         <AnimatedEntrance index={1}>
@@ -788,195 +814,233 @@ export const StaffHomeScreen: React.FC = () => {
               {/* Security Actions */}
               {isSecurity && (
                 <>
-                  <ActionButton
-                    icon={<AlertTriangle size={20} color={theme.colors.danger} />}
-                    title={t('staff.home.actionSos')}
-                    bg={theme.colors.dangerBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('SosTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<Shield size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionAccessLog')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('AccessLogTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<KeyRound size={20} color={theme.colors.info} />}
-                    title={t('staff.home.actionGuestPass')}
-                    bg={theme.colors.infoBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('GuestPassTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<BookOpen size={20} color={theme.colors.warning} />}
-                    title={t('staff.home.actionShiftHandover')}
-                    bg={theme.colors.warningBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('ShiftHandoverTab');
-                    }}
-                  />
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<AlertTriangle size={22} color={theme.colors.danger} />}
+                      iconBgColor={theme.colors.dangerBg}
+                      label={t('staff.home.actionSos')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('SosTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<Shield size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionAccessLog')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('AccessLogTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<KeyRound size={22} color={theme.colors.info} />}
+                      iconBgColor={theme.colors.infoBg}
+                      label={t('staff.home.actionGuestPass')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('GuestPassTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<BookOpen size={22} color={theme.colors.warning} />}
+                      iconBgColor={theme.colors.warningBg}
+                      label={t('staff.home.actionShiftHandover')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('ShiftHandoverTab');
+                      }}
+                    />
+                  </View>
                 </>
               )}
 
               {/* Dispatcher Actions */}
               {isDispatcher && (
                 <>
-                  <ActionButton
-                    icon={<ClipboardList size={20} color={theme.colors.info} />}
-                    title={t('staff.home.actionRequests')}
-                    bg={theme.colors.infoBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('RequestsTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<MessageSquare size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionChat')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('ChatInboxTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<AlertTriangle size={20} color={theme.colors.danger} />}
-                    title={t('staff.home.actionSos')}
-                    bg={theme.colors.dangerBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('SosTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<BookOpen size={20} color={theme.colors.warning} />}
-                    title={t('staff.home.actionShiftHandover')}
-                    bg={theme.colors.warningBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('StaffShiftHandover');
-                    }}
-                  />
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<ClipboardList size={22} color={theme.colors.info} />}
+                      iconBgColor={theme.colors.infoBg}
+                      label={t('staff.home.actionRequests')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('RequestsTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<MessageSquare size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionChat')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('ChatInboxTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<AlertTriangle size={22} color={theme.colors.danger} />}
+                      iconBgColor={theme.colors.dangerBg}
+                      label={t('staff.home.actionSos')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('SosTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<BookOpen size={22} color={theme.colors.warning} />}
+                      iconBgColor={theme.colors.warningBg}
+                      label={t('staff.home.actionShiftHandover')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('StaffShiftHandover');
+                      }}
+                    />
+                  </View>
                 </>
               )}
 
               {/* HOA_ADMIN Actions */}
               {isHoaAdmin && (
                 <>
-                  <ActionButton
-                    icon={<ClipboardList size={20} color={theme.colors.info} />}
-                    title={t('staff.home.actionRequests')}
-                    bg={theme.colors.infoBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('RequestsTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<MessageSquare size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionChat')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('ChatInboxTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<AlertTriangle size={20} color={theme.colors.danger} />}
-                    title={t('staff.home.actionSos')}
-                    bg={theme.colors.dangerBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('SosTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<Shield size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionAccessLog')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('StaffAccessLog');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<KeyRound size={20} color={theme.colors.info} />}
-                    title={t('staff.home.actionGuestPass')}
-                    bg={theme.colors.infoBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('StaffGuestPass');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<BookOpen size={20} color={theme.colors.warning} />}
-                    title={t('staff.home.actionShiftHandover')}
-                    bg={theme.colors.warningBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('StaffShiftHandover');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<PieChart size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionTransparency')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('TransparencyReport', { tenantId });
-                    }}
-                  />
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<ClipboardList size={22} color={theme.colors.info} />}
+                      iconBgColor={theme.colors.infoBg}
+                      label={t('staff.home.actionRequests')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('RequestsTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<MessageSquare size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionChat')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('ChatInboxTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<AlertTriangle size={22} color={theme.colors.danger} />}
+                      iconBgColor={theme.colors.dangerBg}
+                      label={t('staff.home.actionSos')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('SosTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<Shield size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionAccessLog')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('StaffAccessLog');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<KeyRound size={22} color={theme.colors.info} />}
+                      iconBgColor={theme.colors.infoBg}
+                      label={t('staff.home.actionGuestPass')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('StaffGuestPass');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<BookOpen size={22} color={theme.colors.warning} />}
+                      iconBgColor={theme.colors.warningBg}
+                      label={t('staff.home.actionShiftHandover')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('StaffShiftHandover');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<PieChart size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionTransparency')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('TransparencyReport', { tenantId });
+                      }}
+                    />
+                  </View>
                 </>
               )}
 
               {/* HOA_CHAIRMAN Actions */}
               {isChairman && (
                 <>
-                  <ActionButton
-                    icon={<ClipboardList size={20} color={theme.colors.info} />}
-                    title={t('staff.home.actionRequests')}
-                    bg={theme.colors.infoBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('RequestsTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<MessageSquare size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionChat')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('ChatInboxTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<AlertTriangle size={20} color={theme.colors.danger} />}
-                    title={t('staff.home.actionSos')}
-                    bg={theme.colors.dangerBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('SosTab');
-                    }}
-                  />
-                  <ActionButton
-                    icon={<PieChart size={20} color={theme.colors.primary} />}
-                    title={t('staff.home.actionTransparency')}
-                    bg={theme.colors.primaryBg}
-                    onPress={() => {
-                      safeHaptic.selection();
-                      navigation.navigate('TransparencyReport', { tenantId });
-                    }}
-                  />
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<ClipboardList size={22} color={theme.colors.info} />}
+                      iconBgColor={theme.colors.infoBg}
+                      label={t('staff.home.actionRequests')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('RequestsTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<MessageSquare size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionChat')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('ChatInboxTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<AlertTriangle size={22} color={theme.colors.danger} />}
+                      iconBgColor={theme.colors.dangerBg}
+                      label={t('staff.home.actionSos')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('SosTab');
+                      }}
+                    />
+                  </View>
+                  <View style={styles.gridItem}>
+                    <QuickAction
+                      icon={<PieChart size={22} color={theme.colors.primary} />}
+                      iconBgColor={theme.colors.primaryBg}
+                      label={t('staff.home.actionTransparency')}
+                      onPress={() => {
+                        safeHaptic.selection();
+                        navigation.navigate('TransparencyReport', { tenantId });
+                      }}
+                    />
+                  </View>
                 </>
               )}
             </View>
@@ -984,48 +1048,6 @@ export const StaffHomeScreen: React.FC = () => {
         </AnimatedEntrance>
       </ScrollView>
     </View>
-  );
-};
-
-interface ActionButtonProps {
-  icon: React.ReactNode;
-  title: string;
-  bg: string;
-  onPress: () => void;
-}
-
-const ActionButton: React.FC<ActionButtonProps> = ({ icon, title, bg, onPress }) => {
-  const { theme } = useTheme();
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.actionTile,
-        {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
-        },
-      ]}
-      activeOpacity={0.8}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      <View style={[styles.actionIconCircle, { backgroundColor: bg }]}>
-        {icon}
-      </View>
-      <Text
-        style={[
-          styles.actionTitle,
-          { color: theme.colors.text },
-          theme.typography.callout,
-        ]}
-        numberOfLines={2}
-      >
-        {title}
-      </Text>
-      <ChevronRight size={16} color={theme.colors.textMuted} />
-    </TouchableOpacity>
   );
 };
 
@@ -1130,7 +1152,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
     minHeight: 100,
     padding: 14,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     justifyContent: 'space-between',
   },
@@ -1199,27 +1221,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   actionsGrid: {
-    gap: 8,
-  },
-  actionTile: {
     flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 52,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 18,
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  gridItem: {
+    width: '25%',
+    paddingHorizontal: 4,
+    marginBottom: 12,
+  },
+  errorCard: {
+    paddingVertical: 8,
+    borderRadius: 16,
     borderWidth: 1,
-  },
-  actionIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  actionTitle: {
-    flex: 1,
-    fontWeight: '600',
+    marginBottom: 16,
   },
 });

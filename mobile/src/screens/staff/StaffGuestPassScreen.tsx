@@ -22,6 +22,9 @@ import {
   SegmentedControl,
   AnimatedEntrance,
   IconButton,
+  ScreenHeader,
+  SectionTitle,
+  ErrorState,
 } from '../../components/ui';
 import {
   KeyRound,
@@ -62,6 +65,7 @@ export const StaffGuestPassScreen: React.FC = () => {
   const [loadingStructure, setLoadingStructure] = useState(true);
   const [tenantPasses, setTenantPasses] = useState<GuestPass[]>([]);
   const [loadingPasses, setLoadingPasses] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Form states
@@ -245,11 +249,18 @@ export const StaffGuestPassScreen: React.FC = () => {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+            <ScreenHeader
+        title={t('staff.guestPass.title')}
+        subtitle={t('staff.guestPass.cardSubtitle')}
+        showBack={canGoBack}
+        onBack={canGoBack ? () => navigation.goBack() : undefined}
+      />
+
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: Math.max(insets.top, 16) + 8,
+            paddingTop: 16,
             paddingBottom: tabBarInset + 24,
           },
         ]}
@@ -263,45 +274,19 @@ export const StaffGuestPassScreen: React.FC = () => {
           />
         }
       >
-        {/* Header */}
-        <AnimatedEntrance index={0}>
-          <View style={styles.headerRow}>
-            {canGoBack && (
-              <IconButton
-                icon={<ArrowLeft size={22} color={theme.colors.text} />}
-                accessibilityLabel={t('common.back')}
-                onPress={() => {
-                  safeHaptic.selection();
-                  navigation.goBack();
-                }}
-                variant="ghost"
-                size={40}
-                style={{ marginRight: 8 }}
-              />
-            )}
-
-            <View style={styles.headerTextWrap}>
-              <Text
-                style={[
-                  styles.title,
-                  { color: theme.colors.text },
-                  theme.typography.title,
-                ]}
-              >
-                {t('staff.guestPass.title')}
-              </Text>
-              <Text
-                style={[
-                  styles.subtitle,
-                  { color: theme.colors.textMuted },
-                  theme.typography.caption,
-                ]}
-              >
-                {t('staff.guestPass.cardSubtitle')}
-              </Text>
-            </View>
+        {hasError && !loadingPasses && (
+          <View style={styles.errorWrap}>
+            <ErrorState
+              title={t('common.error')}
+              message={t('common.networkError')}
+              retryTitle={t('common.retry')}
+              onRetry={() => {
+                fetchPasses(false);
+                fetchStructure();
+              }}
+            />
           </View>
-        </AnimatedEntrance>
+        )}
 
         {/* Master / Wizard Card */}
         <AnimatedEntrance index={1}>
@@ -462,15 +447,10 @@ export const StaffGuestPassScreen: React.FC = () => {
         {/* Active Passes List */}
         <AnimatedEntrance index={2}>
           <View style={styles.sectionWrap}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                { color: theme.colors.text },
-                theme.typography.headline,
-              ]}
-            >
-              {t('staff.guestPass.activePassesTitle')} ({activePasses.length})
-            </Text>
+            <SectionTitle
+              title={t('staff.guestPass.activePassesTitle')}
+              badge={activePasses.length}
+            />
 
             {loadingPasses ? (
               <SkeletonList count={2} />
@@ -769,6 +749,10 @@ export const StaffGuestPassScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  errorWrap: {
+    paddingVertical: 12,
+    marginBottom: 16,
   },
   scrollContent: {
     paddingHorizontal: 16,
