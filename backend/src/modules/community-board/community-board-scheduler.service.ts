@@ -101,13 +101,13 @@ export class CommunityBoardSchedulerService {
 
   /**
    * Ежедневно предупреждает авторов активной рекламы за 3 дня до окончания срока.
-   * Окно проверки: adEndsAt между now + 2 дня и now + 3 дня (защита от повторов).
+   * Окно проверки: adEndsAt между now и now + 3 дня с проверкой уже отправленного
+   * уведомления (COMMUNITY_AD_EXPIRING) для идемпотентности.
    */
   @Cron('15 4 * * *', { timeZone: 'Asia/Almaty' })
   async handleExpiringAds(): Promise<AdExpiringWarningSummary> {
     let adsWarned = 0;
     const now = new Date();
-    const in2Days = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
     const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
     let ads: any[] = [];
@@ -117,7 +117,7 @@ export class CommunityBoardSchedulerService {
           type: ListingType.AD,
           status: ListingStatus.ACTIVE,
           adEndsAt: {
-            gte: in2Days,
+            gte: now,
             lte: in3Days,
           },
         },
@@ -130,6 +130,19 @@ export class CommunityBoardSchedulerService {
 
     for (const ad of ads) {
       try {
+        const alreadyWarned = await this.prisma.notification.findFirst({
+          where: {
+            userId: ad.authorId,
+            AND: [
+              { data: { path: ['type'], equals: 'COMMUNITY_AD_EXPIRING' } },
+              { data: { path: ['listingId'], equals: ad.id } },
+            ],
+          },
+        });
+        if (alreadyWarned) {
+          continue;
+        }
+
         await this.notificationsService.sendToUser(ad.authorId, {
           title: '⏳ Реклама закончится через 3 дня',
           body: `Срок размещения рекламы "${ad.title}" истекает через 3 дня. Чтобы продлить, подайте рекламу снова или обратитесь к администрации.`,

@@ -10,7 +10,10 @@ describe('CommunityBoardSchedulerService: реклама', () => {
   let notificationsMock: any;
 
   beforeEach(async () => {
-    prismaMock = { communityListing: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() } };
+    prismaMock = {
+      communityListing: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+      notification: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
     notificationsMock = { sendToUser: jest.fn().mockResolvedValue({ sent: 1 }) };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -57,7 +60,7 @@ describe('CommunityBoardSchedulerService: реклама', () => {
   });
 
   describe('handleExpiringAds (предупреждение за 3 дня)', () => {
-    it('находит активную рекламу в окне [now+2d, now+3d] и отправляет предупреждение авторам (COMMUNITY_AD_EXPIRING)', async () => {
+    it('находит активную рекламу в расширенном окне [now, now+3d] и отправляет предупреждение авторам (COMMUNITY_AD_EXPIRING)', async () => {
       const expDate1 = new Date(Date.now() + 2.5 * 24 * 60 * 60 * 1000);
       const expDate2 = new Date(Date.now() + 2.8 * 24 * 60 * 60 * 1000);
       prismaMock.communityListing.findMany.mockResolvedValue([
@@ -75,9 +78,9 @@ describe('CommunityBoardSchedulerService: реклама', () => {
       expect(where.adEndsAt.gte).toBeInstanceOf(Date);
       expect(where.adEndsAt.lte).toBeInstanceOf(Date);
 
-      // Проверка разницы между границами окна: около 1 дня (24 часа)
+      // Проверка разницы между границами окна: около 3 дней (72 часа)
       const diffMs = where.adEndsAt.lte.getTime() - where.adEndsAt.gte.getTime();
-      expect(Math.round(diffMs / 86400000)).toBe(1);
+      expect(Math.round(diffMs / 86400000)).toBe(3);
 
       expect(notificationsMock.sendToUser).toHaveBeenCalledTimes(2);
       expect(notificationsMock.sendToUser).toHaveBeenCalledWith(
@@ -93,6 +96,31 @@ describe('CommunityBoardSchedulerService: реклама', () => {
         }),
       );
       expect(summary.adsWarned).toBe(2);
+    });
+
+    it('идемпотентность: не отправляет предупреждение повторно, если уведомление уже было создано (expiring warning not sent twice)', async () => {
+      const expDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+      prismaMock.communityListing.findMany.mockResolvedValue([
+        { id: 'ad-already-warned', authorId: 'u1', title: 'Кафе', adEndsAt: expDate },
+      ]);
+      prismaMock.notification.findFirst.mockResolvedValue({
+        id: 'notif-1',
+        userId: 'u1',
+        data: { type: 'COMMUNITY_AD_EXPIRING', listingId: 'ad-already-warned' },
+      });
+
+      const summary = await service.handleExpiringAds();
+      expect(prismaMock.notification.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'u1',
+          AND: [
+            { data: { path: ['type'], equals: 'COMMUNITY_AD_EXPIRING' } },
+            { data: { path: ['listingId'], equals: 'ad-already-warned' } },
+          ],
+        },
+      });
+      expect(notificationsMock.sendToUser).not.toHaveBeenCalled();
+      expect(summary.adsWarned).toBe(0);
     });
 
     it('ошибка отправки одному пользователю не прерывает отправку остальным', async () => {

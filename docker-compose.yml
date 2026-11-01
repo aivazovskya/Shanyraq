@@ -45,7 +45,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-shanyraq_minio_secret_key}
     ports:
       - "9000:9000"
-      - "${S3_CONSOLE_PORT:-${MINIO_CONSOLE_PORT:-9001}}:8888"
+      - "127.0.0.1:${S3_CONSOLE_PORT:-${MINIO_CONSOLE_PORT:-9001}}:8888"
     volumes:
       - ./infra/s3/entrypoint.sh:/entrypoint-s3.sh:ro
       - minio_data:/data

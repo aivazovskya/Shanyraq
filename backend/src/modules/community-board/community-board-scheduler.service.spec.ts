@@ -18,6 +18,9 @@ describe('CommunityBoardSchedulerService (Task 0057: Auto-archive stale communit
         findMany: jest.fn(),
         update: jest.fn(),
       },
+      notification: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     };
 
     notificationsServiceMock = {

@@ -323,19 +323,17 @@ export class AuthService {
     }
 
     // Автопривязка к квартире при наличии ожидающих приглашений от собственников (Task 0022)
-    const pendingInvitations = this.prisma.unitInvitation?.findMany
-      ? await this.prisma.unitInvitation.findMany({
-          where: {
-            phone,
-            status: InvitationStatus.PENDING,
-          },
-          include: {
-            unit: {
-              include: { building: true },
-            },
-          },
-        })
-      : [];
+    const pendingInvitations = await this.prisma.unitInvitation.findMany({
+      where: {
+        phone,
+        status: InvitationStatus.PENDING,
+      },
+      include: {
+        unit: {
+          include: { building: true },
+        },
+      },
+    });
 
     if (pendingInvitations.length > 0) {
       let didAccept = false;

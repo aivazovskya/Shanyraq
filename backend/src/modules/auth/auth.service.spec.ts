@@ -50,6 +50,10 @@ describe('AuthService (Аудит безопасности авторизаци�
         create: jest.fn(),
         update: jest.fn(),
       },
+      unitInvitation: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+      },
     };
 
     jwtServiceMock = {

@@ -57,6 +57,10 @@ describe('CommunityBoardService: реклама', () => {
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'new', ...data })),
         update: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'ad-1', ...data })),
+        updateMany: jest.fn().mockImplementation(async () => ({ count: 1 })),
+      },
+      user: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'owner-1' }]),
       },
     };
     auditLogMock = { log: jest.fn().mockResolvedValue(undefined) };
@@ -93,6 +97,24 @@ describe('CommunityBoardService: реклама', () => {
       expect(res.adMonths).toBe(3);
     });
 
+    it('отклонённая реклама или реклама на модерации не расходует бесплатный пробный период (TRIAL)', async () => {
+      prismaMock.communityListing.count.mockImplementation(async ({ where }: any) => {
+        expect(where.status?.in).toEqual([
+          ListingStatus.ACTIVE,
+          ListingStatus.EXPIRED,
+          ListingStatus.AWAITING_PAYMENT,
+        ]);
+        expect(where.status?.in).not.toContain(ListingStatus.REMOVED);
+        expect(where.status?.in).not.toContain(ListingStatus.PENDING_REVIEW);
+        return 0;
+      });
+
+      const res: any = await service.createListing(tenantId, resident, adDto as any);
+      expect(res.adPaymentStatus).toBe(AdPaymentStatus.TRIAL);
+      expect(res.adPriceKzt).toBe(0);
+      expect(res.adMonths).toBe(1);
+    });
+
     it('при нулевом пробном периоде ЖК бесплатного размещения нет', async () => {
       prismaMock.tenant.findUnique.mockResolvedValue({ adPriceMonthly: 3000, adTrialDays: 0 });
       const res: any = await service.createListing(tenantId, resident, adDto as any);
@@ -113,11 +135,11 @@ describe('CommunityBoardService: реклама', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('при создании рекламы жителем отправляет уведомление персоналу ЖК (COMMUNITY_AD_PENDING)', async () => {
+    it('при создании рекламы жителем отправляет уведомление модераторам ЖК (COMMUNITY_AD_PENDING, без председателя)', async () => {
       await service.createListing(tenantId, resident, adDto as any);
       expect(notificationsMock.sendToTenantRoles).toHaveBeenCalledWith(
         tenantId,
-        [UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER],
+        [UserRole.DISPATCHER, UserRole.HOA_ADMIN, UserRole.SUPERADMIN],
         expect.objectContaining({
           title: expect.stringContaining('Новая реклама на проверку'),
           data: expect.objectContaining({
@@ -127,6 +149,8 @@ describe('CommunityBoardService: реклама', () => {
           }),
         }),
       );
+      const recipientRoles = notificationsMock.sendToTenantRoles.mock.calls[0][1];
+      expect(recipientRoles).not.toContain(UserRole.HOA_CHAIRMAN);
     });
 
     it('при создании рекламы персоналом уведомление персоналу не отправляется', async () => {
@@ -164,7 +188,7 @@ describe('CommunityBoardService: реклама', () => {
       );
     });
 
-    it('платная реклама переходит в ожидание оплаты и уведомляет автора (COMMUNITY_AD_AWAITING_PAYMENT)', async () => {
+    it('платная реклама переходит в ожидание оплаты и уведомляет автора и суперадмина (COMMUNITY_AD_AWAITING_PAYMENT)', async () => {
       prismaMock.communityListing.findUnique.mockResolvedValue(adRow());
       const res: any = await service.approveAd('ad-1', dispatcher);
       expect(res.status).toBe(ListingStatus.AWAITING_PAYMENT);
@@ -183,6 +207,40 @@ describe('CommunityBoardService: реклама', () => {
           }),
         }),
       );
+
+      expect(notificationsMock.sendToUser).toHaveBeenCalledWith(
+        'owner-1',
+        expect.objectContaining({
+          title: expect.stringContaining('Реклама ожидает подтверждения оплаты'),
+          data: expect.objectContaining({
+            type: 'COMMUNITY_AD_AWAITING_PAYMENT',
+            listingId: 'ad-1',
+            tenantId,
+            adPriceKzt: 6000,
+            adMonths: 2,
+          }),
+        }),
+      );
+    });
+
+    it('approve twice: повторный вызов отклоняется атомарно, уведомление отправляется ровно один раз', async () => {
+      let callCount = 0;
+      prismaMock.communityListing.findUnique.mockResolvedValue(adRow());
+      prismaMock.communityListing.updateMany.mockImplementation(async () => {
+        callCount++;
+        return { count: callCount === 1 ? 1 : 0 };
+      });
+
+      await expect(service.approveAd('ad-1', dispatcher)).resolves.toMatchObject({
+        status: ListingStatus.AWAITING_PAYMENT,
+      });
+
+      await expect(service.approveAd('ad-1', dispatcher)).rejects.toThrow(BadRequestException);
+
+      const authorCalls = notificationsMock.sendToUser.mock.calls.filter(
+        (call: any[]) => call[0] === resident.id,
+      );
+      expect(authorCalls).toHaveLength(1);
     });
 
     it('сбой отправки уведомления при approveAd не ломает операцию', async () => {
@@ -255,6 +313,28 @@ describe('CommunityBoardService: реклама', () => {
     it('нельзя оплатить рекламу, не прошедшую проверку', async () => {
       prismaMock.communityListing.findUnique.mockResolvedValue(adRow());
       await expect(service.markAdPaid('ad-1', owner)).rejects.toThrow(BadRequestException);
+    });
+
+    it('markAdPaid twice: повторный вызов отклоняется атомарно, уведомление отправляется ровно один раз', async () => {
+      let callCount = 0;
+      prismaMock.communityListing.findUnique.mockResolvedValue(
+        adRow({ status: ListingStatus.AWAITING_PAYMENT }),
+      );
+      prismaMock.communityListing.updateMany.mockImplementation(async () => {
+        callCount++;
+        return { count: callCount === 1 ? 1 : 0 };
+      });
+
+      await expect(service.markAdPaid('ad-1', owner)).resolves.toMatchObject({
+        status: ListingStatus.ACTIVE,
+      });
+
+      await expect(service.markAdPaid('ad-1', owner)).rejects.toThrow(BadRequestException);
+
+      const authorCalls = notificationsMock.sendToUser.mock.calls.filter(
+        (call: any[]) => call[0] === resident.id,
+      );
+      expect(authorCalls).toHaveLength(1);
     });
   });
 

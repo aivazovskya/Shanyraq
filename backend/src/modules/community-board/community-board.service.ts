@@ -410,7 +410,17 @@ export class CommunityBoardService {
     let isTrial = false;
     if (!isStaffRole && tenant.adTrialDays > 0) {
       const previousAds = await this.prisma.communityListing.count({
-        where: { authorId: user.id, type: ListingType.AD },
+        where: {
+          authorId: user.id,
+          type: ListingType.AD,
+          status: {
+            in: [
+              ListingStatus.ACTIVE,
+              ListingStatus.EXPIRED,
+              ListingStatus.AWAITING_PAYMENT,
+            ],
+          },
+        },
       });
       isTrial = previousAds === 0;
     }
@@ -441,7 +451,7 @@ export class CommunityBoardService {
       try {
         await this.notificationsService.sendToTenantRoles(
           tenantId,
-          [UserRole.HOA_ADMIN, UserRole.HOA_CHAIRMAN, UserRole.DISPATCHER],
+          STAFF_ROLES,
           {
             title: '📢 Новая реклама на проверку',
             body: `Подана новая реклама на проверку: "${created.title}" (${created.adBusinessName || ''}).`,
@@ -514,15 +524,35 @@ export class CommunityBoardService {
         select: { adTrialDays: true },
       });
       const now = new Date();
-      updated = await this.prisma.communityListing.update({
-        where: { id },
+      const adEndsAt = new Date(now.getTime() + (tenant?.adTrialDays ?? 30) * DAY_MS);
+
+      const updateRes = await this.prisma.communityListing.updateMany({
+        where: { id, status: ListingStatus.PENDING_REVIEW },
         data: {
           status: ListingStatus.ACTIVE,
           adStartsAt: now,
-          adEndsAt: new Date(now.getTime() + (tenant?.adTrialDays ?? 30) * DAY_MS),
+          adEndsAt,
         },
+      });
+
+      if (updateRes.count === 0) {
+        throw new BadRequestException({
+          code: 'COMMUNITY_BOARD.AD_NOT_PENDING_REVIEW',
+          message: 'Реклама уже обработана или не ожидает проверки',
+        });
+      }
+
+      const fetched = await this.prisma.communityListing.findUnique({
+        where: { id },
         include: CommunityBoardService.AD_INCLUDE,
       });
+      updated = {
+        ...listing,
+        ...fetched,
+        status: ListingStatus.ACTIVE,
+        adStartsAt: now,
+        adEndsAt,
+      };
 
       try {
         await this.notificationsService.sendToUser(listing.authorId, {
@@ -537,11 +567,27 @@ export class CommunityBoardService {
         this.logger.warn(`Failed to send ad approval notification for ad ${id}: ${err.message}`);
       }
     } else {
-      updated = await this.prisma.communityListing.update({
-        where: { id },
+      const updateRes = await this.prisma.communityListing.updateMany({
+        where: { id, status: ListingStatus.PENDING_REVIEW },
         data: { status: ListingStatus.AWAITING_PAYMENT },
+      });
+
+      if (updateRes.count === 0) {
+        throw new BadRequestException({
+          code: 'COMMUNITY_BOARD.AD_NOT_PENDING_REVIEW',
+          message: 'Реклама уже обработана или не ожидает проверки',
+        });
+      }
+
+      const fetched = await this.prisma.communityListing.findUnique({
+        where: { id },
         include: CommunityBoardService.AD_INCLUDE,
       });
+      updated = {
+        ...listing,
+        ...fetched,
+        status: ListingStatus.AWAITING_PAYMENT,
+      };
 
       const priceText = listing.adPriceKzt ? `${listing.adPriceKzt} ₸` : '';
       const monthsText = listing.adMonths ? `${listing.adMonths} мес.` : '';
@@ -560,6 +606,30 @@ export class CommunityBoardService {
       } catch (err: any) {
         this.logger.warn(
           `Failed to send ad awaiting payment notification for ad ${id}: ${err.message}`,
+        );
+      }
+
+      try {
+        const superadmins = await this.prisma.user.findMany({
+          where: { role: UserRole.SUPERADMIN, isActive: true },
+          select: { id: true },
+        });
+        for (const sa of superadmins) {
+          await this.notificationsService.sendToUser(sa.id, {
+            title: '💳 Реклама ожидает подтверждения оплаты',
+            body: `Реклама "${listing.title}" одобрена персоналом ЖК и ожидает подтверждения оплаты${detailParts ? `: ${detailParts}` : ''}.`,
+            data: {
+              type: 'COMMUNITY_AD_AWAITING_PAYMENT',
+              listingId: id,
+              tenantId: listing.tenantId,
+              adPriceKzt: listing.adPriceKzt,
+              adMonths: listing.adMonths,
+            },
+          });
+        }
+      } catch (err: any) {
+        this.logger.warn(
+          `Failed to send ad awaiting payment notification to superadmins for ad ${id}: ${err.message}`,
         );
       }
     }
@@ -598,16 +668,35 @@ export class CommunityBoardService {
     const now = new Date();
     const months = listing.adMonths ?? 1;
     const adEndsAt = new Date(now.getTime() + months * AD_MONTH_DAYS * DAY_MS);
-    const updated = await this.prisma.communityListing.update({
-      where: { id },
+    const updateRes = await this.prisma.communityListing.updateMany({
+      where: { id, status: ListingStatus.AWAITING_PAYMENT },
       data: {
         status: ListingStatus.ACTIVE,
         adPaymentStatus: AdPaymentStatus.PAID,
         adStartsAt: now,
         adEndsAt,
       },
+    });
+
+    if (updateRes.count === 0) {
+      throw new BadRequestException({
+        code: 'COMMUNITY_BOARD.AD_NOT_AWAITING_PAYMENT',
+        message: 'Реклама не ожидает оплаты: сначала она должна пройти проверку',
+      });
+    }
+
+    const fetched = await this.prisma.communityListing.findUnique({
+      where: { id },
       include: CommunityBoardService.AD_INCLUDE,
     });
+    const updated = {
+      ...listing,
+      ...fetched,
+      status: ListingStatus.ACTIVE,
+      adPaymentStatus: AdPaymentStatus.PAID,
+      adStartsAt: now,
+      adEndsAt,
+    };
 
     const dateStr = adEndsAt.toISOString().slice(0, 10);
     try {
