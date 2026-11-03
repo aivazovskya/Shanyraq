@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { LoadError } from '../../components/common/LoadError';
+import { PhotoGallery } from '../../components/common/PhotoGallery';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,11 +9,10 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   Alert,
   Linking,
-  Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -50,16 +52,21 @@ export const CommunityBoardScreen: React.FC = () => {
   const isVerified = verifiedOwnerships.length > 0;
 
   const [activeTab, setActiveTab] = useState<'FEED' | 'MY'>('FEED');
+  const [expandedListingId, setExpandedListingId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ListingType | 'ALL'>('ALL');
   const [feedListings, setFeedListings] = useState<CommunityListing[]>([]);
   const [myListings, setMyListings] = useState<CommunityListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadVersion = useRef(0);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    const version = ++loadVersion.current;
     if (!tenantId) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
@@ -67,25 +74,32 @@ export const CommunityBoardScreen: React.FC = () => {
       if (activeTab === 'FEED') {
         const typeParam = selectedType === 'ALL' ? undefined : selectedType;
         const data = await CommunityBoardApi.getListings(tenantId, typeParam);
+        if (version !== loadVersion.current) return;
         setFeedListings(data || []);
       } else {
         const myData = await CommunityBoardApi.getMyListings();
+        if (version !== loadVersion.current) return;
         setMyListings(myData || []);
       }
+      if (version === loadVersion.current) setLoadFailed(false);
     } catch (e: any) {
+      if (version === loadVersion.current) setLoadFailed(true);
       console.warn('Failed to load listings:', e);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === loadVersion.current) { setLoading(false); setRefreshing(false); }
     }
   }, [tenantId, activeTab, selectedType]);
 
   useEffect(() => {
     setLoading(true);
+    if (activeTab === 'FEED') setFeedListings([]);
+    else setMyListings([]);
     loadData();
+    return () => { loadVersion.current++; };
   }, [loadData]);
 
   const onRefresh = () => {
+    if (refreshing || loading) return;
     setRefreshing(true);
     loadData();
   };
@@ -95,7 +109,7 @@ export const CommunityBoardScreen: React.FC = () => {
       Alert.alert(t('common.error'), t('communityBoard.phoneNotAvailable'));
       return;
     }
-    Linking.openURL(`tel:${phone}`);
+    Linking.openURL(`tel:${phone}`).catch((err) => Alert.alert(t('common.error'), getApiErrorMessage(err)));
   };
 
   const handleCloseListing = (item: CommunityListing) => {
@@ -157,17 +171,18 @@ export const CommunityBoardScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('communityBoard.screenTitle')}</Text>
         {isVerified && (
           <TouchableOpacity
+            accessibilityRole="button" accessibilityLabel={t('communityBoard.createTitle')}
             style={styles.createBtn}
             onPress={() => (navigation as any).navigate('CreateListing')}
           >
             <Plus size={18} color="#FFFFFF" />
-            <Text style={styles.createBtnText}>{t('communityBoard.postAction')}</Text>
+
           </TouchableOpacity>
         )}
       </View>
@@ -186,6 +201,7 @@ export const CommunityBoardScreen: React.FC = () => {
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'FEED' && styles.tabButtonActive]}
+          accessibilityRole="tab" aria-selected={activeTab === 'FEED'} accessibilityState={{ selected: activeTab === 'FEED' }}
           onPress={() => setActiveTab('FEED')}
         >
           <Text style={[styles.tabText, activeTab === 'FEED' && styles.tabTextActive]}>
@@ -194,6 +210,7 @@ export const CommunityBoardScreen: React.FC = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'MY' && styles.tabButtonActive]}
+          accessibilityRole="tab" aria-selected={activeTab === 'MY'} accessibilityState={{ selected: activeTab === 'MY' }}
           onPress={() => setActiveTab('MY')}
         >
           <Text style={[styles.tabText, activeTab === 'MY' && styles.tabTextActive]}>
@@ -205,12 +222,13 @@ export const CommunityBoardScreen: React.FC = () => {
       {/* Categories Filter (Only on Feed tab) */}
       {activeTab === 'FEED' && (
         <View style={styles.filterScrollView}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {(['ALL', 'SELL', 'RENT', 'GIVE_AWAY', 'OTHER'] as const).map((cat) => {
               const isActive = selectedType === cat;
               return (
                 <TouchableOpacity
                   key={cat}
+                  accessibilityRole="tab" aria-selected={isActive} accessibilityState={{ selected: isActive }}
                   style={[styles.filterChip, isActive && styles.filterChipActive]}
                   onPress={() => setSelectedType(cat)}
                 >
@@ -227,7 +245,7 @@ export const CommunityBoardScreen: React.FC = () => {
       {loading ? (
         <LoadingState message={t('common.loading')} />
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
@@ -238,12 +256,15 @@ export const CommunityBoardScreen: React.FC = () => {
             />
           }
         >
-          {activeTab === 'FEED' ? (
+          <ScreenHero title={t('residentUi.boardTitle')} subtitle={t('residentUi.boardHint')} />
+          {loadFailed && <LoadError onRetry={onRefresh} retrying={refreshing} />}
+          {loadFailed && (activeTab === 'FEED' ? feedListings : myListings).length === 0 ? null : activeTab === 'FEED' ? (
             feedListings.length === 0 ? (
               <Card style={styles.emptyCard}>
                 <ShoppingBag size={48} color={Colors.textMuted} style={styles.emptyIcon} />
-                <Text style={styles.emptyTitle}>{t('communityBoard.noListingsTitle')}</Text>
-                <Text style={styles.emptySub}>{t('communityBoard.noListingsSub')}</Text>
+                <Text style={styles.emptyTitle}>{t(selectedType === 'ALL' ? 'communityBoard.noListingsTitle' : 'common.noMatches')}</Text>
+                <Text style={styles.emptySub}>{t(selectedType === 'ALL' ? 'communityBoard.noListingsSub' : 'common.changeFilters')}</Text>
+                {selectedType !== 'ALL' && <Button title={t('common.resetFilters')} onPress={() => setSelectedType('ALL')} variant="outline" style={{ marginTop: 16 }} />}
               </Card>
             ) : (
               feedListings.map((item) => {
@@ -255,11 +276,7 @@ export const CommunityBoardScreen: React.FC = () => {
                 return (
                   <Card key={item.id} style={styles.listingCard}>
                     {hasPhotos ? (
-                      <Image
-                        source={{ uri: item.photoUrls[0] }}
-                        style={styles.cardImage}
-                        resizeMode="cover"
-                      />
+                      <PhotoGallery images={item.photoUrls} variant="cover" />
                     ) : null}
 
                     <View style={styles.cardBody}>
@@ -283,9 +300,12 @@ export const CommunityBoardScreen: React.FC = () => {
                           : t('communityBoard.priceNegotiable')}
                       </Text>
 
-                      <Text style={styles.cardDesc} numberOfLines={3}>
+                      <Text style={styles.cardDesc} numberOfLines={expandedListingId === item.id ? undefined : 3}>
                         {item.description}
                       </Text>
+                      <TouchableOpacity style={styles.detailsButton} accessibilityRole="button" aria-expanded={expandedListingId === item.id} accessibilityState={{ expanded: expandedListingId === item.id }} onPress={() => setExpandedListingId(previous => previous === item.id ? null : item.id)}>
+                        <Text style={styles.detailsText}>{t(expandedListingId === item.id ? 'residentUi.hideDetails' : 'residentUi.showDetails')}</Text>
+                      </TouchableOpacity>
 
                       <View style={styles.authorRow}>
                         <View style={styles.authorInfo}>
@@ -295,6 +315,7 @@ export const CommunityBoardScreen: React.FC = () => {
 
                         {item.author?.phone ? (
                           <TouchableOpacity
+                            accessibilityRole="button"
                             style={styles.callButton}
                             onPress={() => handleCall(item.author?.phone)}
                           >
@@ -336,9 +357,12 @@ export const CommunityBoardScreen: React.FC = () => {
                         : t('communityBoard.priceNegotiable')}
                     </Text>
 
-                    <Text style={styles.cardDesc} numberOfLines={2}>
+                    <Text style={styles.cardDesc} numberOfLines={expandedListingId === item.id ? undefined : 2}>
                       {item.description}
                     </Text>
+                    <TouchableOpacity style={styles.detailsButton} accessibilityRole="button" aria-expanded={expandedListingId === item.id} accessibilityState={{ expanded: expandedListingId === item.id }} onPress={() => setExpandedListingId(previous => previous === item.id ? null : item.id)}>
+                      <Text style={styles.detailsText}>{t(expandedListingId === item.id ? 'residentUi.hideDetails' : 'residentUi.showDetails')}</Text>
+                    </TouchableOpacity>
 
                     {item.status === 'REMOVED' && item.removedReason ? (
                       <View style={styles.removedNotice}>
@@ -387,14 +411,24 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
   },
   createBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primary,
@@ -432,6 +466,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   tabButton: {
+    minHeight: 48,
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
@@ -461,6 +496,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -485,6 +522,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   listingCard: {
+    borderRadius: 24,
     marginBottom: 14,
     padding: 0,
     overflow: 'hidden',
@@ -495,10 +533,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
   },
   cardBody: {
-    padding: 14,
+    padding: 20,
   },
   cardHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
@@ -506,7 +546,7 @@ const styles = StyleSheet.create({
   typeBadgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEF2FF',
+    backgroundColor: Colors.primaryBg,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -528,11 +568,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardPrice: {
-    fontSize: 17,
+    fontSize: 24,
     fontWeight: '800',
     color: Colors.primary,
     marginBottom: 6,
   },
+  detailsButton: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: 4, marginBottom: 8 },
+  detailsText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   cardDesc: {
     fontSize: 13,
     color: Colors.textMuted,
@@ -541,6 +583,8 @@ const styles = StyleSheet.create({
   },
   authorRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 10,
@@ -548,16 +592,20 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   authorInfo: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   authorName: {
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '600',
     color: Colors.text,
   },
   callButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.success,

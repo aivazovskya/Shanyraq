@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { LoadError } from '../../components/common/LoadError';
+import { getBookingRange } from '../../utils/booking-time';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,11 +9,13 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
   TextInput,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -42,6 +47,7 @@ import { getApiErrorMessage } from '../../api/client';
 export const BookingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { t, i18n } = useTranslation();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -54,33 +60,39 @@ export const BookingsScreen: React.FC = () => {
   const [myWaitlist, setMyWaitlist] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [failedTabs, setFailedTabs] = useState({ SPACES: false, MY: false, WAITLIST: false });
 
   // Booking modal state
   const [selectedResource, setSelectedResource] = useState<BookableResource | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [busySlots, setBusySlots] = useState<AvailabilitySlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [availabilityFailed, setAvailabilityFailed] = useState(false);
+  const availabilityVersion = useRef(0);
   const [timeStart, setTimeStart] = useState('10:00');
   const [timeEnd, setTimeEnd] = useState('12:00');
+  const [bookingError, setBookingError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!tenantId) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
-    setLoading(true);
     try {
-      const [resData, myData, waitlistData] = await Promise.all([
+      const [resData, myData, waitlistData] = await Promise.allSettled([
         BookingsApi.getResources(tenantId),
         BookingsApi.getMyBookings(),
         BookingsApi.getMyWaitlist(),
       ]);
-      setResources(resData);
-      setMyBookings(myData);
-      setMyWaitlist(waitlistData);
+      if (resData.status === 'fulfilled') setResources(resData.value);
+      if (myData.status === 'fulfilled') setMyBookings(myData.value);
+      if (waitlistData.status === 'fulfilled') setMyWaitlist(waitlistData.value);
+      setFailedTabs({ SPACES: resData.status === 'rejected', MY: myData.status === 'rejected', WAITLIST: waitlistData.status === 'rejected' });
     } catch (err) {
+      setFailedTabs({ SPACES: true, MY: true, WAITLIST: true });
       console.warn('Failed to load bookings data:', err);
     } finally {
       setLoading(false);
@@ -89,16 +101,21 @@ export const BookingsScreen: React.FC = () => {
   }, [tenantId]);
 
   useEffect(() => {
+    setLoading(true);
     fetchData();
   }, [fetchData]);
 
   const onRefresh = () => {
+    if (refreshing) return;
     setRefreshing(true);
     fetchData();
   };
 
   const fetchAvailability = async (resourceId: string, date: Date) => {
+    const version = ++availabilityVersion.current;
     setLoadingSlots(true);
+    setAvailabilityFailed(false);
+    setBusySlots([]);
     try {
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
@@ -111,11 +128,12 @@ export const BookingsScreen: React.FC = () => {
         startOfDay.toISOString(),
         endOfDay.toISOString(),
       );
-      setBusySlots(slots);
+      if (version === availabilityVersion.current) setBusySlots(slots);
     } catch (err) {
+      if (version === availabilityVersion.current) setAvailabilityFailed(true);
       console.warn('Failed to load availability:', err);
     } finally {
-      setLoadingSlots(false);
+      if (version === availabilityVersion.current) setLoadingSlots(false);
     }
   };
 
@@ -133,11 +151,20 @@ export const BookingsScreen: React.FC = () => {
     const endHour = Math.min(startHour + 2, 22);
     setTimeEnd(`${String(endHour).padStart(2, '0')}:00`);
     setNote('');
+    setBookingError(null);
     fetchAvailability(resource.id, today);
   };
 
+  const closeBookingModal = () => {
+    if (submitting) return;
+    availabilityVersion.current++;
+    setSelectedResource(null);
+  };
+
   const handleDateSelect = (date: Date) => {
+    if (submitting) return;
     setSelectedDate(date);
+    setBookingError(null);
     if (selectedResource) {
       fetchAvailability(selectedResource.id, date);
     }
@@ -146,31 +173,13 @@ export const BookingsScreen: React.FC = () => {
   const handleConfirmBooking = async () => {
     if (!selectedResource) return;
 
-    const [startH, startM] = timeStart.split(':').map(Number);
-    const [endH, endM] = timeEnd.split(':').map(Number);
-
-    if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) {
-      Alert.alert(t('common.error'), t('bookings.timeStart'));
-      return;
-    }
-
-    const startDate = new Date(selectedDate);
-    startDate.setHours(startH, startM, 0, 0);
-
-    const endDate = new Date(selectedDate);
-    endDate.setHours(endH, endM, 0, 0);
-
-    if (startDate.getTime() <= Date.now()) {
-      Alert.alert(t('common.error'), t('bookings.timeStart') + ' (в будущем)');
-      return;
-    }
-
-    if (startDate.getTime() >= endDate.getTime()) {
-      Alert.alert(t('common.error'), t('bookings.timeEnd'));
-      return;
-    }
+    if (submitting || loadingSlots || availabilityFailed) return;
+    const range = getBookingRange(selectedDate, timeStart, timeEnd);
+    if (range.error) return;
+    const { start: startDate, end: endDate } = range;
 
     setSubmitting(true);
+    setBookingError(null);
     try {
       await BookingsApi.createBooking(selectedResource.id, {
         startTime: startDate.toISOString(),
@@ -212,7 +221,7 @@ export const BookingsScreen: React.FC = () => {
           ],
         );
       } else {
-        Alert.alert(t('common.error'), getApiErrorMessage(err));
+        setBookingError(getApiErrorMessage(err));
       }
     } finally {
       setSubmitting(false);
@@ -245,7 +254,7 @@ export const BookingsScreen: React.FC = () => {
   const handleCancelBooking = (bookingId: string) => {
     Alert.alert(
       t('bookings.cancelBookingBtn'),
-      t('bookings.cancelSuccess') + '?',
+      t('bookings.cancelConfirm'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -301,15 +310,14 @@ export const BookingsScreen: React.FC = () => {
     return d;
   });
 
-  if (loading) {
-    return <LoadingState message={t('common.loading')} />;
-  }
+  const timeRange = getBookingRange(selectedDate, timeStart, timeEnd);
+
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')}
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -324,6 +332,7 @@ export const BookingsScreen: React.FC = () => {
       <View style={styles.tabsContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'SPACES' && styles.activeTab]}
+          accessibilityRole="tab" aria-selected={activeTab === 'SPACES'} accessibilityState={{ selected: activeTab === 'SPACES' }}
           onPress={() => setActiveTab('SPACES')}
         >
           <Text style={[styles.tabText, activeTab === 'SPACES' && styles.activeTabText]}>
@@ -332,35 +341,40 @@ export const BookingsScreen: React.FC = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'MY' && styles.activeTab]}
+          accessibilityRole="tab" aria-selected={activeTab === 'MY'} accessibilityState={{ selected: activeTab === 'MY' }}
           onPress={() => setActiveTab('MY')}
         >
           <Text style={[styles.tabText, activeTab === 'MY' && styles.activeTabText]}>
-            {t('bookings.tabMy')} ({myBookings.length})
+            {t('bookings.tabMy')} ({loading || failedTabs.MY ? '—' : myBookings.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'WAITLIST' && styles.activeTab]}
+          accessibilityRole="tab" aria-selected={activeTab === 'WAITLIST'} accessibilityState={{ selected: activeTab === 'WAITLIST' }}
           onPress={() => setActiveTab('WAITLIST')}
         >
           <View style={styles.tabContentRow}>
             <Layers
               size={15}
-              color={activeTab === 'WAITLIST' ? Colors.primary : Colors.textMuted}
+              color={activeTab === 'WAITLIST' ? '#FFFFFF' : Colors.textMuted}
             />
             <Text style={[styles.tabText, activeTab === 'WAITLIST' && styles.activeTabText]}>
-              {t('bookings.tabWaitlist')} ({myWaitlist.length})
+              {t('bookings.tabWaitlist')} ({loading || failedTabs.WAITLIST ? '—' : myWaitlist.length})
             </Text>
           </View>
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
         }
       >
-        {activeTab === 'SPACES' ? (
+        {activeTab === 'SPACES' && <ScreenHero title={t('residentUi.spacesTitle')} subtitle={t('residentUi.spacesHint')} />}
+        {loading && <LoadingState />}
+        {failedTabs[activeTab] && <LoadError onRetry={onRefresh} retrying={refreshing} />}
+        {loading || failedTabs[activeTab] && (activeTab === 'SPACES' ? resources : activeTab === 'MY' ? myBookings : myWaitlist).length === 0 ? null : activeTab === 'SPACES' ? (
           resources.length === 0 ? (
             <Card style={styles.emptyCard}>
               <Text style={styles.emptyText}>{t('bookings.emptySpaces')}</Text>
@@ -405,7 +419,7 @@ export const BookingsScreen: React.FC = () => {
                   <Button
                     title={t('bookings.bookBtn')}
                     onPress={() => handleOpenBookingModal(res)}
-                    size="sm"
+                    size="md" disabled={!res.isActive}
                   />
                 </View>
               </Card>
@@ -503,23 +517,23 @@ export const BookingsScreen: React.FC = () => {
           visible={!!selectedResource}
           animationType="slide"
           transparent
-          onRequestClose={() => setSelectedResource(null)}
+          onRequestClose={closeBookingModal}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { paddingBottom: 20 + insets.bottom }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {t('bookings.bookingModalTitle', { name: selectedResource.name })}
                 </Text>
-                <TouchableOpacity onPress={() => setSelectedResource(null)}>
+                <TouchableOpacity onPress={closeBookingModal} disabled={submitting} accessibilityRole="button" accessibilityLabel={t('common.close')} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
                   <X color={Colors.text} size={22} />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView style={styles.modalScroll}>
+              <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={styles.modalScroll}>
                 {/* Date Picker (Horizontal Days) */}
                 <Text style={styles.inputLabel}>{t('bookings.selectDate')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.daysScroll}>
+                <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" horizontal showsHorizontalScrollIndicator={false} style={styles.daysScroll}>
                   {days.map((d, index) => {
                     const isSelected =
                       d.getDate() === selectedDate.getDate() &&
@@ -529,6 +543,9 @@ export const BookingsScreen: React.FC = () => {
                         key={index}
                         style={[styles.dayItem, isSelected && styles.dayItemSelected]}
                         onPress={() => handleDateSelect(d)}
+                        disabled={submitting}
+                        accessibilityRole="tab" aria-selected={isSelected} accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={d.toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })}
                       >
                         <Text style={[styles.dayWeekday, isSelected && styles.dayTextSelected]}>
                           {d.toLocaleDateString(i18n.language, { weekday: 'short' })}
@@ -546,6 +563,8 @@ export const BookingsScreen: React.FC = () => {
                   <Text style={styles.busySlotsHeading}>{t('bookings.busySlotsTitle')}</Text>
                   {loadingSlots ? (
                     <Text style={styles.metaText}>{t('common.loading')}</Text>
+                  ) : availabilityFailed ? (
+                    <LoadError onRetry={() => fetchAvailability(selectedResource.id, selectedDate)} />
                   ) : busySlots.length === 0 ? (
                     <Text style={styles.noBusyText}>{t('bookings.noBusySlots')}</Text>
                   ) : (
@@ -568,7 +587,11 @@ export const BookingsScreen: React.FC = () => {
                     <TextInput
                       style={styles.textInput}
                       value={timeStart}
-                      onChangeText={setTimeStart}
+                      editable={!submitting}
+                      maxLength={5}
+                      autoCorrect={false}
+                      accessibilityLabel={t('bookings.timeStart')}
+                      onChangeText={value => { setTimeStart(value); setBookingError(null); }}
                       placeholder="10:00"
                     />
                   </View>
@@ -577,17 +600,24 @@ export const BookingsScreen: React.FC = () => {
                     <TextInput
                       style={styles.textInput}
                       value={timeEnd}
-                      onChangeText={setTimeEnd}
+                      editable={!submitting}
+                      maxLength={5}
+                      autoCorrect={false}
+                      accessibilityLabel={t('bookings.timeEnd')}
+                      onChangeText={value => { setTimeEnd(value); setBookingError(null); }}
                       placeholder="12:00"
                     />
                   </View>
                 </View>
 
+                {timeRange.error && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, fontSize: 13, lineHeight: 19, marginTop: 8 }}>{t(`bookings.${timeRange.error}`)}</Text>}
                 {/* Note */}
                 <Text style={styles.inputLabel}>{t('bookings.noteLabel')}</Text>
                 <TextInput
                   style={[styles.textInput, { height: 60 }]}
                   value={note}
+                  editable={!submitting}
+                  accessibilityLabel={t('bookings.noteLabel')}
                   onChangeText={setNote}
                   placeholder={t('bookings.notePlaceholder')}
                   multiline
@@ -595,14 +625,16 @@ export const BookingsScreen: React.FC = () => {
               </ScrollView>
 
               <View style={styles.modalFooter}>
+                {bookingError && <Text accessibilityLiveRegion="polite" style={styles.bookingError}>{bookingError}</Text>}
                 <Button
                   title={t('bookings.confirmBookingBtn')}
                   onPress={handleConfirmBooking}
                   loading={submitting}
+                  disabled={loadingSlots || availabilityFailed || !!timeRange.error}
                 />
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       )}
     </SafeAreaView>
@@ -625,29 +657,38 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   headerTitle: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
   },
   tabsContainer: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    gap: 6,
+    paddingTop: 12,
   },
   tab: {
+    minWidth: 90,
+    minHeight: 44,
+    justifyContent: 'center',
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
   },
   activeTab: {
-    borderBottomColor: Colors.primary,
+    backgroundColor: Colors.primary,
   },
   tabContentRow: {
     flexDirection: 'row',
@@ -655,12 +696,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabText: {
-    fontSize: 14,
+    flexShrink: 1,
+    maxWidth: '100%',
+    textAlign: 'center',
+    fontSize: 12,
     fontWeight: '500',
     color: Colors.textMuted,
   },
   activeTabText: {
-    color: Colors.primary,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   scrollContent: {
@@ -676,22 +720,29 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   resourceCard: {
+    borderRadius: 24,
     marginBottom: 12,
     padding: 16,
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
   },
   cardTitleContainer: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
   },
   resourceName: {
+    flexShrink: 1,
+    maxWidth: '100%',
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
@@ -703,6 +754,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   metaRow: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     gap: 16,
     marginBottom: 12,
@@ -724,6 +776,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   bookingCard: {
+    borderRadius: 24,
     marginBottom: 12,
     padding: 16,
   },
@@ -752,8 +805,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '85%',
     padding: 20,
   },
@@ -846,8 +899,12 @@ const styles = StyleSheet.create({
   },
   timeInputsRow: {
     flexDirection: 'row',
+    alignItems: 'flex-end',
   },
+  bookingError: { fontSize: 13, lineHeight: 19, color: Colors.danger, paddingBottom: 12 },
   textInput: {
+    outlineWidth: 0,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 10,

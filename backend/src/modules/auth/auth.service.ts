@@ -58,7 +58,7 @@ export class AuthService {
   async requestOtp(dto: RequestOtpDto) {
     // No SMS transport is implemented yet. Never claim delivery outside tests.
     const environment = this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
-    if (environment !== 'test') {
+    if (environment !== 'test' && environment !== 'development') {
       throw new ServiceUnavailableException({
         code: 'AUTH.SMS_SERVICE_UNAVAILABLE',
         message: 'Сервис отправки SMS недоступен. Попробуйте позже.',
@@ -139,7 +139,7 @@ export class AuthService {
       success: true,
       message: 'Одноразовый 6-значный код подтверждения успешно отправлен по SMS',
       // В production devCode НИКОГДА не возвращается в API ответе
-      devCode: process.env.NODE_ENV === 'test' ? code : undefined,
+      devCode: (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') ? code : undefined,
     };
   }
 

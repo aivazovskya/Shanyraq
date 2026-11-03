@@ -1,4 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { FilterChips } from '../../components/common/FilterChips';
+import { Button } from '../../components/common/Button';
+import { LoadError } from '../../components/common/LoadError';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,36 +13,54 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Clock, Shield } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { sosApi, SosAlert } from '../../api/sos';
 
 export const SosHistoryScreen: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation();
+  const [filter, setFilter] = useState<'ALL' | SosAlert['status']>('ALL');
   const [alerts, setAlerts] = useState<SosAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const requestVersion = useRef(0);
+  const fetching = useRef(false);
+  const loaded = useRef(false);
 
   const loadAlerts = useCallback(async (isSilent = false) => {
+    if (fetching.current) return;
+    fetching.current = true;
+    const version = ++requestVersion.current;
     if (!isSilent) setLoading(true);
     else setRefreshing(true);
 
     try {
       const data = await sosApi.getMySosAlerts();
+      if (version !== requestVersion.current) return;
       setAlerts(data || []);
+      loaded.current = true;
+      setLoadFailed(false);
     } catch (err) {
+      if (version !== requestVersion.current) return;
+      setLoadFailed(true);
       console.error('Failed to load my SOS alerts:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === requestVersion.current) {
+        fetching.current = false;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
-  useEffect(() => {
-    loadAlerts();
-  }, [loadAlerts]);
+  useFocusEffect(useCallback(() => {
+    void loadAlerts(loaded.current);
+    return () => { ++requestVersion.current; fetching.current = false; };
+  }, [loadAlerts]));
 
   const renderStatusBadge = (status: SosAlert['status']) => {
     switch (status) {
@@ -52,7 +74,7 @@ export const SosHistoryScreen: React.FC = () => {
       case 'RESOLVED':
         return (
           <View style={[styles.statusBadge, styles.statusResolved]}>
-            <CheckCircle2 size={12} color="#16A34A" style={{ marginRight: 4 }} />
+            <CheckCircle2 size={12} color={Colors.success} style={{ marginRight: 4 }} />
             <Text style={styles.statusResolvedText}>{t('sos.status.RESOLVED')}</Text>
           </View>
         );
@@ -67,7 +89,7 @@ export const SosHistoryScreen: React.FC = () => {
   };
 
   const renderItem = ({ item }: { item: SosAlert }) => {
-    const formattedDate = new Date(item.createdAt).toLocaleString();
+    const formattedDate = new Date(item.createdAt).toLocaleString(i18n.language);
 
     return (
       <View style={styles.card}>
@@ -87,9 +109,9 @@ export const SosHistoryScreen: React.FC = () => {
         )}
 
         {item.resolutionNote ? (
-          <View style={styles.noteBox}>
+          <View style={[styles.noteBox, item.status !== 'RESOLVED' && { borderLeftColor: Colors.textMuted }]}>
             <Text style={styles.noteLabel}>{t('sos.resolutionNoteLabel')}:</Text>
-            <Text style={styles.noteContent}>{item.resolutionNote}</Text>
+            <Text selectable style={styles.noteContent}>{item.resolutionNote}</Text>
             {item.resolvedBy && (
               <Text style={styles.resolverText}>
                 {t('sos.resolvedBy')}: {item.resolvedBy.firstName} {item.resolvedBy.lastName}
@@ -106,10 +128,10 @@ export const SosHistoryScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')}
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -117,35 +139,41 @@ export const SosHistoryScreen: React.FC = () => {
           <ArrowLeft size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('sos.historyTitle')}</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 44 }} />
       </View>
 
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#DC2626" />
-        </View>
-      ) : alerts.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Shield size={48} color={Colors.border} style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>{t('sos.noHistoryAlerts')}</Text>
-          <Text style={styles.emptySubtitle}>{t('sos.emptyHistorySubtitle')}</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={alerts}
+      <FlatList
+          data={filter === 'ALL' ? alerts : alerts.filter(item => item.status === filter)}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={<>
+            <ScreenHero title={t('residentUi.sosHistoryTitle')} subtitle={t('residentUi.sosHistoryHint')} />
+            <FilterChips value={filter} onChange={setFilter} options={(['ALL', 'ACTIVE', 'RESOLVED', 'FALSE_ALARM'] as const).map(value => ({ value, label: t(value === 'ALL' ? 'common.all' : 'sos.status.' + value) }))} />
+            {loadFailed && <LoadError onRetry={() => void loadAlerts(true)} retrying={refreshing} />}
+          </>}
+          ListEmptyComponent={loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#DC2626" />
+        </View>
+      ) : loadFailed ? undefined : (
+        <View style={styles.centerContainer}>
+          <Shield size={48} color={Colors.border} style={{ marginBottom: 12 }} />
+          <Text style={styles.emptyTitle}>{t(filter === 'ALL' ? 'sos.noHistoryAlerts' : 'common.noMatches')}</Text>
+          <Text style={styles.emptySubtitle}>{t(filter === 'ALL' ? 'sos.emptyHistorySubtitle' : 'common.changeFilters')}</Text>
+          {filter !== 'ALL' && <Button title={t('common.resetFilters')} onPress={() => setFilter('ALL')} variant="outline" style={{ marginTop: 16 }} />}
+        </View>
+      )}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => loadAlerts(true)}
-              colors={['#DC2626']}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
             />
           }
         />
-      )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -159,16 +187,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 54,
+    paddingTop: 12,
     paddingBottom: 16,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
@@ -191,12 +226,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
+    flexGrow: 1,
     padding: 16,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -208,6 +244,8 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
@@ -239,7 +277,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
   },
   statusResolvedText: {
-    color: '#16A34A',
+    color: Colors.success,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -273,7 +311,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   noteContent: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.text,
   },
   resolverText: {

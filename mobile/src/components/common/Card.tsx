@@ -15,6 +15,7 @@ export const Card: React.FC<CardProps> = ({ children, style, onPress }) => {
         style={[styles.card, style]}
         onPress={onPress}
         activeOpacity={0.7}
+        accessibilityRole="button"
       >
         {children}
       </TouchableOpacity>
@@ -27,15 +28,15 @@ export const Card: React.FC<CardProps> = ({ children, style, onPress }) => {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
     marginBottom: 12,
   },
 });

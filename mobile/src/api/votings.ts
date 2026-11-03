@@ -1,5 +1,7 @@
 ﻿import { apiClient } from './client';
 
+import { normalizeMeeting, normalizeVoteReceipt, type MeetingResponse, type CastVoteResponse } from './voting-response';
+
 export type VoteChoice = 'FOR' | 'AGAINST' | 'ABSTAIN';
 
 export interface AgendaItem {
@@ -51,17 +53,17 @@ export interface CastVoteDto {
 
 export const VotingsApi = {
   async getMeetings(tenantId: string): Promise<MeetingItem[]> {
-    const res = await apiClient.get(`/votings/tenant/${tenantId}`);
-    return res.data;
+    const res = await apiClient.get<MeetingResponse[]>(`/votings/tenant/${tenantId}`);
+    return res.data.map(normalizeMeeting);
   },
 
   async getMeetingDetails(meetingId: string): Promise<MeetingItem> {
-    const res = await apiClient.get(`/votings/${meetingId}`);
-    return res.data;
+    const res = await apiClient.get<MeetingResponse>(`/votings/${meetingId}`);
+    return normalizeMeeting(res.data);
   },
 
-  async castVote(dto: CastVoteDto): Promise<{ success: boolean; signatureHash: string; message: string }> {
-    const res = await apiClient.post('/votings/vote', dto);
-    return res.data;
+  async castVote(dto: CastVoteDto) {
+    const res = await apiClient.post<CastVoteResponse>('/votings/vote', dto);
+    return normalizeVoteReceipt(res.data);
   },
 };

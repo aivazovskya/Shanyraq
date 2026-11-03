@@ -205,6 +205,61 @@ async function main() {
   await api('/sos/'+falseAlarm.id+'/resolve',securityToken,'PATCH',{status:'FALSE_ALARM',note:'E2E accidental tap'});
   assert.equal(await prisma.shiftHandoverNote.count({where:{tenantId:tenant.id,content:{contains:falseAlarm.id}}}),1);
   checkpoint('SOS: false alarm also records its explanation in the shift journal');
+
+  const conversation = await api('/chat/my-conversation', residentToken);
+  const chatRoute = `/chat/conversations/${conversation.id}`;
+  const message = await api('/chat/my-conversation/messages', residentToken, 'POST', { text: 'E2E resident question' }, 201);
+  const inbox = await api(`${chatRoute}/messages`, dispatcherToken);
+  assert.ok(inbox.messages.some(item => item.id === message.id));
+  await api(`${chatRoute}/messages`, foreignToken, 'GET', undefined, 403);
+  const reply = await api(`${chatRoute}/messages`, dispatcherToken, 'POST', { text: 'E2E dispatcher reply' }, 201);
+  assert.ok((await api('/chat/my-conversation', residentToken)).messages.some(item => item.id === reply.id));
+  checkpoint('resident and dispatcher exchange messages; foreign dispatcher is denied');
+
+  const now = new Date();
+  const later = hours => new Date(now.getTime() + hours * 3600000);
+  const meter = await prisma.meter.create({ data: { unitId: unit.id, type: 'COLD_WATER', initialValue: 10 } });
+  const meterRoute = `/meters/${meter.id}/readings`;
+  const reading = await api(meterRoute, residentToken, 'POST', {
+    value: 15.5, photoUrl: uploaded.url, month: now.getMonth() + 1, year: now.getFullYear(),
+  }, 201);
+  assert.equal(reading.status, 'PENDING');
+  await api(`/meters/readings/${reading.id}/review`, dispatcherToken, 'PATCH', { status: 'VERIFIED' });
+  assert.ok((await api(meterRoute, residentToken)).some(item => item.id === reading.id && item.status === 'VERIFIED'));
+  checkpoint('resident submits a photo reading and sees the verified status');
+
+  const pass = await api('/access/guest-pass', residentToken, 'POST', {
+    unitId: unit.id, guestName: 'E2E guest', validFrom: now.toISOString(), validTo: later(2).toISOString(),
+  }, 201);
+  assert.match(pass.accessCode, /^\d{6}$/);
+  const passRoute = `/access/units/${unit.id}/guest-passes`;
+  assert.ok((await api(passRoute, residentToken)).some(item => item.id === pass.id && item.status === 'ACTIVE'));
+  await api(`/access/guest-passes/${pass.id}/revoke`, residentToken, 'PATCH');
+  assert.ok((await api(passRoute, residentToken)).some(item => item.id === pass.id && item.status === 'REVOKED'));
+  checkpoint('resident issues and revokes a synthetic guest pass');
+
+  const resource = await prisma.bookableResource.create({ data: { tenantId: tenant.id, name: 'E2E room', type: 'COWORKING' } });
+  const bookingRoute = `/bookings/resources/${resource.id}/bookings`;
+  const slot = { startTime: later(24).toISOString(), endTime: later(25).toISOString() };
+  const booking = await api(bookingRoute, residentToken, 'POST', slot, 201);
+  assert.equal(booking.status, 'CONFIRMED');
+  await api(bookingRoute, residentToken, 'POST', slot, 409);
+  await api(`/bookings/${booking.id}/cancel`, residentToken, 'PATCH');
+  assert.ok((await api('/bookings/my-bookings', residentToken)).some(item => item.id === booking.id && item.status === 'CANCELLED'));
+  checkpoint('resident books a room, overlapping booking is rejected, cancellation persists');
+
+  const meeting = await prisma.meeting.create({
+    data: { tenantId: tenant.id, title: 'E2E meeting', status: 'ACTIVE', startDate: new Date(now.getTime() - 3600000),
+      endDate: later(24), totalEligibleArea: 50, agendaItems: { create: { question: 'E2E proposal' } } },
+    include: { agendaItems: true },
+  });
+  const voteOtp = await api('/auth/request-otp', null, 'POST', { phone: resident.phone });
+  const ballot = { agendaItemId: meeting.agendaItems[0].id, unitId: unit.id, choice: 'FOR', otpCode: voteOtp.devCode };
+  const result = await api('/votings/vote', residentToken, 'POST', ballot, 201);
+  assert.equal(result.vote.areaWeight, 50);
+  assert.ok(result.vote.voteHash);
+  assert.equal(await prisma.vote.count({ where: { agendaItemId: ballot.agendaItemId, userId: resident.id } }), 1);
+  checkpoint('resident signs a synthetic vote with OTP; weight and signature persist');
   console.log(JSON.stringify({ result: 'PASS', checks: checks.length, externalSms: false, realInfrastructure: true }));
 }
 main().catch((error) => { console.error(`FAIL ${error.message}`); process.exitCode = 1; })

@@ -1,13 +1,14 @@
+import { ScreenHero } from '../../components/common/ScreenHero';
 import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
@@ -19,7 +20,7 @@ import {
 } from '../../context/AuthContext';
 import { NotificationsApi } from '../../api/notifications';
 import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
+
 import { Button } from '../../components/common/Button';
 import { Colors } from '../../constants/colors';
 import {
@@ -94,8 +95,8 @@ export const StaffHomeScreen: React.FC = () => {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -117,35 +118,160 @@ export const StaffHomeScreen: React.FC = () => {
                 </View>
               )}
             </TouchableOpacity>
-            <Badge
-              label={user?.role || 'STAFF'}
-              variant="info"
-            />
+
           </View>
         </View>
 
-        {/* Complex / Tenant Info */}
-        <Card style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconCircle}>
-              <Building2 size={20} color={Colors.primary} />
+        <ScreenHero title={user?.tenant?.name || t('staff.noTenantAssigned')} subtitle={user?.tenant?.address ? [user.tenant.city, user.tenant.address].filter(Boolean).join(', ') : undefined}>
+          <Text style={styles.userName}>{fullName || user?.phone || '—'}</Text>
+          <Text style={styles.addressText}>{getRoleLabel(user?.role)}</Text>
+        </ScreenHero>
+
+        {/* SOS Emergency Dashboard Quick Action */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('SosTab')}
+          accessibilityRole="button" activeOpacity={0.85}
+        >
+          <Card style={[styles.card, styles.sosCard]}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconCircle, styles.sosIconCircle]}>
+                <AlertTriangle size={20} color="#DC2626" />
+              </View>
+              <View style={styles.cardHeaderInfo}>
+                <Text style={[styles.cardLabel, { color: '#DC2626' }]}>
+                  {t('staff.sosTab')}
+                </Text>
+                <Text style={styles.sosCardTitle}>{t('staff.sos.title')}</Text>
+                <Text style={styles.sosCardSubtitle}>{t('staff.sos.subtitle')}</Text>
+              </View>
+              <ChevronRight size={20} color={Colors.textMuted} />
             </View>
-            <View style={styles.cardHeaderInfo}>
-              <Text style={styles.cardLabel}>{t('staff.complexInfo')}</Text>
-              <Text style={styles.complexName}>
-                {user?.tenant?.name || t('staff.noTenantAssigned')}
-              </Text>
-            </View>
-          </View>
-          {user?.tenant?.address && (
-            <View style={styles.addressRow}>
-              <Text style={styles.addressText}>
-                {user.tenant.city ? `${user.tenant.city}, ` : ''}
-                {user.tenant.address}
-              </Text>
-            </View>
-          )}
-        </Card>
+          </Card>
+        </TouchableOpacity>
+
+        {/* Resident Chat Inbox Quick Action (DISPATCHER & HOA_ADMIN only) */}
+        {canShowChat && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ChatInboxTab')}
+            accessibilityRole="button" activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.chatCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.chatIconCircle]}>
+                  <MessageSquare size={20} color={Colors.primary} />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: Colors.primary }]}>
+                    {t('staff.chatTab')}
+                  </Text>
+                  <Text style={styles.chatCardTitle}>{t('staff.chat.inboxTitle')}</Text>
+                  <Text style={styles.chatCardSubtitle}>{t('staff.chat.activeChatsNote')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
+        {/* Service Requests Quick Action (DISPATCHER, HOA_ADMIN & HOA_CHAIRMAN) */}
+        {canShowRequests && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('RequestsTab')}
+            accessibilityRole="button" activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.requestsCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.requestsIconCircle]}>
+                  <ClipboardList size={20} color="#2563EB" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#2563EB' }]}>
+                    {t('staff.requestsTab')}
+                  </Text>
+                  <Text style={styles.requestsCardTitle}>{t('staff.requests.title')}</Text>
+                  <Text style={styles.requestsCardSubtitle}>{t('staff.requests.activeRequestsNote')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
+        {/* Access Log Quick Action (SECURITY & HOA_ADMIN only) */}
+        {canShowLogs && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('StaffAccessLog')}
+            accessibilityRole="button" activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.accessLogCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.accessLogIconCircle]}>
+                  <Shield size={20} color="#059669" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#059669' }]}>
+                    {t('staff.accessLog.cardLabel')}
+                  </Text>
+                  <Text style={styles.accessLogCardTitle}>{t('staff.accessLog.cardTitle')}</Text>
+                  <Text style={styles.accessLogCardSubtitle}>{t('staff.accessLog.cardSubtitle')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
+        {/* Guest Pass Issuance Quick Action (all 4 staff roles) */}
+        {canShowGuestPass && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('StaffGuestPass')}
+            accessibilityRole="button" activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.guestPassCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.guestPassIconCircle]}>
+                  <KeyRound size={20} color="#D97706" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#D97706' }]}>
+                    {t('staff.guestPass.cardLabel')}
+                  </Text>
+                  <Text style={styles.guestPassCardTitle}>{t('staff.guestPass.cardTitle')}</Text>
+                  <Text style={styles.guestPassCardSubtitle}>{t('staff.guestPass.cardSubtitle')}</Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
+
+        {/* Shift Handover Quick Action (all 4 staff roles) */}
+        {canShowShiftHandover && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('StaffShiftHandover')}
+            accessibilityRole="button" activeOpacity={0.85}
+          >
+            <Card style={[styles.card, styles.shiftHandoverCard]}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.iconCircle, styles.shiftHandoverIconCircle]}>
+                  <BookOpen size={20} color="#7C3AED" />
+                </View>
+                <View style={styles.cardHeaderInfo}>
+                  <Text style={[styles.cardLabel, { color: '#7C3AED' }]}>
+                    {t('staff.shiftHandover.cardLabel')}
+                  </Text>
+                  <Text style={styles.shiftHandoverCardTitle}>
+                    {t('staff.shiftHandover.cardTitle')}
+                  </Text>
+                  <Text style={styles.shiftHandoverCardSubtitle}>
+                    {t('staff.shiftHandover.cardSubtitle')}
+                  </Text>
+                </View>
+                <ChevronRight size={20} color={Colors.textMuted} />
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
 
         {/* Staff User Profile Info */}
         <Card style={styles.card}>
@@ -171,165 +297,6 @@ export const StaffHomeScreen: React.FC = () => {
             <View style={styles.roleContainer}>
               <Text style={styles.roleLabel}>{t('staff.role')}: </Text>
               <Text style={styles.roleValue}>{getRoleLabel(user?.role)}</Text>
-            </View>
-          </View>
-        </Card>
-
-        {/* SOS Emergency Dashboard Quick Action */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('SosTab')}
-          activeOpacity={0.85}
-        >
-          <Card style={[styles.card, styles.sosCard]}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconCircle, styles.sosIconCircle]}>
-                <AlertTriangle size={20} color="#DC2626" />
-              </View>
-              <View style={styles.cardHeaderInfo}>
-                <Text style={[styles.cardLabel, { color: '#DC2626' }]}>
-                  {t('staff.sosTab')}
-                </Text>
-                <Text style={styles.sosCardTitle}>{t('staff.sos.title')}</Text>
-                <Text style={styles.sosCardSubtitle}>{t('staff.sos.subtitle')}</Text>
-              </View>
-              <ChevronRight size={20} color={Colors.textMuted} />
-            </View>
-          </Card>
-        </TouchableOpacity>
-
-        {/* Resident Chat Inbox Quick Action (DISPATCHER & HOA_ADMIN only) */}
-        {canShowChat && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('ChatInboxTab')}
-            activeOpacity={0.85}
-          >
-            <Card style={[styles.card, styles.chatCard]}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconCircle, styles.chatIconCircle]}>
-                  <MessageSquare size={20} color={Colors.primary} />
-                </View>
-                <View style={styles.cardHeaderInfo}>
-                  <Text style={[styles.cardLabel, { color: Colors.primary }]}>
-                    {t('staff.chatTab')}
-                  </Text>
-                  <Text style={styles.chatCardTitle}>{t('staff.chat.inboxTitle')}</Text>
-                  <Text style={styles.chatCardSubtitle}>{t('staff.chat.activeChatsNote')}</Text>
-                </View>
-                <ChevronRight size={20} color={Colors.textMuted} />
-              </View>
-            </Card>
-          </TouchableOpacity>
-        )}
-
-        {/* Service Requests Quick Action (DISPATCHER, HOA_ADMIN & HOA_CHAIRMAN) */}
-        {canShowRequests && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('RequestsTab')}
-            activeOpacity={0.85}
-          >
-            <Card style={[styles.card, styles.requestsCard]}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconCircle, styles.requestsIconCircle]}>
-                  <ClipboardList size={20} color="#2563EB" />
-                </View>
-                <View style={styles.cardHeaderInfo}>
-                  <Text style={[styles.cardLabel, { color: '#2563EB' }]}>
-                    {t('staff.requestsTab')}
-                  </Text>
-                  <Text style={styles.requestsCardTitle}>{t('staff.requests.title')}</Text>
-                  <Text style={styles.requestsCardSubtitle}>{t('staff.requests.activeRequestsNote')}</Text>
-                </View>
-                <ChevronRight size={20} color={Colors.textMuted} />
-              </View>
-            </Card>
-          </TouchableOpacity>
-        )}
-
-        {/* Access Log Quick Action (SECURITY & HOA_ADMIN only) */}
-        {canShowLogs && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('StaffAccessLog')}
-            activeOpacity={0.85}
-          >
-            <Card style={[styles.card, styles.accessLogCard]}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconCircle, styles.accessLogIconCircle]}>
-                  <Shield size={20} color="#059669" />
-                </View>
-                <View style={styles.cardHeaderInfo}>
-                  <Text style={[styles.cardLabel, { color: '#059669' }]}>
-                    {t('staff.accessLog.cardLabel')}
-                  </Text>
-                  <Text style={styles.accessLogCardTitle}>{t('staff.accessLog.cardTitle')}</Text>
-                  <Text style={styles.accessLogCardSubtitle}>{t('staff.accessLog.cardSubtitle')}</Text>
-                </View>
-                <ChevronRight size={20} color={Colors.textMuted} />
-              </View>
-            </Card>
-          </TouchableOpacity>
-        )}
-
-        {/* Guest Pass Issuance Quick Action (all 4 staff roles) */}
-        {canShowGuestPass && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('StaffGuestPass')}
-            activeOpacity={0.85}
-          >
-            <Card style={[styles.card, styles.guestPassCard]}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconCircle, styles.guestPassIconCircle]}>
-                  <KeyRound size={20} color="#D97706" />
-                </View>
-                <View style={styles.cardHeaderInfo}>
-                  <Text style={[styles.cardLabel, { color: '#D97706' }]}>
-                    {t('staff.guestPass.cardLabel')}
-                  </Text>
-                  <Text style={styles.guestPassCardTitle}>{t('staff.guestPass.cardTitle')}</Text>
-                  <Text style={styles.guestPassCardSubtitle}>{t('staff.guestPass.cardSubtitle')}</Text>
-                </View>
-                <ChevronRight size={20} color={Colors.textMuted} />
-              </View>
-            </Card>
-          </TouchableOpacity>
-        )}
-
-        {/* Shift Handover Quick Action (all 4 staff roles) */}
-        {canShowShiftHandover && (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('StaffShiftHandover')}
-            activeOpacity={0.85}
-          >
-            <Card style={[styles.card, styles.shiftHandoverCard]}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconCircle, styles.shiftHandoverIconCircle]}>
-                  <BookOpen size={20} color="#7C3AED" />
-                </View>
-                <View style={styles.cardHeaderInfo}>
-                  <Text style={[styles.cardLabel, { color: '#7C3AED' }]}>
-                    {t('staff.shiftHandover.cardLabel')}
-                  </Text>
-                  <Text style={styles.shiftHandoverCardTitle}>
-                    {t('staff.shiftHandover.cardTitle')}
-                  </Text>
-                  <Text style={styles.shiftHandoverCardSubtitle}>
-                    {t('staff.shiftHandover.cardSubtitle')}
-                  </Text>
-                </View>
-                <ChevronRight size={20} color={Colors.textMuted} />
-              </View>
-            </Card>
-          </TouchableOpacity>
-        )}
-
-        {/* Operational Modules Preview / Status */}
-        <Card style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.iconCircle, styles.moduleIconCircle]}>
-              <Clock size={20} color={Colors.warning} />
-            </View>
-            <View style={styles.cardHeaderInfo}>
-              <Text style={styles.cardLabel}>{t('staff.modulesTitle')}</Text>
-              <Text style={styles.moduleNote}>{t('staff.modulesNote')}</Text>
             </View>
           </View>
         </Card>
@@ -363,10 +330,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 16,
     marginTop: 8,
   },
   headerTitle: {
+    flex: 1,
     fontSize: 22,
     fontWeight: '700',
     color: Colors.text,
@@ -378,8 +347,11 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     position: 'relative',
-    padding: 6,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
     backgroundColor: Colors.surface,
   },
   notifBadge: {
@@ -400,8 +372,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   card: {
-    marginBottom: 16,
-    padding: 16,
+    marginBottom: 12,
+    borderRadius: 24,
+    padding: 18,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -437,9 +410,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sosCardSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   chatCard: {
     borderColor: Colors.border,
@@ -456,9 +430,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   chatCardSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   requestsCard: {
     borderColor: Colors.border,
@@ -475,9 +450,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   requestsCardSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   accessLogCard: {
     borderColor: Colors.border,
@@ -494,9 +470,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   accessLogCardSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   guestPassCard: {
     borderColor: Colors.border,
@@ -513,9 +490,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   guestPassCardSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   shiftHandoverCard: {
     borderColor: Colors.border,
@@ -532,9 +510,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   shiftHandoverCardSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 21,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: 4,
   },
   cardHeaderInfo: {
     flex: 1,
@@ -578,6 +557,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   roleContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',

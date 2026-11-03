@@ -1,6 +1,7 @@
 'use client';
 
 import { Dialog } from '@/components/Dialog';
+import { WorkspaceHeader } from '@/components/WorkspaceHeader';
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -89,6 +90,15 @@ interface AccountDetail extends AccountItem {
   payments: PaymentItem[];
 }
 
+function BalanceBadge({ balance }: { balance: number }) {
+  const { t, i18n } = useTranslation();
+  const amount = Math.abs(balance).toLocaleString(i18n.language, { maximumFractionDigits: 2 });
+  return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums ${balance < 0 ? 'border-rose-200 bg-rose-50 text-rose-700' : balance > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>
+    {balance !== 0 && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${balance < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} />}
+    {balance < 0 ? t('finance.balanceDebt', { amount }) : balance > 0 ? t('finance.balanceCredit', { amount }) : t('finance.balanceZero')}
+  </span>;
+}
+
 function SearchParamsReader({ onQuery }: { onQuery: (q: string) => void }) {
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -111,6 +121,7 @@ export default function FinancePage() {
   } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState<'ALL' | 'DEBT' | 'CREDIT'>('ALL');
   const [tenantName, setTenantName] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('');
   const [tenantId, setTenantId] = useState<string>('');
@@ -288,6 +299,8 @@ export default function FinancePage() {
   };
 
   const filteredAccounts = accounts.filter((acc) => {
+    if (balanceFilter === 'DEBT' && acc.balance >= 0) return false;
+    if (balanceFilter === 'CREDIT' && acc.balance <= 0) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     const unitNum = acc.unit.unitNumber.toLowerCase();
@@ -309,6 +322,13 @@ export default function FinancePage() {
   const totalDebtSum = accounts
     .filter((a) => a.balance < 0)
     .reduce((sum, a) => sum + Math.abs(a.balance), 0);
+  const metricsAvailable = (!loading && !error) || accounts.length > 0;
+  const hasFilters = Boolean(searchQuery.trim()) || balanceFilter !== 'ALL';
+  const balanceFilters = [
+    { id: 'ALL' as const, label: t('workspaceUi.allAccounts'), count: accounts.length },
+    { id: 'DEBT' as const, label: t('finance.accountsInDebt'), count: inDebtCount },
+    { id: 'CREDIT' as const, label: t('finance.accountsInCredit'), count: inCreditCount },
+  ];
 
   return (
     <div className="min-w-0 space-y-6">
@@ -316,26 +336,11 @@ export default function FinancePage() {
         <SearchParamsReader onQuery={setSearchQuery} />
       </Suspense>
       {/* Header */}
-      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
-        <div>
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm">
-              <CreditCard className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                {t('finance.title')}
-              </h1>
-              <p className="text-sm text-slate-500 mt-0.5">{t('finance.subtitle')}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+      <WorkspaceHeader title={t('finance.title')} description={t('finance.subtitle')} eyebrow={tenantName || undefined} icon={CreditCard} actions={<>
           {canViewExpenses && (
             <Link
               href="/dashboard/finance/expenses"
-              className="flex min-h-11 justify-center items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
+              className="surface-card flex min-h-11 justify-center items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
             >
               <Receipt className="w-4 h-4 text-slate-500" />
               <span>{t('finance.expensesBtn')}</span>
@@ -346,7 +351,7 @@ export default function FinancePage() {
             <>
               <Link
                 href="/dashboard/finance/tariffs"
-                className="flex min-h-11 justify-center items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
+                className="surface-card flex min-h-11 justify-center items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all"
               >
                 <SlidersHorizontal className="w-4 h-4 text-slate-500" />
                 <span>{t('finance.tariffsBtn')}</span>
@@ -366,62 +371,61 @@ export default function FinancePage() {
             onClick={loadAccounts}
             disabled={loading}
             aria-label={t('common.refresh')}
-            className="flex min-h-11 items-center justify-center gap-2 px-3 text-sm font-medium text-slate-600 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
+            className="surface-card flex min-h-11 items-center justify-center gap-2 px-3 text-sm font-medium text-slate-600 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             {t('common.refresh')}
           </button>
-        </div>
-      </div>
+        </>} />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-500">
               {t('finance.totalAccounts')}
             </p>
-            <p className="break-words text-2xl font-bold tabular-nums text-slate-900 mt-1">{accounts.length}</p>
+            <p className="break-words text-2xl font-bold tabular-nums text-slate-900 mt-1">{metricsAvailable ? accounts.length : '—'}</p>
           </div>
-          <div className="w-10 h-10 shrink-0 rounded-xl bg-slate-50 text-slate-600 flex items-center justify-center">
+          <div className="hidden w-10 h-10 shrink-0 rounded-xl bg-slate-50 text-slate-600 sm:flex items-center justify-center">
             <Building className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-500">
               {t('finance.accountsInDebt')}
             </p>
-            <p className="break-words text-2xl font-bold tabular-nums text-rose-600 mt-1">{inDebtCount}</p>
+            <p className={`break-words text-2xl font-bold tabular-nums mt-1 ${inDebtCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{metricsAvailable ? inDebtCount : '—'}</p>
           </div>
-          <div className="w-10 h-10 shrink-0 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+          <div className="hidden w-10 h-10 shrink-0 rounded-xl bg-rose-50 text-rose-600 sm:flex items-center justify-center">
             <ArrowDownLeft className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-500">
               {t('finance.accountsInCredit')}
             </p>
-            <p className="break-words text-2xl font-bold tabular-nums text-emerald-600 mt-1">{inCreditCount}</p>
+            <p className="break-words text-2xl font-bold tabular-nums text-emerald-600 mt-1">{metricsAvailable ? inCreditCount : '—'}</p>
           </div>
-          <div className="w-10 h-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="hidden w-10 h-10 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 sm:flex items-center justify-center">
             <ArrowUpRight className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex min-w-0 items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium text-slate-500">
               {t('finance.totalDebt')}
             </p>
             <p className="break-words text-2xl font-bold tabular-nums text-slate-900 mt-1">
-              {totalDebtSum.toLocaleString()} ₸
+              {metricsAvailable ? `${totalDebtSum.toLocaleString(i18n.language, { maximumFractionDigits: 2 })} ₸` : '—'}
             </p>
           </div>
-          <div className="w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <div className="hidden w-10 h-10 shrink-0 rounded-xl bg-amber-50 text-amber-600 sm:flex items-center justify-center">
             <Coins className="w-5 h-5" />
           </div>
         </div>
@@ -444,7 +448,7 @@ export default function FinancePage() {
             )}
             <span>{actionMessage.text}</span>
           </div>
-          <button
+          <button aria-label={t('common.close')}
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-slate-600"
           >
@@ -454,7 +458,7 @@ export default function FinancePage() {
       )}
 
       {/* Main Container Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         {/* Filters Toolbar */}
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
           <div className="relative flex-1 max-w-md">
@@ -465,12 +469,20 @@ export default function FinancePage() {
               placeholder={t('finance.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+              className="surface-card w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
             />
           </div>
           <div className="text-xs font-semibold text-slate-500">
             {t('finance.recordsFound', { count: filteredAccounts.length })}
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3">
+          {balanceFilters.map((filter) => <button key={filter.id} onClick={() => setBalanceFilter(filter.id)} aria-pressed={balanceFilter === filter.id}
+            className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${balanceFilter === filter.id ? 'bg-sky-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-sky-50'}`}>
+            {filter.label}<span className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${balanceFilter === filter.id ? 'bg-white/20' : 'bg-slate-200/60 text-slate-500'}`}>{metricsAvailable ? filter.count : '—'}</span>
+          </button>)}
+          {hasFilters && <button onClick={() => { setSearchQuery(''); setBalanceFilter('ALL'); }} className="inline-flex min-h-11 items-center gap-2 px-2 text-sm font-semibold text-sky-700"><X size={16} aria-hidden="true" />{t('requestUi.resetFilters')}</button>}
         </div>
 
         {/* Content Table */}
@@ -499,15 +511,34 @@ export default function FinancePage() {
               <CreditCard className="w-6 h-6" />
             </div>
             <h3 className="text-base font-semibold text-slate-900 mb-1">
-              {t('finance.emptyAccountsTitle')}
+              {t(hasFilters ? 'workspaceUi.noAccountsMatch' : 'finance.emptyAccountsTitle')}
             </h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
-              {t('finance.emptyAccountsSub')}
+              {t(hasFilters ? 'workspaceUi.adjustAccountFilters' : 'finance.emptyAccountsSub')}
             </p>
+            {hasFilters && <button onClick={() => { setSearchQuery(''); setBalanceFilter('ALL'); }} className="mt-4 min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-sky-700">{t('requestUi.resetFilters')}</button>}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <>
+          <div className="divide-y divide-slate-100 md:hidden">
+            {filteredAccounts.map((account) => {
+              const owner = account.unit.ownerships?.[0]?.user;
+              return <article key={account.id} className="space-y-4 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><h2 className="text-base font-bold text-slate-900">{t('common.unitShort')} {account.unit.unitNumber}</h2><p className="mt-1 text-xs text-slate-500">{account.unit.building.blockName}</p></div>
+                  <BalanceBadge balance={account.balance} />
+                </div>
+                <p className="break-all rounded-xl bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600">{account.accountNumber}</p>
+                <div className="text-sm"><p className="font-medium text-slate-800">{owner ? `${owner.firstName} ${owner.lastName}` : t('finance.noOwner')}</p>{owner && <p className="mt-1 text-xs text-slate-500">{owner.phone}</p>}</div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => openAccountDetail(account)} className="min-h-11 flex-1 rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-semibold text-sky-700">{t('finance.detailsBtn')}</button>
+                  {canWrite && <button onClick={() => { setPaymentTargetAccount(account); setPaymentAmount(''); setPaymentNote(''); }} className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700">{t('finance.recordPaymentBtn')}</button>}
+                </div>
+              </article>;
+            })}
+          </div>
+          <div className="data-scroll hidden overflow-x-auto md:block">
+            <table className="data-table w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <th className="py-3.5 px-6">{t('finance.thUnit')}</th>
@@ -520,8 +551,6 @@ export default function FinancePage() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredAccounts.map((account) => {
                   const owner = account.unit.ownerships?.[0]?.user;
-                  const isDebt = account.balance < 0;
-                  const isCredit = account.balance > 0;
 
                   return (
                     <tr
@@ -568,25 +597,7 @@ export default function FinancePage() {
 
                       {/* Balance Badge */}
                       <td className="py-4 px-4">
-                        {isDebt ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/70">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                            {t('finance.balanceDebt', {
-                              amount: Math.abs(account.balance).toLocaleString(),
-                            })}
-                          </span>
-                        ) : isCredit ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            {t('finance.balanceCredit', {
-                              amount: account.balance.toLocaleString(),
-                            })}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                            {t('finance.balanceZero')}
-                          </span>
-                        )}
+                        <BalanceBadge balance={account.balance} />
                       </td>
 
                       {/* Actions */}
@@ -622,13 +633,14 @@ export default function FinancePage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
       {/* ACCOUNT DETAIL MODAL / DRAWER */}
       {selectedAccount && (
         <Dialog wide labelledBy="finance-account-title" onClose={() => { setSelectedAccount(null); }}>
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="surface-card bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-wrap items-start justify-between gap-3 bg-slate-50/50">
               <div className="flex items-center gap-3">
@@ -675,7 +687,7 @@ export default function FinancePage() {
                   </div>
                 </div>
 
-                <button
+                <button aria-label={t('common.close')}
                   onClick={() => setSelectedAccount(null)}
                   className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 border border-slate-200 transition-colors ml-2"
                 >
@@ -702,7 +714,7 @@ export default function FinancePage() {
                   </p>
                 ) : (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-xs">
+                    <table className="data-table w-full text-left text-xs">
                       <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
                         <tr>
                           <th className="py-2.5 px-4">{t('finance.thTariff')}</th>
@@ -772,7 +784,7 @@ export default function FinancePage() {
                   </p>
                 ) : (
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-xs">
+                    <table className="data-table w-full text-left text-xs">
                       <thead className="bg-slate-50 text-[11px] font-semibold text-slate-500 border-b border-slate-200">
                         <tr>
                           <th className="py-2.5 px-4">{t('finance.thDate')}</th>
@@ -820,7 +832,7 @@ export default function FinancePage() {
                   type="button"
                   onClick={() => handleDownloadStatement('pdf')}
                   disabled={!!downloadingStatement}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-sm disabled:opacity-50"
+                  className="surface-card inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-sm disabled:opacity-50"
                 >
                   {downloadingStatement === 'pdf' ? (
                     <Loader2 className="w-3.5 h-3.5 text-rose-600 animate-spin" />
@@ -833,7 +845,7 @@ export default function FinancePage() {
                   type="button"
                   onClick={() => handleDownloadStatement('csv')}
                   disabled={!!downloadingStatement}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-sm disabled:opacity-50"
+                  className="surface-card inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition-colors shadow-sm disabled:opacity-50"
                 >
                   {downloadingStatement === 'csv' ? (
                     <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
@@ -857,7 +869,7 @@ export default function FinancePage() {
       {/* GENERATE CHARGES MODAL */}
       {isGenerateModalOpen && (
         <Dialog labelledBy="finance-generate-title" onClose={() => { !isGenerating && setIsGenerateModalOpen(false); }}>
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+          <div className="surface-card bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
               <h3 id="finance-generate-title" className="text-lg font-bold text-slate-900">
                 {t('finance.generateModalTitle')}
@@ -874,7 +886,7 @@ export default function FinancePage() {
                   <select
                     id="finance-generateMonth" value={generateMonth}
                     onChange={(e) => setGenerateMonth(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
                       <option key={m} value={m}>
@@ -898,7 +910,7 @@ export default function FinancePage() {
                   <select
                     id="finance-generateYear" value={generateYear}
                     onChange={(e) => setGenerateYear(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {[2025, 2026, 2027].map((y) => (
                       <option key={y} value={y}>
@@ -935,7 +947,7 @@ export default function FinancePage() {
       {/* RECORD PAYMENT MODAL */}
       {paymentTargetAccount && (
         <Dialog labelledBy="finance-payment-title" onClose={() => { !isSubmittingPayment && setPaymentTargetAccount(null); }}>
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+          <div className="surface-card bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
               <h3 id="finance-payment-title" className="text-lg font-bold text-slate-900">
                 {t('finance.paymentModalTitle', {
@@ -961,7 +973,7 @@ export default function FinancePage() {
                   placeholder="5000"
                   id="finance-paymentAmount" value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -974,7 +986,7 @@ export default function FinancePage() {
                   placeholder="Касса ОСИ, наличные"
                   id="finance-paymentNote" value={paymentNote}
                   onChange={(e) => setPaymentNote(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 

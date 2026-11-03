@@ -1,15 +1,19 @@
+import { FormExitDialog } from '../../components/common/FormExitDialog';
+import { ScreenHero } from '../../components/common/ScreenHero';
 import { PhotoAttachments } from '../../components/common/PhotoAttachments';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,6 +24,8 @@ import {
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/common/Button';
+import { useFormExitGuard } from '../../components/common/useFormExitGuard';
+import { parseDecimalInput } from '../../utils/decimal-input';
 import {
   CommunityBoardApi,
   ListingType,
@@ -41,6 +47,10 @@ export const CreateListingScreen: React.FC = () => {
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const posting = useRef(false);
+  const [saved, setSaved] = useState(false);
+  const locked = submitting || saved;
+  const exitGuard = useFormExitGuard(Boolean(title || description || priceStr || photos.length || type !== 'SELL'), submitting || uploadingPhoto, saved);
 
   const categories: Array<{ type: ListingType; label: string }> = [
     { type: 'SELL', label: t('communityBoard.typeSell') },
@@ -52,7 +62,7 @@ export const CreateListingScreen: React.FC = () => {
 
 
   const handleSubmit = async () => {
-    if (uploadingPhoto || submitting) return;
+    if (uploadingPhoto || posting.current || saved) return;
     if (!tenantId) {
       Alert.alert(t('common.error'), t('common.userNotAuthorizedOrLinked'));
       return;
@@ -70,14 +80,15 @@ export const CreateListingScreen: React.FC = () => {
 
     let parsedPrice: number | undefined = undefined;
     if (type !== 'GIVE_AWAY' && priceStr.trim()) {
-      const num = parseFloat(priceStr.replace(/\s+/g, ''));
-      if (isNaN(num) || num < 0) {
+      const num = parseDecimalInput(priceStr.replace(/\s+/g, ''));
+      if (num === null) {
         setErrorMsg(t('communityBoard.priceValidation'));
         return;
       }
       parsedPrice = num;
     }
 
+    posting.current = true;
     setSubmitting(true);
     setErrorMsg(null);
 
@@ -90,12 +101,15 @@ export const CreateListingScreen: React.FC = () => {
         photoUrls: photos.length > 0 ? photos : undefined,
       });
 
+      setSaved(true);
       Alert.alert(
         t('common.success'),
         t('communityBoard.createSuccessMessage'),
-        [{ text: t('common.ok'), onPress: () => navigation.goBack() }],
+        [{ text: t('access.ok'), onPress: () => navigation.goBack() }],
+        { cancelable: false },
       );
     } catch (e: any) {
+      posting.current = false;
       setErrorMsg(getApiErrorMessage(e));
     } finally {
       setSubmitting(false);
@@ -105,14 +119,16 @@ export const CreateListingScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('communityBoard.createTitle')}</Text>
-        <View style={{ width: 32 }} />
+        <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
+        <ScreenHero title={t('residentUi.listingTitle')} subtitle={t('residentUi.listingHint')} />
         {/* Category Picker */}
         <Text style={styles.sectionLabel}>{t('communityBoard.selectTypeLabel')}</Text>
         <View style={styles.typeSelectorRow}>
@@ -121,8 +137,11 @@ export const CreateListingScreen: React.FC = () => {
             return (
               <TouchableOpacity
                 key={cat.type}
+                accessibilityRole="radio"
+                aria-checked={isSelected} accessibilityState={{ checked: isSelected, disabled: locked }}
+                disabled={locked}
                 style={[styles.typeOption, isSelected && styles.typeOptionSelected]}
-                onPress={() => setType(cat.type)}
+                onPress={() => { setType(cat.type); setErrorMsg(null); }}
               >
                 <Text
                   style={[styles.typeOptionText, isSelected && styles.typeOptionTextSelected]}
@@ -139,6 +158,8 @@ export const CreateListingScreen: React.FC = () => {
         <TextInput
           style={styles.input}
           value={title}
+          accessibilityLabel={t('communityBoard.titleLabel')}
+          editable={!locked}
           onChangeText={(v) => {
             setTitle(v);
             setErrorMsg(null);
@@ -156,13 +177,15 @@ export const CreateListingScreen: React.FC = () => {
               <TextInput
                 style={[styles.input, styles.priceInput]}
                 value={priceStr}
+                accessibilityLabel={t('communityBoard.priceLabel')}
+                editable={!locked}
                 onChangeText={(v) => {
                   setPriceStr(v);
                   setErrorMsg(null);
                 }}
                 placeholder={t('communityBoard.pricePlaceholder')}
                 placeholderTextColor={Colors.textMuted}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
               />
               <Text style={styles.currencySuffix}>₸</Text>
             </View>
@@ -174,6 +197,8 @@ export const CreateListingScreen: React.FC = () => {
         <TextInput
           style={[styles.input, styles.textArea]}
           value={description}
+          accessibilityLabel={t('communityBoard.descLabel')}
+          editable={!locked}
           onChangeText={(v) => {
             setDescription(v);
             setErrorMsg(null);
@@ -187,19 +212,21 @@ export const CreateListingScreen: React.FC = () => {
 
         {/* Photos */}
         <Text style={styles.sectionLabel}>{t('communityBoard.photosLabel')}</Text>
-        <PhotoAttachments value={photos} onChange={setPhotos} onBusyChange={setUploadingPhoto} disabled={submitting} />
+        <PhotoAttachments value={photos} onChange={setPhotos} onBusyChange={setUploadingPhoto} disabled={locked} />
 
-        {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+        {errorMsg && <Text accessibilityLiveRegion="polite" style={styles.errorText}>{errorMsg}</Text>}
 
         <View style={styles.submitSection}>
           <Button
             title={t('communityBoard.publishAction')}
             onPress={handleSubmit}
             loading={submitting}
-            disabled={uploadingPhoto}
+            disabled={uploadingPhoto || saved}
           />
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
+      <FormExitDialog {...exitGuard} />
     </SafeAreaView>
   );
 };
@@ -220,9 +247,16 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
@@ -244,16 +278,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   typeOption: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.card,
   },
   typeOptionSelected: {
     borderColor: Colors.primary,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: Colors.primaryBg,
   },
   typeOptionText: {
     fontSize: 13,
@@ -265,13 +301,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   input: {
+    outlineWidth: 0,
+    minHeight: 52,
     backgroundColor: Colors.card,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 16,
     color: Colors.text,
   },
   priceInputRow: {
@@ -288,7 +326,8 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   textArea: {
-    height: 100,
+    minHeight: 112,
+    textAlignVertical: 'top',
   },
   photosGrid: {
     flexDirection: 'row',

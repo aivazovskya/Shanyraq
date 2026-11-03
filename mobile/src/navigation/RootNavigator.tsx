@@ -25,6 +25,7 @@ import { CommunityBoardScreen } from '../screens/community-board/CommunityBoardS
 import { CreateListingScreen } from '../screens/community-board/CreateListingScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { Colors } from '../constants/colors';
 import { LoadingState } from '../components/common/LoadingState';
 import { useTranslation } from 'react-i18next';
 
@@ -40,7 +41,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: Colors.background } }}>
         {!isAuthenticated ? (
           // Unauthenticated -> Phone & OTP flow
           <Stack.Screen name="Auth" component={AuthStack} />
@@ -63,7 +64,7 @@ export const RootNavigator: React.FC = () => {
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="VotingDetails" component={VotingDetailsScreen} />
-            <Stack.Screen name="CreateRequest" component={CreateRequestScreen} />
+            <Stack.Screen name="CreateRequest" component={CreateRequestScreen} options={{ headerBackButtonMenuEnabled: false }} />
             <Stack.Screen name="RequestDetail" component={RequestDetailScreen} />
             <Stack.Screen name="Announcements" component={AnnouncementsScreen} />
             <Stack.Screen name="ClaimUnit" component={ClaimUnitScreen} />
@@ -74,7 +75,7 @@ export const RootNavigator: React.FC = () => {
             <Stack.Screen name="Bookings" component={BookingsScreen} />
             <Stack.Screen name="SosHistory" component={SosHistoryScreen} />
             <Stack.Screen name="CommunityBoard" component={CommunityBoardScreen} />
-            <Stack.Screen name="CreateListing" component={CreateListingScreen} />
+            <Stack.Screen name="CreateListing" component={CreateListingScreen} options={{ headerBackButtonMenuEnabled: false }} />
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </>

@@ -301,14 +301,14 @@ export default function AccessPage() {
       {/* Header */}
       <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('access.title')}</h1>
+          <h1 className="page-title text-2xl font-bold text-slate-900">{t('access.title')}</h1>
           <p className="text-sm text-slate-500">{t('access.subtitle')}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={fetchPoints}
-            className="min-h-11 justify-center px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
+            className="surface-card min-h-11 justify-center px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
           >
             <RefreshCw className={`w-4 h-4 ${loadingPoints ? 'animate-spin text-slate-400' : ''}`} />
             {t('access.refreshBtn')}
@@ -317,7 +317,7 @@ export default function AccessPage() {
           {canViewGuestPasses && (
             <Link
               href="/dashboard/access/guest-passes"
-              className="min-h-11 justify-center px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm"
+              className="surface-card min-h-11 justify-center px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm"
             >
               <Ticket className="w-4 h-4 text-slate-500" />
               {t('access.guestPassHistoryBtn')}
@@ -358,7 +358,7 @@ export default function AccessPage() {
         </div>
 
         {intercoms.length === 0 ? (
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-sm">
+          <div className="surface-card p-6 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-sm">
             {t('access.noPoints')}
           </div>
         ) : (
@@ -371,7 +371,7 @@ export default function AccessPage() {
               return (
                 <div
                   key={point.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between"
+                  className="surface-card bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between">
@@ -472,7 +472,7 @@ export default function AccessPage() {
         </div>
 
         {barriers.length === 0 ? (
-          <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-sm">
+          <div className="surface-card p-6 rounded-2xl bg-white border border-slate-200 text-center text-slate-500 text-sm">
             {t('access.noPoints')}
           </div>
         ) : (
@@ -480,7 +480,7 @@ export default function AccessPage() {
             {barriers.map((point) => (
               <div
                 key={point.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between"
+                className="surface-card bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between">
@@ -534,7 +534,7 @@ export default function AccessPage() {
           <h2 className="text-lg font-bold text-slate-900">{t('access.camerasSection')}</h2>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="surface-card rounded-2xl border border-slate-200 bg-white p-5">
           <p className="text-sm leading-relaxed text-slate-600">{t('uiReview.videoUnavailable')}</p>
           {cameras.length === 0 ? <p className="mt-4 text-sm text-slate-500">{t('access.noPoints')}</p> : <ul className="mt-4 divide-y divide-slate-100">{cameras.map((camera) => <li key={camera.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><span className="break-words text-sm font-semibold text-slate-800">{camera.name}</span><span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{t(camera.isActive ? 'uiReview.cameraConfigured' : 'uiReview.cameraDisabled')}</span></li>)}</ul>}
         </div>
@@ -543,7 +543,7 @@ export default function AccessPage() {
       {logsError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{logsError}</p><button className="mt-2 min-h-11 font-semibold underline" onClick={fetchLogs}>{t('common.refresh')}</button></div>}
       {/* Access Logs Table & Export Section (Visible to SECURITY, HOA_ADMIN, SUPERADMIN) */}
       {canViewLogs && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
+        <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-0">
           <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
             <div>
               <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -554,7 +554,7 @@ export default function AccessPage() {
 
             {/* Date Filters & CSV Download Button */}
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 text-xs text-slate-600 bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <div className="surface-card flex min-w-0 max-w-full flex-wrap items-center gap-2 text-xs text-slate-600 bg-white px-3 py-2 rounded-xl border border-slate-200">
                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span>{t('access.dateFrom')}</span>
                 <input
@@ -599,8 +599,8 @@ export default function AccessPage() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="data-scroll overflow-x-auto">
+            <table className="data-table w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">{t('access.thTime')}</th>
@@ -742,7 +742,7 @@ export default function AccessPage() {
                       setFormControllerType('RTSP_CAMERA');
                     }
                   }}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
+                  className="surface-card w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
                 >
                   <option value="DOOR_INTERCOM">{t('access.pointTypeIntercom')}</option>
                   <option value="BARRIER">{t('access.pointTypeBarrier')}</option>

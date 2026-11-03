@@ -1,14 +1,17 @@
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { LoadError } from '../../components/common/LoadError';
+import { Button } from '../../components/common/Button';
 import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -44,6 +47,7 @@ export const StaffRequestsListScreen: React.FC = () => {
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -51,7 +55,9 @@ export const StaffRequestsListScreen: React.FC = () => {
     try {
       const data = await ServiceRequestsApi.getRequests();
       setRequests(data);
+      setLoadFailed(false);
     } catch (e) {
+      setLoadFailed(true);
       console.warn('Failed to load staff requests:', e);
     } finally {
       setLoading(false);
@@ -66,6 +72,7 @@ export const StaffRequestsListScreen: React.FC = () => {
   );
 
   const onRefresh = () => {
+    if (refreshing) return;
     setRefreshing(true);
     loadRequests();
   };
@@ -104,6 +111,7 @@ export const StaffRequestsListScreen: React.FC = () => {
     return (
       <TouchableOpacity
         onPress={() => navigation.navigate('RequestDetail', { requestId: item.id })}
+        accessibilityRole="button" accessibilityLabel={item.title}
         activeOpacity={0.7}
       >
         <Card style={styles.itemCard}>
@@ -124,7 +132,7 @@ export const StaffRequestsListScreen: React.FC = () => {
             </Text>
           </View>
 
-          <Text style={styles.itemTitle} numberOfLines={2}>
+          <Text style={styles.itemTitle}>
             {item.title}
           </Text>
 
@@ -154,22 +162,18 @@ export const StaffRequestsListScreen: React.FC = () => {
     );
   };
 
-  if (loading && requests.length === 0) {
-    return <LoadingState message={t('requests.loadingRequests')} />;
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('staff.requests.title')}</Text>
-        <Text style={styles.headerSubtitle}>{t('staff.requests.subtitle')}</Text>
+        <ScreenHero title={t('staff.requests.title')} subtitle={t('staff.requests.subtitle')} style={{ marginBottom: 0 }} />
       </View>
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
         <Input
           placeholder={t('staff.requests.searchPlaceholder')}
+          accessibilityLabel={t('staff.requests.searchPlaceholder')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           containerStyle={{ marginBottom: 0 }}
@@ -178,7 +182,7 @@ export const StaffRequestsListScreen: React.FC = () => {
 
       {/* Filter Tabs */}
       <View style={styles.filterSection}>
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
@@ -194,10 +198,11 @@ export const StaffRequestsListScreen: React.FC = () => {
                 key={opt.key}
                 style={[styles.filterChip, isActive && styles.filterChipActive]}
                 onPress={() => setSelectedStatus(opt.key)}
+                accessibilityRole="tab" accessibilityState={{ selected: isActive }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                  {opt.label} ({count})
+                  {opt.label}{loading ? '' : ` (${count})`}
                 </Text>
               </TouchableOpacity>
             );
@@ -207,6 +212,7 @@ export const StaffRequestsListScreen: React.FC = () => {
 
       {/* Requests List */}
       <FlatList
+        ListHeaderComponent={loadFailed ? <LoadError onRetry={onRefresh} retrying={refreshing} /> : undefined}
         data={filteredRequests}
         keyExtractor={(item) => item.id}
         renderItem={renderRequestItem}
@@ -218,11 +224,12 @@ export const StaffRequestsListScreen: React.FC = () => {
             colors={[Colors.primary]}
           />
         }
-        ListEmptyComponent={
+        ListEmptyComponent={loading ? <LoadingState message={t('requests.loadingRequests')} /> : loadFailed ? undefined :
           <View style={styles.emptyContainer}>
             <Wrench size={48} color={Colors.textLight} />
-            <Text style={styles.emptyTitle}>{t('staff.requests.emptyTitle')}</Text>
-            <Text style={styles.emptySubtitle}>{t('staff.requests.emptySubtitle')}</Text>
+            <Text style={styles.emptyTitle}>{t(requests.length ? 'common.noMatches' : 'staff.requests.emptyTitle')}</Text>
+            <Text style={styles.emptySubtitle}>{t(requests.length ? 'common.changeFilters' : 'staff.requests.emptySubtitle')}</Text>
+            {requests.length > 0 && <Button title={t('common.resetFilters')} variant="outline" onPress={() => { setSelectedStatus('ALL'); setSearchQuery(''); }} style={{ marginTop: 16 }} />}
           </View>
         }
       />
@@ -263,6 +270,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
@@ -290,16 +299,20 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     marginBottom: 12,
-    padding: 14,
+    padding: 18,
+    borderRadius: 24,
   },
   itemHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
   itemMetaLeft: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 6,
   },
@@ -308,10 +321,10 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   itemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
-    lineHeight: 22,
+    lineHeight: 25,
     marginBottom: 10,
   },
   itemFooter: {
@@ -332,11 +345,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   tag: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
   tagText: {
+    flexShrink: 1,
     fontSize: 12,
     color: Colors.textMuted,
   },

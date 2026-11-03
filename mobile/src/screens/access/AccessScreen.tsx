@@ -1,16 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { LoadError } from '../../components/common/LoadError';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Modal,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Share,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -47,6 +52,7 @@ import {
 export const AccessScreen: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   const { user } = useAuth();
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
@@ -55,6 +61,16 @@ export const AccessScreen: React.FC = () => {
 
   const [points, setPoints] = useState<AccessPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pointsFailed, setPointsFailed] = useState(false);
+  const [pinStatusFailed, setPinStatusFailed] = useState(false);
+  const [pinLoading, setPinLoading] = useState(true);
+  const [passesFailed, setPassesFailed] = useState(false);
+  const [guestError, setGuestError] = useState<string | null>(null);
+  const openingLock = useRef(false);
+  const createLock = useRef(false);
+  const revokeLock = useRef(false);
+  const pinVersion = useRef(0);
+  const passesVersion = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
   const [openingPointId, setOpeningPointId] = useState<string | null>(null);
 
@@ -83,15 +99,20 @@ export const AccessScreen: React.FC = () => {
   const [loadingStream, setLoadingStream] = useState(false);
 
   const fetchPinStatus = async () => {
+    const version = ++pinVersion.current;
+    setPinLoading(true);
     try {
       const res = await AuthApi.getPinStatus();
-      setIsPinSet(res.isPinSet);
+      if (version !== pinVersion.current) return;
+      setIsPinSet(res.isPinSet); setPinStatusFailed(false);
     } catch (err) {
+      if (version === pinVersion.current) { setIsPinSet(null); setPinStatusFailed(true); }
       console.warn('Failed to load PIN status:', err);
-    }
+    } finally { if (version === pinVersion.current) setPinLoading(false); }
   };
 
   const fetchGuestPasses = async () => {
+    const version = ++passesVersion.current;
     if (!primaryUnitId || !isVerified) {
       setGuestPasses([]);
       return;
@@ -99,17 +120,18 @@ export const AccessScreen: React.FC = () => {
     try {
       setLoadingPasses(true);
       const data = await AccessApi.getUnitGuestPasses(primaryUnitId);
-      setGuestPasses(data);
+      if (version === passesVersion.current) { setGuestPasses(data); setPassesFailed(false); }
     } catch (err) {
+      if (version === passesVersion.current) setPassesFailed(true);
       console.warn('Failed to load guest passes:', err);
     } finally {
-      setLoadingPasses(false);
+      if (version === passesVersion.current) setLoadingPasses(false);
     }
   };
 
   const fetchPoints = async () => {
     if (!tenantId) {
-      setLoading(false);
+      setLoading(false); setRefreshing(false); setPinLoading(false);
       return;
     }
 
@@ -119,8 +141,9 @@ export const AccessScreen: React.FC = () => {
         fetchPinStatus(),
         fetchGuestPasses(),
       ]);
-      setPoints(data);
+      setPoints(data); setPointsFailed(false);
     } catch (err) {
+      setPointsFailed(true);
       console.warn('Failed to load access points:', err);
     } finally {
       setLoading(false);
@@ -129,17 +152,11 @@ export const AccessScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPoints();
-  }, [tenantId, primaryUnitId, isVerified]);
-
-  useEffect(() => {
-    if (isFocused) {
-      fetchPinStatus();
-      fetchGuestPasses();
-    }
-  }, [isFocused]);
+    if (isFocused) void fetchPoints();
+  }, [tenantId, primaryUnitId, isVerified, isFocused]);
 
   const onRefresh = () => {
+    if (refreshing || loading) return;
     setRefreshing(true);
     fetchPoints();
   };
@@ -154,6 +171,8 @@ export const AccessScreen: React.FC = () => {
           text: t('access.revokePassBtn'),
           style: 'destructive',
           onPress: async () => {
+            if (revokeLock.current) return;
+            revokeLock.current = true;
             setRevokingPassId(pass.id);
             try {
               await AccessApi.revokeGuestPass(pass.id);
@@ -162,6 +181,7 @@ export const AccessScreen: React.FC = () => {
             } catch (err: any) {
               Alert.alert(t('common.error'), getApiErrorMessage(err));
             } finally {
+              revokeLock.current = false;
               setRevokingPassId(null);
             }
           },
@@ -171,6 +191,7 @@ export const AccessScreen: React.FC = () => {
   };
 
   const handleTriggerOpenBarrier = (barrier: AccessPoint) => {
+    if (pinLoading || isPinSet === null || pinModalVisible || openingLock.current || !isFocused || !barrier.isActive) return;
     if (!isVerified) {
       Alert.alert(
         t('access.accessRestrictedTitle'),
@@ -197,7 +218,8 @@ export const AccessScreen: React.FC = () => {
   };
 
   const handleConfirmPin = async (pin: string) => {
-    if (!selectedBarrier) return;
+    if (!selectedBarrier || openingLock.current) return;
+    openingLock.current = true;
 
     setOpeningWithPin(true);
     setPinError(null);
@@ -209,7 +231,7 @@ export const AccessScreen: React.FC = () => {
       Alert.alert(t('access.openSuccessTitle'), res.message || t('access.openSuccessMsg'));
     } catch (e: any) {
       const msg = getApiErrorMessage(e);
-      if (msg.includes('PIN_NOT_SET')) {
+      if (e?.response?.data?.code === 'ACCESS_CONTROL.PIN_NOT_SET') {
         setIsPinSet(false);
         setPinModalVisible(false);
         Alert.alert(
@@ -224,11 +246,13 @@ export const AccessScreen: React.FC = () => {
         setPinError(msg);
       }
     } finally {
+      openingLock.current = false;
       setOpeningWithPin(false);
     }
   };
 
   const handleCreateGuestPass = async () => {
+    if (createLock.current) return;
     if (!primaryUnitId || !isVerified) {
       Alert.alert(
         t('common.error'),
@@ -237,10 +261,12 @@ export const AccessScreen: React.FC = () => {
       return;
     }
     if (!guestName.trim()) {
-      Alert.alert(t('common.error'), t('access.enterGuestNameWarning'));
+      setGuestError(t('access.enterGuestNameWarning'));
       return;
     }
 
+    createLock.current = true;
+    setGuestError(null);
     setCreatingPass(true);
     try {
       const now = new Date();
@@ -259,11 +285,14 @@ export const AccessScreen: React.FC = () => {
       setGuestPlate('');
       fetchGuestPasses();
     } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      setGuestError(getApiErrorMessage(e));
     } finally {
+      createLock.current = false;
       setCreatingPass(false);
     }
   };
+
+  const closeGuestModal = () => { if (!createLock.current) setGuestModalVisible(false); };
 
   const handleSharePass = async (pass: GuestPass) => {
     try {
@@ -295,28 +324,21 @@ export const AccessScreen: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return <LoadingState />;
-  }
 
   const barriers = points.filter((p) => p.type === 'BARRIER' || p.type === 'GATE');
   const intercoms = points.filter((p) => p.type === 'DOOR_INTERCOM');
   const cameras = points.filter((p) => p.type === 'CAMERA');
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('access.title')}</Text>
-          <Text style={styles.subtitle}>
-            {t('access.subtitle')}
-          </Text>
-        </View>
+        <ScreenHero title={t('access.title')} subtitle={t('access.subtitle')} />
+        {loading && <LoadingState />}
 
         {!isVerified && (
           <View style={styles.unverifiedBanner}>
@@ -328,6 +350,7 @@ export const AccessScreen: React.FC = () => {
 
         {isPinSet === false && (
           <TouchableOpacity
+            accessibilityRole="button"
             style={styles.pinWarningBanner}
             onPress={() => navigation.navigate('PinSetup')}
             activeOpacity={0.8}
@@ -343,10 +366,12 @@ export const AccessScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
+        {pointsFailed && <LoadError message={t('access.pointsLoadError')} onRetry={onRefresh} retrying={refreshing} />}
+        {pinStatusFailed && <LoadError message={t('access.pinStatusError')} onRetry={fetchPinStatus} retrying={pinLoading} />}
         {/* Section: Intercoms */}
         <Text style={styles.sectionHeading}>{t('access.intercomsSection')}</Text>
 
-        {intercoms.length === 0 ? (
+        {loading || (pointsFailed && !intercoms.length) ? null : intercoms.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>{t('access.noIntercoms')}</Text>
           </Card>
@@ -360,7 +385,7 @@ export const AccessScreen: React.FC = () => {
                     {t('access.pointTypeIntercom')}
                   </Text>
                 </View>
-                <Badge label={t('access.barrierActive')} variant="success" />
+                <Badge label={t(intercom.isActive ? 'access.barrierActive' : 'access.pointInactive')} variant={intercom.isActive ? 'success' : 'default'} />
               </View>
 
               <View style={styles.buttonWrapper}>
@@ -368,7 +393,7 @@ export const AccessScreen: React.FC = () => {
                   title={t('access.holdToOpenIntercom')}
                   onConfirmed={() => handleTriggerOpenBarrier(intercom)}
                   loading={openingWithPin && selectedBarrier?.id === intercom.id}
-                  disabled={!isVerified}
+                  disabled={!isVerified || isPinSet === null || pinLoading || pinModalVisible || openingWithPin || !isFocused || !intercom.isActive}
                 />
               </View>
             </Card>
@@ -378,7 +403,7 @@ export const AccessScreen: React.FC = () => {
         {/* Section: Barriers */}
         <Text style={styles.sectionHeading}>{t('access.barriersSection')}</Text>
 
-        {barriers.length === 0 ? (
+        {loading || (pointsFailed && !barriers.length) ? null : barriers.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>{t('access.noBarriers')}</Text>
           </Card>
@@ -392,7 +417,7 @@ export const AccessScreen: React.FC = () => {
                     {b.type === 'BARRIER' ? t('access.pointTypeBarrier') : t('access.pointTypeGate')}
                   </Text>
                 </View>
-                <Badge label={t('access.barrierActive')} variant="success" />
+                <Badge label={t(b.isActive ? 'access.barrierActive' : 'access.pointInactive')} variant={b.isActive ? 'success' : 'default'} />
               </View>
 
               <View style={styles.buttonWrapper}>
@@ -400,7 +425,7 @@ export const AccessScreen: React.FC = () => {
                   title={t('access.holdToOpen')}
                   onConfirmed={() => handleTriggerOpenBarrier(b)}
                   loading={openingWithPin && selectedBarrier?.id === b.id}
-                  disabled={!isVerified}
+                  disabled={!isVerified || isPinSet === null || pinLoading || pinModalVisible || openingWithPin || !isFocused || !b.isActive}
                 />
               </View>
             </Card>
@@ -413,7 +438,7 @@ export const AccessScreen: React.FC = () => {
           <Button
             title={t('access.createPassBtn')}
             onPress={() => {
-              setCreatedPass(null);
+              setCreatedPass(null); setGuestError(null);
               setGuestModalVisible(true);
             }}
             variant="outline"
@@ -434,6 +459,9 @@ export const AccessScreen: React.FC = () => {
           </View>
         </Card>
 
+        {passesFailed && <LoadError message={t('access.passesLoadError')} onRetry={fetchGuestPasses} retrying={loadingPasses} />}
+        {loadingPasses && <ActivityIndicator color={Colors.primary} accessibilityLabel={t('common.loading')} />}
+        {isVerified && !passesFailed && !loadingPasses && guestPasses.length === 0 && <Text style={styles.emptyText}>{t('access.noGuestPasses')}</Text>}
         {/* Guest Passes History */}
         {guestPasses.length > 0 && (
           <View style={styles.historyContainer}>
@@ -492,6 +520,7 @@ export const AccessScreen: React.FC = () => {
                         title={t('access.revokePassBtn')}
                         onPress={() => handleRevokePass(pass)}
                         loading={revokingPassId === pass.id}
+                        disabled={revokingPassId !== null}
                         variant="outline"
                         size="sm"
                         style={styles.revokeButton}
@@ -507,7 +536,7 @@ export const AccessScreen: React.FC = () => {
         {/* Section: Cameras */}
         <Text style={styles.sectionHeading}>{t('access.camerasSection')}</Text>
 
-        {cameras.length === 0 ? (
+        {loading || (pointsFailed && !cameras.length) ? null : cameras.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>{t('access.noCameras')}</Text>
           </Card>
@@ -525,6 +554,7 @@ export const AccessScreen: React.FC = () => {
                 <Button
                   title={t('access.watchCamera')}
                   onPress={() => handleViewCamera(c.id)}
+                  disabled={!c.isActive || loadingStream}
                   variant="primary"
                   size="sm"
                 />
@@ -535,12 +565,12 @@ export const AccessScreen: React.FC = () => {
       </ScrollView>
 
       {/* CREATE GUEST PASS MODAL */}
-      <Modal visible={guestModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <Modal visible={guestModalVisible} transparent animationType="slide" onRequestClose={closeGuestModal}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: 24 + insets.bottom }]}><ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('access.guestModalTitle')}</Text>
-              <TouchableOpacity onPress={() => setGuestModalVisible(false)}>
+              <TouchableOpacity onPress={closeGuestModal} disabled={creatingPass} accessibilityRole="button" accessibilityLabel={t('common.close')} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}>
                 <X color={Colors.textMuted} size={24} />
               </TouchableOpacity>
             </View>
@@ -558,7 +588,7 @@ export const AccessScreen: React.FC = () => {
                 </View>
 
                 <Text style={styles.passCodeTitle}>{t('access.passCodeTitle')}</Text>
-                <Text style={styles.passCode}>{createdPass.accessCode}</Text>
+                <Text selectable style={styles.passCode}>{createdPass.accessCode}</Text>
 
                 <View style={styles.passMetaBlock}>
                   <Text style={styles.passMetaText}>
@@ -588,21 +618,30 @@ export const AccessScreen: React.FC = () => {
             ) : (
               // Input form
               <View>
+                <View style={styles.guestSummary}>
+                  <Text style={styles.guestSummaryTitle}>{t('common.unitShort')} {user?.ownerships?.[0]?.unit.unitNumber} · {user?.ownerships?.[0]?.unit.building.blockName}</Text>
+                  <Text style={styles.guestSummaryHint}>{t('residentUi.guestPassHint')}</Text>
+                </View>
                 <Input
                   label={t('access.guestInputLabel')}
                   placeholder={t('access.guestInputPlaceholder')}
                   value={guestName}
-                  onChangeText={setGuestName}
+                  error={guestError === t('access.enterGuestNameWarning') ? guestError : undefined}
+                  editable={!creatingPass}
+                  onChangeText={(value) => { setGuestName(value); setGuestError(null); }}
                 />
                 <Input
                   label={t('access.plateInputLabel')}
                   placeholder={t('access.plateInputPlaceholder')}
                   value={guestPlate}
-                  onChangeText={setGuestPlate}
+                  editable={!creatingPass}
+                  autoCapitalize="characters" autoCorrect={false}
+                  onChangeText={value => { setGuestPlate(value); setGuestError(null); }}
                   leftIcon={<Car color={Colors.textMuted} size={18} />}
                   helper={t('access.plateHelper')}
                 />
 
+                {guestError && guestError !== t('access.enterGuestNameWarning') && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, marginVertical: 10 }}>{guestError}</Text>}
                 <Button
                   title={t('access.generateQrBtn')}
                   onPress={handleCreateGuestPass}
@@ -612,28 +651,28 @@ export const AccessScreen: React.FC = () => {
                 />
               </View>
             )}
-          </View>
-        </View>
+          </ScrollView></View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* CAMERA VIEWER MODAL */}
-      <Modal visible={cameraModalVisible} transparent animationType="fade">
+      <Modal visible={cameraModalVisible} transparent animationType="fade" onRequestClose={() => setCameraModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: 360 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedStream?.name || t('access.liveCameraTitle')}
               </Text>
-              <TouchableOpacity onPress={() => setCameraModalVisible(false)}>
+              <TouchableOpacity onPress={() => setCameraModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('common.close')} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
                 <X color={Colors.textMuted} size={24} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.streamContainer}>
               <View style={styles.streamMockPlaceholder}>
-                <Video color="#FFFFFF" size={48} />
+                {loadingStream ? <ActivityIndicator size="large" color="#FFFFFF" /> : <Video color="#FFFFFF" size={48} />}
                 <Text style={styles.streamMockText}>
-                  {t('access.cameraPlaybackUnavailable')}
+                  {t(loadingStream ? 'common.loading' : 'access.cameraPlaybackUnavailable')}
                 </Text>
               </View>
             </View>
@@ -670,20 +709,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 4,
-    lineHeight: 18,
   },
   unverifiedBanner: {
     backgroundColor: '#FEF3C7',
@@ -726,22 +751,28 @@ const styles = StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
     marginTop: 16,
   },
   barrierCard: {
+    borderRadius: 22,
     marginBottom: 12,
   },
   barrierHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
   },
   barrierInfo: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 160,
   },
   barrierName: {
     fontSize: 17,
@@ -757,8 +788,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   guestPromoCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: Colors.primaryBg,
+    borderColor: Colors.primaryLight,
     marginBottom: 16,
   },
   guestPromoRow: {
@@ -829,7 +860,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  guestSummary: { borderRadius: 18, padding: 16, backgroundColor: Colors.primaryBg, borderWidth: 1, borderColor: Colors.primaryLight, marginBottom: 20, gap: 6 },
+  guestSummaryTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
+  guestSummaryHint: { fontSize: 13, lineHeight: 20, color: Colors.textMuted },
   modalTitle: {
+    flex: 1,
+    marginRight: 12,
     fontSize: 18,
     fontWeight: '800',
     color: Colors.text,

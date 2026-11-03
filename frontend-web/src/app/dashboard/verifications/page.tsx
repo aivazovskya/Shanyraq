@@ -189,7 +189,7 @@ export default function VerificationsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">
               {t('verifications.title')}
             </h1>
             {tenantName && (
@@ -206,7 +206,7 @@ export default function VerificationsPage() {
         <button
           onClick={loadVerifications}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
+          className="surface-card inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>{t('verifications.refreshBtn')}</span>
@@ -254,7 +254,7 @@ export default function VerificationsPage() {
       )}
 
       {/* Поиск и фильтры */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-96">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -273,7 +273,7 @@ export default function VerificationsPage() {
       </div>
 
       {/* Таблица заявок */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
@@ -296,8 +296,8 @@ export default function VerificationsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
+          <div className="data-scroll overflow-x-auto">
+            <table className="data-table w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-4">{t('verifications.thApplicant')}</th>

@@ -351,7 +351,7 @@ export default function SosDashboardPage() {
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{t('sos.title')}</h1>
+              <h1 className="page-title text-2xl font-bold text-slate-900">{t('sos.title')}</h1>
               <p className="text-sm text-slate-500">{t('sos.subtitle')}</p>
             </div>
           </div>
@@ -371,7 +371,7 @@ export default function SosDashboardPage() {
               loadStats(tenantId, dateFrom, dateTo);
             }}
             disabled={refreshing}
-            className="inline-flex items-center min-h-11 px-4 py-2 border border-slate-200 text-sm font-semibold rounded-xl text-slate-700 bg-white hover:bg-slate-50 focus:outline-none"
+            className="surface-card inline-flex items-center min-h-11 px-4 py-2 border border-slate-200 text-sm font-semibold rounded-xl text-slate-700 bg-white hover:bg-slate-50 focus:outline-none"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin text-red-600' : ''}`} />
             {t('common.refresh')}
@@ -400,7 +400,7 @@ export default function SosDashboardPage() {
         </div>
 
         {!alertsLoaded ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900"><p>{t('uiPolish.alertsUnavailable')}</p><button className="mt-2 min-h-11 font-semibold underline" onClick={() => loadAlerts(tenantId, true)}>{t('common.refresh')}</button></div> : activeAlerts.length === 0 ? (
-          <div className="p-8 text-center bg-white border border-slate-200 rounded-xl shadow-sm">
+          <div className="surface-card p-8 text-center bg-white border border-slate-200 rounded-xl shadow-sm">
             <CheckCircle2 className="mx-auto h-12 w-12 text-green-500 mb-3" />
             <p className="text-base font-medium text-slate-900">{t('sos.noActiveAlerts')}</p>
             <p className="text-sm text-slate-500 mt-1">{t('sos.allAlertsHandled')}</p>
@@ -517,7 +517,7 @@ export default function SosDashboardPage() {
       </div>
 
       {/* STATISTICS & TRENDS SECTION */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 space-y-5">
+      <div className="surface-card bg-white border border-slate-200 rounded-xl shadow-sm p-5 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
@@ -690,7 +690,7 @@ export default function SosDashboardPage() {
       </div>
 
       {/* HISTORY SECTION */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mt-8">
+      <div className="surface-card bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mt-8">
         <div className="px-6 py-4 border-b border-slate-200">
           <h2 className="text-base font-semibold text-slate-900">{t('sos.history')}</h2>
         </div>
@@ -711,8 +711,8 @@ export default function SosDashboardPage() {
               {item.resolvedBy && <p className="text-xs text-slate-500">{t('sos.resolvedBy')}: {item.resolvedBy.firstName} {item.resolvedBy.lastName}{item.resolvedAt && ` · ${new Date(item.resolvedAt).toLocaleString(i18n.language)}`}</p>}
             </article>)}
           </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <div className="data-scroll hidden overflow-x-auto md:block">
+            <table className="data-table min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-6 py-3 text-left font-medium">{t('sos.time')}</th>

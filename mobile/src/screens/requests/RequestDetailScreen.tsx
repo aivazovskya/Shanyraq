@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { LoadError } from '../../components/common/LoadError';
+import { RequestPhotos } from '../../components/common/RequestPhotos';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -32,7 +36,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
-import { ArrowLeft, Send, Star, User, Phone } from 'lucide-react-native';
+import { ArrowLeft, Send, Star, User, RefreshCw } from 'lucide-react-native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RequestDetail'>;
 
@@ -43,6 +47,13 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const [request, setRequest] = useState<ServiceRequestItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const detailsVersion = useRef(0);
+  const activeRequest = useRef(requestId);
+  activeRequest.current = requestId;
+  const mutationLock = useRef(false);
   const [newComment, setNewComment] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -54,66 +65,105 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
   const [ratingFeedback, setRatingFeedback] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
 
-  const loadDetails = async () => {
+  const busy = sendingComment || submittingRating || updatingStatus;
+  const loadDetails = useCallback(async () => {
+    const version = ++detailsVersion.current;
     try {
       const data = await ServiceRequestsApi.getRequestDetails(requestId);
+      if (version !== detailsVersion.current) return;
       setRequest(data);
-    } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      setLoadFailed(false);
+    } catch {
+      if (version === detailsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === detailsVersion.current) { setLoading(false); setRefreshing(false); }
     }
+  }, [requestId]);
+  useEffect(() => {
+    activeRequest.current = requestId;
+    setRequest(null);
+    setLoading(true);
+    setActionError(null);
+    setNewComment('');
+    void loadDetails();
+    return () => { detailsVersion.current++; activeRequest.current = ''; };
+  }, [loadDetails]);
+  const retryDetails = () => {
+    if (loading || refreshing || mutationLock.current) return;
+    setRefreshing(true);
+    void loadDetails();
   };
 
-  useEffect(() => {
-    loadDetails();
-  }, [requestId]);
-
   const handleSendComment = async () => {
-    if (!newComment.trim()) return;
+    const comment = newComment.trim();
+    if (!comment || mutationLock.current) return;
+    mutationLock.current = true;
+    setActionError(null);
 
     setSendingComment(true);
     try {
-      await ServiceRequestsApi.addComment(requestId, newComment.trim());
+      const added = await ServiceRequestsApi.addComment(requestId, comment);
+      if (activeRequest.current !== requestId) return;
+      setRequest((previous) => previous ? { ...previous, comments: [...(previous.comments || []).filter((item) => item.id !== added.id), added] } : previous);
       setNewComment('');
       await loadDetails();
     } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      if (activeRequest.current === requestId) setActionError(getApiErrorMessage(e));
     } finally {
+      mutationLock.current = false;
       setSendingComment(false);
     }
   };
 
   const handleRate = async () => {
+    if (mutationLock.current) return;
+    mutationLock.current = true;
+    setActionError(null);
     setSubmittingRating(true);
     try {
       await ServiceRequestsApi.rateRequest(requestId, rating, ratingFeedback.trim() || undefined);
+      if (activeRequest.current !== requestId) return;
+      setRequest((previous) => previous ? { ...previous, rating, feedback: ratingFeedback.trim(), status: 'CLOSED' } : previous);
       Alert.alert(t('requests.ratingThanksTitle'), t('requests.ratingThanksMsg'));
       await loadDetails();
     } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      if (activeRequest.current === requestId) setActionError(getApiErrorMessage(e));
     } finally {
+      mutationLock.current = false;
       setSubmittingRating(false);
     }
   };
 
   const handleUpdateStatus = async (newStatus: RequestStatus) => {
-    if (!request || request.status === newStatus || updatingStatus) return;
+    if (!request || request.status === newStatus || mutationLock.current) return;
+    mutationLock.current = true;
+    setActionError(null);
     setUpdatingStatus(true);
     try {
       await ServiceRequestsApi.updateStatus(requestId, newStatus);
-      Alert.alert(t('common.success'), t('staff.requests.statusUpdateSuccess'));
+      if (activeRequest.current !== requestId) return;
+      setRequest((previous) => previous ? { ...previous, status: newStatus } : previous);
       await loadDetails();
     } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      if (activeRequest.current === requestId) setActionError(getApiErrorMessage(e));
     } finally {
+      mutationLock.current = false;
       setUpdatingStatus(false);
     }
   };
 
-  if (loading || !request) {
-    return <LoadingState message={t('requests.loadingRequestDetails')} />;
-  }
+  const header = (<View style={styles.topNav}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <ArrowLeft color={Colors.text} size={24} />
+        </TouchableOpacity>
+        <Text style={styles.navTitle} numberOfLines={1}>
+          {t('requests.requestNumberTitle', { id: (request?.id || requestId).slice(0, 8) })}
+        </Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.retry')} onPress={retryDetails} disabled={loading || refreshing || busy} style={styles.backBtn}>
+          {refreshing ? <ActivityIndicator color={Colors.primary} /> : <RefreshCw size={20} color={Colors.textMuted} />}
+        </TouchableOpacity>
+      </View>);
+  if (!request) return <SafeAreaView style={styles.container}>{header}{loading ? <LoadingState message={t('requests.loadingRequestDetails')} /> : <LoadError onRetry={retryDetails} retrying={refreshing} />}</SafeAreaView>;
 
   const isResolved = request.status === 'RESOLVED';
   const hasRated = request.rating !== null && request.rating !== undefined;
@@ -121,21 +171,15 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ArrowLeft color={Colors.text} size={24} />
-        </TouchableOpacity>
-        <Text style={styles.navTitle} numberOfLines={1}>
-          {t('requests.requestNumberTitle', { id: request.id.slice(0, 8) })}
-        </Text>
-        <View style={{ width: 24 }} />
-      </View>
+      {header}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        {actionError && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, backgroundColor: Colors.dangerBg, padding: 12, fontSize: 14 }}>{actionError}</Text>}
+        {loadFailed && <LoadError onRetry={retryDetails} retrying={refreshing} />}
+        <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={retryDetails} colors={[Colors.primary]} />} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
           {/* Status & Title Card */}
           <Card style={styles.mainCard}>
             <View style={styles.statusRow}>
@@ -147,13 +191,16 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
             <Text style={styles.requestTitle}>{request.title}</Text>
             <Text style={styles.requestDesc}>{request.description}</Text>
+            {!!request.attachments?.some(file => file.fileType.startsWith('image/')) && (
+              <RequestPhotos key={request.id} requestId={request.id} attachments={request.attachments} />
+            )}
 
             <View style={styles.infoMeta}>
               <Text style={styles.metaItem}>
-                {t('requests.categoryMeta', { category: getCategoryLabel(request.category, t) })}
+                {t('requests.categoryMeta', { cat: getCategoryLabel(request.category, t) })}
               </Text>
               <Text style={styles.metaItem}>
-                {t('requests.priorityMeta', { priority: getPriorityLabel(request.priority, t) })}
+                {t('requests.priorityMeta', { prio: getPriorityLabel(request.priority, t) })}
               </Text>
             </View>
 
@@ -198,7 +245,8 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                         isCurrent && styles.statusButtonCurrent,
                       ]}
                       onPress={() => handleUpdateStatus(st)}
-                      disabled={isCurrent || updatingStatus}
+                      disabled={isCurrent || busy}
+                      accessibilityRole="button" accessibilityState={{ disabled: isCurrent || busy, selected: isCurrent, busy: updatingStatus }}
                       activeOpacity={0.7}
                     >
                       <Text
@@ -226,7 +274,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
               <View style={styles.starsRow}>
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                  <TouchableOpacity key={star} onPress={() => setRating(star)} disabled={busy} accessibilityRole="radio" aria-checked={rating === star} accessibilityState={{ checked: rating === star, disabled: busy }} accessibilityLabel={t('requests.yourRatingLabel', { rating: star })} style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
                     <Star
                       color={star <= rating ? '#F59E0B' : Colors.borderDark}
                       fill={star <= rating ? '#F59E0B' : 'transparent'}
@@ -239,6 +287,8 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               <Input
                 placeholder={t('requests.reviewPlaceholder')}
                 value={ratingFeedback}
+                editable={!busy}
+                accessibilityLabel={t('requests.reviewPlaceholder')}
                 onChangeText={setRatingFeedback}
                 containerStyle={{ marginTop: 10 }}
               />
@@ -247,6 +297,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
                 title={t('requests.submitRatingBtn')}
                 onPress={handleRate}
                 loading={submittingRating}
+                disabled={busy}
                 variant="primary"
                 size="md"
               />
@@ -276,7 +327,7 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
               <View key={c.id} style={styles.commentBubble}>
                 <View style={styles.commentHeader}>
                   <Text style={styles.commentAuthor}>
-                    {c.author.firstName} {c.author.lastName} ({c.author.role})
+                    {c.author.firstName} {c.author.lastName}
                   </Text>
                   <Text style={styles.commentTime}>
                     {new Date(c.createdAt).toLocaleTimeString(i18n.language, {
@@ -300,15 +351,18 @@ export const RequestDetailScreen: React.FC<Props> = ({ route, navigation }) => {
           <Input
             placeholder={t('requests.commentInputPlaceholder')}
             value={newComment}
+            editable={!busy}
+            accessibilityLabel={t('requests.commentInputPlaceholder')}
             onChangeText={setNewComment}
             containerStyle={{ flex: 1, marginBottom: 0 }}
           />
           <TouchableOpacity
-            style={styles.sendButton}
+            style={[styles.sendButton, (busy || !newComment.trim()) && { opacity: 0.4 }]}
             onPress={handleSendComment}
-            disabled={sendingComment || !newComment.trim()}
+            disabled={busy || !newComment.trim()}
+            accessibilityRole="button" accessibilityLabel={t('requests.sendComment')} accessibilityState={{ busy: sendingComment, disabled: busy || !newComment.trim() }}
           >
-            <Send color="#FFFFFF" size={20} />
+            {sendingComment ? <ActivityIndicator color="#FFFFFF" /> : <Send color="#FFFFFF" size={20} />}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -332,9 +386,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   navTitle: {
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
@@ -344,10 +403,14 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   mainCard: {
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 16,
   },
   statusRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
@@ -357,19 +420,22 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   requestTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 29,
     fontWeight: '800',
     color: Colors.text,
     marginBottom: 6,
   },
   requestDesc: {
-    fontSize: 14,
+    fontSize: 15,
     color: Colors.text,
     lineHeight: 20,
     marginBottom: 12,
   },
   infoMeta: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 8,
     gap: 16,
     paddingTop: 10,
     borderTopWidth: 1,
@@ -418,7 +484,7 @@ const styles = StyleSheet.create({
   starsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
+    gap: 2,
     marginVertical: 14,
   },
   ratedCard: {
@@ -446,12 +512,14 @@ const styles = StyleSheet.create({
   commentBubble: {
     backgroundColor: Colors.surface,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   commentHeader: {
+    flexWrap: 'wrap',
+    gap: 6,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -510,6 +578,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,

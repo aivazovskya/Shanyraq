@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
@@ -281,7 +283,7 @@ export default function ResidentsPage() {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{t('residents.title')}</h1>
+              <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">{t('residents.title')}</h1>
               <p className="text-sm text-slate-500 mt-0.5">
                 {t('residents.subtitle')}
               </p>
@@ -293,7 +295,7 @@ export default function ResidentsPage() {
           <button
             onClick={handleExportCsv}
             disabled={exportingCsv || loading || residents.length === 0}
-            className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
+            className="surface-card flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
           >
             {exportingCsv ? (
               <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
@@ -306,7 +308,7 @@ export default function ResidentsPage() {
           <button
             onClick={loadResidents}
             disabled={loading}
-            className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
+            className="surface-card flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{t('residents.refreshBtn')}</span>
@@ -316,7 +318,7 @@ export default function ResidentsPage() {
 
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('residents.totalResidents')}</p>
             <p className="text-2xl font-bold text-slate-900 mt-1">{residents.length}</p>
@@ -326,7 +328,7 @@ export default function ResidentsPage() {
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('residents.activeAccounts')}</p>
             <p className="text-2xl font-bold text-emerald-600 mt-1">{activeCount}</p>
@@ -336,7 +338,7 @@ export default function ResidentsPage() {
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{t('residents.blockedAccounts')}</p>
             <p className="text-2xl font-bold text-rose-600 mt-1">{deactivatedCount}</p>
@@ -364,7 +366,7 @@ export default function ResidentsPage() {
             )}
             <span>{actionMessage.text}</span>
           </div>
-          <button
+          <button aria-label={t('common.close')}
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-slate-600"
           >
@@ -374,7 +376,7 @@ export default function ResidentsPage() {
       )}
 
       {/* Main Container Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         {/* Filters Toolbar */}
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
           <div className="relative flex-1 max-w-md">
@@ -384,7 +386,7 @@ export default function ResidentsPage() {
               placeholder={t('residents.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+              className="surface-card w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
             />
           </div>
           <div className="text-xs font-semibold text-slate-500">
@@ -423,8 +425,8 @@ export default function ResidentsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="data-scroll overflow-x-auto">
+            <table className="data-table w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <th className="py-3.5 px-6">{t('residents.thResident')}</th>
@@ -555,8 +557,8 @@ export default function ResidentsPage() {
 
       {/* RESIDENT DETAIL MODAL */}
       {selectedResident && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+        <Dialog labelledBy="residents-dialog-0" onClose={() => setSelectedResident(null)}>
+          <div className="surface-card bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-3">
@@ -565,7 +567,7 @@ export default function ResidentsPage() {
                   {selectedResident.lastName[0]}
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 id="residents-dialog-0" className="text-lg font-bold text-slate-900">
                     {selectedResident.firstName} {selectedResident.lastName}
                   </h3>
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
@@ -581,7 +583,7 @@ export default function ResidentsPage() {
                   </div>
                 </div>
               </div>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setSelectedResident(null)}
                 className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 border border-slate-200 transition-colors"
               >
@@ -646,7 +648,7 @@ export default function ResidentsPage() {
                       return (
                         <div
                           key={o.id}
-                          className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          className="surface-card p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                         >
                           <div>
                             <div className="flex items-center gap-2">
@@ -732,7 +734,7 @@ export default function ResidentsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

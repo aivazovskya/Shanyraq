@@ -1,19 +1,20 @@
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { NotificationSettings } from '../../components/common/NotificationSettings';
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   TouchableOpacity,
   Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { AuthApi } from '../../api/auth';
-import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
 import { CommunityBoardApi } from '../../api/community-board';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -28,13 +29,8 @@ import {
   ShieldCheck,
   LogOut,
   PlusCircle,
-  Bell,
   KeyRound,
   ChevronRight,
-  Globe,
-  MessageSquare,
-  Wrench,
-  CreditCard,
 } from 'lucide-react-native';
 
 const LANGUAGES: { code: SupportedLocale; label: string }[] = [
@@ -48,16 +44,11 @@ export const ProfileScreen: React.FC = () => {
   const isFocused = useIsFocused();
   const { user, logout, refreshProfile } = useAuth();
   const { t, i18n } = useTranslation();
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [isPinSet, setIsPinSet] = useState<boolean | null>(null);
   const [hidePhoneInListings, setHidePhoneInListings] = useState<boolean>(
     user?.hidePhoneInListings ?? false,
   );
-  const [preferences, setPreferences] = useState<NotificationPreferences>({
-    CHAT: true,
-    SERVICE_REQUEST: true,
-    ANNOUNCEMENT: true,
-    FINANCE: true,
-  });
 
   useEffect(() => {
     if (user?.hidePhoneInListings !== undefined) {
@@ -71,28 +62,12 @@ export const ProfileScreen: React.FC = () => {
         .then((res) => setIsPinSet(res.isPinSet))
         .catch((err) => console.warn('Failed to fetch PIN status:', err));
 
-      NotificationsApi.getPreferences()
-        .then((prefs) => {
-          if (prefs) setPreferences(prefs);
-        })
-        .catch((err) => console.warn('Failed to fetch notification preferences:', err));
     }
   }, [isFocused]);
 
-  const handleTogglePreference = async (key: keyof NotificationPreferences, value: boolean) => {
-    setPreferences((prev) => ({ ...prev, [key]: value }));
-    try {
-      const updated = await NotificationsApi.updatePreferences({ [key]: value });
-      if (updated) {
-        setPreferences(updated);
-      }
-    } catch {
-      setPreferences((prev) => ({ ...prev, [key]: !value }));
-      Alert.alert(t('common.error'), t('common.networkError'));
-    }
-  };
-
   const handleTogglePhoneVisibility = async (value: boolean) => {
+    if (savingPrivacy) return;
+    setSavingPrivacy(true);
     setHidePhoneInListings(value);
     try {
       const res = await CommunityBoardApi.updatePhoneVisibility(value);
@@ -102,7 +77,9 @@ export const ProfileScreen: React.FC = () => {
       refreshProfile().catch(() => {});
     } catch {
       setHidePhoneInListings(!value);
-      Alert.alert(t('common.error'), t('common.networkError'));
+      Alert.alert(t('common.error'), t('common.loadFailed'));
+    } finally {
+      setSavingPrivacy(false);
     }
   };
 
@@ -124,14 +101,9 @@ export const ProfileScreen: React.FC = () => {
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLocale) || 'ru';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('profile.title')}</Text>
-        </View>
-
-        {/* User Card */}
-        <Card style={styles.userCard}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
+        <ScreenHero title={t('profile.title')}>
           <View style={styles.userRow}>
             <View style={styles.avatarCircle}>
               <User color="#FFFFFF" size={36} />
@@ -146,20 +118,18 @@ export const ProfileScreen: React.FC = () => {
               </View>
             </View>
           </View>
-        </Card>
+        </ScreenHero>
 
         {/* Language Selection */}
         <Text style={styles.sectionHeading}>{t('profile.languageSection')}</Text>
         <Card style={styles.languageCard}>
           <View style={styles.languageRow}>
-            <View style={styles.languageIconWrap}>
-              <Globe color={Colors.primary} size={20} />
-            </View>
             <View style={styles.languageButtons}>
               {LANGUAGES.map((lang) => {
                 const isSelected = currentLang === lang.code;
                 return (
                   <TouchableOpacity
+                    accessibilityRole="radio" aria-checked={isSelected} accessibilityState={{ checked: isSelected }}
                     key={lang.code}
                     onPress={() => handleLanguageChange(lang.code)}
                     style={[
@@ -242,71 +212,8 @@ export const ProfileScreen: React.FC = () => {
         {/* Security & System Info */}
         <Text style={styles.sectionHeading}>{t('profile.securitySection')}</Text>
         <Card style={styles.settingsCard}>
-          {/* 1. Chat notifications */}
-          <View style={styles.settingItem}>
-            <MessageSquare color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefChatTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefChatSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.CHAT}
-              onValueChange={(val) => handleTogglePreference('CHAT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 2. Service request notifications */}
-          <View style={styles.settingItem}>
-            <Wrench color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefRequestTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefRequestSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.SERVICE_REQUEST}
-              onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 3. Announcement notifications */}
-          <View style={styles.settingItem}>
-            <Bell color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefAnnouncementTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefAnnouncementSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.ANNOUNCEMENT}
-              onValueChange={(val) => handleTogglePreference('ANNOUNCEMENT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 4. Finance notifications */}
-          <View style={styles.settingItem}>
-            <CreditCard color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefFinanceTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefFinanceSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.FINANCE}
-              onValueChange={(val) => handleTogglePreference('FINANCE', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
+          {/* Notification preferences */}
+          <NotificationSettings enabled={isFocused} />
 
           <View style={styles.separator} />
 
@@ -322,6 +229,7 @@ export const ProfileScreen: React.FC = () => {
           <View style={styles.separator} />
 
           <TouchableOpacity
+            accessibilityRole="button"
             style={styles.settingItem}
             onPress={() => navigation.navigate('PinSetup')}
             activeOpacity={0.7}
@@ -350,6 +258,9 @@ export const ProfileScreen: React.FC = () => {
             </View>
             <Switch
               value={hidePhoneInListings}
+              disabled={savingPrivacy}
+              accessibilityLabel={t('profile.hidePhoneTitle')}
+              accessibilityState={{ busy: savingPrivacy }}
               onValueChange={handleTogglePhoneVisibility}
               trackColor={{ false: Colors.border, true: Colors.primary }}
               thumbColor="#FFFFFF"
@@ -382,28 +293,15 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  header: {
-    marginBottom: 16,
-    marginTop: 4,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  userCard: {
-    marginBottom: 16,
-    padding: 20,
-  },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
   },
   avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -412,7 +310,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '800',
     color: Colors.text,
   },
@@ -435,6 +334,8 @@ const styles = StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 8,
@@ -445,6 +346,8 @@ const styles = StyleSheet.create({
   },
   propertyHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 6,
@@ -466,6 +369,8 @@ const styles = StyleSheet.create({
   },
   propertyMeta: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     paddingTop: 10,
     borderTopWidth: 1,
@@ -483,6 +388,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   settingItem: {
+    minHeight: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -525,17 +431,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     gap: 12,
-  },
-  languageIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E0F2FE',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   languageButtons: {
     flex: 1,
@@ -544,6 +442,7 @@ const styles = StyleSheet.create({
   },
   langBtn: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 8,
     paddingHorizontal: 6,
     borderRadius: 10,

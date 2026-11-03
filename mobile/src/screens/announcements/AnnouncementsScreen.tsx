@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { FilterChips } from '../../components/common/FilterChips';
+import { Button } from '../../components/common/Button';
+import { LoadError } from '../../components/common/LoadError';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -24,64 +28,87 @@ export const AnnouncementsScreen: React.FC = () => {
   const { user } = useAuth();
   const tenantId = user?.tenantId || (user?.ownerships?.[0] as any)?.unit?.building?.tenantId;
 
+  const [filter, setFilter] = useState<'ALL' | 'URGENT'>('ALL');
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const requestVersion = useRef(0);
+  const fetching = useRef(false);
 
-  const fetchNews = async () => {
+  const fetchNews = useCallback(async () => {
+    if (fetching.current) return;
+    const version = ++requestVersion.current;
     if (!tenantId) {
+      setLoadFailed(true);
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
+    fetching.current = true;
     try {
       const data = await AnnouncementsApi.getAnnouncements(tenantId);
+      if (version !== requestVersion.current) return;
       setAnnouncements(data);
+      setLoadFailed(false);
     } catch (e) {
+      if (version !== requestVersion.current) return;
+      setLoadFailed(true);
       console.warn('Failed to load announcements:', e);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === requestVersion.current) {
+        fetching.current = false;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    fetchNews();
   }, [tenantId]);
 
+  useEffect(() => {
+    setAnnouncements([]);
+    setLoadFailed(false);
+    setLoading(true);
+    void fetchNews();
+    return () => { ++requestVersion.current; fetching.current = false; };
+  }, [fetchNews]);
+
   const onRefresh = () => {
+    if (fetching.current) return;
     setRefreshing(true);
     fetchNews();
   };
 
-  if (loading) {
-    return <LoadingState message={t('announcements.loadingNews')} />;
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
         <Text style={styles.navTitle}>{t('announcements.title')}</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 44 }} />
       </View>
 
       <FlatList
-        data={announcements}
+        ListHeaderComponent={<>
+          <ScreenHero title={t('residentUi.newsTitle')} subtitle={t('residentUi.newsHint')} />
+          <FilterChips value={filter} onChange={setFilter} options={[{ value: 'ALL', label: t('common.all') }, { value: 'URGENT', label: t('residentUi.importantNews') }]} />
+          {loadFailed && <LoadError message={!tenantId ? t('common.noComplex') : undefined} onRetry={onRefresh} retrying={refreshing} />}
+        </>}
+        data={filter === 'URGENT' ? announcements.filter(item => item.isUrgent) : announcements}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
         }
-        ListEmptyComponent={
+        ListEmptyComponent={loading ? <LoadingState message={t('announcements.loadingNews')} /> : loadFailed ? undefined :
           <View style={styles.emptyContainer}>
             <Bell color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>{t('announcements.emptyNewsTitle')}</Text>
+            <Text style={styles.emptyTitle}>{t(filter === 'URGENT' ? 'common.noMatches' : 'announcements.emptyNewsTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              {t('announcements.emptyNewsSubtitle')}
+              {t(filter === 'URGENT' ? 'common.changeFilters' : 'announcements.emptyNewsSubtitle')}
             </Text>
+            {filter === 'URGENT' && <Button title={t('common.resetFilters')} onPress={() => setFilter('ALL')} variant="outline" style={{ marginTop: 16 }} />}
           </View>
         }
         renderItem={({ item }) => (
@@ -107,7 +134,7 @@ export const AnnouncementsScreen: React.FC = () => {
 
             <View style={styles.cardFooter}>
               <Text style={styles.authorText}>
-                {item.author.firstName} {item.author.lastName} ({item.author.role})
+                {item.author?.firstName} {item.author?.lastName}
               </Text>
             </View>
           </Card>
@@ -133,18 +160,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   navTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
   },
   listContent: {
+    flexGrow: 1,
     padding: 16,
     paddingBottom: 40,
   },
   card: {
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 12,
   },
   urgentCard: {
@@ -154,6 +191,8 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
@@ -174,7 +213,8 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
   },
   newsTitle: {
-    fontSize: 17,
+    fontSize: 20,
+    lineHeight: 27,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 6,
@@ -185,7 +225,7 @@ const styles = StyleSheet.create({
   newsContent: {
     fontSize: 14,
     color: Colors.text,
-    lineHeight: 20,
+    lineHeight: 23,
     marginBottom: 12,
   },
   cardFooter: {

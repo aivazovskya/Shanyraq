@@ -1,14 +1,18 @@
+import { FormExitDialog } from '../../components/common/FormExitDialog';
+import { ScreenHero } from '../../components/common/ScreenHero';
 import { PhotoAttachments } from '../../components/common/PhotoAttachments';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../navigation/types';
@@ -20,6 +24,7 @@ import {
 } from '../../api/service-requests';
 import { getApiErrorMessage } from '../../api/client';
 import { Button } from '../../components/common/Button';
+import { useFormExitGuard } from '../../components/common/useFormExitGuard';
 import { Input } from '../../components/common/Input';
 import { Colors } from '../../constants/colors';
 import { ArrowLeft, Check } from 'lucide-react-native';
@@ -38,7 +43,13 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
   const [priority, setPriority] = useState<RequestPriority>('MEDIUM');
   const [attachments, setAttachments] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const formScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string }>({});
   const [error, setError] = useState('');
+  const posting = useRef(false);
+  const [saved, setSaved] = useState(false);
+  const locked = submitting || saved;
+  const exitGuard = useFormExitGuard(Boolean(title || description || attachments.length || category !== 'PLUMBING' || priority !== 'MEDIUM'), submitting || uploadingPhoto, saved);
 
   const categories: Array<{ key: RequestCategory; label: string }> = [
     { key: 'PLUMBING', label: t('requests.catPlumbing') },
@@ -60,20 +71,20 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
 
 
   const handleSubmit = async () => {
-    if (uploadingPhoto || submitting) return;
+    if (uploadingPhoto || posting.current || saved) return;
     if (!primaryUnitId) {
       Alert.alert(t('common.error'), t('requests.noUnitAttachedError'));
       return;
     }
-    if (!title.trim()) {
-      setError(t('requests.titleRequiredError'));
-      return;
-    }
-    if (!description.trim()) {
-      setError(t('requests.descriptionRequiredError'));
+    const errors = { title: !title.trim() ? t('requests.titleRequiredError') : undefined, description: !description.trim() ? t('requests.descriptionRequiredError') : undefined };
+    setFieldErrors(errors);
+    if (errors.title || errors.description) {
+      setError('');
+      formScroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
+    posting.current = true;
     setSubmitting(true);
     setError('');
 
@@ -87,10 +98,12 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
         attachmentUrls: attachments.length > 0 ? attachments : undefined,
       });
 
+      setSaved(true);
       Alert.alert(t('requests.requestCreatedTitle'), t('requests.requestCreatedMsg'), [
         { text: t('access.ok'), onPress: () => navigation.goBack() },
-      ]);
+      ], { cancelable: false });
     } catch (e: any) {
+      posting.current = false;
       setError(getApiErrorMessage(e));
     } finally {
       setSubmitting(false);
@@ -100,23 +113,45 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
         <Text style={styles.navTitle}>{t('requests.newRequestTitle')}</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <ScrollView ref={formScroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
+        <ScreenHero title={t('residentUi.requestTitle')} subtitle={t('residentUi.requestHint')} />
         {/* Title */}
         <Input
           label={t('requests.whatHappenedLabel')}
           placeholder={t('requests.whatHappenedPlaceholder')}
           value={title}
+          error={fieldErrors.title}
+          editable={!locked}
           onChangeText={(v) => {
             setError('');
             setTitle(v);
+            setFieldErrors(previous => ({ ...previous, title: undefined }));
           }}
+        />
+
+        {/* Description */}
+        <Input
+          label={t('requests.descriptionLabel')}
+          placeholder={t('requests.descriptionPlaceholder')}
+          value={description}
+          error={fieldErrors.description}
+          editable={!locked}
+          onChangeText={(v) => {
+            setError('');
+            setDescription(v);
+            setFieldErrors(previous => ({ ...previous, description: undefined }));
+          }}
+          multiline
+          numberOfLines={4}
+          style={styles.textArea}
         />
 
         {/* Category Picker */}
@@ -127,6 +162,9 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
             return (
               <TouchableOpacity
                 key={c.key}
+                accessibilityRole="radio"
+                aria-checked={active} accessibilityState={{ checked: active, disabled: locked }}
+                disabled={locked}
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => setCategory(c.key)}
               >
@@ -146,6 +184,10 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
             return (
               <TouchableOpacity
                 key={p.key}
+                accessibilityRole="radio"
+                aria-checked={active}
+                accessibilityState={{ checked: active, disabled: locked }}
+                disabled={locked}
                 style={[styles.priorityItem, active && styles.priorityItemActive]}
                 onPress={() => setPriority(p.key)}
               >
@@ -157,35 +199,25 @@ export const CreateRequestScreen: React.FC<Props> = ({ navigation }) => {
           })}
         </View>
 
-        {/* Description */}
-        <Input
-          label={t('requests.descriptionLabel')}
-          placeholder={t('requests.descriptionPlaceholder')}
-          value={description}
-          onChangeText={(v) => {
-            setError('');
-            setDescription(v);
-          }}
-          multiline
-          numberOfLines={4}
-          style={styles.textArea}
-        />
-
         {/* Attach Photo */}
         <Text style={styles.fieldLabel}>{t('requests.photosLabel')}</Text>
-        <PhotoAttachments value={attachments} onChange={setAttachments} onBusyChange={setUploadingPhoto} disabled={submitting} />
+        <PhotoAttachments value={attachments} onChange={setAttachments} onBusyChange={setUploadingPhoto} disabled={locked} />
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      </ScrollView>
+      <View style={styles.footer}>
+        {error ? <Text accessibilityLiveRegion="polite" style={styles.errorText}>{error}</Text> : null}
 
         <Button
           title={t('requests.submitToDispatcher')}
           onPress={handleSubmit}
           loading={submitting}
-            disabled={uploadingPhoto}
+          disabled={uploadingPhoto || saved}
           size="lg"
           style={styles.submitBtn}
         />
-      </ScrollView>
+      </View>
+      </KeyboardAvoidingView>
+      <FormExitDialog {...exitGuard} />
     </SafeAreaView>
   );
 };
@@ -206,17 +238,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   navTitle: {
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: 16,
+    paddingBottom: 24,
   },
+  footer: { padding: 16, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
@@ -231,9 +271,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   chip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: 16,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -252,11 +294,16 @@ const styles = StyleSheet.create({
   },
   priorityRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
   },
   priorityItem: {
-    flex: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+    flexGrow: 1,
+    flexBasis: '45%',
+    paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: Colors.surface,
@@ -269,11 +316,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   priorityText: {
+    textAlign: 'center',
     fontSize: 12,
     fontWeight: '700',
   },
   textArea: {
-    height: 100,
+    minHeight: 112,
     textAlignVertical: 'top',
   },
   photoUploadBox: {
@@ -299,6 +347,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   submitBtn: {
-    marginTop: 8,
+    marginTop: 0,
   },
 });

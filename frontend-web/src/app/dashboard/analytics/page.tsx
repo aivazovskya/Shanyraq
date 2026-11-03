@@ -189,7 +189,7 @@ const CHART_COLORS = [
 ];
 
 export default function AnalyticsDashboardPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isMounted, setIsMounted] = useState(false);
 
   // Session & Tenant state
@@ -546,7 +546,7 @@ export default function AnalyticsDashboardPage() {
               <BarChart3 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{t('analytics.pageTitle')}</h1>
+              <h1 className="page-title text-2xl font-bold text-slate-900">{t('analytics.pageTitle')}</h1>
               <p className="text-sm text-slate-500">{t('analytics.pageSubtitle')}</p>
             </div>
           </div>
@@ -561,7 +561,7 @@ export default function AnalyticsDashboardPage() {
                 value={tenantId}
                 onChange={(e) => setTenantId(e.target.value)}
                 disabled={loadingTenants}
-                className="bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+                className="surface-card bg-white border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
               >
                 {tenants.map((ten) => (
                   <option key={ten.id} value={ten.id}>
@@ -575,7 +575,7 @@ export default function AnalyticsDashboardPage() {
           <button
             onClick={handleRefresh}
             disabled={loading || !tenantId}
-            className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
+            className="surface-card flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{t('common.refresh')}</span>
@@ -668,7 +668,7 @@ export default function AnalyticsDashboardPage() {
 
       {/* Superadmin Prompt if no tenant selected */}
       {isSuperadmin && !tenantId && !loadingTenants && (
-        <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="surface-card p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
           <Building className="w-12 h-12 text-slate-400 mx-auto mb-3" />
           <h3 className="font-semibold text-slate-800 mb-1">{t('analytics.selectTenantPromptTitle')}</h3>
           <p className="text-sm text-slate-500 max-w-md mx-auto">{t('analytics.selectTenantPromptSub')}</p>
@@ -679,7 +679,7 @@ export default function AnalyticsDashboardPage() {
       {activeTab === 'finance' && tenantId && (
         <div className="space-y-6">
           {/* Controls bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="surface-card flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Calendar className="w-4 h-4 text-slate-400" />
               <span>{t('analytics.filters.month')}:</span>
@@ -741,7 +741,7 @@ export default function AnalyticsDashboardPage() {
             <>
               {/* Stat Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.finance.totalCharged')}
                   </div>
@@ -753,7 +753,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.finance.totalCollected')}
                   </div>
@@ -765,23 +765,24 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.finance.collectionRate')}
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span
                       className={`text-2xl font-bold ${
-                        financeData.collectionRatePercent >= 90
+                        financeData.totalCharged <= 0
+                          ? 'text-slate-900'
+                          : financeData.collectionRatePercent >= 90
                           ? 'text-emerald-600'
                           : financeData.collectionRatePercent >= 70
                           ? 'text-amber-600'
                           : 'text-rose-600'
                       }`}
                     >
-                      {financeData.collectionRatePercent}%
+                      {financeData.totalCharged > 0 ? `${financeData.collectionRatePercent.toLocaleString(i18n.language)}%` : '—'}
                     </span>
-                    <Percent className="w-4 h-4 text-slate-400" />
                   </div>
                   <div className="text-xs text-slate-400 mt-1">
                     {financeData.totalCharged > 0
@@ -796,7 +797,7 @@ export default function AnalyticsDashboardPage() {
               </div>
 
               {/* Tariff Breakdown Chart */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="surface-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-base font-bold text-slate-900 mb-4">
                   {t('analytics.finance.tariffBreakdown')}
                 </h2>
@@ -844,7 +845,7 @@ export default function AnalyticsDashboardPage() {
               </div>
 
               {/* Top Debtors Table */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-200">
                   <h2 className="text-base font-bold text-slate-900">
                     {t('analytics.finance.topDebtors')}
@@ -857,8 +858,8 @@ export default function AnalyticsDashboardPage() {
                     <p>{t('analytics.finance.noDebtors')}</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-slate-600">
+                  <div className="data-scroll overflow-x-auto">
+                    <table className="data-table w-full text-left text-sm text-slate-600">
                       <thead className="bg-slate-50 text-xs uppercase font-semibold text-slate-500 border-b border-slate-200">
                         <tr>
                           <th className="px-6 py-3.5">#</th>
@@ -896,7 +897,7 @@ export default function AnalyticsDashboardPage() {
       {activeTab === 'requests' && tenantId && (
         <div className="space-y-6">
           {/* Preset Buttons */}
-          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="surface-card flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-sm font-medium text-slate-700">{t('analytics.filters.periodLabel')}</span>
             <div className="inline-flex rounded-xl bg-slate-100 p-1">
               {(['7d', '30d', '90d'] as PeriodPreset[]).map((preset) => (
@@ -926,7 +927,7 @@ export default function AnalyticsDashboardPage() {
             <>
               {/* Stat Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.requests.totalRequests')}
                   </div>
@@ -940,7 +941,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.requests.avgResolutionTime')}
                   </div>
@@ -957,7 +958,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.requests.avgRating')}
                   </div>
@@ -978,7 +979,7 @@ export default function AnalyticsDashboardPage() {
               {/* Status & Category Charts Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Status Breakdown */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <h2 className="text-base font-bold text-slate-900 mb-4">
                     {t('analytics.requests.statusBreakdown')}
                   </h2>
@@ -1024,7 +1025,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
 
                 {/* Category Breakdown */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <h2 className="text-base font-bold text-slate-900 mb-4">
                     {t('analytics.requests.categoryBreakdown')}
                   </h2>
@@ -1076,7 +1077,7 @@ export default function AnalyticsDashboardPage() {
       {activeTab === 'activity' && tenantId && (
         <div className="space-y-6">
           {/* Preset Buttons & Export */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="surface-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-sm font-medium text-slate-700">{t('analytics.filters.periodLabel')}</span>
             <div className="flex items-center gap-3">
               <div className="inline-flex rounded-xl bg-slate-100 p-1">
@@ -1127,7 +1128,7 @@ export default function AnalyticsDashboardPage() {
             <>
               {/* Adoption Stat Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.activity.totalRegistered')}
                   </div>
@@ -1139,7 +1140,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.activity.verifiedResidents')}
                   </div>
@@ -1151,7 +1152,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
                     {t('analytics.activity.adoptionRate')}
                   </div>
@@ -1165,7 +1166,7 @@ export default function AnalyticsDashboardPage() {
               </div>
 
               {/* Interaction Bar Chart */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="surface-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-base font-bold text-slate-900 mb-4">
                   {t('analytics.activity.activityCounts')}
                 </h2>
@@ -1220,7 +1221,7 @@ export default function AnalyticsDashboardPage() {
 
               {/* Grid of Interaction Stat Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
                     <Vote className="w-4 h-4" />
                   </div>
@@ -1230,7 +1231,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center mx-auto mb-2">
                     <Wrench className="w-4 h-4" />
                   </div>
@@ -1240,7 +1241,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-2">
                     <CalendarDays className="w-4 h-4" />
                   </div>
@@ -1250,7 +1251,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-2">
                     <ShoppingBag className="w-4 h-4" />
                   </div>
@@ -1260,7 +1261,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="w-8 h-8 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center mx-auto mb-2">
                     <MessageSquare className="w-4 h-4" />
                   </div>
@@ -1270,7 +1271,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
+                <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center">
                   <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2">
                     <Gauge className="w-4 h-4" />
                   </div>
@@ -1289,7 +1290,7 @@ export default function AnalyticsDashboardPage() {
       {activeTab === 'bookings' && tenantId && (
         <div className="space-y-6">
           {/* Controls bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="surface-card flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Calendar className="w-4 h-4 text-slate-400" />
               <span>{t('analytics.filters.periodLabel')}</span>
@@ -1344,7 +1345,7 @@ export default function AnalyticsDashboardPage() {
             <>
               {/* Summary KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       {t('analytics.bookings.totalResources')}
@@ -1358,7 +1359,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       {t('analytics.bookings.totalBookings')}
@@ -1372,7 +1373,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       {t('analytics.bookings.avgUtilization')}
@@ -1393,7 +1394,7 @@ export default function AnalyticsDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                       {t('analytics.bookings.mostPopular')}
@@ -1411,7 +1412,7 @@ export default function AnalyticsDashboardPage() {
               </div>
 
               {/* Utilization Table */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-900">{t('analytics.bookings.title')}</h3>
@@ -1424,8 +1425,8 @@ export default function AnalyticsDashboardPage() {
                     {t('analytics.bookings.empty')}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
+                  <div className="data-scroll overflow-x-auto">
+                    <table className="data-table w-full text-left border-collapse text-sm">
                       <thead>
                         <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           <th className="py-3.5 px-4">{t('analytics.bookings.thResource')}</th>
@@ -1503,7 +1504,7 @@ export default function AnalyticsDashboardPage() {
       {activeTab === 'staff' && tenantId && (
         <div className="space-y-6">
           {/* Controls bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="surface-card flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Calendar className="w-4 h-4 text-slate-400" />
               <span>{t('analytics.filters.periodLabel')}</span>
@@ -1526,7 +1527,7 @@ export default function AnalyticsDashboardPage() {
           </div>
 
           {staffData && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-slate-100">
                 <h3 className="font-bold text-slate-900">{t('analytics.staff.title')}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{t('analytics.staff.subtitle')}</p>
@@ -1537,8 +1538,8 @@ export default function AnalyticsDashboardPage() {
                   {t('analytics.staff.empty')}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
+                <div className="data-scroll overflow-x-auto">
+                  <table className="data-table w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                         <th className="py-3.5 px-4">{t('analytics.staff.thStaff')}</th>
@@ -1596,19 +1597,19 @@ export default function AnalyticsDashboardPage() {
           {occupancyData && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     {t('analytics.occupancy.totalUnits')}
                   </p>
                   <p className="text-2xl font-bold text-slate-900 mt-1">{occupancyData.totalUnits}</p>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     {t('analytics.occupancy.occupiedUnits')}
                   </p>
                   <p className="text-2xl font-bold text-emerald-600 mt-1">{occupancyData.occupiedUnits}</p>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     {t('analytics.occupancy.vacantUnits')}
                   </p>
@@ -1621,12 +1622,12 @@ export default function AnalyticsDashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-slate-100">
                   <h3 className="font-bold text-slate-900">{t('analytics.occupancy.byBuildingTitle')}</h3>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
+                <div className="data-scroll overflow-x-auto">
+                  <table className="data-table w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                         <th className="py-3.5 px-4">{t('analytics.occupancy.thBuilding')}</th>
@@ -1651,7 +1652,7 @@ export default function AnalyticsDashboardPage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-slate-100">
                   <h3 className="font-bold text-slate-900">{t('analytics.occupancy.vacantListTitle')}</h3>
                   <p className="text-xs text-slate-500 mt-0.5">{t('analytics.occupancy.vacantListSubtitle')}</p>
@@ -1661,8 +1662,8 @@ export default function AnalyticsDashboardPage() {
                     {t('analytics.occupancy.vacantListEmpty')}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
+                  <div className="data-scroll overflow-x-auto">
+                    <table className="data-table w-full text-left border-collapse text-sm">
                       <thead>
                         <tr className="bg-slate-50/75 border-b border-slate-200/80 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                           <th className="py-3.5 px-4">{t('analytics.occupancy.thBuilding')}</th>

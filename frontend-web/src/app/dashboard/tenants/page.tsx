@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
@@ -119,6 +121,7 @@ export default function TenantsPage() {
   const [isStaffListOpen, setIsStaffListOpen] = useState(false);
   const [staffListTenant, setStaffListTenant] = useState<TenantItem | null>(null);
   const [staffList, setStaffList] = useState<StaffItem[]>([]);
+  const [staffListError, setStaffListError] = useState<string | null>(null);
   const [loadingStaffList, setLoadingStaffList] = useState(false);
 
   // Edit staff modal
@@ -218,6 +221,7 @@ export default function TenantsPage() {
   };
 
   const handleOpenAddStaff = (tenant: TenantItem) => {
+    setError(null);
     setSelectedTenant(tenant);
     setStaffFirstName('');
     setStaffLastName('');
@@ -301,11 +305,13 @@ export default function TenantsPage() {
 
   const fetchStaffList = async (tItem: TenantItem) => {
     setLoadingStaffList(true);
+    setStaffListError(null);
+    setStaffList([]);
     try {
       const data = await apiRequest<StaffItem[]>(`/properties/tenants/${tItem.id}/staff`);
       setStaffList(data || []);
     } catch (err: any) {
-      setError(getApiErrorMessage(err, t));
+      setStaffListError(getApiErrorMessage(err, t));
     } finally {
       setLoadingStaffList(false);
     }
@@ -318,6 +324,7 @@ export default function TenantsPage() {
   };
 
   const handleOpenEditStaff = (staff: StaffItem) => {
+    setError(null);
     setEditingStaff(staff);
     setEditFirstName(staff.firstName);
     setEditLastName(staff.lastName);
@@ -435,7 +442,7 @@ export default function TenantsPage() {
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">
                 {t('tenants.title')}
               </h1>
               <p className="text-sm text-slate-500">
@@ -449,7 +456,7 @@ export default function TenantsPage() {
           <button
             onClick={() => fetchTenants()}
             disabled={loading}
-            className="p-2 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+            className="surface-card p-2 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
             title={t('common.refresh')}
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -499,7 +506,7 @@ export default function TenantsPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Total ЖК */}
-            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="surface-card bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {t('tenants.totalTenants')}
@@ -519,7 +526,7 @@ export default function TenantsPage() {
             </div>
 
             {/* Total Residents */}
-            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="surface-card bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {t('tenants.totalResidents')}
@@ -604,7 +611,7 @@ export default function TenantsPage() {
             </div>
 
             {/* Open Service Requests */}
-            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="surface-card bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {t('tenants.openRequests')}
@@ -624,7 +631,7 @@ export default function TenantsPage() {
             </div>
 
             {/* Total Outstanding Debt */}
-            <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="surface-card bg-white p-4.5 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {t('tenants.totalOutstandingDebt')}
@@ -654,18 +661,18 @@ export default function TenantsPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={t('tenants.searchPlaceholder')}
-          className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400 shadow-sm"
+          className="surface-card w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 placeholder-slate-400 shadow-sm"
         />
       </div>
 
       {/* Tenants List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-200">
+        <div className="surface-card flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-200">
           <Loader2 className="w-8 h-8 animate-spin text-sky-600 mb-2" />
           <p className="text-sm text-slate-500">{t('common.loading')}</p>
         </div>
       ) : filteredTenants.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="surface-card text-center py-16 bg-white rounded-2xl border border-slate-200 p-6">
           <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-900 mb-1">
             {t('tenants.emptyList')}
@@ -697,7 +704,7 @@ export default function TenantsPage() {
             return (
               <div
                 key={tItem.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                className="surface-card bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-3">
@@ -796,14 +803,14 @@ export default function TenantsPage() {
 
       {/* Modal: Create Tenant */}
       {isCreateTenantOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
+        <Dialog labelledBy="tenants-dialog-0" onClose={() => setIsCreateTenantOpen(false)}>
+          <div className="surface-card bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                 <Building2 className="w-5 h-5 text-sky-600" />
-                <h3>{t('tenants.createTenantModalTitle')}</h3>
+                <h3 id="tenants-dialog-0">{t('tenants.createTenantModalTitle')}</h3>
               </div>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setIsCreateTenantOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
@@ -812,11 +819,12 @@ export default function TenantsPage() {
             </div>
 
             <form onSubmit={handleCreateTenant} className="space-y-4">
+              {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-0" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.tenantNameLabel')} *
                 </label>
-                <input
+                <input id="field-dashboard-tenants-page-tsx-0"
                   type="text"
                   value={tenantName}
                   onChange={(e) => setTenantName(e.target.value)}
@@ -827,10 +835,10 @@ export default function TenantsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-1" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.tenantAddressLabel')} *
                 </label>
-                <input
+                <input id="field-dashboard-tenants-page-tsx-1"
                   type="text"
                   value={tenantAddress}
                   onChange={(e) => setTenantAddress(e.target.value)}
@@ -841,10 +849,10 @@ export default function TenantsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-2" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.tenantCityLabel')}
                 </label>
-                <input
+                <input id="field-dashboard-tenants-page-tsx-2"
                   type="text"
                   value={tenantCity}
                   onChange={(e) => setTenantCity(e.target.value)}
@@ -872,19 +880,19 @@ export default function TenantsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Modal: Add Staff */}
       {isAddStaffOpen && selectedTenant && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
+        <Dialog labelledBy="tenants-dialog-1" onClose={() => setIsAddStaffOpen(false)}>
+          <div className="surface-card bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                 <UserPlus className="w-5 h-5 text-sky-600" />
-                <h3>{t('tenants.addStaffModalTitle')}</h3>
+                <h3 id="tenants-dialog-1">{t('tenants.addStaffModalTitle')}</h3>
               </div>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setIsAddStaffOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
@@ -893,6 +901,7 @@ export default function TenantsPage() {
             </div>
 
             <form onSubmit={handleCreateStaff} className="space-y-4">
+              {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
                 <span className="text-slate-500 block mb-0.5">{t('tenants.staffTargetTenant')}</span>
                 <span className="font-semibold text-slate-900 text-sm">{selectedTenant.name}</span>
@@ -900,10 +909,10 @@ export default function TenantsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="field-dashboard-tenants-page-tsx-3" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('tenants.firstNameLabel')} *
                   </label>
-                  <input
+                  <input id="field-dashboard-tenants-page-tsx-3"
                     type="text"
                     value={staffFirstName}
                     onChange={(e) => setStaffFirstName(e.target.value)}
@@ -913,10 +922,10 @@ export default function TenantsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="field-dashboard-tenants-page-tsx-4" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('tenants.lastNameLabel')} *
                   </label>
-                  <input
+                  <input id="field-dashboard-tenants-page-tsx-4"
                     type="text"
                     value={staffLastName}
                     onChange={(e) => setStaffLastName(e.target.value)}
@@ -928,10 +937,10 @@ export default function TenantsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-5" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.phoneLabel')} *
                 </label>
-                <input
+                <input id="field-dashboard-tenants-page-tsx-5"
                   type="text"
                   value={staffPhone}
                   onChange={(e) => setStaffPhone(e.target.value)}
@@ -942,10 +951,10 @@ export default function TenantsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-6" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.emailLabel')}
                 </label>
-                <input
+                <input id="field-dashboard-tenants-page-tsx-6"
                   type="email"
                   value={staffEmail}
                   onChange={(e) => setStaffEmail(e.target.value)}
@@ -955,13 +964,13 @@ export default function TenantsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-7" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.roleLabel')} *
                 </label>
-                <select
+                <select id="field-dashboard-tenants-page-tsx-7"
                   value={staffRole}
                   onChange={(e) => setStaffRole(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                  className="surface-card w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
                 >
                   <option value="HOA_ADMIN">{t('tenants.roleHoaAdmin')}</option>
                   <option value="HOA_CHAIRMAN">{t('tenants.roleHoaChairman')}</option>
@@ -989,18 +998,18 @@ export default function TenantsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* One-Time Temporary Password Display Modal */}
       {tempPasswordResult && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <Dialog labelledBy="staff-password-title" closeOnEscape={false} onClose={() => setTempPasswordResult(null)}>
+          <div className="surface-card bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
             <div className="text-center mb-5">
               <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3">
                 <KeyRound className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-1">
+              <h3 id="staff-password-title" className="text-xl font-bold text-slate-900 mb-1">
                 {t('tenants.tempPasswordModalTitle')}
               </h3>
               <p className="text-xs text-slate-500">
@@ -1060,17 +1069,17 @@ export default function TenantsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Modal: Staff List */}
       {isStaffListOpen && staffListTenant && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] flex flex-col">
+        <Dialog labelledBy="staff-list-title" wide onClose={() => { setIsStaffListOpen(false); setStaffListTenant(null); }}>
+          <div className="surface-card bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-slate-200 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-lg">
                 <Users className="w-5 h-5 text-sky-600" />
-                <h3>
+                <h3 id="staff-list-title">
                   {t('tenants.staffListTitle')} — {staffListTenant.name}
                 </h3>
               </div>
@@ -1082,7 +1091,7 @@ export default function TenantsPage() {
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>{t('tenants.addStaff')}</span>
                 </button>
-                <button
+                <button aria-label={t('common.close')}
                   onClick={() => {
                     setIsStaffListOpen(false);
                     setStaffListTenant(null);
@@ -1100,6 +1109,8 @@ export default function TenantsPage() {
                   <Loader2 className="w-7 h-7 animate-spin text-sky-600" />
                   <span className="text-sm">{t('common.loading')}</span>
                 </div>
+              ) : staffListError ? (
+                <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{staffListError}</p><button onClick={() => fetchStaffList(staffListTenant)} className="mt-2 min-h-11 font-semibold underline">{t('common.refresh')}</button></div>
               ) : staffList.length === 0 ? (
                 <div className="py-12 text-center text-slate-500 text-sm">
                   <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -1180,19 +1191,19 @@ export default function TenantsPage() {
               )}
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Modal: Edit Staff */}
       {editingStaff && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+        <Dialog labelledBy="tenants-dialog-2" onClose={() => setEditingStaff(null)}>
+          <div className="surface-card bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
                 <Pencil className="w-4 h-4 text-sky-600" />
-                <h3>{t('tenants.editStaffModalTitle')}</h3>
+                <h3 id="tenants-dialog-2">{t('tenants.editStaffModalTitle')}</h3>
               </div>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setEditingStaff(null)}
                 className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
               >
@@ -1201,12 +1212,13 @@ export default function TenantsPage() {
             </div>
 
             <form onSubmit={handleSaveEditStaff} className="space-y-4">
+              {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="field-dashboard-tenants-page-tsx-8" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('tenants.firstNameLabel')} *
                   </label>
-                  <input
+                  <input id="field-dashboard-tenants-page-tsx-8"
                     type="text"
                     value={editFirstName}
                     onChange={(e) => setEditFirstName(e.target.value)}
@@ -1215,10 +1227,10 @@ export default function TenantsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="field-dashboard-tenants-page-tsx-9" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('tenants.lastNameLabel')} *
                   </label>
-                  <input
+                  <input id="field-dashboard-tenants-page-tsx-9"
                     type="text"
                     value={editLastName}
                     onChange={(e) => setEditLastName(e.target.value)}
@@ -1229,10 +1241,10 @@ export default function TenantsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-tenants-page-tsx-10" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('tenants.emailLabel')}
                 </label>
-                <input
+                <input id="field-dashboard-tenants-page-tsx-10"
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
@@ -1260,16 +1272,16 @@ export default function TenantsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Modal: Deactivate Staff Confirmation */}
       {deactivatingStaff && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+        <Dialog labelledBy="tenants-dialog-3" onClose={() => { if (!(isTogglingStatus)) (() => setDeactivatingStaff(null))(); }}>
+          <div className="surface-card bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
             <div className="flex items-center gap-3 text-amber-600 mb-3">
               <AlertTriangle className="w-6 h-6 shrink-0" />
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 id="tenants-dialog-3" className="text-base font-bold text-slate-900">
                 {t('tenants.deactivateStaffTitle')}
               </h3>
             </div>
@@ -1298,7 +1310,7 @@ export default function TenantsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

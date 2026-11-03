@@ -1,13 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { useNavigation } from '@react-navigation/native';
+import { LoadError } from '../../components/common/LoadError';
+import { parseDecimalInput } from '../../utils/decimal-input';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,10 +36,12 @@ import {
   Clock,
   LogOut,
   ChevronRight,
+  ArrowLeft,
 } from 'lucide-react-native';
 
 export const ClaimUnitScreen: React.FC = () => {
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const { user, refreshProfile, logout } = useAuth();
 
   // Search & structure state
@@ -47,41 +56,70 @@ export const ClaimUnitScreen: React.FC = () => {
   const [sharePercent, setSharePercent] = useState('100');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [searchLoading, setSearchLoading] = useState(true);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [structureLoading, setStructureLoading] = useState(false);
+  const [structureFailed, setStructureFailed] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const searchVersion = useRef(0);
+  const structureVersion = useRef(0);
+  const claimLock = useRef(false);
 
   // Existing claim status
   const existingOwnership = user?.ownerships && user.ownerships.length > 0 ? user.ownerships[0] : null;
 
-  useEffect(() => {
-    // Initial search
-    searchTenants('');
-  }, []);
-
-  const searchTenants = async (q: string) => {
+  const searchTenants = useCallback(async (q: string, version = ++searchVersion.current) => {
+    setSearchLoading(true);
     try {
       const results = await PropertiesApi.searchTenants(q);
+      if (version !== searchVersion.current) return;
       setTenants(results);
-    } catch (err) {
-      console.warn('Search tenants error:', err);
+      setSearchFailed(false);
+    } catch {
+      if (version === searchVersion.current) setSearchFailed(true);
+    } finally {
+      if (version === searchVersion.current) setSearchLoading(false);
     }
-  };
-
-  const handleSelectTenant = async (tResult: TenantSearchResult) => {
-    setSelectedTenant(tResult);
+  }, []);
+  useEffect(() => {
+    const version = ++searchVersion.current;
+    setSearchLoading(true);
+    setTenants([]);
+    const timer = setTimeout(() => void searchTenants(searchQuery, version), searchQuery ? 300 : 0);
+    return () => { clearTimeout(timer); searchVersion.current++; };
+  }, [searchQuery, searchTenants]);
+  const handleSelectTenant = async (result: TenantSearchResult) => {
+    if (claimLock.current) return;
+    const version = ++structureVersion.current;
+    setSelectedTenant(result);
     setSelectedUnit(null);
+    setStructure(null);
+    setStructureLoading(true);
+    setStructureFailed(false);
+    setError('');
     try {
-      const struct = await PropertiesApi.getTenantStructure(tResult.id);
-      setStructure(struct);
-    } catch (err: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(err));
+      const response = await PropertiesApi.getTenantStructure(result.id);
+      if (version === structureVersion.current) setStructure(response);
+    } catch {
+      if (version === structureVersion.current) setStructureFailed(true);
+    } finally {
+      if (version === structureVersion.current) setStructureLoading(false);
     }
   };
 
   const handleSubmitClaim = async () => {
+    if (claimLock.current) return;
     if (!selectedUnit) {
       setError(t('onboarding.selectUnitError'));
       return;
     }
 
+    const share = parseDecimalInput(sharePercent);
+    if (ownershipType === 'OWNER' && (share === null || share < 0.01 || share > 100)) {
+      setError(t('onboarding.invalidShare'));
+      return;
+    }
+    claimLock.current = true;
     setSubmitting(true);
     setError('');
 
@@ -89,7 +127,7 @@ export const ClaimUnitScreen: React.FC = () => {
       await PropertiesApi.claimOwnership({
         unitId: selectedUnit.id,
         ownershipType,
-        sharePercent: ownershipType === 'OWNER' ? parseFloat(sharePercent) || 100 : undefined,
+        sharePercent: ownershipType === 'OWNER' ? share ?? undefined : undefined,
       });
 
       await refreshProfile();
@@ -97,15 +135,24 @@ export const ClaimUnitScreen: React.FC = () => {
     } catch (err: any) {
       setError(getApiErrorMessage(err));
     } finally {
+      claimLock.current = false;
       setSubmitting(false);
     }
   };
+
+  const header = <View style={styles.topNav}>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={t(navigation.canGoBack() ? 'common.back' : 'profile.logoutButton')} disabled={submitting || checkingStatus} style={styles.navButton} onPress={() => navigation.canGoBack() ? navigation.goBack() : logout()}>
+      {navigation.canGoBack() ? <ArrowLeft size={24} color={Colors.text} /> : <LogOut size={22} color={Colors.text} />}
+    </TouchableOpacity>
+    <Text style={styles.navTitle}>{t('onboarding.claimTitle')}</Text><View style={{ width: 44 }} />
+  </View>;
 
   // State 2: Claim already submitted and Pending Verification
   if (existingOwnership && !existingOwnership.isVerified) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.statusWrapper}>
+        {header}
+        <ScrollView contentContainerStyle={styles.statusWrapper}>
           <View style={styles.iconContainerYellow}>
             <Clock color="#D97706" size={48} />
           </View>
@@ -141,7 +188,8 @@ export const ClaimUnitScreen: React.FC = () => {
           <View style={styles.actionsBlock}>
             <Button
               title={t('onboarding.refreshStatusBtn')}
-              onPress={refreshProfile}
+              onPress={async () => { if (checkingStatus) return; setCheckingStatus(true); try { await refreshProfile(); } finally { setCheckingStatus(false); } }}
+              loading={checkingStatus}
               variant="primary"
               size="lg"
             />
@@ -154,7 +202,7 @@ export const ClaimUnitScreen: React.FC = () => {
               style={styles.logoutBtn}
             />
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -162,27 +210,28 @@ export const ClaimUnitScreen: React.FC = () => {
   // State 1: Claim form
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.topHeader}>
-          <Text style={styles.headerTitle}>{t('onboarding.claimTitle')}</Text>
-          <Text style={styles.headerSubtitle}>
-            {t('onboarding.claimSubtitle')}
-          </Text>
-        </View>
+      {header}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
+        <ScreenHero title={t('residentUi.claimIntro')} subtitle={t('onboarding.claimSubtitle')} />
 
         {/* Step 1: Complex search */}
         <Text style={styles.sectionHeading}>{t('onboarding.step1SelectComplex')}</Text>
         <Input
           placeholder={t('onboarding.searchComplexPlaceholder')}
           value={searchQuery}
+          editable={!submitting}
+          accessibilityLabel={t('onboarding.searchComplexPlaceholder')}
           onChangeText={(val) => {
             setSearchQuery(val);
-            searchTenants(val);
+            structureVersion.current++;
+            setSelectedTenant(null); setSelectedUnit(null); setStructure(null); setStructureLoading(false); setStructureFailed(false); setError('');
           }}
           leftIcon={<Search color={Colors.textMuted} size={18} />}
         />
 
-        {tenants.map((tItem) => (
+        {searchLoading ? <ActivityIndicator color={Colors.primary} accessibilityLabel={t('common.loading')} /> : searchFailed ? <LoadError onRetry={() => searchTenants(searchQuery)} /> : tenants.length === 0 ? <Text style={styles.warningNotice}>{t('common.noMatches')}</Text> : null}
+        {(selectedTenant ? [selectedTenant] : tenants).map((tItem) => (
           <TouchableOpacity
             key={tItem.id}
             style={[
@@ -190,6 +239,8 @@ export const ClaimUnitScreen: React.FC = () => {
               selectedTenant?.id === tItem.id && styles.tenantItemSelected,
             ]}
             onPress={() => handleSelectTenant(tItem)}
+            disabled={submitting}
+            accessibilityRole="radio" aria-checked={selectedTenant?.id === tItem.id} accessibilityState={{ checked: selectedTenant?.id === tItem.id }}
           >
             <Building
               color={selectedTenant?.id === tItem.id ? Colors.primary : Colors.textMuted}
@@ -205,10 +256,14 @@ export const ClaimUnitScreen: React.FC = () => {
           </TouchableOpacity>
         ))}
 
+        {selectedTenant && <Button title={t('residentUi.changeComplex')} variant="outline" size="sm" disabled={submitting} onPress={() => { structureVersion.current++; setSelectedTenant(null); setSelectedUnit(null); setStructure(null); setStructureFailed(false); setStructureLoading(false); setError(''); }} />}
+        {structureLoading && <ActivityIndicator color={Colors.primary} accessibilityLabel={t('common.loading')} />}
+        {structureFailed && selectedTenant && <LoadError onRetry={() => handleSelectTenant(selectedTenant)} />}
         {/* Step 2: Building & Unit selection */}
         {structure && (
           <View style={styles.stepBlock}>
             <Text style={styles.sectionHeading}>{t('onboarding.step2SelectUnit')}</Text>
+            {structure.buildings.every(building => building.units.length === 0) && <Text style={styles.emptyHint}>{t('residentUi.noUnitsHint')}</Text>}
             {structure.buildings.map((b) => (
               <View key={b.id} style={styles.buildingSection}>
                 <Text style={styles.buildingName}>{b.blockName}</Text>
@@ -222,7 +277,9 @@ export const ClaimUnitScreen: React.FC = () => {
                           styles.unitChip,
                           isSelected && styles.unitChipSelected,
                         ]}
-                        onPress={() => setSelectedUnit(u)}
+                        onPress={() => { setSelectedUnit(u); setError(''); }}
+                        disabled={submitting}
+                        accessibilityRole="radio" aria-checked={isSelected} accessibilityState={{ checked: isSelected }}
                       >
                         <Text
                           style={[
@@ -259,7 +316,9 @@ export const ClaimUnitScreen: React.FC = () => {
                   styles.roleTab,
                   ownershipType === 'OWNER' && styles.roleTabActive,
                 ]}
-                onPress={() => setOwnershipType('OWNER')}
+                onPress={() => { setOwnershipType('OWNER'); setError(''); }}
+                disabled={submitting}
+                accessibilityRole="tab" aria-selected={ownershipType === 'OWNER'} accessibilityState={{ selected: ownershipType === 'OWNER' }}
               >
                 <Text
                   style={[
@@ -275,7 +334,9 @@ export const ClaimUnitScreen: React.FC = () => {
                   styles.roleTab,
                   ownershipType === 'TENANT' && styles.roleTabActive,
                 ]}
-                onPress={() => setOwnershipType('TENANT')}
+                onPress={() => { setOwnershipType('TENANT'); setError(''); }}
+                disabled={submitting}
+                accessibilityRole="tab" aria-selected={ownershipType === 'TENANT'} accessibilityState={{ selected: ownershipType === 'TENANT' }}
               >
                 <Text
                   style={[
@@ -292,13 +353,15 @@ export const ClaimUnitScreen: React.FC = () => {
               <Input
                 label={t('onboarding.sharePercentLabel')}
                 value={sharePercent}
-                onChangeText={setSharePercent}
-                keyboardType="numeric"
+                error={error === t('onboarding.invalidShare') ? error : undefined}
+                onChangeText={(value) => { setSharePercent(value); setError(''); }}
+                editable={!submitting}
+                keyboardType="decimal-pad"
                 helper={t('onboarding.sharePercentHelper')}
               />
             )}
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error && error !== t('onboarding.invalidShare') ? <Text accessibilityLiveRegion="polite" style={styles.errorText}>{error}</Text> : null}
 
             <Button
               title={t('onboarding.submitClaimBtn')}
@@ -310,6 +373,7 @@ export const ClaimUnitScreen: React.FC = () => {
           </View>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -319,8 +383,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  topNav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+  navButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: Colors.text },
   scrollContent: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
   },
   topHeader: {
@@ -328,6 +395,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 24,
+    letterSpacing: -0.6,
     fontWeight: '800',
     color: Colors.text,
   },
@@ -343,12 +411,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 16,
   },
+  emptyHint: { fontSize: 14, lineHeight: 21, color: Colors.textMuted, marginBottom: 12 },
   tenantItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 22,
     borderWidth: 1.5,
     borderColor: Colors.border,
     marginBottom: 10,
@@ -373,6 +442,11 @@ const styles = StyleSheet.create({
   },
   stepBlock: {
     marginTop: 16,
+    padding: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
   buildingSection: {
     marginBottom: 16,
@@ -389,6 +463,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   unitChip: {
+    minWidth: 72,
+    flexGrow: 1,
+    flexBasis: '28%',
+    minHeight: 64,
+    justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -424,6 +503,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   roleTab: {
+    minHeight: 48,
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
@@ -449,7 +529,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   statusWrapper: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -483,6 +563,8 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 6,

@@ -1,5 +1,9 @@
 'use client';
 
+import { ImagePreview } from '@/components/ImagePreview';
+
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
@@ -281,7 +285,7 @@ export default function CommunityBoardModerationPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-title text-2xl font-bold text-gray-900 flex items-center gap-2">
             <ShoppingBag className="h-7 w-7 text-indigo-600" />
             {t('communityBoard.pageTitle')}
           </h1>
@@ -341,7 +345,7 @@ export default function CommunityBoardModerationPage() {
       )}
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
+      <div className="surface-card bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
         {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -391,7 +395,7 @@ export default function CommunityBoardModerationPage() {
 
       {/* Main Content Area */}
       {!tenantId ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
+        <div className="surface-card bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
           <Building2 className="mx-auto h-12 w-12 text-indigo-500 mb-3" />
           <h3 className="text-base font-semibold text-gray-900">
             {t('communityBoard.selectTenantPromptTitle')}
@@ -406,7 +410,7 @@ export default function CommunityBoardModerationPage() {
           <p className="text-sm font-medium text-gray-500">{t('common.loading')}</p>
         </div>
       ) : filteredListings.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+        <div className="surface-card bg-white border border-gray-200 rounded-xl p-12 text-center">
           <ShoppingBag className="mx-auto h-12 w-12 text-gray-400 mb-3" />
           <h3 className="text-base font-semibold text-gray-900">
             {t('communityBoard.noListingsTitle')}
@@ -440,12 +444,13 @@ export default function CommunityBoardModerationPage() {
                   {/* Photo Preview Strip */}
                   {item.photoUrls && item.photoUrls.length > 0 ? (
                     <div className="relative h-44 bg-gray-100 overflow-hidden group">
+                      <button type="button" onClick={() => setSelectedImage(item.photoUrls[0])} aria-label={`${t('common.imagePreview')}: ${item.title}`} className="block h-full w-full">
                       <img
                         src={item.photoUrls[0]}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-300 cursor-pointer"
-                        onClick={() => setSelectedImage(item.photoUrls[0])}
                       />
+                      </button>
                       {item.photoUrls.length > 1 && (
                         <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1 font-medium">
                           <ImageIcon className="w-3 h-3" />
@@ -567,14 +572,14 @@ export default function CommunityBoardModerationPage() {
 
       {/* Remove Moderation Modal */}
       {moderatingListing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <Dialog labelledBy="community-board-dialog-0" onClose={handleCloseRemoveModal}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <h3 id="community-board-dialog-0" className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
                 {t('communityBoard.removeModalTitle')}
               </h3>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={handleCloseRemoveModal}
                 className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
               >
@@ -590,10 +595,10 @@ export default function CommunityBoardModerationPage() {
               </p>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label htmlFor="field-dashboard-community-board-page-tsx-0" className="block text-xs font-semibold text-gray-700 mb-1">
                   {t('communityBoard.removalReasonLabel')} *
                 </label>
-                <textarea
+                <textarea id="field-dashboard-community-board-page-tsx-0"
                   rows={3}
                   value={removalReason}
                   onChange={(e) => setRemovalReason(e.target.value)}
@@ -629,30 +634,11 @@ export default function CommunityBoardModerationPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Photo Preview Modal */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 cursor-pointer"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div className="relative max-w-3xl max-h-[85vh] overflow-hidden rounded-xl">
-            <img
-              src={selectedImage}
-              alt="Listing preview"
-              className="w-full h-full object-contain"
-            />
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute top-3 right-3 bg-black/60 text-white p-2 rounded-full hover:bg-black/90"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+      {selectedImage && <ImagePreview key={selectedImage} src={selectedImage} onClose={() => setSelectedImage(null)} />}
     </div>
   );
 }

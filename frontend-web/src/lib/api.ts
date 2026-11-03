@@ -135,6 +135,10 @@ export function getApiErrorMessage(
       return translated;
     }
   }
+  // Fetch rejects with browser-specific messages when the server is unreachable.
+  if (err?.name === 'TypeError' && /failed to fetch|fetch failed|load failed|networkerror|network request failed/i.test(err?.message || '') && t) {
+    return t('auth.connectionError');
+  }
   return err?.message || 'Произошла непредвиденная ошибка при обращении к серверу';
 }
 

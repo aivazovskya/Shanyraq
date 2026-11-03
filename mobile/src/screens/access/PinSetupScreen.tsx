@@ -1,17 +1,19 @@
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { LoadError } from '../../components/common/LoadError';
+import { LoadingState } from '../../components/common/LoadingState';
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
@@ -19,14 +21,14 @@ import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 import { Colors } from '../../constants/colors';
-import { KeyRound, ArrowLeft, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
 
 export const PinSetupScreen: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
 
   const [checkingStatus, setCheckingStatus] = useState(true);
+  const [statusFailed, setStatusFailed] = useState(false);
   const [isPinSet, setIsPinSet] = useState(false);
   const [mode, setMode] = useState<'SETUP' | 'CHANGE' | 'FORGOT_OTP'>('SETUP');
 
@@ -59,8 +61,10 @@ export const PinSetupScreen: React.FC = () => {
     try {
       const res = await AuthApi.getPinStatus();
       setIsPinSet(res.isPinSet);
+      setStatusFailed(false);
       setMode(res.isPinSet ? 'CHANGE' : 'SETUP');
     } catch (e) {
+      setStatusFailed(true);
       console.warn('Failed to load PIN status:', e);
     } finally {
       setCheckingStatus(false);
@@ -83,6 +87,7 @@ export const PinSetupScreen: React.FC = () => {
   };
 
   const handleSavePin = async () => {
+    if (loading || checkingStatus || statusFailed) return;
     setError('');
 
     if (mode === 'CHANGE' && !currentPin) {
@@ -122,6 +127,7 @@ export const PinSetupScreen: React.FC = () => {
   };
 
   const handleStartForgotPin = async () => {
+    if (loading || checkingStatus || statusFailed) return;
     setError('');
     setLoading(true);
     try {
@@ -142,6 +148,7 @@ export const PinSetupScreen: React.FC = () => {
   };
 
   const handleConfirmReset = async () => {
+    if (loading || checkingStatus || statusFailed) return;
     setError('');
 
     if (!otpCode || otpCode.length !== 6) {
@@ -180,48 +187,16 @@ export const PinSetupScreen: React.FC = () => {
     }
   };
 
-  if (checkingStatus) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerLoading}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{t('access.checkingSecurityStatus')}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.topNav}><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} disabled={loading} style={styles.navButton} onPress={() => navigation.goBack()}><ArrowLeft color={Colors.text} size={24} /></TouchableOpacity><Text style={styles.navTitle}>{t('profile.pinTitle')}</Text><View style={{ width: 44 }} /></View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Header */}
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <ArrowLeft color={Colors.text} size={24} />
-            <Text style={styles.backText}>{t('common.back')}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <KeyRound color="#FFFFFF" size={32} />
-            </View>
-            <Text style={styles.title}>
-              {mode === 'SETUP'
-                ? t('access.pinSetupTitle')
-                : mode === 'CHANGE'
-                ? t('access.pinChangeTitle')
-                : t('access.pinForgotTitle')}
-            </Text>
-            <Text style={styles.subtitle}>
-              {t('access.pinSetupSubtitle')}
-            </Text>
-          </View>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
+          {checkingStatus ? <LoadingState message={t('access.checkingSecurityStatus')} /> : statusFailed ? <LoadError message={t('access.pinStatusError')} onRetry={() => void fetchStatus()} /> : <>
+          <ScreenHero title={t(mode === 'SETUP' ? 'access.pinSetupTitle' : mode === 'CHANGE' ? 'access.pinChangeTitle' : 'access.pinForgotTitle')} subtitle={t('access.pinSetupSubtitle')} />
 
           {/* Status info card */}
           <Card style={styles.infoCard}>
@@ -245,6 +220,7 @@ export const PinSetupScreen: React.FC = () => {
               <Input
                 label={t('access.currentPinLabel')}
                 value={currentPin}
+                editable={!loading}
                 onChangeText={(val) => {
                   setError('');
                   setCurrentPin(val.replace(/\D/g, '').slice(0, 6));
@@ -260,6 +236,7 @@ export const PinSetupScreen: React.FC = () => {
               <Input
                 label={t('access.smsOtpLabel')}
                 value={otpCode}
+                editable={!loading}
                 onChangeText={(val) => {
                   setError('');
                   setOtpCode(val.replace(/\D/g, '').slice(0, 6));
@@ -274,6 +251,7 @@ export const PinSetupScreen: React.FC = () => {
             <Input
               label={t('access.newPinLabel')}
               value={newPin}
+              editable={!loading}
               onChangeText={(val) => {
                 setError('');
                 setNewPin(val.replace(/\D/g, '').slice(0, 6));
@@ -287,6 +265,7 @@ export const PinSetupScreen: React.FC = () => {
             <Input
               label={t('access.confirmPinLabel')}
               value={confirmPin}
+              editable={!loading}
               onChangeText={(val) => {
                 setError('');
                 setConfirmPin(val.replace(/\D/g, '').slice(0, 6));
@@ -299,7 +278,7 @@ export const PinSetupScreen: React.FC = () => {
 
             {error ? (
               <View style={styles.errorBox}>
-                <Text style={styles.errorBoxText}>{error}</Text>
+                <Text accessibilityLiveRegion="polite" style={styles.errorBoxText}>{error}</Text>
               </View>
             ) : null}
 
@@ -320,6 +299,7 @@ export const PinSetupScreen: React.FC = () => {
             {/* Sub-actions */}
             {mode === 'CHANGE' && (
               <TouchableOpacity
+                accessibilityRole="button"
                 style={styles.switchModeBtn}
                 onPress={handleStartForgotPin}
                 disabled={loading}
@@ -341,6 +321,7 @@ export const PinSetupScreen: React.FC = () => {
               </TouchableOpacity>
             )}
           </View>
+          </>}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -352,59 +333,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  centerLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-  },
+  topNav: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  navButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: Colors.text },
   scrollContent: {
-    padding: 24,
+    padding: 16,
     paddingBottom: 40,
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  backText: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 18,
-  },
   infoCard: {
-    marginBottom: 24,
+    borderRadius: 22,
+    marginBottom: 16,
     padding: 14,
     backgroundColor: Colors.card,
   },
@@ -438,6 +376,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   switchModeBtn: {
+    minHeight: 44,
     alignItems: 'center',
     paddingVertical: 10,
     marginTop: 6,

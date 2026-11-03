@@ -14,9 +14,63 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+@layer components {
+  .workspace { background: #f4f7f8; }
+  .workspace-content { animation: content-enter 180ms ease-out; }
+  .workspace-hero { background: radial-gradient(ellipse at top left, #ccfbf190, transparent 72%), #ffffffb3; }
+  .page-title { @apply tracking-tight; text-wrap: balance; }
+  .page-title > svg { @apply rounded-xl bg-sky-50 p-1.5 text-sky-700; width: 2.25rem; height: 2.25rem; }
+  .surface-card { box-shadow: 0 2px 4px -2px rgb(15 23 42 / .04), 0 8px 24px -16px rgb(15 23 42 / .12); }
+  .data-scroll { @apply relative max-w-full overscroll-x-contain; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  .data-table { @apply text-sm; }
+  .data-table th { @apply bg-slate-50/80 py-4 text-xs font-semibold text-slate-500; white-space: nowrap; }
+  .data-table td { @apply py-4; }
+  .data-table tbody tr { transition: background-color 120ms ease; }
+  .data-table tbody tr:hover { @apply bg-sky-50/40; }
+  .data-table button { min-height: 2.25rem; }
+  .login-shell {
+    background: radial-gradient(ellipse at 15% 10%, #ccfbf170, transparent 48%), radial-gradient(ellipse at 90% 90%, #e0f2fe70, transparent 45%), #f4f7f8;
+  }
+  .login-card { box-shadow: 0 24px 70px -32px rgb(15 23 42 / .22); }
+  .login-card :where(input:not([type='checkbox']), button[type='submit']) { min-height: 3rem; border-radius: .75rem; }
+  .app-dialog:has(> .max-w-md) { max-width: 28rem; }
+  .app-dialog:has(> .max-w-lg) { max-width: 32rem; }
+  .app-dialog:has(> .max-w-3xl) { max-width: 48rem; }
+  .app-dialog.app-dialog > :where(.max-w-md, .max-w-lg) { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+}
+
+@layer base {
+  html { color-scheme: light; -webkit-text-size-adjust: 100%; }
+  body { -webkit-font-smoothing: antialiased; }
+  ::selection { background: #ccfbf1; color: #134e4a; }
+  :where(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), select, textarea) {
+    min-height: 2.75rem;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+  }
+  :where(input, textarea)::placeholder { opacity: 1; }
+  :where(input, select, textarea):disabled { opacity: .6; cursor: not-allowed; }
+  :where(button, a) { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  :where(button):disabled { opacity: .55; }
+  :where(textarea) { line-height: 1.6; }
+  :where(h1, h2, h3) { overflow-wrap: anywhere; }
+  :where(progress) { overflow: hidden; border-radius: 999px; }
+  :where(dialog) { color: #0f172a; }
+}
+
+@keyframes content-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 639px) {
+  .data-table { min-width: 640px; }
+  .workspace-content :where(input, select, textarea) { font-size: 16px; }
+  .workspace-content .page-title { font-size: 1.5rem; line-height: 2rem; }
+}
+
 @layer base {
   :where(button, a, input, select, textarea):focus-visible {
-    outline: 2px solid #0284c7;
+    outline: 2px solid #0f766e;
     outline-offset: 3px;
   }
   button:disabled { cursor: not-allowed; }

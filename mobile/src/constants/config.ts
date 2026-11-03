@@ -15,10 +15,11 @@ const getDevApiHost = (): string => {
 };
 
 const DEV_API_HOST = getDevApiHost();
+const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '') || `${DEV_API_HOST}/api/v1`;
 
 export const Config = {
-  API_URL: `${DEV_API_HOST}/api/v1`,
-  SOCKET_URL: DEV_API_HOST,
+  API_URL,
+  SOCKET_URL: process.env.EXPO_PUBLIC_SOCKET_URL || new URL(API_URL).origin,
   REQUEST_TIMEOUT: 15000,
   OTP_COOLDOWN_SECONDS: 60,
   MAX_OTP_ATTEMPTS: 3,

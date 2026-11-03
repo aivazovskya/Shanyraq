@@ -54,7 +54,6 @@ export const Button: React.FC<ButtonProps> = ({
     else if (variant === 'secondary') base.push(styles.text_dark);
     else if (variant === 'outline') base.push(styles.text_primary);
 
-    if (disabled) base.push(styles.text_disabled);
     if (textStyle) base.push(textStyle);
 
     return base;
@@ -66,6 +65,9 @@ export const Button: React.FC<ButtonProps> = ({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       {loading ? (
         <ActivityIndicator
@@ -84,13 +86,15 @@ export const Button: React.FC<ButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 12,
+    borderRadius: 14,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   btn_sm: {
+    minHeight: 44,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
@@ -106,7 +110,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   btn_secondary: {
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.primaryBg,
   },
   btn_danger: {
     backgroundColor: Colors.danger,
@@ -120,6 +124,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   text: {
+    flexShrink: 1,
     fontWeight: '600',
     textAlign: 'center',
   },

@@ -304,7 +304,7 @@ export default function GuestPassesHistoryPage() {
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
+            <h1 className="page-title text-2xl font-bold text-slate-900 flex items-center gap-2.5">
               <Ticket className="w-6 h-6 text-slate-700" />
               {t('access.guestPassHistory.title')}
             </h1>
@@ -317,7 +317,7 @@ export default function GuestPassesHistoryPage() {
             <button
               onClick={() => tenantId && loadPasses(tenantId)}
               disabled={loading}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm disabled:opacity-60"
+              className="surface-card px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition shadow-sm disabled:opacity-60"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-slate-400' : ''}`} />
               {t('access.refreshBtn')}
@@ -351,7 +351,7 @@ export default function GuestPassesHistoryPage() {
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{exportError}</span>
           </div>
-          <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+          <button aria-label={t('common.close')} onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -380,7 +380,7 @@ export default function GuestPassesHistoryPage() {
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <span>{redeemSuccessMsg}</span>
           </div>
-          <button onClick={() => setRedeemSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-600">
+          <button aria-label={t('common.close')} onClick={() => setRedeemSuccessMsg(null)} className="text-emerald-400 hover:text-emerald-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -391,14 +391,14 @@ export default function GuestPassesHistoryPage() {
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{redeemErrorMsg}</span>
           </div>
-          <button onClick={() => setRedeemErrorMsg(null)} className="text-rose-400 hover:text-rose-600">
+          <button aria-label={t('common.close')} onClick={() => setRedeemErrorMsg(null)} className="text-rose-400 hover:text-rose-600">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Date range filters */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
@@ -427,10 +427,10 @@ export default function GuestPassesHistoryPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('access.guestPassHistory.searchPlaceholder')}
-              className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
+              className="surface-card w-full pl-9 pr-8 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition"
             />
             {searchQuery && (
-              <button
+              <button aria-label={t('common.close')}
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
@@ -479,9 +479,9 @@ export default function GuestPassesHistoryPage() {
       </div>
 
       {/* Passes Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="data-scroll overflow-x-auto">
+          <table className="data-table w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
               <tr>
                 <th className="py-3 px-4">{t('access.guestPassHistory.thGuest')}</th>

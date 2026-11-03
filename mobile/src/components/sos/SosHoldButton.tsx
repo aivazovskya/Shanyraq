@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import { useHoldConfirmation } from '../common/useHoldConfirmation';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,39 +25,13 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
   holdDurationMs = 1500,
 }) => {
   const { t } = useTranslation();
-  const [isHolding, setIsHolding] = useState(false);
+  const { isHolding, failed, startHold, cancelHold } = useHoldConfirmation({ disabled, loading, duration: holdDurationMs, onConfirmed });
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const startHold = () => {
-    if (disabled || loading) return;
-
-    setIsHolding(true);
-    Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: holdDurationMs,
-      useNativeDriver: false,
-    }).start();
-
-    timeoutRef.current = setTimeout(async () => {
-      setIsHolding(false);
-      progressAnim.setValue(0);
-      await onConfirmed();
-    }, holdDurationMs);
-  };
-
-  const cancelHold = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    setIsHolding(false);
-    Animated.timing(progressAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  };
+  useEffect(() => {
+    const animation = Animated.timing(progressAnim, { toValue: isHolding ? 1 : 0, duration: isHolding ? holdDurationMs : 200, useNativeDriver: false });
+    animation.start();
+    return () => animation.stop();
+  }, [isHolding, holdDurationMs, progressAnim]);
 
   const widthInterpolation = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -64,10 +39,11 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
   });
 
   return (
-    <TouchableWithoutFeedback
+    <View><TouchableWithoutFeedback
       onPressIn={startHold}
       onPressOut={cancelHold}
       disabled={disabled || loading}
+      accessibilityRole="button" accessibilityLabel={t('sos.buttonTitle')} accessibilityHint={t('sos.buttonSubtitle')} accessibilityState={{ disabled: disabled || loading, busy: loading }}
     >
       <View style={[styles.container, disabled && styles.disabled]}>
         {/* Animated filling background */}
@@ -98,13 +74,14 @@ export const SosHoldButton: React.FC<SosHoldButtonProps> = ({
           )}
         </View>
       </View>
-    </TouchableWithoutFeedback>
+    </TouchableWithoutFeedback>{failed && <Text accessibilityLiveRegion="polite" style={{ color: '#DC2626', marginTop: 8 }}>{t('common.error')}</Text>}</View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 76,
+    minHeight: 88,
+    paddingVertical: 16,
     borderRadius: 16,
     backgroundColor: '#DC2626',
     overflow: 'hidden',
@@ -146,13 +123,15 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
+    lineHeight: 21,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   subtitle: {
     color: '#FEE2E2',
     fontSize: 12,
+    lineHeight: 17,
     fontWeight: '500',
     marginTop: 2,
   },

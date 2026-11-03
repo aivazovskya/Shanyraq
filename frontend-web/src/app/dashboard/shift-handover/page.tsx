@@ -194,7 +194,7 @@ export default function ShiftHandoverPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="page-title text-2xl font-bold text-gray-900 flex items-center gap-2">
             <ClipboardList className="h-7 w-7 text-indigo-600" />
             {t('shiftHandover.pageTitle')}
           </h1>
@@ -236,7 +236,7 @@ export default function ShiftHandoverPage() {
           <button
             onClick={handleRefresh}
             disabled={loading || refreshing || !tenantId}
-            className="inline-flex items-center gap-2 px-3.5 py-2 border border-gray-300 rounded-xl bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-60"
+            className="surface-card inline-flex items-center gap-2 px-3.5 py-2 border border-gray-300 rounded-xl bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-60"
           >
             <RefreshCw
               className={`w-4 h-4 ${loading || refreshing ? 'animate-spin' : ''}`}
@@ -262,7 +262,7 @@ export default function ShiftHandoverPage() {
 
       {/* Superadmin No Tenant Selected Prompt */}
       {currentUser?.role === 'SUPERADMIN' && !tenantId && !loading && (
-        <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+        <div className="surface-card bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
           <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-1">
             {t('shiftHandover.selectTenantPromptTitle')}
@@ -281,7 +281,7 @@ export default function ShiftHandoverPage() {
           {/* Compose Box (hidden for HOA_CHAIRMAN) */}
           {canPost && (
             <div className="lg:col-span-1">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-8">
+              <div className="surface-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-8">
                 <div className="flex items-center gap-2 text-slate-900 font-semibold mb-4 text-base">
                   <ClipboardList className="w-5 h-5 text-indigo-600" />
                   <span>{t('shiftHandover.composeTitle')}</span>
@@ -352,14 +352,14 @@ export default function ShiftHandoverPage() {
             </div>
 
             {loading ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+              <div className="surface-card bg-white rounded-2xl border border-gray-200 p-12 text-center">
                 <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-3" />
                 <p className="text-sm text-gray-500">
                   {t('common.loading') || 'Загрузка...'}
                 </p>
               </div>
             ) : notes.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
+              <div className="surface-card bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
                 <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <h3 className="text-base font-semibold text-gray-900 mb-1">
                   {t('shiftHandover.emptyFeedTitle')}
@@ -391,7 +391,7 @@ export default function ShiftHandoverPage() {
                   return (
                     <div
                       key={note.id}
-                      className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm transition hover:border-slate-300 space-y-3"
+                      className="surface-card bg-white p-5 rounded-2xl border border-slate-200 shadow-sm transition hover:border-slate-300 space-y-3"
                     >
                       {/* Note Header: Author & Timestamp */}
                       <div className="flex flex-wrap items-center justify-between gap-2">

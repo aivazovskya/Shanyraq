@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth, canAccessLogs } from '../../context/AuthContext';
@@ -78,6 +78,7 @@ export const StaffAccessLogScreen: React.FC = () => {
   );
 
   const onRefresh = () => {
+    if (loading || refreshing) return;
     setRefreshing(true);
     fetchLogs();
   };
@@ -120,9 +121,9 @@ export const StaffAccessLogScreen: React.FC = () => {
         return true;
       }
 
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       const pointName = (log.accessPoint?.name || '').toLowerCase();
-      const actionName = (log.action || '').toLowerCase();
+      const actionName = `${log.action || ''} ${getActionLabel(log.action)}`.toLowerCase();
       const userName = [log.user?.firstName, log.user?.lastName, log.user?.phone]
         .filter(Boolean)
         .join(' ')
@@ -140,16 +141,16 @@ export const StaffAccessLogScreen: React.FC = () => {
         note.includes(q)
       );
     });
-  }, [logs, statusFilter, searchQuery]);
+  }, [logs, statusFilter, searchQuery, i18n.language]);
 
   if (!hasAccess) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeft size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('staff.accessLog.title')}</Text>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.accessLog.title')}</Text>
         </View>
         <View style={styles.unauthorizedContainer}>
           <Card style={styles.unauthorizedCard}>
@@ -168,9 +169,6 @@ export const StaffAccessLogScreen: React.FC = () => {
     );
   }
 
-  if (loading && !refreshing) {
-    return <LoadingState message={t('common.loading')} />;
-  }
 
   const renderLogItem = ({ item }: { item: AccessLogItem }) => {
     const isSuccess = item.status === 'SUCCESS';
@@ -250,11 +248,11 @@ export const StaffAccessLogScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{t('staff.accessLog.title')}</Text>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.accessLog.title')}</Text>
           <Text style={styles.headerSubtitle}>
             {user?.tenant?.name || t('staff.complexInfo')}
           </Text>
@@ -266,6 +264,7 @@ export const StaffAccessLogScreen: React.FC = () => {
         <Input
           placeholder={t('staff.accessLog.searchPlaceholder')}
           value={searchQuery}
+          accessibilityLabel={t('staff.accessLog.searchPlaceholder')}
           onChangeText={setSearchQuery}
           leftIcon={<Search size={18} color={Colors.textMuted} />}
           style={styles.searchInput}
@@ -274,13 +273,14 @@ export const StaffAccessLogScreen: React.FC = () => {
 
       {/* Filter Tabs */}
       <View style={styles.filterWrapper}>
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
           <TouchableOpacity
             onPress={() => setStatusFilter('ALL')}
+            accessibilityRole="tab" accessibilityState={{ selected: statusFilter === 'ALL' }}
             style={[styles.filterChip, statusFilter === 'ALL' && styles.filterChipActive]}
           >
             <Text
@@ -294,6 +294,7 @@ export const StaffAccessLogScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setStatusFilter('SUCCESS')}
+            accessibilityRole="tab" accessibilityState={{ selected: statusFilter === 'SUCCESS' }}
             style={[styles.filterChip, statusFilter === 'SUCCESS' && styles.filterChipActive]}
           >
             <Text
@@ -307,6 +308,7 @@ export const StaffAccessLogScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setStatusFilter('DENIED')}
+            accessibilityRole="tab" accessibilityState={{ selected: statusFilter === 'DENIED' }}
             style={[styles.filterChip, statusFilter === 'DENIED' && styles.filterChipActive]}
           >
             <Text
@@ -330,7 +332,8 @@ export const StaffAccessLogScreen: React.FC = () => {
           </View>
           <Button
             title={t('common.retry')}
-            onPress={fetchLogs}
+            onPress={onRefresh}
+            loading={refreshing}
             variant="outline"
             size="sm"
             style={{ marginTop: 8 }}
@@ -348,13 +351,14 @@ export const StaffAccessLogScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
         }
         ListEmptyComponent={
-          !loading ? (
+          loading ? <LoadingState /> : !error ? (
             <Card style={styles.emptyCard}>
               <Shield size={40} color={Colors.textMuted} style={styles.emptyIcon} />
-              <Text style={styles.emptyTitle}>{t('staff.accessLog.emptyTitle')}</Text>
-              <Text style={styles.emptySubtitle}>{t('staff.accessLog.emptySubtitle')}</Text>
+              <Text style={styles.emptyTitle}>{t(logs.length ? 'common.noMatches' : 'staff.accessLog.emptyTitle')}</Text>
+              <Text style={styles.emptySubtitle}>{t(logs.length ? 'common.changeFilters' : 'staff.accessLog.emptySubtitle')}</Text>
+              {logs.length > 0 && <Button title={t('common.resetFilters')} onPress={() => { setStatusFilter('ALL'); setSearchQuery(''); }} variant="outline" style={{ marginTop: 16 }} />}
             </Card>
-          ) : null
+          ) : undefined
         }
       />
     </SafeAreaView>
@@ -377,6 +381,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 6,
     marginRight: 8,
   },
@@ -384,7 +392,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
     color: Colors.text,
   },
@@ -413,6 +422,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -438,6 +449,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   logCard: {
+    borderRadius: 24,
     padding: 14,
     marginBottom: 10,
   },

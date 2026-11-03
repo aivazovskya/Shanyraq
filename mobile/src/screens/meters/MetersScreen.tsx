@@ -1,5 +1,10 @@
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { parseDecimalInput } from '../../utils/decimal-input';
+import { LoadError } from '../../components/common/LoadError';
+import { getApiErrorMessage } from '../../api/client';
+import { PhotoGallery } from '../../components/common/PhotoGallery';
 import { PhotoAttachments } from '../../components/common/PhotoAttachments';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,12 +12,13 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
   TextInput,
-  Image,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -38,20 +44,23 @@ import { metersApi, MeterData, MeterReading, MeterType } from '../../api/meters'
 
 export const MetersScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { user } = useAuth();
 
   const verifiedOwnerships = (user?.ownerships || []).filter((o) => o.isVerified);
-  const [selectedUnitIndex, setSelectedUnitIndex] = useState(0);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(verifiedOwnerships[0]?.unitId || null);
 
-  const activeUnit = verifiedOwnerships[selectedUnitIndex]?.unit;
+  const activeUnit = (verifiedOwnerships.find((ownership) => ownership.unitId === selectedUnitId) || verifiedOwnerships[0])?.unit;
   const activeUnitId = activeUnit?.id;
 
   const [meters, setMeters] = useState<MeterData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadVersion = useRef(0);
+  const submitLock = useRef(false);
 
   // Submit Modal State
   const [selectedMeter, setSelectedMeter] = useState<MeterData | null>(null);
@@ -64,6 +73,7 @@ export const MetersScreen: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const loadMeters = useCallback(async () => {
+    const version = ++loadVersion.current;
     if (!activeUnitId) {
       setLoading(false);
       setRefreshing(false);
@@ -73,20 +83,24 @@ export const MetersScreen: React.FC = () => {
     try {
       setError(null);
       const data = await metersApi.getUnitMeters(activeUnitId);
-      setMeters(data);
+      if (version === loadVersion.current) setMeters(data);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || t('meters.loadError'));
+      if (version === loadVersion.current) setError(getApiErrorMessage(err));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === loadVersion.current) { setLoading(false); setRefreshing(false); }
     }
   }, [activeUnitId, t]);
 
   useEffect(() => {
+    setLoading(true); setMeters([]);
+    setSelectedUnitId(activeUnitId || null);
     loadMeters();
+    return () => { loadVersion.current++; };
   }, [loadMeters]);
 
   const onRefresh = () => {
+    if (loading || refreshing || submitLock.current) return;
+    if (!meters.length) setLoading(true);
     setRefreshing(true);
     loadMeters();
   };
@@ -122,7 +136,7 @@ export const MetersScreen: React.FC = () => {
 
 
   const handleSubmitReading = async () => {
-    if (uploadingPhoto || submitting) return;
+    if (uploadingPhoto || submitLock.current) return;
     if (!selectedMeter) return;
 
     if (!inputValue.trim()) {
@@ -130,9 +144,9 @@ export const MetersScreen: React.FC = () => {
       return;
     }
 
-    const numVal = parseFloat(inputValue);
-    if (isNaN(numVal) || numVal < 0) {
-      setSubmitError(t('meters.validationEmptyError'));
+    const numVal = parseDecimalInput(inputValue);
+    if (numVal === null) {
+      setSubmitError(t('meters.validationNumberError'));
       return;
     }
 
@@ -150,6 +164,7 @@ export const MetersScreen: React.FC = () => {
     }
 
     try {
+      submitLock.current = true;
       setSubmitting(true);
       setSubmitError(null);
 
@@ -164,11 +179,14 @@ export const MetersScreen: React.FC = () => {
       Alert.alert(t('meters.submitSuccessTitle'), t('meters.submitSuccessMsg'));
       await loadMeters();
     } catch (err: any) {
-      setSubmitError(err?.response?.data?.message || err.message || t('common.error'));
+      setSubmitError(getApiErrorMessage(err));
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
+
+  const closeSubmitModal = () => { if (!submitLock.current) setIsSubmitModalOpen(false); };
 
   const getMeterTypeIcon = (type: MeterType) => {
     switch (type) {
@@ -200,7 +218,7 @@ export const MetersScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
       <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
         <Text style={styles.navTitle}>{t('meters.title')}</Text>
@@ -210,18 +228,19 @@ export const MetersScreen: React.FC = () => {
       {/* Unit Selector (if multiple apartments) */}
       {verifiedOwnerships.length > 1 && (
         <View style={styles.unitSelectorContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitPillsRow}>
-            {verifiedOwnerships.map((o, idx) => {
-              const isSelected = selectedUnitIndex === idx;
+          <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.unitPillsRow}>
+            {verifiedOwnerships.map((o) => {
+              const isSelected = activeUnitId === o.unitId;
               return (
                 <TouchableOpacity
                   key={o.id}
                   style={[styles.unitPill, isSelected && styles.unitPillSelected]}
-                  onPress={() => setSelectedUnitIndex(idx)}
+                  onPress={() => setSelectedUnitId(o.unitId)}
+                  accessibilityRole="tab" aria-selected={isSelected} accessibilityState={{ selected: isSelected }}
                 >
                   <Home color={isSelected ? '#FFFFFF' : Colors.textMuted} size={14} />
                   <Text style={[styles.unitPillText, isSelected && styles.unitPillTextSelected]}>
-                    {t('common.unitShort')} {o.unit.unitNumber}
+                    {o.unit.building.blockName} · {t('common.unitShort')} {o.unit.unitNumber}
                   </Text>
                 </TouchableOpacity>
               );
@@ -230,16 +249,17 @@ export const MetersScreen: React.FC = () => {
         </View>
       )}
 
+      {error && meters.length > 0 && <LoadError onRetry={onRefresh} retrying={refreshing} />}
       {loading ? (
         <LoadingState message={t('common.loading')} />
-      ) : error ? (
+      ) : error && meters.length === 0 ? (
         <View style={styles.centered}>
           <AlertCircle color={Colors.danger} size={48} />
           <Text style={styles.errorText}>{error}</Text>
-          <Button title={t('common.retry')} onPress={loadMeters} style={{ marginTop: 16 }} />
+          <Button title={t('common.retry')} onPress={onRefresh} loading={refreshing} style={{ marginTop: 16 }} />
         </View>
       ) : meters.length === 0 ? (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={styles.emptyContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
         >
@@ -250,10 +270,11 @@ export const MetersScreen: React.FC = () => {
           <Text style={styles.emptySubtitle}>{t('meters.emptyDesc')}</Text>
         </ScrollView>
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
         >
+          <ScreenHero title={t('residentUi.metersTitle')} subtitle={t('residentUi.metersHint')} />
           {meters.map((meter) => {
             const latest = getLatestReading(meter);
             const isRejected = latest?.status === 'REJECTED';
@@ -307,7 +328,7 @@ export const MetersScreen: React.FC = () => {
                       </View>
 
                       <Text style={styles.readingValueText}>
-                        {latest.value.toLocaleString()}{' '}
+                        {latest.value.toLocaleString(i18n.language)}{' '}
                         <Text style={styles.readingUnit}>
                           {meter.type === 'ELECTRICITY'
                             ? t('meters.unitElectricity')
@@ -315,6 +336,7 @@ export const MetersScreen: React.FC = () => {
                         </Text>
                       </Text>
 
+                      {latest.photoUrl && <PhotoGallery images={[latest.photoUrl]} />}
                       {isRejected && latest.reviewNote && (
                         <View style={styles.rejectionBox}>
                           <Text style={styles.rejectionNote}>
@@ -335,11 +357,12 @@ export const MetersScreen: React.FC = () => {
 
                 {/* Action Button */}
                 <TouchableOpacity
-                  style={[styles.submitButton, isRejected && styles.resubmitButton]}
+                  accessibilityRole="button" disabled={!meter.isActive} accessibilityState={{ disabled: !meter.isActive }}
+                  style={[styles.submitButton, isRejected && styles.resubmitButton, !meter.isActive && { opacity: 0.45 }]}
                   onPress={() => openSubmitModal(meter)}
                 >
                   <Text style={styles.submitButtonText}>
-                    {isRejected ? t('meters.resubmitBtn') : t('meters.submitBtn')}
+                    {!meter.isActive ? t('access.pointInactive') : isRejected ? t('meters.resubmitBtn') : t('meters.submitBtn')}
                   </Text>
                 </TouchableOpacity>
               </Card>
@@ -354,25 +377,26 @@ export const MetersScreen: React.FC = () => {
           visible={isSubmitModalOpen}
           animationType="slide"
           transparent={true}
-          onRequestClose={() => setIsSubmitModalOpen(false)}
+          onRequestClose={closeSubmitModal}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalSheet}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+            <View style={[styles.modalSheet, { paddingBottom: insets.bottom }]}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <View>
+                <View style={{ flex: 1, marginRight: 12 }}>
                   <Text style={styles.modalTitle}>{t('meters.modalTitle')}</Text>
                   <Text style={styles.modalSub}>{getMeterTypeName(selectedMeter.type)}</Text>
                 </View>
                 <TouchableOpacity
                   style={styles.closeBtn}
-                  onPress={() => setIsSubmitModalOpen(false)}
+                  onPress={closeSubmitModal}
+                  disabled={submitting} accessibilityRole="button" accessibilityLabel={t('common.close')}
                 >
                   <X color={Colors.textMuted} size={20} />
                 </TouchableOpacity>
               </View>
 
-              <ScrollView contentContainerStyle={styles.modalScrollContent}>
+              <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.modalScrollContent}>
                 {/* Period Display */}
                 <Text style={styles.fieldLabel}>{t('meters.periodLabel')}</Text>
                 <View style={styles.periodRow}>
@@ -392,12 +416,15 @@ export const MetersScreen: React.FC = () => {
                   placeholder={t('meters.inputPlaceholder')}
                   placeholderTextColor={Colors.textMuted}
                   value={inputValue}
+                  editable={!submitting}
+                  accessibilityLabel={t('meters.inputLabel')}
                   onChangeText={(val) => {
                     setInputValue(val);
                     setSubmitError(null);
                   }}
                 />
 
+                <Text style={styles.referenceHint}>{t('residentUi.readingMinimum', { value: (getLastVerifiedReading(selectedMeter)?.value ?? selectedMeter.initialValue).toLocaleString(i18n.language) })}</Text>
                 {/* Photo Attachment */}
                 <Text style={styles.fieldLabel}>{t('meters.photoLabel')}</Text>
                 <PhotoAttachments key={selectedMeter.id} value={photoUrl ? [photoUrl] : []} onChange={(urls) => setPhotoUrl(urls[0] || null)} onBusyChange={setUploadingPhoto} disabled={submitting} maxPhotos={1} />
@@ -406,7 +433,7 @@ export const MetersScreen: React.FC = () => {
                 {submitError && (
                   <View style={styles.submitErrorBox}>
                     <AlertCircle color="#DC2626" size={16} />
-                    <Text style={styles.submitErrorText}>{submitError}</Text>
+                    <Text accessibilityLiveRegion="polite" style={styles.submitErrorText}>{submitError}</Text>
                   </View>
                 )}
 
@@ -421,7 +448,7 @@ export const MetersScreen: React.FC = () => {
                 />
               </ScrollView>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       )}
     </SafeAreaView>
@@ -444,9 +471,15 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   navTitle: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
     color: Colors.text,
@@ -462,6 +495,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   unitPill: {
+    minHeight: 44,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -528,8 +563,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   meterCard: {
-    padding: 16,
-    borderRadius: 16,
+    padding: 20,
+    borderRadius: 24,
   },
   meterHeader: {
     flexDirection: 'row',
@@ -573,6 +608,8 @@ const styles = StyleSheet.create({
   },
   readingHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
@@ -616,7 +653,7 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
   readingValueText: {
-    fontSize: 22,
+    fontSize: 30,
     fontWeight: '800',
     fontFamily: 'monospace',
     color: Colors.text,
@@ -657,6 +694,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   submitButton: {
+    minHeight: 48,
     backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 12,
@@ -701,8 +739,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: 16,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
@@ -730,7 +768,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
   },
+  referenceHint: { fontSize: 13, lineHeight: 20, marginTop: 8, color: Colors.textMuted },
   numericInput: {
+    outlineWidth: 0,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 12,

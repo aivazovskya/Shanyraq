@@ -3,12 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { AuthStackParamList } from '../../navigation/types';
@@ -90,7 +91,8 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
-        <TouchableOpacity
+        <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')}
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
@@ -118,6 +120,8 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
               setCode(val.replace(/\D/g, '').slice(0, 6));
             }}
             keyboardType="number-pad"
+            autoComplete="sms-otp"
+            textContentType="oneTimeCode"
             maxLength={6}
             placeholder="000000"
             error={error}
@@ -147,6 +151,7 @@ export const OtpVerifyScreen: React.FC<Props> = ({ route, navigation }) => {
             )}
           </View>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -157,12 +162,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  keyboardView: {
-    flex: 1,
+  keyboardView: { flex: 1 },
+  authContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingTop: 88,
+    paddingBottom: 32,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
     position: 'absolute',
     top: 20,
     left: 24,
@@ -190,6 +201,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
+    letterSpacing: -0.6,
     fontWeight: '800',
     color: Colors.text,
   },

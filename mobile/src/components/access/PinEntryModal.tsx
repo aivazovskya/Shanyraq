@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   Modal,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
@@ -32,37 +34,47 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const [pin, setPin] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [submitFailed, setSubmitFailed] = useState(false);
+  const confirmationLock = useRef(false);
+  const busy = loading || confirming;
 
   useEffect(() => {
-    if (visible) {
-      setPin('');
-    }
+    setPin('');
+    setSubmitFailed(false);
   }, [visible]);
 
+  useEffect(() => { if (error) setPin(''); }, [error]);
+  const cancel = () => { if (!busy && !confirmationLock.current) onCancel(); };
+
   const handleKeyPress = (num: string) => {
-    if (pin.length < 6 && !loading) {
-      setPin((prev) => prev + num);
+    if (pin.length < 6 && !busy && !confirmationLock.current) {
+      setSubmitFailed(false);
+      setPin((prev) => prev.length < 6 ? prev + num : prev);
     }
   };
 
   const handleDelete = () => {
-    if (pin.length > 0 && !loading) {
+    if (pin.length > 0 && !busy && !confirmationLock.current) {
       setPin((prev) => prev.slice(0, -1));
     }
   };
 
   const handleClear = () => {
-    if (!loading) {
+    if (!busy && !confirmationLock.current) {
       setPin('');
     }
   };
 
-  const canSubmit = (pin.length === 4 || pin.length === 6) && !loading;
+  const canSubmit = (pin.length === 4 || pin.length === 6) && !busy;
 
-  const handleSubmit = () => {
-    if (canSubmit) {
-      onConfirm(pin);
-    }
+  const handleSubmit = async () => {
+    if (!canSubmit || confirmationLock.current) return;
+    confirmationLock.current = true;
+    setConfirming(true); setSubmitFailed(false);
+    try { await onConfirm(pin); }
+    catch { setSubmitFailed(true); setPin(''); }
+    finally { confirmationLock.current = false; setConfirming(false); }
   };
 
   return (
@@ -70,15 +82,17 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onCancel}
+      onRequestClose={cancel}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modalCard}>
+      <SafeAreaView style={styles.overlay}>
+        <ScrollView style={{ width: '100%', maxWidth: 360, maxHeight: '100%' }} contentContainerStyle={styles.modalCard} showsVerticalScrollIndicator={false}>
+
           {/* Close button */}
           <TouchableOpacity
             style={styles.closeButton}
-            onPress={onCancel}
-            disabled={loading}
+            onPress={cancel}
+            accessibilityRole="button" accessibilityLabel={t('common.close')}
+            disabled={busy}
           >
             <X color={Colors.textMuted} size={22} />
           </TouchableOpacity>
@@ -95,7 +109,7 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
           </View>
 
           {/* Dots Indicator */}
-          <View style={styles.dotsContainer}>
+          <View style={styles.dotsContainer} accessible accessibilityLabel={t('access.pinLength', { count: pin.length })}>
             {Array.from({ length: 6 }).map((_, i) => {
               const isFilled = i < pin.length;
               return (
@@ -112,9 +126,9 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
           </View>
 
           {/* Error display */}
-          {error ? (
+          {error || submitFailed ? (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorText} accessibilityLiveRegion="polite">{error || t('common.error')}</Text>
             </View>
           ) : null}
 
@@ -134,7 +148,8 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
                         key={btn}
                         style={styles.keypadButtonSpecial}
                         onPress={handleClear}
-                        disabled={loading || pin.length === 0}
+                        accessibilityRole="button" accessibilityLabel={t('access.resetKeypad')}
+                        disabled={busy || pin.length === 0}
                       >
                         <Text style={styles.keypadSpecialText}>{t('access.resetKeypad')}</Text>
                       </TouchableOpacity>
@@ -146,6 +161,7 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
                         key={btn}
                         style={styles.keypadButtonSpecial}
                         onPress={handleDelete}
+                        accessibilityRole="button" accessibilityLabel={t('access.deleteDigit')}
                         disabled={loading || pin.length === 0}
                       >
                         <Delete color={Colors.text} size={22} />
@@ -157,7 +173,8 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
                       key={btn}
                       style={styles.keypadButton}
                       onPress={() => handleKeyPress(btn)}
-                      disabled={loading || pin.length >= 6}
+                      accessibilityRole="button" accessibilityLabel={btn}
+                      disabled={busy || pin.length >= 6}
                     >
                       <Text style={styles.keypadNumberText}>{btn}</Text>
                     </TouchableOpacity>
@@ -171,9 +188,10 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
           <TouchableOpacity
             style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
             onPress={handleSubmit}
+            accessibilityRole="button" accessibilityLabel={t('access.openBarrierAction')} accessibilityState={{ busy }}
             disabled={!canSubmit}
           >
-            {loading ? (
+            {busy ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <Text style={styles.submitButtonText}>{t('access.openBarrierAction')}</Text>
@@ -190,8 +208,8 @@ export const PinEntryModal: React.FC<PinEntryModalProps> = ({
               <Text style={styles.forgotButtonText}>{t('access.forgotPinPrompt')}</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
-      </View>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 };
@@ -221,8 +239,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     right: 16,
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
@@ -344,7 +362,8 @@ const styles = StyleSheet.create({
   },
   forgotButton: {
     marginTop: 14,
-    paddingVertical: 4,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   forgotButtonText: {
     fontSize: 13,

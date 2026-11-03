@@ -1,3 +1,5 @@
+import { LoadError } from '../../components/common/LoadError';
+import { getApiErrorMessage } from '../../api/client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -7,13 +9,15 @@ import {
   TouchableOpacity,
   Linking,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   TextInput,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -42,6 +46,7 @@ export const StaffSosScreen: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   const tenantId = user?.tenantId || user?.tenant?.id || '';
   const isChairman = user?.role === 'HOA_CHAIRMAN';
@@ -52,6 +57,9 @@ export const StaffSosScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const loadVersion = useRef(0);
+  const resolutionLock = useRef(false);
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
 
   // Modal resolution state
   const [selectedAlert, setSelectedAlert] = useState<SosAlert | null>(null);
@@ -67,22 +75,19 @@ export const StaffSosScreen: React.FC = () => {
 
   const loadAlerts = useCallback(
     async (isSilent = false) => {
-      if (!tenantId) return;
+      const version = ++loadVersion.current;
+      if (!tenantId) { setLoading(false); setRefreshing(false); return; }
       if (!isSilent) setLoading(true);
       else setRefreshing(true);
-      setErrorMsg(null);
 
       try {
         const data = await sosApi.getTenantSosAlerts(tenantId);
-        setAlerts(data || []);
+        if (version === loadVersion.current) { setAlerts(data || []); setErrorMsg(null); }
       } catch (err: any) {
         console.error('Failed to load tenant SOS alerts:', err);
-        if (!isSilent) {
-          setErrorMsg(err?.response?.data?.message || t('staff.sos.loadError'));
-        }
+        if (version === loadVersion.current) setErrorMsg(getApiErrorMessage(err));
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (version === loadVersion.current) { setLoading(false); setRefreshing(false); }
       }
     },
     [tenantId, t],
@@ -106,12 +111,13 @@ export const StaffSosScreen: React.FC = () => {
       let active = true;
 
       const initSocket = async () => {
-        if (!tenantId) return;
+        if (!tenantId) { setLoading(false); setErrorMsg(t('staff.sos.noTenant')); return; }
         await loadAlerts();
         if (!active) return;
 
         socket = await createRealtimeSocket();
-        if (!socket || !active) return;
+        if (!socket) return;
+        if (!active) { socket.disconnect(); return; }
 
         socket.on('connect', () => {
           socket?.emit('sos:join', { tenantId });
@@ -126,6 +132,7 @@ export const StaffSosScreen: React.FC = () => {
         });
 
         socket.on('sos:alert:triggered', (newAlert: SosAlert) => {
+          if (!newAlert || newAlert.tenantId !== tenantId) return;
           setAlerts((prev) => {
             const index = prev.findIndex((a) => a.id === newAlert.id);
             if (index >= 0) {
@@ -149,6 +156,7 @@ export const StaffSosScreen: React.FC = () => {
 
       return () => {
         active = false;
+        loadVersion.current++;
         if (socket) {
           socket.emit('sos:leave', { tenantId });
           socket.disconnect();
@@ -167,14 +175,17 @@ export const StaffSosScreen: React.FC = () => {
   };
 
   const handleOpenResolveModal = (alert: SosAlert, status: 'RESOLVED' | 'FALSE_ALARM') => {
-    if (isChairman) return;
+    if (isChairman || resolutionLock.current) return;
+    setResolutionError(null);
     setSelectedAlert(alert);
     setTargetStatus(status);
     setResolutionNote('');
   };
 
   const handleConfirmResolve = async () => {
-    if (!selectedAlert) return;
+    if (!selectedAlert || resolutionLock.current) return;
+    resolutionLock.current = true;
+    setResolutionError(null);
     setResolving(true);
     try {
       const updated = await sosApi.resolveSosAlert(selectedAlert.id, {
@@ -188,26 +199,28 @@ export const StaffSosScreen: React.FC = () => {
       );
 
       setSelectedAlert(null);
-      await loadAlerts(true);
+      void Promise.all([loadAlerts(true), loadStats()]);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || t('staff.sos.resolveError');
-      Alert.alert(t('common.error'), msg);
+      setResolutionError(getApiErrorMessage(err));
     } finally {
+      resolutionLock.current = false;
       setResolving(false);
     }
   };
 
+  const closeResolution = () => { if (!resolutionLock.current) setSelectedAlert(null); };
+
   const handleCall = (phone?: string) => {
     if (!phone) return;
     Linking.openURL(`tel:${phone}`).catch((err) =>
-      console.warn('Failed to open dialer:', err),
+      Alert.alert(t('common.error'), getApiErrorMessage(err)),
     );
   };
 
   const handleOpenMap = (lat?: number | null, lng?: number | null) => {
     if (lat == null || lng == null) return;
     Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`).catch((err) =>
-      console.warn('Failed to open maps:', err),
+      Alert.alert(t('common.error'), getApiErrorMessage(err)),
     );
   };
 
@@ -361,15 +374,15 @@ export const StaffSosScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleGroup}>
           <View style={styles.headerIconCircle}>
             <AlertTriangle size={20} color="#DC2626" />
           </View>
-          <View>
-            <Text style={styles.headerTitle}>{t('staff.sos.title')}</Text>
+          <View style={{ flex: 1 }}>
+            <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.sos.title')}</Text>
             <Text style={styles.headerSubtitle}>
               {user?.tenant?.name || t('staff.sos.subtitle')}
             </Text>
@@ -381,7 +394,8 @@ export const StaffSosScreen: React.FC = () => {
             loadAlerts(false);
             loadStats();
           }}
-          disabled={refreshing}
+          disabled={refreshing || loading}
+          accessibilityRole="button" accessibilityLabel={t('common.retry')}
           style={styles.refreshBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -400,18 +414,14 @@ export const StaffSosScreen: React.FC = () => {
         </View>
       )}
 
-      {errorMsg && (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
-        </View>
-      )}
+      {errorMsg && <LoadError message={errorMsg} onRetry={() => { if (!refreshing) void loadAlerts(true); }} retrying={refreshing} />}
 
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#DC2626" />
         </View>
       ) : (
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -432,7 +442,7 @@ export const StaffSosScreen: React.FC = () => {
               <View style={styles.statCard}>
                 <Text style={styles.statCardValue}>{stats.totalAlerts}</Text>
                 <Text style={styles.statCardLabel}>{t('staff.sos.stats.total30d')}</Text>
-                <Text style={styles.statCardSub} numberOfLines={1}>
+                <Text style={styles.statCardSub}>
                   {stats.byStatus.RESOLVED} {t('staff.sos.status.RESOLVED').toLowerCase()} · {stats.byStatus.FALSE_ALARM} {t('staff.sos.status.FALSE_ALARM').toLowerCase()}
                 </Text>
               </View>
@@ -440,11 +450,11 @@ export const StaffSosScreen: React.FC = () => {
               {/* Card 2: Active Alerts Now (from live alerts list) */}
               <View style={[styles.statCard, activeAlerts.length > 0 && styles.statCardActiveAlert]}>
                 <Text style={[styles.statCardValue, activeAlerts.length > 0 && styles.statCardValueAlert]}>
-                  {activeAlerts.length}
+                  {errorMsg ? '—' : activeAlerts.length}
                 </Text>
                 <Text style={styles.statCardLabel}>{t('staff.sos.stats.activeNow')}</Text>
                 <Text style={styles.statCardSub} numberOfLines={1}>
-                  {activeAlerts.length > 0 ? t('staff.sos.stats.requiresAttention') : t('staff.sos.stats.allClear')}
+                  {errorMsg ? t('staff.sos.incompleteData') : activeAlerts.length > 0 ? t('staff.sos.stats.requiresAttention') : t('staff.sos.stats.allClear')}
                 </Text>
               </View>
 
@@ -472,12 +482,12 @@ export const StaffSosScreen: React.FC = () => {
                   activeAlerts.length > 0 ? styles.activeCountPulse : styles.activeCountEmpty,
                 ]}
               >
-                <Text style={styles.activeCountText}>{activeAlerts.length}</Text>
+                <Text style={styles.activeCountText}>{errorMsg ? '—' : activeAlerts.length}</Text>
               </View>
             </View>
           </View>
 
-          {activeAlerts.length === 0 ? (
+          {errorMsg && activeAlerts.length === 0 ? null : activeAlerts.length === 0 ? (
             <View style={styles.emptyActiveBox}>
               <CheckCircle2 size={36} color={Colors.success} style={{ marginBottom: 8 }} />
               <Text style={styles.emptyActiveTitle}>{t('staff.sos.noActiveAlerts')}</Text>
@@ -492,7 +502,7 @@ export const StaffSosScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>{t('staff.sos.history')}</Text>
           </View>
 
-          {historyAlerts.length === 0 ? (
+          {errorMsg && historyAlerts.length === 0 ? null : historyAlerts.length === 0 ? (
             <View style={styles.emptyHistoryBox}>
               <Text style={styles.emptyHistoryText}>{t('staff.sos.noHistoryAlerts')}</Text>
             </View>
@@ -507,13 +517,15 @@ export const StaffSosScreen: React.FC = () => {
       )}
 
       {/* Resolution Modal */}
-      <Modal visible={Boolean(selectedAlert)} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <Modal visible={Boolean(selectedAlert)} transparent animationType="slide" onRequestClose={closeResolution}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: 24 + insets.bottom }]}><ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('staff.sos.resolveModalTitle')}</Text>
               <TouchableOpacity
-                onPress={() => setSelectedAlert(null)}
+                onPress={closeResolution}
+                disabled={resolving}
+                accessibilityRole="button" accessibilityLabel={t('common.close')}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <X size={22} color={Colors.textMuted} />
@@ -546,6 +558,8 @@ export const StaffSosScreen: React.FC = () => {
                       targetStatus === 'RESOLVED' && styles.statusToggleActiveResolved,
                     ]}
                     onPress={() => setTargetStatus('RESOLVED')}
+                    disabled={resolving}
+                    accessibilityRole="radio" accessibilityState={{ checked: targetStatus === 'RESOLVED' }}
                   >
                     <CheckCircle2
                       size={16}
@@ -568,6 +582,8 @@ export const StaffSosScreen: React.FC = () => {
                       targetStatus === 'FALSE_ALARM' && styles.statusToggleActiveFalse,
                     ]}
                     onPress={() => setTargetStatus('FALSE_ALARM')}
+                    disabled={resolving}
+                    accessibilityRole="radio" accessibilityState={{ checked: targetStatus === 'FALSE_ALARM' }}
                   >
                     <XCircle
                       size={16}
@@ -589,6 +605,8 @@ export const StaffSosScreen: React.FC = () => {
                 <Text style={styles.inputLabel}>{t('staff.sos.resolutionNoteLabel')}</Text>
                 <TextInput
                   value={resolutionNote}
+                  editable={!resolving}
+                  accessibilityLabel={t('staff.sos.resolutionNotePlaceholder')}
                   onChangeText={setResolutionNote}
                   placeholder={t('staff.sos.resolutionNotePlaceholder')}
                   placeholderTextColor={Colors.textLight}
@@ -598,17 +616,20 @@ export const StaffSosScreen: React.FC = () => {
                 />
 
                 {/* Actions */}
+                {resolutionError && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, marginVertical: 12 }}>{resolutionError}</Text>}
                 <View style={styles.modalActions}>
                   <Button
                     title={t('common.cancel')}
                     variant="outline"
-                    onPress={() => setSelectedAlert(null)}
+                    onPress={closeResolution}
+                    disabled={resolving}
                     style={{ flex: 1, marginRight: 8 }}
                   />
                   <Button
                     title={resolving ? t('staff.sos.resolving') : t('staff.sos.confirmResolve')}
                     onPress={handleConfirmResolve}
                     disabled={resolving}
+                    loading={resolving}
                     style={{
                       flex: 1.5,
                       backgroundColor: targetStatus === 'RESOLVED' ? '#16A34A' : Colors.warning,
@@ -617,8 +638,8 @@ export const StaffSosScreen: React.FC = () => {
                 </View>
               </View>
             )}
-          </View>
-        </View>
+          </ScrollView></View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -664,7 +685,10 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   refreshBtn: {
-    padding: 8,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chairmanNoticeBanner: {
     flexDirection: 'row',
@@ -702,15 +726,17 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 16,
   },
   statCard: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 130,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
@@ -721,7 +747,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF2F2',
   },
   statCardValue: {
-    fontSize: 17,
+    fontSize: 26,
     fontWeight: '700',
     color: Colors.text,
     textAlign: 'center',
@@ -742,7 +768,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   statCardSub: {
-    fontSize: 9,
+    fontSize: 12,
+    lineHeight: 18,
     color: Colors.textMuted,
     marginTop: 2,
     textAlign: 'center',
@@ -798,8 +825,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   activeCard: {
+    borderRadius: 24,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
     borderWidth: 2,
     borderColor: '#EF4444',
     padding: 16,
@@ -907,11 +934,13 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   activeActionRow: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     gap: 10,
     marginTop: 4,
   },
   actionBtn: {
+    minHeight: 48,
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'center',
@@ -938,8 +967,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   historyCard: {
+    borderRadius: 24,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 14,
@@ -1009,6 +1038,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
+    maxHeight: '90%',
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,

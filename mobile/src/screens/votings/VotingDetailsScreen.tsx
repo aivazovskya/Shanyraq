@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { LoadError } from '../../components/common/LoadError';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { RootStackParamList } from '../../navigation/types';
@@ -33,6 +38,7 @@ import {
   XCircle,
   MinusCircle,
   ArrowLeft,
+  RefreshCw,
   KeyRound,
   FileCheck2,
 } from 'lucide-react-native';
@@ -43,10 +49,16 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   const { t, i18n } = useTranslation();
   const { meetingId } = route.params;
   const { user } = useAuth();
-  const primaryUnitId = user?.ownerships?.[0]?.unitId;
+  const insets = useSafeAreaInsets();
 
   const [meeting, setMeeting] = useState<MeetingItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const primaryUnitId = user?.ownerships?.find((ownership) => ownership.isVerified && ownership.ownershipType === 'OWNER' && ownership.unit?.building?.tenantId === meeting?.tenantId)?.unitId;
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const loadVersion = useRef(0);
+  const voteLock = useRef(false);
 
   // 2-step SMS Vote Modal State
   const [activeItem, setActiveItem] = useState<AgendaItem | null>(null);
@@ -57,22 +69,36 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   const [submittingVote, setSubmittingVote] = useState(false);
   const [voteError, setVoteError] = useState('');
 
-  const loadDetails = async () => {
+  const loadDetails = useCallback(async () => {
+    const version = ++loadVersion.current;
     try {
       const data = await VotingsApi.getMeetingDetails(meetingId);
-      setMeeting(data);
-    } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      if (version !== loadVersion.current) return;
+      setMeeting(data); setLoadFailed(false);
+    } catch {
+      if (version === loadVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) { setLoading(false); setRefreshing(false); }
     }
-  };
-
-  useEffect(() => {
-    loadDetails();
   }, [meetingId]);
+  useEffect(() => {
+    setMeeting(null); setLoading(true);
+    void loadDetails();
+    return () => { loadVersion.current++; };
+  }, [loadDetails]);
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setTimeout(() => setResendCountdown((value) => value - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
+  const retryDetails = () => {
+    if (loading || refreshing || voteLock.current) return;
+    setRefreshing(true); void loadDetails();
+  };
+  const closeVoteModal = () => { if (!voteLock.current) setActiveItem(null); };
 
   const openVoteModal = (item: AgendaItem) => {
+    if (voteLock.current || !primaryUnitId || meeting?.status !== 'ACTIVE') return;
     setActiveItem(item);
     setSelectedChoice(null);
     setVoteStep(1);
@@ -81,6 +107,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleRequestVoteOtp = async () => {
+    if (voteLock.current || resendCountdown > 0) return;
     if (!selectedChoice) {
       setVoteError(t('votings.voteSelectChoiceError'));
       return;
@@ -90,6 +117,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       return;
     }
 
+    voteLock.current = true;
     setOtpSending(true);
     setVoteError('');
 
@@ -101,15 +129,19 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
           t('votings.devSmsBody', { code: res.devCode })
         );
       }
+      setOtpCode('');
+      setResendCountdown(60);
       setVoteStep(2);
     } catch (e: any) {
       setVoteError(getApiErrorMessage(e));
     } finally {
+      voteLock.current = false;
       setOtpSending(false);
     }
   };
 
   const handleConfirmVote = async () => {
+    if (voteLock.current) return;
     if (!activeItem || !selectedChoice || !primaryUnitId) {
       setVoteError(t('votings.insufficientDataError'));
       return;
@@ -119,6 +151,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       return;
     }
 
+    voteLock.current = true;
     setSubmittingVote(true);
     setVoteError('');
 
@@ -130,6 +163,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
         otpCode,
       });
 
+      setMeeting((previous) => previous ? { ...previous, agendaItems: previous.agendaItems.map((item) => item.id === activeItem.id ? { ...item, myVote: { choice: selectedChoice, areaWeight: result.areaWeight, votedAt: result.votedAt, signatureHash: result.signatureHash } } : item) } : previous);
       Alert.alert(
         t('votings.voteSuccessTitle'),
         t('votings.voteSuccessMsg', { hash: result.signatureHash.slice(0, 16) }),
@@ -140,13 +174,23 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
     } catch (e: any) {
       setVoteError(getApiErrorMessage(e));
     } finally {
+      voteLock.current = false;
       setSubmittingVote(false);
     }
   };
 
-  if (loading || !meeting) {
-    return <LoadingState message={t('votings.loadingDetails')} />;
-  }
+  const header = (<View style={styles.topNav}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <ArrowLeft color={Colors.text} size={24} />
+        </TouchableOpacity>
+        <Text style={styles.navTitle} numberOfLines={1}>
+          {t('votings.navTitle')}
+        </Text>
+        <TouchableOpacity onPress={retryDetails} disabled={loading || refreshing || otpSending || submittingVote} style={styles.backBtn} accessibilityRole="button" accessibilityLabel={t('common.retry')}>
+          {refreshing ? <ActivityIndicator color={Colors.primary} /> : <RefreshCw color={Colors.textMuted} size={20} />}
+        </TouchableOpacity>
+      </View>);
+  if (!meeting) return <SafeAreaView style={styles.container}>{header}{loading ? <LoadingState message={t('votings.loadingDetails')} /> : <LoadError onRetry={retryDetails} retrying={refreshing} />}</SafeAreaView>;
 
   const isCompleted = meeting.status === 'COMPLETED';
 
@@ -159,21 +203,14 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Navigation header */}
-      <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ArrowLeft color={Colors.text} size={24} />
-        </TouchableOpacity>
-        <Text style={styles.navTitle} numberOfLines={1}>
-          {t('votings.navTitle')}
-        </Text>
-        <View style={{ width: 24 }} />
-      </View>
+      {header}
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      {loadFailed && <LoadError onRetry={retryDetails} retrying={refreshing} />}
+      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={retryDetails} colors={[Colors.primary]} />} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent}>
         {/* Title & metadata */}
         <View style={styles.titleSection}>
           <Badge
-            label={meeting.status === 'ACTIVE' ? t('votings.votingStatusActive') : t('votings.votingStatusCompleted')}
+            label={t(`votings.votingStatus${{ ACTIVE: 'Active', COMPLETED: 'Completed', CANCELLED: 'Cancelled', DRAFT: 'Draft' }[meeting.status]}`)}
             variant={meeting.status === 'ACTIVE' ? 'success' : 'default'}
           />
           <Text style={styles.meetingTitle}>{meeting.title}</Text>
@@ -200,7 +237,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
             <View
               style={[
                 styles.quorumBarFill,
-                { width: `${Math.min(meeting.quorumPercent || 0, 100)}%` },
+                { width: `${Math.max(0, Math.min(meeting.quorumPercent || 0, 100))}%` },
                 meeting.isQuorumReached && styles.quorumBarSuccess,
               ]}
             />
@@ -212,9 +249,11 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
           </Text>
         </Card>
 
+        {meeting.status === 'ACTIVE' && !primaryUnitId && <Text style={styles.quorumNotice}>{t('votings.verifiedOwnerRequired')}</Text>}
         {/* Agenda items header */}
         <Text style={styles.agendaHeading}>{t('votings.agendaTitle', { count: meeting.agendaItems.length })}</Text>
 
+        {meeting.agendaItems.length === 0 && <Card><Text style={styles.itemDesc}>{t('residentUi.noAgenda')}</Text></Card>}
         {meeting.agendaItems.map((item, index) => {
           const myVote = item.myVote;
           const votesSummary = item.votesSummary;
@@ -249,12 +288,12 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                   </View>
                   <View style={styles.signatureRow}>
                     <ShieldCheck color={Colors.textMuted} size={14} />
-                    <Text style={styles.signatureHash}>
+                    <Text selectable style={styles.signatureHash}>
                       {t('votings.signatureHash', { hash: myVote.signatureHash.slice(0, 20) })}
                     </Text>
                   </View>
                 </View>
-              ) : meeting.status === 'ACTIVE' ? (
+              ) : meeting.status === 'ACTIVE' && primaryUnitId ? (
                 <Button
                   title={t('votings.voteOnQuestion')}
                   onPress={() => openVoteModal(item)}
@@ -276,7 +315,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                       })}
                     </Text>
                     <View style={styles.miniBar}>
-                      <View style={[styles.miniBarFill, { width: `${votesSummary.forPercent || 0}%`, backgroundColor: '#059669' }]} />
+                      <View style={[styles.miniBarFill, { width: `${Math.max(0, Math.min(votesSummary.forPercent || 0, 100))}%`, backgroundColor: '#059669' }]} />
                     </View>
                   </View>
                   <View style={styles.barItem}>
@@ -286,7 +325,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                         area: votesSummary.againstArea?.toFixed(0) || 0,
                       })}
                     </Text>
-                    <View style={[styles.miniBarFill, { width: `${votesSummary.againstPercent || 0}%`, backgroundColor: '#EF4444' }]} />
+                    <View style={styles.miniBar}><View style={[styles.miniBarFill, { width: `${Math.max(0, Math.min(votesSummary.againstPercent || 0, 100))}%`, backgroundColor: '#EF4444' }]} /></View>
                   </View>
                   <View style={styles.barItem}>
                     <Text style={styles.barLabel}>
@@ -295,7 +334,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                         area: votesSummary.abstainArea?.toFixed(0) || 0,
                       })}
                     </Text>
-                    <View style={[styles.miniBarFill, { width: `${votesSummary.abstainPercent || 0}%`, backgroundColor: '#9CA3AF' }]} />
+                    <View style={styles.miniBar}><View style={[styles.miniBarFill, { width: `${Math.max(0, Math.min(votesSummary.abstainPercent || 0, 100))}%`, backgroundColor: '#9CA3AF' }]} /></View>
                   </View>
                 </View>
               )}
@@ -305,9 +344,9 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       </ScrollView>
 
       {/* 2-STEP SMS VOTE MODAL */}
-      <Modal visible={Boolean(activeItem)} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+      <Modal visible={Boolean(activeItem)} transparent animationType="slide" onRequestClose={closeVoteModal}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: 24 + insets.bottom }]}><ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{t('votings.modalLegalTitle')}</Text>
             <Text style={styles.modalSub}>
               {activeItem?.title}
@@ -324,6 +363,8 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                       selectedChoice === 'FOR' && styles.choiceButtonActiveFor,
                     ]}
                     onPress={() => setSelectedChoice('FOR')}
+                    disabled={otpSending || submittingVote}
+                    accessibilityRole="radio" aria-checked={selectedChoice === 'FOR'} accessibilityState={{ checked: selectedChoice === 'FOR', disabled: otpSending || submittingVote }}
                   >
                     <CheckCircle2
                       color={selectedChoice === 'FOR' ? '#FFFFFF' : '#059669'}
@@ -345,6 +386,8 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                       selectedChoice === 'AGAINST' && styles.choiceButtonActiveAgainst,
                     ]}
                     onPress={() => setSelectedChoice('AGAINST')}
+                    disabled={otpSending || submittingVote}
+                    accessibilityRole="radio" aria-checked={selectedChoice === 'AGAINST'} accessibilityState={{ checked: selectedChoice === 'AGAINST', disabled: otpSending || submittingVote }}
                   >
                     <XCircle
                       color={selectedChoice === 'AGAINST' ? '#FFFFFF' : '#EF4444'}
@@ -366,6 +409,8 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                       selectedChoice === 'ABSTAIN' && styles.choiceButtonActiveAbstain,
                     ]}
                     onPress={() => setSelectedChoice('ABSTAIN')}
+                    disabled={otpSending || submittingVote}
+                    accessibilityRole="radio" aria-checked={selectedChoice === 'ABSTAIN'} accessibilityState={{ checked: selectedChoice === 'ABSTAIN', disabled: otpSending || submittingVote }}
                   >
                     <MinusCircle
                       color={selectedChoice === 'ABSTAIN' ? '#FFFFFF' : '#6B7280'}
@@ -382,13 +427,13 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                   </TouchableOpacity>
                 </View>
 
-                {voteError ? <Text style={styles.modalError}>{voteError}</Text> : null}
+                {voteError ? <Text accessibilityLiveRegion="polite" style={styles.modalError}>{voteError}</Text> : null}
 
                 <Button
-                  title={t('votings.confirmViaSms')}
+                  title={resendCountdown > 0 ? t('auth.resendTimer', { count: resendCountdown }) : t('votings.confirmViaSms')}
                   onPress={handleRequestVoteOtp}
                   loading={otpSending}
-                  disabled={!selectedChoice}
+                  disabled={!selectedChoice || resendCountdown > 0}
                   size="lg"
                   style={styles.modalActionBtn}
                 />
@@ -397,6 +442,7 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
               // Step 2: Enter SMS OTP
               <View style={styles.stepContainer}>
                 <Text style={styles.stepTitle}>{t('votings.step2Title')}</Text>
+                <Text style={styles.otpNotice}>{t('votings.selectedChoice', { choice: selectedChoice ? getChoiceLabel(selectedChoice) : '' })}</Text>
                 <Text style={styles.otpNotice}>
                   {t('votings.smsSentNotice', { phone: user?.phone || '' })}
                 </Text>
@@ -404,7 +450,9 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                 <Input
                   label={t('votings.smsCodeInputLabel')}
                   value={otpCode}
-                  onChangeText={setOtpCode}
+                  onChangeText={(value) => { setOtpCode(value.replace(/\D/g, '').slice(0, 6)); setVoteError(''); }}
+                  editable={!submittingVote && !otpSending}
+                  autoComplete="sms-otp" textContentType="oneTimeCode"
                   keyboardType="number-pad"
                   maxLength={6}
                   placeholder="000000"
@@ -417,21 +465,24 @@ export const VotingDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
                   title={t('votings.signAndSubmitVote')}
                   onPress={handleConfirmVote}
                   loading={submittingVote}
+                  disabled={otpCode.length !== 6 || otpSending}
                   size="lg"
                   style={styles.modalActionBtn}
                 />
               </View>
             )}
 
+            {voteStep === 2 && <Button title={resendCountdown > 0 ? t('auth.resendTimer', { count: resendCountdown }) : t('auth.resendButton')} onPress={handleRequestVoteOtp} disabled={resendCountdown > 0 || submittingVote} loading={otpSending} variant="outline" style={{ marginTop: 12 }} />}
             <Button
               title={t('common.cancel')}
-              onPress={() => setActiveItem(null)}
+              onPress={closeVoteModal}
+              disabled={otpSending || submittingVote}
               variant="outline"
               size="md"
               style={styles.modalCancelBtn}
             />
-          </View>
-        </View>
+          </ScrollView></View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -453,6 +504,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   navTitle: {
@@ -466,9 +521,15 @@ const styles = StyleSheet.create({
   },
   titleSection: {
     marginBottom: 16,
+    padding: 20,
+    borderRadius: 24,
+    backgroundColor: Colors.primaryBg,
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
   },
   meetingTitle: {
-    fontSize: 22,
+    fontSize: 24,
+    lineHeight: 31,
     fontWeight: '800',
     color: Colors.text,
     marginTop: 8,
@@ -485,12 +546,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   quorumCard: {
+    borderRadius: 24,
     backgroundColor: '#ECFDF5',
     borderColor: '#A7F3D0',
     marginBottom: 20,
   },
   quorumHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
@@ -531,10 +595,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   agendaCard: {
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 14,
   },
   agendaHeaderRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
@@ -582,6 +650,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   signatureHash: {
+    flex: 1,
     fontSize: 11,
     color: Colors.textMuted,
     fontFamily: 'monospace',
@@ -677,6 +746,7 @@ const styles = StyleSheet.create({
     borderColor: '#6B7280',
   },
   choiceText: {
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,

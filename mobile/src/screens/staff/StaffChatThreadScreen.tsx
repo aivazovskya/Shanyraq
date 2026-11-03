@@ -1,3 +1,6 @@
+import { LoadError } from '../../components/common/LoadError';
+import { PhotoGallery } from '../../components/common/PhotoGallery';
+import { getApiErrorMessage } from '../../api/client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -9,10 +12,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  SafeAreaView,
-  Image,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -24,7 +26,7 @@ import { Colors } from '../../constants/colors';
 import { ArrowLeft, Send, User, ShieldCheck, CheckCheck } from 'lucide-react-native';
 
 export const StaffChatThreadScreen: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation();
   const route = useRoute<any>();
   const { user } = useAuth();
@@ -33,47 +35,66 @@ export const StaffChatThreadScreen: React.FC = () => {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const actionLock = useRef(false);
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isResolved, setIsResolved] = useState<boolean>(route.params?.isResolved ?? false);
   const [resolving, setResolving] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const activeConversation = useRef(conversationId);
+  activeConversation.current = conversationId;
+  const loadVersion = useRef(0);
 
   const canResolve = ['DISPATCHER', 'HOA_ADMIN', 'SUPERADMIN'].includes(user?.role || '');
 
   const loadMessages = useCallback(
     async (isSilent = false) => {
-      if (!conversationId) return;
+      const version = ++loadVersion.current;
+      if (!conversationId) { setLoadFailed(true); setLoading(false); return; }
       if (!isSilent) setLoading(true);
 
       try {
         const conv = await ChatApi.getConversationMessages(conversationId);
+        if (version !== loadVersion.current || activeConversation.current !== conversationId) return;
         setMessages(conv.messages || []);
+        setLoadFailed(false);
         if (typeof conv.isResolved === 'boolean') {
           setIsResolved(conv.isResolved);
         }
       } catch (err) {
+        if (version === loadVersion.current) setLoadFailed(true);
         console.error('Failed to load conversation messages:', err);
       } finally {
-        if (!isSilent) setLoading(false);
+        if (version === loadVersion.current) setLoading(false);
       }
     },
     [conversationId],
   );
 
   const handleResolve = async () => {
-    if (!conversationId || resolving) return;
+    if (!conversationId || actionLock.current) return;
+    actionLock.current = true;
     setResolving(true);
     try {
       await ChatApi.resolveConversation(conversationId);
+      if (activeConversation.current !== conversationId) return;
       setIsResolved(true);
     } catch (err: any) {
       console.error('Failed to resolve conversation:', err);
       Alert.alert(t('common.error'), err?.response?.data?.message || t('staff.chat.resolveError'));
     } finally {
+      actionLock.current = false;
       setResolving(false);
     }
   };
+
+  useEffect(() => {
+    setMessages([]);
+    setInputText('');
+    setSendError(null);
+  }, [conversationId]);
 
   // Real-time WebSocket connection to specific conversation room
   useFocusEffect(
@@ -87,7 +108,8 @@ export const StaffChatThreadScreen: React.FC = () => {
         if (!active) return;
 
         socket = await createRealtimeSocket();
-        if (!socket || !active) return;
+        if (!socket) return;
+        if (!active) { socket.disconnect(); return; }
 
         socket.on('connect', () => {
           socket?.emit('chat:join', { conversationId });
@@ -100,7 +122,7 @@ export const StaffChatThreadScreen: React.FC = () => {
         });
 
         socket.on('chat:message', (newMsg: ChatMessage) => {
-          if (!newMsg) return;
+          if (!newMsg || newMsg.conversationId !== conversationId) return;
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
@@ -119,6 +141,7 @@ export const StaffChatThreadScreen: React.FC = () => {
 
       return () => {
         active = false;
+        loadVersion.current++;
         if (socket) {
           socket.emit('chat:leave', { conversationId });
           socket.disconnect();
@@ -129,13 +152,16 @@ export const StaffChatThreadScreen: React.FC = () => {
 
   const handleSend = async () => {
     const text = inputText.trim();
-    if (!text || sending || !conversationId) return;
+    if (!text || actionLock.current || !conversationId) return;
+    actionLock.current = true;
+    setSendError(null);
 
     setSending(true);
-    setInputText('');
 
     try {
       const newMsg = await ChatApi.sendStaffMessage(conversationId, text);
+      if (activeConversation.current !== conversationId) return;
+      setInputText('');
       setMessages((prev) => {
         if (prev.some((m) => m.id === newMsg.id)) return prev;
         return [...prev, newMsg];
@@ -145,19 +171,19 @@ export const StaffChatThreadScreen: React.FC = () => {
       }, 100);
     } catch (err) {
       console.error('Failed to send staff message:', err);
-      // Restore input text if failed
-      setInputText(text);
+      if (activeConversation.current === conversationId) setSendError(getApiErrorMessage(err));
     } finally {
+      actionLock.current = false;
       setSending(false);
     }
   };
 
   const renderMessageItem = ({ item }: { item: ChatMessage }) => {
     // Message is from staff if sender role is not resident
-    const isStaffMsg = item.sender?.role && item.sender.role !== 'RESIDENT_OWNER' && item.sender.role !== 'RESIDENT_TENANT';
+    const isStaffMsg = !!item.sender?.role && !['RESIDENT', 'RESIDENT_OWNER', 'RESIDENT_TENANT'].includes(item.sender.role);
     const isCurrentUser = item.senderId === user?.id;
 
-    const timeStr = new Date(item.createdAt).toLocaleTimeString([], {
+    const timeStr = new Date(item.createdAt).toLocaleTimeString(i18n.language, {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -191,11 +217,7 @@ export const StaffChatThreadScreen: React.FC = () => {
 
           {/* Photo attachment if available */}
           {item.photoUrl && (
-            <Image
-              source={{ uri: item.photoUrl }}
-              style={styles.attachedImage}
-              resizeMode="cover"
-            />
+            <PhotoGallery images={[item.photoUrl]} variant="message" />
           )}
 
           {/* Text content */}
@@ -227,7 +249,7 @@ export const StaffChatThreadScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')}
           onPress={() => navigation.goBack()}
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -248,7 +270,8 @@ export const StaffChatThreadScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.resolveButton}
                 onPress={handleResolve}
-                disabled={resolving}
+                disabled={resolving || sending}
+                accessibilityRole="button" accessibilityState={{ busy: resolving }}
                 activeOpacity={0.8}
               >
                 {resolving ? (
@@ -269,6 +292,7 @@ export const StaffChatThreadScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
+        {loadFailed && <LoadError onRetry={() => loadMessages()} retrying={loading} />}
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={Colors.primary} />
@@ -284,6 +308,7 @@ export const StaffChatThreadScreen: React.FC = () => {
           />
         )}
 
+        {sendError && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, padding: 12 }}>{sendError}</Text>}
         {/* Input bar */}
         <View style={styles.inputContainer}>
           <TextInput
@@ -291,6 +316,8 @@ export const StaffChatThreadScreen: React.FC = () => {
             placeholder={t('staff.chat.typeMessagePlaceholder')}
             placeholderTextColor={Colors.textLight}
             value={inputText}
+            editable={!sending}
+            accessibilityLabel={t('staff.chat.typeMessagePlaceholder')}
             onChangeText={setInputText}
             multiline
             maxLength={1000}
@@ -298,7 +325,8 @@ export const StaffChatThreadScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
             onPress={handleSend}
-            disabled={!inputText.trim() || sending}
+            disabled={!inputText.trim() || sending || resolving || loading || (loadFailed && !messages.length)}
+            accessibilityRole="button" accessibilityLabel={t('chat.sendButton')} accessibilityState={{ busy: sending }}
             activeOpacity={0.8}
           >
             {sending ? (
@@ -330,6 +358,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
   },
   headerTitleGroup: {
@@ -353,6 +385,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   resolveButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 5,
@@ -388,7 +422,7 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '80%',
-    borderRadius: 16,
+    borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -464,9 +498,9 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',

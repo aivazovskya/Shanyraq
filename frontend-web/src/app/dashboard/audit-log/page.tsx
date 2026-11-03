@@ -291,7 +291,7 @@ export default function AuditLogPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
+          <h1 className="page-title text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <ShieldAlert className="w-7 h-7 text-sky-600" />
             {t('auditLog.title')}
           </h1>
@@ -334,13 +334,13 @@ export default function AuditLogPage() {
       </div>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+      <div className="surface-card bg-white p-4 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+          <label htmlFor="field-dashboard-audit-log-page-tsx-0" className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
             <Filter className="w-3.5 h-3.5" />
             {t('auditLog.filterAction')}
           </label>
-          <select
+          <select id="field-dashboard-audit-log-page-tsx-0"
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
             className="w-full text-sm rounded-lg border-slate-200 bg-slate-50 focus:bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500 px-3 py-2 border"
@@ -364,11 +364,11 @@ export default function AuditLogPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+          <label htmlFor="field-dashboard-audit-log-page-tsx-1" className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5" />
             {t('auditLog.dateFrom')}
           </label>
-          <input
+          <input id="field-dashboard-audit-log-page-tsx-1"
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
@@ -377,11 +377,11 @@ export default function AuditLogPage() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+          <label htmlFor="field-dashboard-audit-log-page-tsx-2" className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5" />
             {t('auditLog.dateTo')}
           </label>
-          <input
+          <input id="field-dashboard-audit-log-page-tsx-2"
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
@@ -397,7 +397,7 @@ export default function AuditLogPage() {
       )}
 
       {/* Log Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {currentUser?.role === 'SUPERADMIN' && !tenantId ? (
           <div className="py-16 text-center text-slate-500 text-sm">
             <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -414,8 +414,8 @@ export default function AuditLogPage() {
             {t('auditLog.empty')}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
+          <div className="data-scroll overflow-x-auto">
+            <table className="data-table w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3.5">{t('auditLog.columns.date')}</th>

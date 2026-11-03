@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -295,7 +297,7 @@ export default function HoaExpensesPage() {
               <Receipt className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">
                 {t('finance.expenses.title')}
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -310,7 +312,7 @@ export default function HoaExpensesPage() {
             <button
               onClick={handleExportCsv}
               disabled={isExporting || loading || expenses.length === 0}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
+              className="surface-card flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm transition-all disabled:opacity-50"
             >
               {isExporting ? (
                 <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
@@ -332,8 +334,9 @@ export default function HoaExpensesPage() {
 
             <button
               onClick={loadExpenses}
+              aria-label={t('common.refresh')}
               disabled={loading}
-              className="p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
+              className="surface-card p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -358,7 +361,7 @@ export default function HoaExpensesPage() {
             )}
             <span className="text-sm font-medium">{actionMessage.text}</span>
           </div>
-          <button
+          <button aria-label={t('common.close')}
             onClick={() => setActionMessage(null)}
             className="p-1 hover:bg-black/5 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
           >
@@ -384,7 +387,7 @@ export default function HoaExpensesPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+            <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                   {t('finance.expenses.activeExpenses')}
@@ -393,7 +396,7 @@ export default function HoaExpensesPage() {
                   {stats.activeTotal.toLocaleString()} ₸
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {stats.activeCount} {t('common.records')}
+                  {stats.activeCount} {t('common.records', { count: stats.activeCount })}
                 </p>
               </div>
               <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
@@ -401,7 +404,7 @@ export default function HoaExpensesPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+            <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                   {t('finance.expenses.voidedExpenses')}
@@ -418,7 +421,7 @@ export default function HoaExpensesPage() {
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+            <div className="surface-card bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                   {t('finance.expenses.totalExpenses')}
@@ -437,13 +440,13 @@ export default function HoaExpensesPage() {
           </div>
 
           {/* Filters Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-0" className="block text-xs font-medium text-slate-500 mb-1">
                   {t('finance.expenses.filterFrom')}
                 </label>
-                <input
+                <input id="field-dashboard-finance-expenses-page-tsx-0"
                   type="date"
                   value={filterFrom}
                   onChange={(e) => setFilterFrom(e.target.value)}
@@ -452,10 +455,10 @@ export default function HoaExpensesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-1" className="block text-xs font-medium text-slate-500 mb-1">
                   {t('finance.expenses.filterTo')}
                 </label>
-                <input
+                <input id="field-dashboard-finance-expenses-page-tsx-1"
                   type="date"
                   value={filterTo}
                   onChange={(e) => setFilterTo(e.target.value)}
@@ -464,11 +467,11 @@ export default function HoaExpensesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-2" className="block text-xs font-medium text-slate-500 mb-1">
                   {t('finance.expenses.filterCategory')}
                 </label>
                 <div className="relative">
-                  <input
+                  <input id="field-dashboard-finance-expenses-page-tsx-2"
                     type="text"
                     value={filterCategory}
                     onChange={(e) => setFilterCategory(e.target.value)}
@@ -480,10 +483,10 @@ export default function HoaExpensesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-3" className="block text-xs font-medium text-slate-500 mb-1">
                   {t('finance.expenses.filterStatus')}
                 </label>
-                <select
+                <select id="field-dashboard-finance-expenses-page-tsx-3"
                   value={filterStatus}
                   onChange={(e: any) => setFilterStatus(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
@@ -508,7 +511,7 @@ export default function HoaExpensesPage() {
           </div>
 
           {/* Table / List */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="surface-card bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
             {loading ? (
               <div className="py-20 text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-rose-600 mx-auto mb-3" />
@@ -534,8 +537,8 @@ export default function HoaExpensesPage() {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="data-scroll overflow-x-auto">
+                <table className="data-table w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/75 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       <th className="py-3.5 px-6">{t('finance.expenses.thDate')}</th>
@@ -655,16 +658,16 @@ export default function HoaExpensesPage() {
 
       {/* Create Expense Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden">
+        <Dialog labelledBy="finance-expenses-dialog-0" onClose={() => { if (!(isCreating)) (() => setIsCreateModalOpen(false))(); }}>
+          <div className="surface-card bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-rose-600" />
-                <h3 className="font-semibold text-slate-900">
+                <h3 id="finance-expenses-dialog-0" className="font-semibold text-slate-900">
                   {t('finance.expenses.createModalTitle')}
                 </h3>
               </div>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setIsCreateModalOpen(false)}
                 disabled={isCreating}
                 className="p-1 hover:bg-slate-200/50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
@@ -675,10 +678,10 @@ export default function HoaExpensesPage() {
 
             <form onSubmit={handleCreateExpense} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-4" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   {t('finance.expenses.categoryLabel')} <span className="text-rose-500">*</span>
                 </label>
-                <input
+                <input id="field-dashboard-finance-expenses-page-tsx-4"
                   type="text"
                   required
                   value={formCategory}
@@ -690,10 +693,10 @@ export default function HoaExpensesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label htmlFor="field-dashboard-finance-expenses-page-tsx-5" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     {t('finance.expenses.amountLabel')} <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <input id="field-dashboard-finance-expenses-page-tsx-5"
                     type="number"
                     step="0.01"
                     min="0.01"
@@ -706,10 +709,10 @@ export default function HoaExpensesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label htmlFor="field-dashboard-finance-expenses-page-tsx-6" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     {t('finance.expenses.dateLabel')} <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <input id="field-dashboard-finance-expenses-page-tsx-6"
                     type="date"
                     required
                     value={formDate}
@@ -720,10 +723,10 @@ export default function HoaExpensesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-7" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   {t('finance.expenses.descLabel')}
                 </label>
-                <textarea
+                <textarea id="field-dashboard-finance-expenses-page-tsx-7"
                   rows={3}
                   value={formDesc}
                   onChange={(e) => setFormDesc(e.target.value)}
@@ -752,21 +755,21 @@ export default function HoaExpensesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Void Expense Modal */}
       {voidTargetExpense && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full overflow-hidden">
+        <Dialog labelledBy="finance-expenses-dialog-1" onClose={() => { if (!(isVoiding)) (() => setVoidTargetExpense(null))(); }}>
+          <div className="surface-card bg-white rounded-2xl shadow-xl border border-slate-100 max-w-md w-full overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-red-50/50">
               <div className="flex items-center gap-2">
                 <Ban className="w-5 h-5 text-red-600" />
-                <h3 className="font-semibold text-slate-900">
+                <h3 id="finance-expenses-dialog-1" className="font-semibold text-slate-900">
                   {t('finance.expenses.voidModalTitle')}
                 </h3>
               </div>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setVoidTargetExpense(null)}
                 disabled={isVoiding}
                 className="p-1 hover:bg-slate-200/50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
@@ -793,10 +796,10 @@ export default function HoaExpensesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label htmlFor="field-dashboard-finance-expenses-page-tsx-8" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   {t('finance.expenses.voidReasonLabel')} <span className="text-rose-500">*</span>
                 </label>
-                <textarea
+                <textarea id="field-dashboard-finance-expenses-page-tsx-8"
                   required
                   rows={3}
                   value={voidReason}
@@ -826,7 +829,7 @@ export default function HoaExpensesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

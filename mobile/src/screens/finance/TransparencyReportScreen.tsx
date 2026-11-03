@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { getApiErrorMessage } from '../../api/client';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,8 +8,8 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -33,7 +35,7 @@ type TransparencyReportRouteProp = RouteProp<RootStackParamList, 'TransparencyRe
 export const TransparencyReportScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<TransparencyReportRouteProp>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
 
   const now = new Date();
@@ -63,7 +65,9 @@ export const TransparencyReportScreen: React.FC = () => {
       : null) ||
     null;
 
+  const requestVersion = useRef(0);
   const loadReport = useCallback(async () => {
+    const version = ++requestVersion.current;
     if (!resolvedTenantId) {
       setError(t('finance.transparencyNoTenantError', 'Не удалось определить жилой комплекс'));
       setLoading(false);
@@ -77,25 +81,22 @@ export const TransparencyReportScreen: React.FC = () => {
         month: selectedMonth,
         year: selectedYear,
       });
-      setReport(data);
+      if (version === requestVersion.current) setReport(data);
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        err.message ||
-        t('finance.transparencyLoadError', 'Не удалось загрузить отчет о прозрачности');
-      setError(msg);
+      if (version === requestVersion.current) setError(getApiErrorMessage(err));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === requestVersion.current) { setLoading(false); setRefreshing(false); }
     }
   }, [resolvedTenantId, selectedMonth, selectedYear, t]);
 
   useEffect(() => {
     setLoading(true);
     loadReport();
+    return () => { requestVersion.current++; };
   }, [loadReport]);
 
   const onRefresh = () => {
+    if (refreshing || loading) return;
     setRefreshing(true);
     loadReport();
   };
@@ -131,20 +132,16 @@ export const TransparencyReportScreen: React.FC = () => {
   const formatMonthTitle = (month: number, year: number) => {
     const monthKey = `common.months.${month}`;
     const localizedMonth = t(monthKey, {
-      defaultValue: new Date(year, month - 1, 1).toLocaleString('ru', { month: 'long' }),
+      defaultValue: new Date(year, month - 1, 1).toLocaleString(i18n.language, { month: 'long' }),
     });
     return `${localizedMonth.charAt(0).toUpperCase() + localizedMonth.slice(1)} ${year}`;
   };
-
-  if (loading && !refreshing) {
-    return <LoadingState message={t('common.loading', 'Загрузка...')} />;
-  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           accessibilityLabel={t('common.back', 'Назад')}
@@ -155,15 +152,17 @@ export const TransparencyReportScreen: React.FC = () => {
         <View style={styles.headerRightPlaceholder} />
       </View>
 
-      <ScrollView
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <ScreenHero title={t('residentUi.reportTitle')} subtitle={t('residentUi.reportHint')} />
         {/* Month Selector */}
         <View style={styles.periodSelector}>
           <TouchableOpacity
             style={styles.periodButton}
+            accessibilityRole="button"
             onPress={handlePrevMonth}
             accessibilityLabel={t('finance.transparencyPrevMonth', 'Предыдущий месяц')}
           >
@@ -178,21 +177,21 @@ export const TransparencyReportScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.periodButton, isNextDisabled && styles.periodButtonDisabled]}
             onPress={handleNextMonth}
-            disabled={isNextDisabled}
+            disabled={isNextDisabled} accessibilityRole="button" accessibilityState={{ disabled: isNextDisabled }}
             accessibilityLabel={t('finance.transparencyNextMonth', 'Следующий месяц')}
           >
             <ChevronRight color={isNextDisabled ? Colors.textMuted : Colors.text} size={20} />
           </TouchableOpacity>
         </View>
 
-        {error ? (
+        {(loading && !refreshing) || (!error && report && (report.periodMonth !== selectedMonth || report.periodYear !== selectedYear)) ? <LoadingState message={t('common.loading')} /> : error ? (
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIconCircle, { backgroundColor: '#FEE2E2' }]}>
               <AlertCircle color={Colors.danger} size={32} />
             </View>
             <Text style={styles.emptyTitle}>{t('common.error', 'Ошибка')}</Text>
             <Text style={styles.emptyDesc}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadReport}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => { setRefreshing(true); void loadReport(); }} disabled={refreshing} accessibilityRole="button" accessibilityState={{ busy: refreshing }}>
               <Text style={styles.retryButtonText}>{t('common.refresh', 'Обновить')}</Text>
             </TouchableOpacity>
           </View>
@@ -221,7 +220,7 @@ export const TransparencyReportScreen: React.FC = () => {
                   </Text>
                 </View>
                 <Text style={[styles.kpiValue, { color: '#059669' }]}>
-                  {`+${report.totalCollected.toLocaleString()} ₸`}
+                  {`+${report.totalCollected.toLocaleString(i18n.language)} ₸`}
                 </Text>
                 <Text style={styles.kpiSub}>
                   {t('finance.transparencyCollectionRate', 'Собираемость')}: {report.collectionRatePercent}%
@@ -239,7 +238,7 @@ export const TransparencyReportScreen: React.FC = () => {
                   </Text>
                 </View>
                 <Text style={[styles.kpiValue, { color: '#DC2626' }]}>
-                  {report.totalExpenses > 0 ? `-${report.totalExpenses.toLocaleString()} ₸` : '0 ₸'}
+                  {report.totalExpenses > 0 ? `-${report.totalExpenses.toLocaleString(i18n.language)} ₸` : '0 ₸'}
                 </Text>
                 <Text style={styles.kpiSub}>
                   {t('finance.transparencyExpenseCount', 'Категорий')}: {report.byExpenseCategory.length}
@@ -259,7 +258,7 @@ export const TransparencyReportScreen: React.FC = () => {
                   {t('finance.transparencyNetBalance', 'Сальдо периода')}
                 </Text>
                 <Text style={styles.balanceBannerSubtitle}>
-                  {report.netBalance >= 0
+                  {report.netBalance === 0 ? t('residentUi.balancedBudget') : report.netBalance > 0
                     ? t('finance.transparencySurplus', 'Профицит бюджета (поступления превышают траты)')
                     : t('finance.transparencyDeficit', 'Дефицит бюджета (расходы превышают сборы)')}
                 </Text>
@@ -270,9 +269,9 @@ export const TransparencyReportScreen: React.FC = () => {
                   report.netBalance >= 0 ? styles.textPositive : styles.textNegative,
                 ]}
               >
-                {report.netBalance >= 0
-                  ? `+${report.netBalance.toLocaleString()} ₸`
-                  : `-${Math.abs(report.netBalance).toLocaleString()} ₸`}
+                {report.netBalance === 0 ? '0 ₸' : report.netBalance > 0
+                  ? `+${report.netBalance.toLocaleString(i18n.language)} ₸`
+                  : `-${Math.abs(report.netBalance).toLocaleString(i18n.language)} ₸`}
               </Text>
             </View>
 
@@ -280,7 +279,7 @@ export const TransparencyReportScreen: React.FC = () => {
             <View style={styles.summaryBar}>
               <View style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>{t('finance.transparencyCharged', 'Начислено')}</Text>
-                <Text style={styles.summaryValue}>{report.totalCharged.toLocaleString()} ₸</Text>
+                <Text style={styles.summaryValue}>{report.totalCharged.toLocaleString(i18n.language)} ₸</Text>
               </View>
               <View style={styles.summaryDivider} />
               <View style={styles.summaryItem}>
@@ -326,10 +325,10 @@ export const TransparencyReportScreen: React.FC = () => {
                     >
                       <View style={styles.breakdownLeft}>
                         <Text style={styles.breakdownName}>{item.tariffName}</Text>
-                        <Text style={styles.breakdownShare}>{sharePercent}% от начислений</Text>
+                        <Text style={styles.breakdownShare}>{t('residentUi.chargedShare', { percent: sharePercent })}</Text>
                       </View>
                       <Text style={styles.breakdownAmount}>
-                        {item.amount.toLocaleString()} ₸
+                        {item.amount.toLocaleString(i18n.language)} ₸
                       </Text>
                     </View>
                   );
@@ -374,10 +373,10 @@ export const TransparencyReportScreen: React.FC = () => {
                     >
                       <View style={styles.breakdownLeft}>
                         <Text style={styles.breakdownName}>{item.category}</Text>
-                        <Text style={styles.breakdownShare}>{sharePercent}% от расходов</Text>
+                        <Text style={styles.breakdownShare}>{t('residentUi.expenseShare', { percent: sharePercent })}</Text>
                       </View>
                       <Text style={[styles.breakdownAmount, { color: '#DC2626' }]}>
-                        -{item.amount.toLocaleString()} ₸
+                        -{item.amount.toLocaleString(i18n.language)} ₸
                       </Text>
                     </View>
                   );
@@ -410,7 +409,7 @@ export const TransparencyReportScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -423,6 +422,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 6,
     borderRadius: 8,
   },
@@ -454,6 +457,10 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   periodButton: {
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 6,
     borderRadius: 6,
     backgroundColor: '#F1F5F9',
@@ -472,14 +479,17 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   kpiRow: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     gap: 12,
     marginBottom: 12,
   },
   kpiCard: {
+    minWidth: 160,
+    flexBasis: 160,
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
   },
@@ -508,7 +518,8 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   kpiValue: {
-    fontSize: 18,
+    fontSize: 20,
+    fontVariant: ['tabular-nums'],
     fontWeight: '700',
     marginBottom: 4,
   },
@@ -517,10 +528,11 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   balanceBanner: {
-    borderRadius: 14,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 12,
     justifyContent: 'space-between',
     marginBottom: 12,
     borderWidth: 1,
@@ -534,8 +546,7 @@ const styles = StyleSheet.create({
     borderColor: '#FECACA',
   },
   balanceBannerLeft: {
-    flex: 1,
-    paddingRight: 12,
+    width: '100%',
   },
   balanceBannerTitle: {
     fontSize: 14,
@@ -548,7 +559,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   balanceBannerAmount: {
-    fontSize: 20,
+    fontSize: 32,
     fontWeight: '800',
   },
   textPositive: {
@@ -586,7 +597,7 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 24,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
@@ -625,6 +636,8 @@ const styles = StyleSheet.create({
   },
   breakdownRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
@@ -635,11 +648,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   breakdownLeft: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 160,
     paddingRight: 10,
   },
   breakdownName: {
     fontSize: 14,
+    lineHeight: 20,
     fontWeight: '600',
     color: '#0F172A',
     marginBottom: 2,

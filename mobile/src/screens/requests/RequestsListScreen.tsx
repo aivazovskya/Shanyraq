@@ -1,13 +1,14 @@
+import { LoadError } from '../../components/common/LoadError';
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { ServiceRequestsApi, ServiceRequestItem, RequestStatus } from '../../api/service-requests';
@@ -25,13 +26,16 @@ export const RequestsListScreen: React.FC = () => {
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'DONE'>('ALL');
 
   const fetchRequests = async () => {
     try {
       const data = await ServiceRequestsApi.getRequests();
       setRequests(data);
+      setLoadFailed(false);
     } catch (e) {
+      setLoadFailed(true);
       console.warn('Failed to load requests:', e);
     } finally {
       setLoading(false);
@@ -44,6 +48,7 @@ export const RequestsListScreen: React.FC = () => {
   }, []);
 
   const onRefresh = () => {
+    if (refreshing) return;
     setRefreshing(true);
     fetchRequests();
   };
@@ -54,12 +59,9 @@ export const RequestsListScreen: React.FC = () => {
     return true;
   });
 
-  if (loading) {
-    return <LoadingState message={t('requests.loadingRequests')} />;
-  }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>{t('requests.serviceDesk')}</Text>
@@ -69,7 +71,7 @@ export const RequestsListScreen: React.FC = () => {
           title={t('requests.createBtn')}
           onPress={() => navigation.navigate('CreateRequest')}
           variant="primary"
-          size="sm"
+          size="md"
           icon={<Plus color="#FFFFFF" size={16} />}
         />
       </View>
@@ -79,46 +81,50 @@ export const RequestsListScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.tab, filter === 'ALL' && styles.tabActive]}
           onPress={() => setFilter('ALL')}
+          accessibilityRole="tab" aria-selected={filter === 'ALL'} accessibilityState={{ selected: filter === 'ALL' }}
         >
           <Text style={[styles.tabText, filter === 'ALL' && styles.tabTextActive]}>
-            {t('requests.tabAll', { count: requests.length })}
+            {loading || (loadFailed && !requests.length) ? '—' : t('requests.tabAll', { count: requests.length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, filter === 'ACTIVE' && styles.tabActive]}
           onPress={() => setFilter('ACTIVE')}
+          accessibilityRole="tab" aria-selected={filter === 'ACTIVE'} accessibilityState={{ selected: filter === 'ACTIVE' }}
         >
           <Text style={[styles.tabText, filter === 'ACTIVE' && styles.tabTextActive]}>
-            {t('requests.tabActive', { count: requests.filter((r) => r.status !== 'RESOLVED' && r.status !== 'CLOSED').length })}
+            {loading || (loadFailed && !requests.length) ? '—' : t('requests.tabActive', { count: requests.filter((r) => r.status !== 'RESOLVED' && r.status !== 'CLOSED' && r.status !== 'REJECTED').length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, filter === 'DONE' && styles.tabActive]}
           onPress={() => setFilter('DONE')}
+          accessibilityRole="tab" aria-selected={filter === 'DONE'} accessibilityState={{ selected: filter === 'DONE' }}
         >
           <Text style={[styles.tabText, filter === 'DONE' && styles.tabTextActive]}>
-            {t('requests.tabDone')}
+            {t('requests.tabDone')} {!loading && !(loadFailed && !requests.length) ? requests.filter(r => r.status === 'RESOLVED' || r.status === 'CLOSED').length : '—'}
           </Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
+        ListHeaderComponent={loadFailed ? <LoadError onRetry={onRefresh} retrying={refreshing} /> : undefined}
         data={filteredRequests}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
         }
-        ListEmptyComponent={
+        ListEmptyComponent={loading ? <LoadingState message={t('requests.loadingRequests')} /> : loadFailed ? undefined :
           <View style={styles.emptyContainer}>
             <Wrench color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>{t('requests.emptyRequestsTitle')}</Text>
+            <Text style={styles.emptyTitle}>{t(requests.length ? 'common.noMatches' : 'requests.emptyRequestsTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              {t('requests.emptyRequestsSubtitle')}
+              {t(requests.length ? 'common.changeFilters' : 'requests.emptyRequestsSubtitle')}
             </Text>
             <Button
-              title={t('requests.createFirstRequest')}
-              onPress={() => navigation.navigate('CreateRequest')}
+              title={t(requests.length ? 'common.resetFilters' : 'requests.createFirstRequest')}
+              onPress={() => requests.length ? setFilter('ALL') : navigation.navigate('CreateRequest')}
               size="md"
               style={{ marginTop: 16 }}
             />
@@ -169,15 +175,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
+    gap: 16,
+    padding: 20,
+    margin: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
+    backgroundColor: Colors.primaryBg,
   },
   title: {
     fontSize: 26,
+    letterSpacing: -0.6,
     fontWeight: '800',
     color: Colors.text,
   },
@@ -187,13 +195,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   tabsRow: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: 10,
+    paddingHorizontal: 16,
+    marginTop: 0,
     marginBottom: 10,
     gap: 8,
   },
   tab: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
@@ -218,10 +229,13 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   card: {
+    borderRadius: 22,
     marginBottom: 12,
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,

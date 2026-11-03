@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -180,14 +182,14 @@ export default function BookingsResourcesPage() {
               {t('bookings.bookingsBtn')}
             </Link>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('bookings.resourcesTitle')}</h1>
+          <h1 className="page-title text-2xl font-bold text-slate-900">{t('bookings.resourcesTitle')}</h1>
           <p className="text-sm text-slate-500">{t('bookings.resourcesSubtitle')}</p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={fetchResources}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
+            className="surface-card px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-slate-400' : ''}`} />
             {t('bookings.refreshBtn')}
@@ -214,7 +216,7 @@ export default function BookingsResourcesPage() {
 
       {/* Grid of Resources */}
       {resources.length === 0 && !loading ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 text-sm">
+        <div className="surface-card p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 text-sm">
           {t('bookings.noResources')}
         </div>
       ) : (
@@ -222,7 +224,7 @@ export default function BookingsResourcesPage() {
           {resources.map((res) => (
             <div
               key={res.id}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between"
+              className="surface-card bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between">
@@ -283,13 +285,13 @@ export default function BookingsResourcesPage() {
 
       {/* Modal Add/Edit */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+        <Dialog labelledBy="bookings-resources-dialog-0" onClose={() => setModalOpen(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 id="bookings-resources-dialog-0" className="text-base font-bold text-slate-900">
                 {editingResource ? t('bookings.modalTitleEdit') : t('bookings.modalTitleAdd')}
               </h3>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setModalOpen(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
               >
@@ -306,10 +308,10 @@ export default function BookingsResourcesPage() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-bookings-resources-page-tsx-0" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('bookings.nameLabel')} *
                 </label>
-                <input
+                <input id="field-dashboard-bookings-resources-page-tsx-0"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -320,13 +322,13 @@ export default function BookingsResourcesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-bookings-resources-page-tsx-1" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('bookings.typeLabel')} *
                 </label>
-                <select
+                <select id="field-dashboard-bookings-resources-page-tsx-1"
                   value={type}
                   onChange={(e) => setType(e.target.value as any)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
+                  className="surface-card w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition"
                 >
                   <option value="BBQ_AREA">{t('bookings.typeBbQ')}</option>
                   <option value="COWORKING">{t('bookings.typeCoworking')}</option>
@@ -337,10 +339,10 @@ export default function BookingsResourcesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-bookings-resources-page-tsx-2" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('bookings.descLabel')}
                 </label>
-                <textarea
+                <textarea id="field-dashboard-bookings-resources-page-tsx-2"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
@@ -350,10 +352,10 @@ export default function BookingsResourcesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="field-dashboard-bookings-resources-page-tsx-3" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('bookings.hoursStartLabel')}
                   </label>
-                  <input
+                  <input id="field-dashboard-bookings-resources-page-tsx-3"
                     type="text"
                     value={hoursStart}
                     onChange={(e) => setHoursStart(e.target.value)}
@@ -362,10 +364,10 @@ export default function BookingsResourcesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="field-dashboard-bookings-resources-page-tsx-4" className="block text-xs font-semibold text-slate-700 mb-1">
                     {t('bookings.hoursEndLabel')}
                   </label>
-                  <input
+                  <input id="field-dashboard-bookings-resources-page-tsx-4"
                     type="text"
                     value={hoursEnd}
                     onChange={(e) => setHoursEnd(e.target.value)}
@@ -376,10 +378,10 @@ export default function BookingsResourcesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label htmlFor="field-dashboard-bookings-resources-page-tsx-5" className="block text-xs font-semibold text-slate-700 mb-1">
                   {t('bookings.maxDurationLabel')}
                 </label>
-                <input
+                <input id="field-dashboard-bookings-resources-page-tsx-5"
                   type="number"
                   value={maxDuration}
                   onChange={(e) => setMaxDuration(e.target.value)}
@@ -420,7 +422,7 @@ export default function BookingsResourcesPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

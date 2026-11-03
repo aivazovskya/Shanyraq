@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 import { AuthStackParamList } from '../../navigation/types';
@@ -15,6 +16,8 @@ import { AuthApi } from '../../api/auth';
 import { getApiErrorMessage } from '../../api/client';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
+import { LanguageSelector } from '../../components/common/LanguageSelector';
+import { isCompletePhone, normalizePhoneInput } from '../../utils/phone-input';
 import { Colors } from '../../constants/colors';
 import { Building2, Phone } from 'lucide-react-native';
 
@@ -25,31 +28,21 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
   const [phone, setPhone] = useState('+7');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const formatPhoneNumber = (text: string) => {
-    // Ensure always starts with +7
-    let cleaned = text.replace(/[^\d+]/g, '');
-    if (!cleaned.startsWith('+7')) {
-      cleaned = '+7' + cleaned.replace(/^\+?7?/, '');
-    }
-    // Limit to +7 + 10 digits
-    if (cleaned.length > 12) {
-      cleaned = cleaned.slice(0, 12);
-    }
-    return cleaned;
-  };
+  const requesting = useRef(false);
 
   const handlePhoneChange = (val: string) => {
     setError('');
-    setPhone(formatPhoneNumber(val));
+    setPhone(normalizePhoneInput(val));
   };
 
   const handleSendOtp = async () => {
-    if (phone.length < 12) {
+    if (requesting.current) return;
+    if (!isCompletePhone(phone)) {
       setError(t('auth.phoneValidation'));
       return;
     }
 
+    requesting.current = true;
     setLoading(true);
     setError('');
 
@@ -63,16 +56,19 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
       const msg = getApiErrorMessage(err);
       setError(msg);
     } finally {
+      requesting.current = false;
       setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <LanguageSelector onChange={() => setError('')} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
       >
+        <ScrollView contentContainerStyle={styles.authContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.logoCircle}>
             <Building2 color="#FFFFFF" size={36} />
@@ -85,6 +81,9 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
           <Input
             label={t('auth.phoneLabel')}
             value={phone}
+            editable={!loading}
+            autoComplete="tel"
+            textContentType="telephoneNumber"
             onChangeText={handlePhoneChange}
             keyboardType="phone-pad"
             placeholder={t('auth.phonePlaceholder')}
@@ -101,6 +100,7 @@ export const PhoneInputScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.button}
           />
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -111,10 +111,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  keyboardView: {
-    flex: 1,
+  keyboardView: { flex: 1 },
+  authContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 32,
   },
   header: {
     alignItems: 'center',

@@ -3,14 +3,14 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
@@ -21,6 +21,7 @@ import { sosApi } from '../../api/sos';
 import { SosHoldButton } from '../../components/sos/SosHoldButton';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
+import { LoadError } from '../../components/common/LoadError';
 import { Colors } from '../../constants/colors';
 import {
   Building2,
@@ -41,11 +42,14 @@ import {
 export const DashboardScreen: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
   const { user } = useAuth();
 
   const primaryOwnership = user?.ownerships?.[0];
   const tenantId = user?.tenantId || (primaryOwnership as any)?.unit?.building?.tenantId;
 
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataFailed, setDataFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [votings, setVotings] = useState<MeetingItem[]>([]);
   const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
@@ -78,7 +82,7 @@ export const DashboardScreen: React.FC = () => {
   };
 
   const fetchDashboardData = useCallback(async () => {
-    if (!tenantId) return;
+    if (!tenantId) { setDataLoading(false); setDataFailed(true); return; }
 
     try {
       // Execute 3 parallel requests according to technical specification
@@ -88,12 +92,14 @@ export const DashboardScreen: React.FC = () => {
         AnnouncementsApi.getAnnouncements(tenantId),
       ]);
 
+      setDataFailed([votingsRes, requestsRes, announcementsRes].some(result => result.status === 'rejected'));
       if (votingsRes.status === 'fulfilled') setVotings(votingsRes.value);
       if (requestsRes.status === 'fulfilled') setRequests(requestsRes.value);
       if (announcementsRes.status === 'fulfilled') setAnnouncements(announcementsRes.value);
     } catch (e) {
+      setDataFailed(true);
       console.warn('Dashboard fetch error:', e);
-    }
+    } finally { setDataLoading(false); }
   }, [tenantId]);
 
   useEffect(() => {
@@ -107,7 +113,7 @@ export const DashboardScreen: React.FC = () => {
   };
 
   const activeVotings = votings.filter((m) => m.status === 'ACTIVE');
-  const openRequests = requests.filter((r) => r.status !== 'CLOSED' && r.status !== 'REJECTED');
+  const openRequests = requests.filter((r) => r.status !== 'RESOLVED' && r.status !== 'CLOSED' && r.status !== 'REJECTED');
   const urgentAnnouncement = announcements.find((a) => a.isUrgent);
 
   const [sosTriggering, setSosTriggering] = useState(false);
@@ -162,8 +168,8 @@ export const DashboardScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -183,6 +189,13 @@ export const DashboardScreen: React.FC = () => {
             <Text style={styles.apartmentInfo}>
               {user?.tenant?.name || t('dashboard.defaultComplex')} • {t('dashboard.unitFormat', { unit: primaryOwnership?.unit?.unitNumber || '—' })}
             </Text>
+            <View style={styles.statusBadge}>
+              <Badge
+                label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
+                variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
+              />
+            </View>
+
           </View>
           <View style={styles.headerRightActions}>
             <TouchableOpacity
@@ -199,15 +212,10 @@ export const DashboardScreen: React.FC = () => {
                 </View>
               )}
             </TouchableOpacity>
-            <View style={styles.statusBadge}>
-              <Badge
-                label={primaryOwnership?.isVerified ? t('dashboard.verified') : t('dashboard.onVerification')}
-                variant={primaryOwnership?.isVerified ? 'success' : 'warning'}
-              />
-            </View>
-          </View>
+       </View>
         </View>
 
+        {dataFailed && <LoadError onRetry={onRefresh} retrying={refreshing} />}
         {/* Urgent Announcement Alert */}
         {urgentAnnouncement && (
           <Card style={styles.urgentCard} onPress={() => navigation.navigate('Announcements')}>
@@ -226,6 +234,7 @@ export const DashboardScreen: React.FC = () => {
         {/* Emergency SOS Button */}
         <View style={styles.sosSection}>
           <SosHoldButton
+            disabled={!isFocused}
             loading={sosTriggering}
             onConfirmed={handleTriggerSos}
           />
@@ -273,24 +282,12 @@ export const DashboardScreen: React.FC = () => {
             <Text style={styles.quickActionTitle}>{t('dashboard.master')}</Text>
             <Text style={styles.quickActionSub}>{t('dashboard.callService')}</Text>
           </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" style={styles.quickActionCard} onPress={() => navigation.navigate('FinanceAccount')}>
+            <View style={[styles.quickIconCircle, { backgroundColor: Colors.primaryLight }]}><CreditCard color={Colors.primary} size={24} /></View>
+            <Text style={styles.quickActionTitle}>{t('dashboard.financeCardTitle')}</Text>
+            <Text style={styles.quickActionSub}>{t('dashboard.financeCardSub')}</Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Personal Account / Finance Card */}
-        <Card
-          style={styles.financeCard}
-          onPress={() => (navigation as any).navigate('FinanceAccount')}
-        >
-          <View style={styles.financeRow}>
-            <View style={[styles.quickIconCircle, { backgroundColor: '#ECFDF5' }]}>
-              <CreditCard color={Colors.primary} size={22} />
-            </View>
-            <View style={styles.financeTextContainer}>
-              <Text style={styles.financeTitle}>{t('dashboard.financeCardTitle')}</Text>
-              <Text style={styles.financeSub}>{t('dashboard.financeCardSub')}</Text>
-            </View>
-            <ChevronRight color={Colors.textMuted} size={20} />
-          </View>
-        </Card>
 
         {/* Meter Readings Card */}
         <Card
@@ -362,13 +359,13 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Section: Active Votings */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('dashboard.activeVotings', { count: activeVotings.length })}</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.activeVotings', { count: dataLoading || dataFailed ? undefined : activeVotings.length })}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'VotingsTab' })}>
             <Text style={styles.seeAllText}>{t('common.all')}</Text>
           </TouchableOpacity>
         </View>
 
-        {activeVotings.length === 0 ? (
+        {dataLoading ? <Text style={styles.emptyText}>{t('common.loading')}</Text> : dataFailed && !votings.length ? null : activeVotings.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>{t('dashboard.noActiveVotings')}</Text>
           </Card>
@@ -405,13 +402,13 @@ export const DashboardScreen: React.FC = () => {
 
         {/* Section: Open Service Requests */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('dashboard.openRequests', { count: openRequests.length })}</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.openRequests', { count: dataLoading || dataFailed ? undefined : openRequests.length })}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'RequestsTab' })}>
             <Text style={styles.seeAllText}>{t('common.all')}</Text>
           </TouchableOpacity>
         </View>
 
-        {openRequests.length === 0 ? (
+        {dataLoading ? <Text style={styles.emptyText}>{t('common.loading')}</Text> : dataFailed && !requests.length ? null : openRequests.length === 0 ? (
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyText}>{t('dashboard.noOpenRequests')}</Text>
           </Card>
@@ -473,6 +470,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 20,
     marginTop: 4,
+    padding: 20,
+    borderRadius: 24,
+    backgroundColor: Colors.primaryBg,
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
   },
   greeting: {
     fontSize: 22,
@@ -490,8 +492,11 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     position: 'relative',
-    padding: 6,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
     backgroundColor: Colors.surface,
   },
   notifBadge: {
@@ -512,7 +517,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statusBadge: {
-    marginTop: 2,
+    marginTop: 12,
+    alignSelf: 'flex-start',
   },
   urgentCard: {
     backgroundColor: '#FEF2F2',
@@ -557,14 +563,18 @@ const styles = StyleSheet.create({
   },
   quickGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 8,
     gap: 10,
     marginTop: 12,
   },
   quickActionCard: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 120,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 22,
+    padding: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
@@ -578,12 +588,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   quickActionTitle: {
-    fontSize: 13,
+    textAlign: 'center',
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.text,
   },
   quickActionSub: {
-    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 17,
+    fontSize: 12,
     color: Colors.textMuted,
     marginTop: 2,
   },

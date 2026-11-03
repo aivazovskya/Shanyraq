@@ -209,7 +209,7 @@ export default function BookingsWaitlistPage() {
               {t('bookings.waitlistBackBtn')}
             </Link>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('bookings.waitlistPageTitle')}</h1>
+          <h1 className="page-title text-2xl font-bold text-slate-900">{t('bookings.waitlistPageTitle')}</h1>
           <p className="text-sm text-slate-500">{t('bookings.waitlistPageSubtitle')}</p>
         </div>
 
@@ -217,7 +217,7 @@ export default function BookingsWaitlistPage() {
           <button
             onClick={fetchWaitlist}
             disabled={loading}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
+            className="surface-card px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium flex items-center gap-2 transition"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-slate-400' : ''}`} />
             {t('bookings.refreshBtn')}
@@ -226,17 +226,17 @@ export default function BookingsWaitlistPage() {
       </div>
 
       {/* Filters Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {isSuper && (
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">
+            <label htmlFor="field-dashboard-bookings-waitlist-page-tsx-0" className="block text-xs font-semibold text-slate-500 mb-1">
               {t('shiftHandover.selectTenantPromptTitle') || 'Жилой комплекс'}
             </label>
-            <select
+            <select id="field-dashboard-bookings-waitlist-page-tsx-0"
               value={tenantId}
               onChange={(e) => setTenantId(e.target.value)}
               disabled={loadingTenants}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="surface-card w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             >
               {tenants.map((ten) => (
                 <option key={ten.id} value={ten.id}>
@@ -248,13 +248,13 @@ export default function BookingsWaitlistPage() {
         )}
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">
+          <label htmlFor="field-dashboard-bookings-waitlist-page-tsx-1" className="block text-xs font-semibold text-slate-500 mb-1">
             {t('bookings.thSpace')}
           </label>
-          <select
+          <select id="field-dashboard-bookings-waitlist-page-tsx-1"
             value={selectedResource}
             onChange={(e) => setSelectedResource(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            className="surface-card w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           >
             <option value="">{t('bookings.waitlistFilterAllResources')}</option>
             {resources.map((r) => (
@@ -286,7 +286,7 @@ export default function BookingsWaitlistPage() {
           {[1, 2].map((i) => (
             <div
               key={i}
-              className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-pulse space-y-4"
+              className="surface-card bg-white rounded-2xl border border-slate-200 p-6 shadow-sm animate-pulse space-y-4"
             >
               <div className="h-6 w-48 bg-slate-100 rounded-lg" />
               <div className="h-16 bg-slate-50 rounded-xl" />
@@ -297,7 +297,7 @@ export default function BookingsWaitlistPage() {
 
       {/* Empty State */}
       {!loading && !error && groupedWaitlist.length === 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm max-w-xl mx-auto my-8">
+        <div className="surface-card bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm max-w-xl mx-auto my-8">
           <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-100">
             <Clock className="w-8 h-8" />
           </div>
@@ -316,7 +316,7 @@ export default function BookingsWaitlistPage() {
           {groupedWaitlist.map((group) => (
             <div
               key={group.resource.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+              className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
             >
               {/* Resource Group Header */}
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-3">
@@ -340,8 +340,8 @@ export default function BookingsWaitlistPage() {
               </div>
 
               {/* Table of Waiting Entries */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              <div className="data-scroll overflow-x-auto">
+                <table className="data-table w-full text-left text-xs">
                   <thead className="bg-slate-50/40 text-slate-500 font-semibold border-b border-slate-100">
                     <tr>
                       <th className="px-6 py-3">{t('bookings.waitlistThUnit')}</th>

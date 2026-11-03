@@ -10,15 +10,21 @@
       "bundleIdentifier": "kz.shanyraq.resident"
     },
     "android": {
-      "package": "kz.shanyraq.resident"
+      "package": "kz.shanyraq.resident",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-secure-store",
-      ["expo-image-picker", {
-        "cameraPermission": "Разрешите Shanyraq использовать камеру для прикрепления фото.",
-        "photosPermission": "Разрешите Shanyraq выбирать фото для прикрепления.",
-        "microphonePermission": false
-      }]
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Разрешите Shanyraq использовать камеру для прикрепления фото.",
+          "photosPermission": "Разрешите Shanyraq выбирать фото для прикрепления.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-localization",
+      "expo-status-bar"
     ]
   }
 }

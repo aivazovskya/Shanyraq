@@ -124,6 +124,15 @@ apiClient.interceptors.response.use(
 );
 
 export function getApiErrorMessage(error: any): string {
+  // Classify only transport failures; HTTP errors keep the server's explanation.
+  if (!error?.response) {
+    if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
+      return i18n.t('common.requestTimedOut');
+    }
+    if (error?.code === 'ERR_NETWORK') {
+      return i18n.t('common.networkUnavailable');
+    }
+  }
   const code = error?.response?.data?.code;
   const params = error?.response?.data?.params;
   if (code && i18n.exists(`errors.${code}`)) {
@@ -136,5 +145,5 @@ export function getApiErrorMessage(error: any): string {
   if (error?.message) {
     return error.message;
   }
-  return 'Произошла непредвиденная ошибка при обращении к серверу';
+  return i18n.t('common.unexpectedError');
 }

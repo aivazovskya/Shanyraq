@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -233,7 +235,7 @@ export default function AnnouncementsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">
               {t('announcements.title')}
             </h1>
             {tenantName && (
@@ -252,7 +254,7 @@ export default function AnnouncementsPage() {
             <button
               onClick={handleExportCsv}
               disabled={exportingCsv}
-              className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
+              className="surface-card inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
             >
               {exportingCsv ? (
                 <>
@@ -271,7 +273,7 @@ export default function AnnouncementsPage() {
           <button
             onClick={loadAnnouncements}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
+            className="surface-card inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-60"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{t('announcements.refreshBtn')}</span>
@@ -285,7 +287,7 @@ export default function AnnouncementsPage() {
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{exportError}</span>
           </div>
-          <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+          <button aria-label={t('common.close')} onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -294,7 +296,7 @@ export default function AnnouncementsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Левая колонка: Форма создания новости */}
         <div className="lg:col-span-1">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-8">
+          <div className="surface-card bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-8">
             <div className="flex items-center gap-2 text-slate-900 font-semibold mb-4 text-base">
               <Megaphone className="w-5 h-5 text-sky-600" />
               <span>{t('announcements.newFormTitle')}</span>
@@ -328,10 +330,10 @@ export default function AnnouncementsPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label htmlFor="field-dashboard-announcements-page-tsx-0" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   {t('announcements.titleLabel')}
                 </label>
-                <input
+                <input id="field-dashboard-announcements-page-tsx-0"
                   type="text"
                   required
                   placeholder={t('announcements.titlePlaceholder')}
@@ -342,10 +344,10 @@ export default function AnnouncementsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                <label htmlFor="field-dashboard-announcements-page-tsx-1" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   {t('announcements.contentLabel')}
                 </label>
-                <textarea
+                <textarea id="field-dashboard-announcements-page-tsx-1"
                   required
                   rows={5}
                   placeholder={t('announcements.contentPlaceholder')}
@@ -356,8 +358,8 @@ export default function AnnouncementsPage() {
               </div>
 
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
+                <label htmlFor="field-dashboard-announcements-page-tsx-2" className="flex items-start gap-2.5 cursor-pointer">
+                  <input id="field-dashboard-announcements-page-tsx-2"
                     type="checkbox"
                     checked={isUrgent}
                     onChange={(e) => setIsUrgent(e.target.checked)}
@@ -416,12 +418,12 @@ export default function AnnouncementsPage() {
           )}
 
           {loading ? (
-            <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-slate-200">
+            <div className="surface-card p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-slate-200">
               <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
               <p className="text-sm font-medium">{t('common.loading')}</p>
             </div>
           ) : announcements.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
+            <div className="surface-card p-12 text-center bg-white rounded-2xl border border-slate-200">
               <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
                 <Bell className="w-6 h-6" />
               </div>
@@ -531,14 +533,14 @@ export default function AnnouncementsPage() {
       </div>
 
       {removingAnnouncement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <Dialog labelledBy="announcements-dialog-0" onClose={handleCloseRemoveModal}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <h3 id="announcements-dialog-0" className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
                 {t('announcements.removeModalTitle')}
               </h3>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={handleCloseRemoveModal}
                 className="text-gray-400 hover:text-gray-600 rounded-lg p-1"
               >
@@ -554,10 +556,10 @@ export default function AnnouncementsPage() {
               </p>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label htmlFor="field-dashboard-announcements-page-tsx-3" className="block text-xs font-semibold text-gray-700 mb-1">
                   {t('announcements.removalReasonLabel')} *
                 </label>
-                <textarea
+                <textarea id="field-dashboard-announcements-page-tsx-3"
                   rows={3}
                   value={removeReason}
                   onChange={(e) => setRemoveReason(e.target.value)}
@@ -595,7 +597,7 @@ export default function AnnouncementsPage() {
               </button>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

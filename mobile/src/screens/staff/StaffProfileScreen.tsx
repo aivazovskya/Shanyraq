@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { NotificationSettings } from '../../components/common/NotificationSettings';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert,
   TouchableOpacity,
-  Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
-import { NotificationsApi, NotificationPreferences } from '../../api/notifications';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -26,10 +25,6 @@ import {
   LogOut,
   Globe,
   MapPin,
-  MessageSquare,
-  Wrench,
-  Bell,
-  CreditCard,
 } from 'lucide-react-native';
 
 const LANGUAGES: { code: SupportedLocale; label: string }[] = [
@@ -42,35 +37,6 @@ export const StaffProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const { t, i18n } = useTranslation();
   const isFocused = useIsFocused();
-  const [preferences, setPreferences] = useState<NotificationPreferences>({
-    CHAT: true,
-    SERVICE_REQUEST: true,
-    ANNOUNCEMENT: true,
-    FINANCE: true,
-  });
-
-  useEffect(() => {
-    if (isFocused) {
-      NotificationsApi.getPreferences()
-        .then((prefs) => {
-          if (prefs) setPreferences(prefs);
-        })
-        .catch((err) => console.warn('Failed to fetch notification preferences:', err));
-    }
-  }, [isFocused]);
-
-  const handleTogglePreference = async (key: keyof NotificationPreferences, value: boolean) => {
-    setPreferences((prev) => ({ ...prev, [key]: value }));
-    try {
-      const updated = await NotificationsApi.updatePreferences({ [key]: value });
-      if (updated) {
-        setPreferences(updated);
-      }
-    } catch {
-      setPreferences((prev) => ({ ...prev, [key]: !value }));
-      Alert.alert(t('common.error'), t('common.networkError'));
-    }
-  };
 
   const handleConfirmLogout = () => {
     Alert.alert(
@@ -106,8 +72,8 @@ export const StaffProfileScreen: React.FC = () => {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>{t('navigation.profile')}</Text>
         </View>
@@ -188,71 +154,8 @@ export const StaffProfileScreen: React.FC = () => {
         {/* Notification Preferences */}
         <Text style={styles.sectionHeading}>{t('profile.pushSection')}</Text>
         <Card style={styles.settingsCard}>
-          {/* 1. Chat notifications */}
-          <View style={styles.settingItem}>
-            <MessageSquare color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefChatTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefChatSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.CHAT}
-              onValueChange={(val) => handleTogglePreference('CHAT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 2. Service request notifications */}
-          <View style={styles.settingItem}>
-            <Wrench color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefRequestTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefRequestSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.SERVICE_REQUEST}
-              onValueChange={(val) => handleTogglePreference('SERVICE_REQUEST', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 3. Announcement notifications */}
-          <View style={styles.settingItem}>
-            <Bell color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefAnnouncementTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefAnnouncementSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.ANNOUNCEMENT}
-              onValueChange={(val) => handleTogglePreference('ANNOUNCEMENT', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.separator} />
-
-          {/* 4. Finance notifications */}
-          <View style={styles.settingItem}>
-            <CreditCard color={Colors.primary} size={20} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.settingTitle}>{t('profile.prefFinanceTitle')}</Text>
-              <Text style={styles.settingSub}>{t('profile.prefFinanceSub')}</Text>
-            </View>
-            <Switch
-              value={preferences.FINANCE}
-              onValueChange={(val) => handleTogglePreference('FINANCE', val)}
-              trackColor={{ false: Colors.border, true: Colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
+          {/* Notification preferences */}
+          <NotificationSettings enabled={isFocused} />
         </Card>
 
         {/* Logout Section */}
@@ -286,6 +189,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
+    letterSpacing: -0.6,
     fontWeight: '700',
     color: Colors.text,
   },

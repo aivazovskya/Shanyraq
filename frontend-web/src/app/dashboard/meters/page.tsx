@@ -1,5 +1,9 @@
 'use client';
 
+import { ImagePreview } from '@/components/ImagePreview';
+
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -92,6 +96,7 @@ export default function MetersReviewPage() {
   const [historyDrawerMeter, setHistoryDrawerMeter] = useState<MeterItem | null>(null);
   const [meterHistory, setMeterHistory] = useState<ReadingItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // Processing ID for row action buttons
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -224,15 +229,14 @@ export default function MetersReviewPage() {
 
   const openHistoryDrawer = async (meter: MeterItem) => {
     setHistoryDrawerMeter(meter);
+    setMeterHistory([]);
+    setHistoryError(null);
     try {
       setLoadingHistory(true);
       const data = await apiRequest<ReadingItem[]>(`/meters/${meter.id}/readings`);
       setMeterHistory(data);
     } catch (err: any) {
-      setActionMessage({
-        type: 'error',
-        text: err.message || t('common.error'),
-      });
+      setHistoryError(err.message || t('common.error'));
     } finally {
       setLoadingHistory(false);
     }
@@ -307,7 +311,7 @@ export default function MetersReviewPage() {
               <Gauge className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">
                 {t('meters.title')}
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">{t('meters.subtitle')}</p>
@@ -317,7 +321,7 @@ export default function MetersReviewPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           {canExportCsv && (
-            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+            <div className="surface-card flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
               <label className="text-xs text-slate-500 font-medium">{t('meters.exportMonth')}:</label>
               <select
                 value={exportMonth}
@@ -367,7 +371,7 @@ export default function MetersReviewPage() {
           <button
             onClick={loadReadings}
             disabled={loading}
-            className="p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
+            className="surface-card p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
             title={t('common.refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -381,7 +385,7 @@ export default function MetersReviewPage() {
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{exportError}</span>
           </div>
-          <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+          <button aria-label={t('common.close')} onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -404,7 +408,7 @@ export default function MetersReviewPage() {
             )}
             <span>{actionMessage.text}</span>
           </div>
-          <button
+          <button aria-label={t('common.close')}
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-slate-600"
           >
@@ -443,7 +447,7 @@ export default function MetersReviewPage() {
       </div>
 
       {/* Readings Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-16 flex flex-col items-center justify-center gap-3 text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
@@ -472,8 +476,8 @@ export default function MetersReviewPage() {
             <p className="text-sm text-slate-500 max-w-sm mx-auto">{t('meters.emptyListDesc')}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="data-scroll overflow-x-auto">
+            <table className="data-table w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <th className="py-3.5 px-6">{t('meters.thUnit')}</th>
@@ -612,13 +616,13 @@ export default function MetersReviewPage() {
 
       {/* REJECT MODAL */}
       {rejectModalReading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <Dialog labelledBy="meters-dialog-0" onClose={() => setRejectModalReading(null)}>
+          <div className="surface-card bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 id="meters-dialog-0" className="text-lg font-bold text-slate-900">
                 {t('meters.rejectModalTitle')}
               </h3>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setRejectModalReading(null)}
                 className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 border border-slate-200 transition-colors"
               >
@@ -628,16 +632,16 @@ export default function MetersReviewPage() {
 
             <form onSubmit={handleConfirmReject} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label htmlFor="field-dashboard-meters-page-tsx-0" className="block text-xs font-semibold text-slate-600 mb-1.5">
                   {t('meters.rejectReasonLabel')}
                 </label>
-                <textarea
+                <textarea id="field-dashboard-meters-page-tsx-0"
                   rows={3}
                   required
                   placeholder={t('meters.rejectReasonPlaceholder')}
                   value={rejectNote}
                   onChange={(e) => setRejectNote(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
 
@@ -661,50 +665,28 @@ export default function MetersReviewPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* PHOTO PREVIEW MODAL */}
-      {previewPhotoUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative bg-white rounded-2xl max-w-2xl w-full p-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">{t('meters.photoModalTitle')}</h3>
-              <button
-                onClick={() => setPreviewPhotoUrl(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="mt-4 flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden max-h-[70vh]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewPhotoUrl}
-                alt="Meter Reading Verification"
-                className="object-contain max-h-[70vh] w-auto"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {previewPhotoUrl && <ImagePreview key={previewPhotoUrl} src={previewPhotoUrl} onClose={() => setPreviewPhotoUrl(null)} />}
 
       {/* HISTORY DRAWER */}
       {historyDrawerMeter && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-md bg-white shadow-2xl border-l border-slate-200 flex flex-col">
+        <Dialog labelledBy="meter-history-title" variant="drawer" onClose={() => setHistoryDrawerMeter(null)}>
+          <div className="h-full min-h-0">
+            <div className="h-full min-h-0 w-full bg-white flex flex-col">
               {/* Drawer Header */}
               <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 id="meter-history-title" className="text-lg font-bold text-slate-900">
                     {t('meters.historyTitle')}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {t('meters.historySubtitle')}
                   </p>
                 </div>
-                <button
+                <button aria-label={t('common.close')}
                   onClick={() => setHistoryDrawerMeter(null)}
                   className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 border border-slate-200 transition-colors"
                 >
@@ -745,12 +727,14 @@ export default function MetersReviewPage() {
               </div>
 
               {/* History Content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
                 {loadingHistory ? (
                   <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
                     <Loader2 className="w-6 h-6 animate-spin text-sky-600" />
                     <p className="text-xs font-medium">{t('meters.loadingHistory')}</p>
                   </div>
+                ) : historyError ? (
+                  <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{historyError}</p><button onClick={() => openHistoryDrawer(historyDrawerMeter)} className="mt-2 min-h-11 font-semibold underline">{t('common.refresh')}</button></div>
                 ) : meterHistory.length === 0 ? (
                   <div className="py-12 text-center text-slate-400 text-xs">
                     {t('meters.emptyList')}
@@ -759,7 +743,7 @@ export default function MetersReviewPage() {
                   meterHistory.map((item) => (
                     <div
                       key={item.id}
-                      className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all space-y-2"
+                      className="surface-card p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all space-y-2"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-slate-500">
@@ -812,7 +796,7 @@ export default function MetersReviewPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

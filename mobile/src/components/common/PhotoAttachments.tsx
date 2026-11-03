@@ -129,7 +129,10 @@ export function PhotoAttachments({ value, onChange, onBusyChange, disabled = fal
       )}
       {busy && <View style={styles.row}><ActivityIndicator color={Colors.primary} /><Text accessibilityLiveRegion="polite">{t('photos.uploading')}</Text></View>}
       {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
-      {pendingUri && !busy && <Button title={t('common.retry')} variant="secondary" disabled={disabled} onPress={() => run('retry')} />}
+      {pendingUri && !busy && <View style={styles.row}>
+        <Button title={t('common.retry')} variant="secondary" disabled={disabled} onPress={() => run('retry')} />
+        <Button title={t('common.delete')} variant="outline" disabled={disabled} onPress={() => { setPendingUri(null); setError(null); }} />
+      </View>}
       {permissionDenied && <Button title={t('photos.settings')} variant="outline" onPress={() => { Linking.openSettings().catch(() => setError(t('photos.cameraPermission'))); }} />}
       <Text style={styles.hint}>{t('photos.limit', { count: maxPhotos })}</Text>
     </View>

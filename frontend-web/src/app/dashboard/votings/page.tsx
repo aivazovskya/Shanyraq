@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
@@ -76,7 +78,7 @@ interface MeetingItem {
 }
 
 export default function VotingsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const session = getStoredSession();
   const user = session?.user;
   const tenantId = user?.tenantId;
@@ -298,7 +300,7 @@ export default function VotingsPage() {
       </Suspense>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('votings.title')}</h1>
+          <h1 className="page-title text-2xl font-bold text-slate-900">{t('votings.title')}</h1>
           <p className="text-sm text-slate-500">{t('votings.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -329,7 +331,7 @@ export default function VotingsPage() {
             <AlertCircle className="w-5 h-5 shrink-0" />
             <span>{error}</span>
           </div>
-          <button onClick={() => setError(null)} className="text-slate-400 hover:text-slate-600">
+          <button aria-label={t('common.close')} onClick={() => setError(null)} className="text-slate-400 hover:text-slate-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -341,7 +343,7 @@ export default function VotingsPage() {
             <CheckCircle2 className="w-5 h-5 shrink-0" />
             <span>{successMessage}</span>
           </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-slate-400 hover:text-slate-600">
+          <button aria-label={t('common.close')} onClick={() => setSuccessMessage(null)} className="text-slate-400 hover:text-slate-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -356,7 +358,7 @@ export default function VotingsPage() {
       </div>
 
       {/* Tab and Meeting Selector */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="surface-card bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <button
             onClick={() => setActiveTab('ACTIVE')}
@@ -391,10 +393,10 @@ export default function VotingsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('votings.searchPlaceholder')}
-              className="w-full pl-9 pr-8 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-sky-500 transition"
+              className="surface-card w-full pl-9 pr-8 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-sky-500 transition"
             />
             {searchQuery && (
-              <button
+              <button aria-label={t('common.close')}
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
@@ -412,7 +414,7 @@ export default function VotingsPage() {
               <select
                 value={selectedMeetingId || ''}
                 onChange={(e) => setSelectedMeetingId(e.target.value)}
-                className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 font-medium focus:outline-none focus:border-sky-500 max-w-xs w-full sm:w-auto"
+                className="surface-card px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white text-slate-800 font-medium focus:outline-none focus:border-sky-500 max-w-xs w-full sm:w-auto"
               >
                 {filteredMeetings.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -426,12 +428,12 @@ export default function VotingsPage() {
       </div>
 
       {loading && meetings.length === 0 ? (
-        <div className="p-16 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="surface-card p-16 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-sky-600 mb-3" />
           <p className="text-sm">{t('votings.loadingMeetings')}</p>
         </div>
       ) : !selectedMeeting ? (
-        <div className="p-16 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
+        <div className="surface-card p-16 text-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <Vote className="w-10 h-10 mx-auto text-slate-300 mb-3" />
           <p className="text-base font-semibold text-slate-800">
             {searchQuery
@@ -443,7 +445,7 @@ export default function VotingsPage() {
         </div>
       ) : (
         /* Selected Meeting View */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="surface-card bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
             <div>
               <div className="flex items-center gap-2">
@@ -519,7 +521,7 @@ export default function VotingsPage() {
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{exportError}</span>
               </div>
-              <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+              <button aria-label={t('common.close')} onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -564,7 +566,7 @@ export default function VotingsPage() {
                   selectedMeeting.quorum?.isQuorumAchieved ? 'text-emerald-700' : 'text-amber-700'
                 }`}
               >
-                {selectedMeeting.quorum?.quorumPercent || 0}%
+                {(selectedMeeting.quorum?.quorumPercent || 0).toLocaleString(i18n.language)}%
               </div>
               <div
                 className={`text-[11px] font-semibold flex items-center gap-1 ${
@@ -585,7 +587,7 @@ export default function VotingsPage() {
                   ? calculateDaysLeft(selectedMeeting.endDate)
                   : t('votings.completedVotingBadge')}
               </div>
-              <div className="text-[11px] text-slate-400">{t('votings.autoCloseNotice')}</div>
+              <div className="text-[11px] text-slate-500">{t('votings.autoCloseNotice', { date: new Date(selectedMeeting.endDate).toLocaleString(i18n.language) })}</div>
             </div>
           </div>
 
@@ -676,13 +678,13 @@ export default function VotingsPage() {
 
       {/* Create Meeting Modal */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
+        <Dialog labelledBy="votings-dialog-0" onClose={() => setIsCreateOpen(false)}>
+          <div className="surface-card bg-white w-full max-w-2xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 id="votings-dialog-0" className="text-base font-bold text-slate-900">
                 {t('votings.createMeetingModalTitle')}
               </h3>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setIsCreateOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
@@ -699,10 +701,10 @@ export default function VotingsPage() {
               )}
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label htmlFor="field-dashboard-votings-page-tsx-0" className="block text-slate-700 font-semibold mb-1">
                   {t('votings.meetingTitleLabel')} *
                 </label>
-                <input
+                <input id="field-dashboard-votings-page-tsx-0"
                   type="text"
                   required
                   value={newTitle}
@@ -713,10 +715,10 @@ export default function VotingsPage() {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label htmlFor="field-dashboard-votings-page-tsx-1" className="block text-slate-700 font-semibold mb-1">
                   {t('votings.meetingDescLabel')}
                 </label>
-                <textarea
+                <textarea id="field-dashboard-votings-page-tsx-1"
                   rows={2}
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
@@ -727,10 +729,10 @@ export default function VotingsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
+                  <label htmlFor="field-dashboard-votings-page-tsx-2" className="block text-slate-700 font-semibold mb-1">
                     {t('votings.startDateLabel')} *
                   </label>
-                  <input
+                  <input id="field-dashboard-votings-page-tsx-2"
                     type="datetime-local"
                     required
                     value={newStartDate}
@@ -739,10 +741,10 @@ export default function VotingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
+                  <label htmlFor="field-dashboard-votings-page-tsx-3" className="block text-slate-700 font-semibold mb-1">
                     {t('votings.endDateLabel')} *
                   </label>
-                  <input
+                  <input id="field-dashboard-votings-page-tsx-3"
                     type="datetime-local"
                     required
                     value={newEndDate}
@@ -842,7 +844,7 @@ export default function VotingsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

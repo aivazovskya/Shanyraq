@@ -8,6 +8,7 @@ import { StaffChatInboxScreen } from '../screens/staff/StaffChatInboxScreen';
 import { StaffRequestsListScreen } from '../screens/staff/StaffRequestsListScreen';
 import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
 import { useAuth, canAccessChat, canAccessRequests } from '../context/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { Building2, AlertTriangle, MessageSquare, ClipboardList, User } from 'lucide-react-native';
 
@@ -15,6 +16,7 @@ const Tab = createBottomTabNavigator<StaffTabsParamList>();
 
 export const StaffMainTabs: React.FC = () => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const canShowChat = canAccessChat(user?.role);
@@ -24,17 +26,22 @@ export const StaffMainTabs: React.FC = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
+        tabBarActiveBackgroundColor: Colors.primaryBg,
+        tabBarItemStyle: { borderRadius: 14, marginHorizontal: 3 },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
+          height: 64 + Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
+          paddingHorizontal: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
+          marginBottom: 3,
           fontWeight: '600',
         },
       }}

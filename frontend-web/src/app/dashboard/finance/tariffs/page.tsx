@@ -1,5 +1,7 @@
 'use client';
 
+import { Dialog } from '@/components/Dialog';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -219,7 +221,7 @@ export default function TariffsPage() {
               <SlidersHorizontal className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="page-title text-2xl font-bold text-slate-900 tracking-tight">
                 {t('finance.tariffsTitle')}
               </h1>
               <p className="text-sm text-slate-500 mt-0.5">{t('finance.tariffsSubtitle')}</p>
@@ -240,8 +242,9 @@ export default function TariffsPage() {
 
           <button
             onClick={loadTariffs}
+            aria-label={t('common.refresh')}
             disabled={loading}
-            className="p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
+            className="surface-card p-2 text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -265,7 +268,7 @@ export default function TariffsPage() {
             )}
             <span>{actionMessage.text}</span>
           </div>
-          <button
+          <button aria-label={t('common.close')}
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-slate-600"
           >
@@ -275,7 +278,7 @@ export default function TariffsPage() {
       )}
 
       {/* Tariffs Table Container */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-16 flex flex-col items-center justify-center gap-3 text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-sky-600" />
@@ -308,8 +311,8 @@ export default function TariffsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="data-scroll overflow-x-auto">
+            <table className="data-table w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/75 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <th className="py-3.5 px-6">{t('finance.thTariffName')}</th>
@@ -422,13 +425,13 @@ export default function TariffsPage() {
 
       {/* CREATE / EDIT TARIFF MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <Dialog labelledBy="finance-tariffs-dialog-0" onClose={() => setIsModalOpen(false)}>
+          <div className="surface-card bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 id="finance-tariffs-dialog-0" className="text-lg font-bold text-slate-900">
                 {editingTariff ? t('finance.editTariffTitle') : t('finance.createTariffTitle')}
               </h3>
-              <button
+              <button aria-label={t('common.close')}
                 onClick={() => setIsModalOpen(false)}
                 className="w-8 h-8 rounded-full bg-white hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 border border-slate-200 transition-colors"
               >
@@ -438,27 +441,27 @@ export default function TariffsPage() {
 
             <form onSubmit={handleSaveTariff} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label htmlFor="field-dashboard-finance-tariffs-page-tsx-0" className="block text-xs font-semibold text-slate-600 mb-1.5">
                   {t('finance.tariffNameInput')}
                 </label>
-                <input
+                <input id="field-dashboard-finance-tariffs-page-tsx-0"
                   type="text"
                   required
                   placeholder="РСЖ, Домофон, Лифт..."
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label htmlFor="field-dashboard-finance-tariffs-page-tsx-1" className="block text-xs font-semibold text-slate-600 mb-1.5">
                   {t('finance.methodLabel')}
                 </label>
-                <select
+                <select id="field-dashboard-finance-tariffs-page-tsx-1"
                   value={formMethod}
                   onChange={(e) => setFormMethod(e.target.value as 'FLAT' | 'PER_AREA' | 'PER_CONSUMPTION')}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   <option value="FLAT">{t('finance.methodFlat')}</option>
                   <option value="PER_AREA">{t('finance.methodPerArea')}</option>
@@ -468,13 +471,13 @@ export default function TariffsPage() {
 
               {formMethod === 'PER_CONSUMPTION' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  <label htmlFor="field-dashboard-finance-tariffs-page-tsx-2" className="block text-xs font-semibold text-slate-600 mb-1.5">
                     {t('finance.meterTypeLabel')}
                   </label>
-                  <select
+                  <select id="field-dashboard-finance-tariffs-page-tsx-2"
                     value={formMeterType}
                     onChange={(e) => setFormMeterType(e.target.value as any)}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="COLD_WATER">{t('finance.meterTypeColdWater')}</option>
                     <option value="HOT_WATER">{t('finance.meterTypeHotWater')}</option>
@@ -485,10 +488,10 @@ export default function TariffsPage() {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label htmlFor="field-dashboard-finance-tariffs-page-tsx-3" className="block text-xs font-semibold text-slate-600 mb-1.5">
                   {t('finance.rateInput')}
                 </label>
-                <input
+                <input id="field-dashboard-finance-tariffs-page-tsx-3"
                   type="number"
                   step="0.01"
                   min="0"
@@ -502,7 +505,7 @@ export default function TariffsPage() {
                   }
                   value={formRate}
                   onChange={(e) => setFormRate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="surface-card w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
                 <p className="text-[11px] text-slate-400 mt-1">
                   {formMethod === 'PER_AREA'
@@ -533,7 +536,7 @@ export default function TariffsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

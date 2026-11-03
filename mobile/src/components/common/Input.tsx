@@ -6,14 +6,16 @@ import {
   StyleSheet,
   TextInputProps,
   ViewStyle,
+  StyleProp,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { useState } from 'react';
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   helper?: string;
-  containerStyle?: ViewStyle;
+  containerStyle?: StyleProp<ViewStyle>;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
@@ -26,22 +28,31 @@ export const Input: React.FC<InputProps> = ({
   leftIcon,
   rightIcon,
   style,
+  onFocus,
+  onBlur,
+  multiline,
   ...props
 }) => {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+      <View style={[styles.inputWrapper, multiline && styles.multilineWrapper, focused && styles.inputFocused, error ? styles.inputError : null]}>
         {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
         <TextInput
-          style={[styles.input, style]}
+          style={[styles.input, multiline && styles.multilineInput, style]}
+          multiline={multiline}
           placeholderTextColor={Colors.textLight}
+          accessibilityLabel={label}
+          accessibilityHint={error || helper}
+          onFocus={(event) => { setFocused(true); onFocus?.(event); }}
+          onBlur={(event) => { setFocused(false); onBlur?.(event); }}
           {...props}
         />
         {rightIcon && <View style={styles.iconContainer}>{rightIcon}</View>}
       </View>
       {error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={styles.errorText} accessibilityLiveRegion="polite">{error}</Text>
       ) : helper ? (
         <Text style={styles.helperText}>{helper}</Text>
       ) : null}
@@ -60,22 +71,30 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   inputWrapper: {
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: Colors.surface,
     paddingHorizontal: 12,
   },
   inputError: {
     borderColor: Colors.danger,
   },
+  inputFocused: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryBg,
+  },
+  multilineWrapper: { alignItems: 'flex-start' },
+  multilineInput: { minHeight: 112, textAlignVertical: 'top' },
   iconContainer: {
     marginHorizontal: 4,
   },
   input: {
     flex: 1,
+    outlineWidth: 0,
     paddingVertical: 12,
     fontSize: 16,
     color: Colors.text,

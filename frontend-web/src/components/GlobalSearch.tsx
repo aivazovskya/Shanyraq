@@ -160,8 +160,8 @@ export function GlobalSearch() {
     inputRef.current?.focus();
   };
 
-  const handleSelect = (category: 'residents' | 'requests' | 'finance') => {
-    const trimmed = query.trim();
+  const handleSelect = (category: 'residents' | 'requests' | 'finance', value: string) => {
+    const trimmed = value.trim();
     setIsOpen(false);
     router.push(`/dashboard/${category}?q=${encodeURIComponent(trimmed)}`);
   };
@@ -174,7 +174,18 @@ export function GlobalSearch() {
   const isQueryValid = query.trim().length >= 2;
 
   return (
-    <div ref={containerRef} className="relative w-full" onKeyDown={(event) => { if (event.key === 'Escape') { setIsOpen(false); inputRef.current?.focus(); } }}>
+    <div ref={containerRef} className="relative w-full" onKeyDown={(event) => {
+      if (event.key === 'Escape') { setIsOpen(false); inputRef.current?.focus(); }
+      if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && isOpen) {
+        const buttons = Array.from(containerRef.current?.querySelectorAll<HTMLButtonElement>('#global-search-results button:not(:disabled)') || []);
+        if (!buttons.length) return;
+        event.preventDefault();
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const next = current < 0 ? (event.key === 'ArrowDown' ? 0 : buttons.length - 1) : current + (event.key === 'ArrowDown' ? 1 : -1);
+        if (next < 0 || next >= buttons.length) inputRef.current?.focus();
+        else buttons[next].focus();
+      }
+    }}>
       {needsScope && <select aria-label={t('shell.searchScope')} value={tenantId || ''}
         className="mb-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
         onChange={(event) => { requestId.current++; if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); setTenantId(event.target.value || null); setQuery(''); setResults({ residents: [], requests: [], accounts: [] }); setIsOpen(false); setLoading(false); setError(false); }}>
@@ -243,7 +254,7 @@ export function GlobalSearch() {
                     {results.residents.map((r) => (
                       <button
                         key={r.id}
-                        onClick={() => handleSelect('residents')}
+                        onClick={() => handleSelect('residents', r.phone || `${r.firstName} ${r.lastName}`)}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs text-slate-700 transition group"
                       >
                         <div className="truncate">
@@ -274,7 +285,7 @@ export function GlobalSearch() {
                     {results.requests.map((req) => (
                       <button
                         key={req.id}
-                        onClick={() => handleSelect('requests')}
+                        onClick={() => handleSelect('requests', req.id)}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs text-slate-700 transition group"
                       >
                         <div className="truncate font-medium text-slate-900 group-hover:text-amber-600">
@@ -300,7 +311,7 @@ export function GlobalSearch() {
                     {results.accounts.map((acc) => (
                       <button
                         key={acc.id}
-                        onClick={() => handleSelect('finance')}
+                        onClick={() => handleSelect('finance', acc.accountNumber)}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-between text-xs text-slate-700 transition group"
                       >
                         <div className="truncate">

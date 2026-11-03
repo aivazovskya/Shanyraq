@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { apiRequest, apiBlob, getStoredSession, getApiErrorMessage } from '@/lib/api';
 import { Dialog } from '@/components/Dialog';
+import { WorkspaceHeader } from '@/components/WorkspaceHeader';
 import { getRequestActions } from '@/lib/request-workflow';
 
 interface Assignee { id: string; firstName: string; lastName: string; role: string }
@@ -317,26 +318,25 @@ export default function RequestsPage() {
 
     return true;
   });
+  const statusCounts = requests.reduce<Record<string, number>>((counts, request) => {
+    counts[request.status] = (counts[request.status] || 0) + 1;
+    return counts;
+  }, { ALL: requests.length });
+  const countsAvailable = (!loading && !error) || requests.length > 0;
 
   return (
     <div className="space-y-6">
       <Suspense fallback={null}>
         <SearchParamsReader onQuery={setSearchQuery} />
       </Suspense>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('requests.title')}</h1>
-          <p className="text-sm text-slate-500">{t('requests.subtitle')}</p>
-        </div>
-        <button
+      <WorkspaceHeader title={t('requests.title')} description={t('requests.subtitle')} eyebrow={user?.tenantName || undefined} icon={Wrench} actions={<button
           onClick={loadRequests}
           disabled={loading}
-          className="inline-flex min-h-11 items-center gap-2 px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition"
+          className="surface-card inline-flex min-h-11 items-center gap-2 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl transition"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           {t('common.refresh')}
-        </button>
-      </div>
+        </button>} />
 
       {error && (
         <div role="alert" className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700 flex items-center gap-2">
@@ -346,8 +346,9 @@ export default function RequestsPage() {
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col xl:flex-row items-stretch xl:items-start justify-between gap-4">
-        <div className="relative w-full xl:w-72 xl:shrink-0">
+      <div className="surface-card bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col items-stretch gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:max-w-md">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           <input
             type="text"
@@ -358,14 +359,16 @@ export default function RequestsPage() {
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-sky-500"
           />
         </div>
+        {(searchQuery || filterStatus !== 'ALL') && <button onClick={() => { setSearchQuery(''); setFilterStatus('ALL'); }} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-sky-700"><X size={16} aria-hidden="true" />{t('requestUi.resetFilters')}</button>}
+        </div>
 
         <div className="w-full sm:hidden">
           <label htmlFor="request-status-filter" className="mb-2 block text-xs font-semibold text-slate-600">{t('requests.thStatus')}</label>
-          <select id="request-status-filter" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800">
-            {statusFilters.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          <select id="request-status-filter" value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="surface-card min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-800">
+            {statusFilters.map((item) => <option key={item.id} value={item.id}>{item.label} ({countsAvailable ? statusCounts[item.id] || 0 : '—'})</option>)}
           </select>
         </div>
-        <div className="hidden sm:flex flex-wrap items-center gap-2 w-full xl:w-auto">
+        <div className="hidden sm:flex flex-wrap items-center gap-2 w-full border-t border-slate-100 pt-4">
           {statusFilters.map((item) => (
             <button
               key={item.id}
@@ -373,11 +376,11 @@ export default function RequestsPage() {
               aria-pressed={filterStatus === item.id}
               className={`min-h-11 whitespace-nowrap px-3.5 py-2 rounded-xl text-sm font-semibold transition ${
                 filterStatus === item.id
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-sky-600 text-white'
+                  : 'bg-slate-50 text-slate-600 hover:bg-sky-50'
               }`}
             >
-              {item.label}
+              {item.label}{' '}<span className={`ml-2 rounded-md px-1.5 py-0.5 text-xs tabular-nums ${filterStatus === item.id ? 'bg-white/20 text-white' : 'bg-slate-200/60 text-slate-500'}`}>{countsAvailable ? statusCounts[item.id] || 0 : '—'}</span>
             </button>
           ))}
         </div>
@@ -385,7 +388,7 @@ export default function RequestsPage() {
 
       {!loading && !error && <p role="status" className="text-sm text-slate-500">{t('uiPolish.requestCount', { count: filteredRequests.length, total: requests.length })}</p>}
       {/* Requests Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="surface-card bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         {loading && requests.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-sky-600 mb-3" />
@@ -402,7 +405,7 @@ export default function RequestsPage() {
         ) : (
           <>
           <div className="divide-y divide-slate-200 md:hidden">
-            {filteredRequests.map((req) => <article key={req.id} className="space-y-3 p-4">
+            {filteredRequests.map((req) => <article key={req.id} className={`space-y-3 border-l-[3px] p-5 ${req.priority === 'EMERGENCY' || req.priority === 'HIGH' ? 'border-l-red-400' : 'border-l-transparent'}`}>
               <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-mono text-slate-500">REQ-{req.id.slice(0, 8).toUpperCase()}</span><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{getStatusLabel(req.status)}</span></div>
               <h2 className="break-words text-base font-semibold text-slate-900">{req.title}</h2>
               <p className="text-sm text-slate-600">{t('common.unitShort')} {req.unit?.unitNumber || '—'}{req.unit?.building?.blockName ? ` · ${req.unit.building.blockName}` : ''}</p>
@@ -410,8 +413,8 @@ export default function RequestsPage() {
               <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-xs text-slate-500">{formatShortDate(req.createdAt)}</span><button onClick={() => openDetailsModal(req)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-sky-700">{t('requests.manageBtn')}</button></div>
             </article>)}
           </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-left text-sm">
+          <div className="data-scroll hidden overflow-x-auto md:block">
+            <table className="data-table w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">{t('requests.thNumber')}</th>
@@ -499,7 +502,7 @@ export default function RequestsPage() {
                       <td className="py-3.5 px-4 text-right">
                         <button
                           onClick={() => openDetailsModal(req)}
-                          className="px-3 py-1.5 border border-slate-300 hover:bg-slate-100 rounded-lg font-semibold text-slate-700 transition"
+                          className="min-h-11 px-3 py-1.5 border border-sky-200 hover:bg-sky-50 rounded-xl font-semibold text-sky-700 transition"
                         >
                           {t('requests.manageBtn')}
                         </button>
@@ -517,7 +520,7 @@ export default function RequestsPage() {
       {/* Details & Management Modal */}
       {selectedRequest && (
         <Dialog labelledBy="request-dialog-title" onClose={closeDetailsModal}>
-          <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
+          <div className="flex max-h-[calc(100dvh-2rem-2px)] flex-col">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-slate-200 flex items-start justify-between gap-3 bg-slate-50">
               <div className="min-w-0">
@@ -598,7 +601,7 @@ export default function RequestsPage() {
                   <p className="text-xs text-slate-500">{t('requestFlow.assigneeHelp')}</p>
                   {assigneesError ? <p role="alert" className="text-sm text-amber-800">{t('requestFlow.staffFailed')} <button className="underline" onClick={() => openDetailsModal(selectedRequest, true)}>{t('common.refresh')}</button></p> : <div className="flex flex-col gap-2 sm:flex-row">
                     <label htmlFor="request-assignee" className="sr-only">{t('requestFlow.assignee')}</label>
-                    <select id="request-assignee" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} disabled={modalLoading || statusUpdating || commentSubmitting} className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm">
+                    <select id="request-assignee" value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} disabled={modalLoading || statusUpdating || commentSubmitting} className="surface-card min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm">
                       <option value="">{t('requestFlow.chooseAssignee')}</option>
                       {selectedRequest.assigneeId && !assignees.some((person) => person.id === selectedRequest.assigneeId) && <option value={selectedRequest.assigneeId} disabled>{selectedRequest.assignee ? `${selectedRequest.assignee.firstName} ${selectedRequest.assignee.lastName}` : t('requestFlow.currentAssignee')}</option>}
                       {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}

@@ -7,6 +7,7 @@ import { VotingsListScreen } from '../screens/votings/VotingsListScreen';
 import { AccessScreen } from '../screens/access/AccessScreen';
 import { RequestsListScreen } from '../screens/requests/RequestsListScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { Home, Vote, ShieldCheck, Wrench, User } from 'lucide-react-native';
 
@@ -14,22 +15,28 @@ const Tab = createBottomTabNavigator<MainTabsParamList>();
 
 export const MainTabs: React.FC = () => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
+        tabBarActiveBackgroundColor: Colors.primaryBg,
+        tabBarItemStyle: { borderRadius: 14, marginHorizontal: 3 },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarStyle: {
           backgroundColor: Colors.surface,
           borderTopColor: Colors.border,
-          height: 60,
-          paddingBottom: 8,
+          height: 64 + Math.max(insets.bottom, 8),
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
+          paddingHorizontal: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
+          marginBottom: 3,
           fontWeight: '600',
         },
       }}

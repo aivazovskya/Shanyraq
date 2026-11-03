@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Building2, ShieldCheck, ArrowRight, Loader2, AlertCircle, Globe, KeyRound, CheckCircle2 } from 'lucide-react';
+import { PasswordInput } from '@/components/PasswordInput';
+import React, { useEffect, useRef, useState } from 'react';
+import { Building2, ShieldCheck, ArrowRight, Loader2, AlertCircle, KeyRound, CheckCircle2, UserRound, Wallet, MessageSquare, ClipboardCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
@@ -33,23 +34,66 @@ export default function LoginPage() {
   const [resetCode, setResetCode] = useState('');
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const submitLock = useRef(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const successRef = useRef<HTMLDivElement>(null);
+  const currentStep = changePasswordToken ? 'initial-password' : isForgotPassword ? forgotStep : 'login';
+  const previousStep = useRef(currentStep);
+
+  useEffect(() => {
+    const feedback = error ? errorRef.current : successMessage ? successRef.current : null;
+    if (feedback) {
+      feedback.focus({ preventScroll: true });
+      feedback.scrollIntoView({ block: 'nearest' });
+    }
+  }, [error, successMessage]);
+
+  useEffect(() => {
+    if (previousStep.current !== currentStep) {
+      previousStep.current = currentStep;
+      if (!error && !successMessage) {
+        titleRef.current?.focus({ preventScroll: true });
+        titleRef.current?.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [currentStep, error, successMessage]);
+
+  const startRequest = () => {
+    submitLock.current = true;
+    setError(null);
+    setSuccessMessage(null);
+    setIsLoading(true);
+  };
+
+  const finishRequest = () => {
+    submitLock.current = false;
+    setIsLoading(false);
+  };
+
+  const updateField = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+    setter(value);
+    setError(null);
+    setSuccessMessage(null);
+  };
 
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLocale) || 'ru';
 
-  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextLang = e.target.value as SupportedLocale;
+  const handleLanguageChange = (nextLang: SupportedLocale) => {
     changeWebLanguage(nextLang);
+    setError(null);
+    setSuccessMessage(null);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLock.current) return;
     if (!login.trim() || !password.trim()) {
       setError(t('auth.loginRequired'));
       return;
     }
 
-    setError(null);
-    setIsLoading(true);
+    startRequest();
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login-password`, {
@@ -91,12 +135,13 @@ export default function LoginPage() {
     } catch (err: any) {
       setError(getApiErrorMessage(err, t) || t('auth.connectionError'));
     } finally {
-      setIsLoading(false);
+      finishRequest();
     }
   };
 
   const handleSetInitialPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLock.current) return;
     if (!newPassword.trim() || !confirmPassword.trim()) {
       setError(t('auth.loginRequired'));
       return;
@@ -112,8 +157,7 @@ export default function LoginPage() {
       return;
     }
 
-    setError(null);
-    setIsLoading(true);
+    startRequest();
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/set-initial-password`, {
@@ -149,7 +193,7 @@ export default function LoginPage() {
     } catch (err: any) {
       setError(getApiErrorMessage(err, t) || t('auth.connectionError'));
     } finally {
-      setIsLoading(false);
+      finishRequest();
     }
   };
 
@@ -162,13 +206,13 @@ export default function LoginPage() {
 
   const handleRequestResetOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLock.current) return;
     if (!resetPhone.trim() || resetPhone.trim() === '+7') {
       setError(t('auth.phoneRequired'));
       return;
     }
 
-    setError(null);
-    setIsLoading(true);
+    startRequest();
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/staff/forgot-password`, {
@@ -196,12 +240,13 @@ export default function LoginPage() {
     } catch (err: any) {
       setError(getApiErrorMessage(err, t) || t('auth.connectionError'));
     } finally {
-      setIsLoading(false);
+      finishRequest();
     }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLock.current) return;
     if (!resetCode.trim() || !resetNewPassword.trim() || !resetConfirmPassword.trim()) {
       setError(t('auth.loginRequired'));
       return;
@@ -217,8 +262,7 @@ export default function LoginPage() {
       return;
     }
 
-    setError(null);
-    setIsLoading(true);
+    startRequest();
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/staff/reset-password`, {
@@ -256,7 +300,7 @@ export default function LoginPage() {
     } catch (err: any) {
       setError(getApiErrorMessage(err, t) || t('auth.connectionError'));
     } finally {
-      setIsLoading(false);
+      finishRequest();
     }
   };
 
@@ -269,74 +313,91 @@ export default function LoginPage() {
     setError(null);
   };
 
+  const formTitle = changePasswordToken ? t('auth.setInitialPasswordTitle') : isForgotPassword
+    ? t(forgotStep === 'PHONE' ? 'auth.forgotPasswordTitle' : 'auth.resetPasswordTitle') : t('auth.signInTitle');
+  const formSubtitle = changePasswordToken ? t('auth.setInitialPasswordSubtitle') : isForgotPassword
+    ? t(forgotStep === 'PHONE' ? 'auth.forgotPasswordSubtitle' : 'auth.resetPasswordSubtitle') : t('auth.signInSubtitle');
+
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-slate-50 relative">
-      {/* Top right language switcher */}
-      <div className="absolute top-6 right-6 sm:top-8 sm:right-8">
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 shadow-sm rounded-lg px-3 py-1.5">
-          <Globe className="w-4 h-4 text-slate-500 shrink-0" />
-          <select
-            value={currentLang}
-            onChange={handleLanguageChange}
-            className="bg-transparent text-xs font-medium text-slate-700 outline-none cursor-pointer pr-1"
-            aria-label={t('common.language')}
-          >
-            {SUPPORTED_LOCALES.map((code) => (
-              <option key={code} value={code}>
-                {LANGUAGE_LABELS[code]}
-              </option>
+    <div className="login-shell min-h-dvh flex flex-col">
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-5 pt-6 sm:px-8 sm:pt-8">
+        <a href="/" className="inline-flex shrink-0 items-center gap-2.5 rounded-xl text-slate-900" aria-label="Shanyraq">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white shadow-lg shadow-sky-900/10">
+            <Building2 className="h-6 w-6" />
+          </span>
+          <span className="text-lg font-bold tracking-tight">Shanyraq</span>
+        </a>
+        <div className="inline-flex shrink-0 gap-0.5 rounded-2xl border border-white/80 bg-white/75 p-1 shadow-sm" role="group" aria-label={t('common.language')}>
+          {SUPPORTED_LOCALES.map((code) => (
+            <button key={code} type="button" disabled={isLoading} aria-label={LANGUAGE_LABELS[code]} aria-pressed={currentLang === code}
+              onClick={() => handleLanguageChange(code)}
+              className={`min-h-9 min-w-9 rounded-xl px-2 text-xs font-semibold transition-colors ${currentLang === code ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-500 hover:bg-sky-50 hover:text-sky-700'}`}>
+              {code === 'kk' ? 'Қаз' : code === 'ru' ? 'Рус' : 'EN'}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-9 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[1.12fr_1fr] lg:gap-20 lg:py-20">
+        <section aria-labelledby="login-intro-title" className="mx-auto w-full min-w-0 max-w-lg lg:max-w-none">
+          <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/75 px-3 py-1.5 text-xs font-medium text-sky-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-600" />{t('auth.portalLabel')}
+          </span>
+          <h1 id="login-intro-title" className="text-[2.1rem] font-bold leading-[1.08] tracking-[-0.045em] text-slate-900 sm:text-5xl lg:text-[3.25rem]">
+            <span className="block">{t('auth.heroLineOne')}</span>
+            <span className="block">{t('auth.heroLineTwo')}</span>
+          </h1>
+          <p className="mt-5 hidden max-w-md text-sm leading-7 text-slate-500 sm:text-base lg:block">{t('auth.heroDescription')}</p>
+          <ul className="mt-10 hidden space-y-6 lg:block">
+            {[
+              { Icon: MessageSquare, title: 'auth.featureRequestsTitle', description: 'auth.featureRequestsText' },
+              { Icon: Wallet, title: 'auth.featureFinanceTitle', description: 'auth.featureFinanceText' },
+              { Icon: ClipboardCheck, title: 'auth.featureTeamTitle', description: 'auth.featureTeamText' },
+            ].map(({ Icon, title, description }) => (
+              <li key={title} className="flex items-start gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white bg-white/80 text-sky-600 shadow-sm"><Icon className="h-5 w-5" /></span>
+                <div className="pt-0.5"><h2 className="text-sm font-semibold text-slate-800">{t(title)}</h2><p className="mt-1 text-sm leading-6 text-slate-500">{t(description)}</p></div>
+              </li>
             ))}
-          </select>
-        </div>
-      </div>
+          </ul>
+        </section>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-600 text-white shadow-lg mb-4">
-          <Building2 className="w-9 h-9" />
-        </div>
-        <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          Shanyraq <span className="text-sky-600">Шаңырақ</span>
-        </h2>
-        <p className="mt-2 text-sm text-slate-600">
-          {t('auth.subtitle')}
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-6 shadow-sm border border-slate-200 sm:rounded-2xl sm:px-10">
+        <section aria-labelledby="login-form-title" className="mx-auto w-full min-w-0 max-w-lg lg:justify-self-end">
+        <div className="login-card rounded-[28px] border border-white/90 bg-white/90 px-6 py-8 sm:p-8">
+          <div className="mb-7">
+            <span className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50 text-sky-600">
+              {isForgotPassword || changePasswordToken ? <KeyRound className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
+            </span>
+            <h2 ref={titleRef} tabIndex={-1} id="login-form-title" className="text-2xl font-bold leading-tight tracking-tight text-slate-900 outline-none sm:text-[28px]">{formTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{formSubtitle}</p>
+          </div>
           {error && (
-            <div role="alert" className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
+            <div ref={errorRef} tabIndex={-1} role="alert" className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2 outline-none">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMessage && (
-            <div role="status" className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
+            <div ref={successRef} tabIndex={-1} role="status" className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2 outline-none">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{successMessage}</span>
             </div>
           )}
 
           {changePasswordToken ? (
-            <form className="space-y-5" onSubmit={handleSetInitialPassword}>
-              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                <div className="font-semibold text-amber-900 mb-1 flex items-center gap-1.5">
-                  <KeyRound className="w-4 h-4 text-amber-700" />
-                  <span>{t('auth.setInitialPasswordTitle')}</span>
-                </div>
-                <p className="text-amber-800">{t('auth.setInitialPasswordSubtitle')}</p>
-              </div>
+            <form aria-labelledby="login-form-title" aria-busy={isLoading} onSubmit={handleSetInitialPassword}>
+              <fieldset disabled={isLoading} className="min-w-0 space-y-5 border-0 p-0">
 
               <div>
                 <label htmlFor="newPassword" className="block text-sm font-medium text-slate-700">
                   {t('auth.newPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="newPassword" autoComplete="new-password"
+                  <PasswordInput id="newPassword" autoComplete="new-password"
                     type="password"
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    onChange={(e) => updateField(setNewPassword, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder={t('auth.newPasswordPlaceholder')}
                     required
@@ -350,10 +411,10 @@ export default function LoginPage() {
                   {t('auth.confirmPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="confirmPassword" autoComplete="new-password"
+                  <PasswordInput id="confirmPassword" autoComplete="new-password"
                     type="password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => updateField(setConfirmPassword, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder={t('auth.confirmPasswordPlaceholder')}
                     required
@@ -366,7 +427,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
+                  className="w-full min-h-12 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -386,26 +447,21 @@ export default function LoginPage() {
                   {t('auth.backToLogin')}
                 </button>
               </div>
+              </fieldset>
             </form>
           ) : isForgotPassword && forgotStep === 'PHONE' ? (
-            <form className="space-y-5" onSubmit={handleRequestResetOtp}>
-              <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-xs">
-                <div className="font-semibold text-sky-900 mb-1 flex items-center gap-1.5">
-                  <KeyRound className="w-4 h-4 text-sky-700" />
-                  <span>{t('auth.forgotPasswordTitle')}</span>
-                </div>
-                <p className="text-sky-800">{t('auth.forgotPasswordSubtitle')}</p>
-              </div>
+            <form aria-labelledby="login-form-title" aria-busy={isLoading} onSubmit={handleRequestResetOtp}>
+              <fieldset disabled={isLoading} className="min-w-0 space-y-5 border-0 p-0">
 
               <div>
                 <label htmlFor="resetPhone" className="block text-sm font-medium text-slate-700">
                   {t('auth.staffPhoneLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="resetPhone"
-                    type="text"
+                  <input id="resetPhone" autoComplete="tel" inputMode="tel"
+                    type="tel"
                     value={resetPhone}
-                    onChange={(e) => setResetPhone(e.target.value)}
+                    onChange={(e) => updateField(setResetPhone, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder="+7 (701) 000-00-00"
                     required
@@ -417,7 +473,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
+                  className="w-full min-h-12 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -437,16 +493,11 @@ export default function LoginPage() {
                   {t('auth.backToLogin')}
                 </button>
               </div>
+              </fieldset>
             </form>
           ) : isForgotPassword && forgotStep === 'OTP' ? (
-            <form className="space-y-5" onSubmit={handleResetPassword}>
-              <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-xs">
-                <div className="font-semibold text-sky-900 mb-1 flex items-center gap-1.5">
-                  <KeyRound className="w-4 h-4 text-sky-700" />
-                  <span>{t('auth.resetPasswordTitle')}</span>
-                </div>
-                <p className="text-sky-800">{t('auth.resetPasswordSubtitle')}</p>
-              </div>
+            <form aria-labelledby="login-form-title" aria-busy={isLoading} onSubmit={handleResetPassword}>
+              <fieldset disabled={isLoading} className="min-w-0 space-y-5 border-0 p-0">
 
               <div>
                 <label htmlFor="resetCode" className="block text-sm font-medium text-slate-700">
@@ -456,9 +507,9 @@ export default function LoginPage() {
                   <input id="resetCode" autoComplete="one-time-code" inputMode="numeric"
                     type="text"
                     value={resetCode}
-                    onChange={(e) => setResetCode(e.target.value)}
+                    onChange={(e) => updateField(setResetCode, e.target.value.replace(/\D/g, '').slice(0, 6))}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 tracking-widest text-center text-lg font-mono focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                    placeholder="0000"
+                    placeholder="000000"
                     maxLength={6}
                     required
                   />
@@ -470,10 +521,10 @@ export default function LoginPage() {
                   {t('auth.newPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="resetNewPassword" autoComplete="new-password"
+                  <PasswordInput id="resetNewPassword" autoComplete="new-password"
                     type="password"
                     value={resetNewPassword}
-                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    onChange={(e) => updateField(setResetNewPassword, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder={t('auth.newPasswordPlaceholder')}
                     required
@@ -487,10 +538,10 @@ export default function LoginPage() {
                   {t('auth.confirmPasswordLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="resetConfirmPassword" autoComplete="new-password"
+                  <PasswordInput id="resetConfirmPassword" autoComplete="new-password"
                     type="password"
                     value={resetConfirmPassword}
-                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    onChange={(e) => updateField(setResetConfirmPassword, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder={t('auth.confirmPasswordPlaceholder')}
                     required
@@ -503,7 +554,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
+                  className="w-full min-h-12 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -523,18 +574,20 @@ export default function LoginPage() {
                   {t('auth.backToLogin')}
                 </button>
               </div>
+              </fieldset>
             </form>
           ) : (
-            <form className="space-y-5" onSubmit={handleLogin}>
+            <form aria-labelledby="login-form-title" aria-busy={isLoading} onSubmit={handleLogin}>
+              <fieldset disabled={isLoading} className="min-w-0 space-y-5 border-0 p-0">
               <div>
                 <label htmlFor="login" className="block text-sm font-medium text-slate-700">
                   {t('auth.loginLabel')}
                 </label>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="login" autoComplete="username"
+                  <input id="login" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
                     type="text"
                     value={login}
-                    onChange={(e) => setLogin(e.target.value)}
+                    onChange={(e) => updateField(setLogin, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder={t('auth.loginPlaceholder')}
                     required
@@ -543,7 +596,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                   <label htmlFor="password" className="block text-sm font-medium text-slate-700">
                     {t('auth.passwordLabel')}
                   </label>
@@ -561,10 +614,10 @@ export default function LoginPage() {
                   </button>
                 </div>
                 <div className="mt-1 relative rounded-md shadow-sm">
-                  <input id="password" autoComplete="current-password"
+                  <PasswordInput id="password" autoComplete="current-password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => updateField(setPassword, e.target.value)}
                     className="block w-full rounded-lg border border-slate-300 py-2.5 px-3 text-slate-900 placeholder-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 sm:text-sm"
                     placeholder={t('auth.passwordPlaceholder')}
                     required
@@ -576,7 +629,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
+                  className="w-full min-h-12 flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition-colors disabled:opacity-60"
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -586,18 +639,20 @@ export default function LoginPage() {
                   <span>{isLoading ? t('auth.loggingIn') : t('auth.loginButton')}</span>
                 </button>
               </div>
+              </fieldset>
             </form>
           )}
 
           <div className="mt-6 border-t border-slate-200 pt-4 text-xs text-slate-500 space-y-1">
             <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
-              <ShieldCheck className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4 shrink-0" />
               <span>{t('auth.rbacNote')}</span>
             </div>
             <p>{t('auth.accessNote')}</p>
           </div>
         </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

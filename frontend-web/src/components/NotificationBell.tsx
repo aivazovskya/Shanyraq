@@ -39,22 +39,29 @@ export function NotificationBell() {
     FINANCE: true,
   });
   const [loadingPrefs, setLoadingPrefs] = useState(false);
+  const [prefsReady, setPrefsReady] = useState(false);
+  const [prefsError, setPrefsError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
   const [updatingPref, setUpdatingPref] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const fetchPreferences = useCallback(async () => {
     setLoadingPrefs(true);
+    setPrefsReady(false);
+    setPrefsError(null);
     try {
       const prefs = await apiRequest<NotificationPreferences>('/notifications/preferences');
       if (prefs) {
         setPreferences(prefs);
+        setPrefsReady(true);
       }
-    } catch {
-      // Ignore if fetch fails
+    } catch (err) {
+      setPrefsError(getApiErrorMessage(err, t));
     } finally {
       setLoadingPrefs(false);
     }
-  }, []);
+  }, [t]);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -106,6 +113,8 @@ export function NotificationBell() {
   }, [isOpen]);
 
   const handleTogglePreference = async (key: keyof NotificationPreferences) => {
+    if (!prefsReady || updatingPref) return;
+    setActionError(null);
     const nextVal = !preferences[key];
     setPreferences((prev) => ({ ...prev, [key]: nextVal }));
     setUpdatingPref(key);
@@ -117,8 +126,9 @@ export function NotificationBell() {
       if (updated) {
         setPreferences(updated);
       }
-    } catch {
+    } catch (err) {
       setPreferences((prev) => ({ ...prev, [key]: !nextVal }));
+      setActionError(getApiErrorMessage(err, t));
     } finally {
       setUpdatingPref(null);
     }
@@ -152,12 +162,17 @@ export function NotificationBell() {
   ];
 
   const handleMarkAllRead = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    setActionError(null);
     try {
       await apiRequest('/notifications/read-all', { method: 'PATCH' });
       setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
       setUnreadCount(0);
-    } catch {
-      // Handle error gracefully
+    } catch (err) {
+      setActionError(getApiErrorMessage(err, t));
+    } finally {
+      setMarkingAll(false);
     }
   };
 
@@ -226,6 +241,8 @@ export function NotificationBell() {
         }}
         className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500"
         aria-label={t('notifications.title')}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? 'notification-panel' : undefined}
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -237,7 +254,7 @@ export function NotificationBell() {
 
       {/* Popover Dropdown */}
       {isOpen && (
-        <div className="fixed left-4 right-4 top-20 max-h-[75dvh] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50">
+        <div id="notification-panel" role="region" aria-label={t('notifications.title')} className="fixed left-4 right-4 top-20 max-h-[75dvh] overflow-y-auto sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50">
           {/* Panel Header */}
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             {showSettings ? (
@@ -271,10 +288,12 @@ export function NotificationBell() {
               {!showSettings && unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}
+                  disabled={markingAll}
+                  aria-busy={markingAll}
                   className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-800 font-medium hover:underline cursor-pointer"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  {t('notifications.markAllAsRead')}
+                  {t(markingAll ? 'common.loading' : 'notifications.markAllAsRead')}
                 </button>
               )}
               <button
@@ -296,6 +315,7 @@ export function NotificationBell() {
             </div>
           </div>
 
+          {actionError && <p role="alert" className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{actionError}</p>}
           {/* Panel Content */}
           {showSettings ? (
             <div className="p-4 space-y-3 max-h-[380px] overflow-y-auto">
@@ -312,6 +332,8 @@ export function NotificationBell() {
                 <div className="py-8 flex items-center justify-center text-slate-400">
                   <Loader2 className="w-5 h-5 animate-spin" />
                 </div>
+              ) : prefsError ? (
+                <div role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><p>{prefsError}</p><button onClick={fetchPreferences} className="mt-2 min-h-11 font-semibold underline">{t('common.refresh')}</button></div>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {PREFERENCE_CATEGORIES.map((cat) => {
@@ -333,7 +355,8 @@ export function NotificationBell() {
                           type="button"
                           role="switch"
                           aria-checked={isEnabled}
-                          disabled={updatingPref === cat.key}
+                          aria-label={t(cat.labelKey)}
+                          disabled={!prefsReady || updatingPref !== null}
                           onClick={() => handleTogglePreference(cat.key)}
                           className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 ${
                             isEnabled ? 'bg-sky-600' : 'bg-slate-300'

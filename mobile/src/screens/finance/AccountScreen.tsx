@@ -1,3 +1,5 @@
+import { LoadError } from '../../components/common/LoadError';
+import { getApiErrorMessage } from '../../api/client';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -6,8 +8,8 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,7 +37,7 @@ export const AccountScreen: React.FC = () => {
   const { user } = useAuth();
 
   const [accounts, setAccounts] = useState<PersonalAccountData[]>([]);
-  const [selectedAccountIndex, setSelectedAccountIndex] = useState(0);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'charges' | 'payments'>('charges');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -46,8 +48,9 @@ export const AccountScreen: React.FC = () => {
       setError(null);
       const data = await financeApi.getMyAccounts();
       setAccounts(data);
+      setSelectedAccountId((previous) => data.some((account) => account.id === previous) ? previous : data[0]?.id || null);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || t('finance.loadError'));
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -59,21 +62,19 @@ export const AccountScreen: React.FC = () => {
   }, [loadAccounts]);
 
   const onRefresh = () => {
+    if (refreshing) return;
     setRefreshing(true);
     loadAccounts();
   };
 
-  if (loading) {
-    return <LoadingState message={t('common.loading')} />;
-  }
 
-  const currentAccount = accounts[selectedAccountIndex] || null;
+  const currentAccount = accounts.find((account) => account.id === selectedAccountId) || accounts[0] || null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           accessibilityLabel={t('common.back', 'Назад')}
@@ -84,19 +85,20 @@ export const AccountScreen: React.FC = () => {
         <View style={styles.headerRightPlaceholder} />
       </View>
 
-      <ScrollView
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {error ? (
+        {error && currentAccount && <LoadError onRetry={onRefresh} retrying={refreshing} />}
+        {loading ? <LoadingState message={t('common.loading')} /> : error && !currentAccount ? (
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIconCircle, { backgroundColor: '#FEE2E2' }]}>
               <AlertCircle color={Colors.danger} size={32} />
             </View>
             <Text style={styles.emptyTitle}>{t('common.error')}</Text>
             <Text style={styles.emptyDesc}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadAccounts}>
+            <TouchableOpacity style={styles.retryButton} onPress={onRefresh} disabled={refreshing} accessibilityRole="button" accessibilityState={{ busy: refreshing }}>
               <Text style={styles.retryButtonText}>{t('common.refresh')}</Text>
             </TouchableOpacity>
           </View>
@@ -113,14 +115,14 @@ export const AccountScreen: React.FC = () => {
           <>
             {/* Account Selector if multiple units owned */}
             {accounts.length > 1 && (
-              <ScrollView
+              <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.accountSelector}
                 contentContainerStyle={styles.accountSelectorContent}
               >
-                {accounts.map((acc, index) => {
-                  const isSelected = index === selectedAccountIndex;
+                {accounts.map((acc) => {
+                  const isSelected = acc.id === currentAccount.id;
                   return (
                     <TouchableOpacity
                       key={acc.id}
@@ -128,7 +130,8 @@ export const AccountScreen: React.FC = () => {
                         styles.accountPill,
                         isSelected && styles.accountPillSelected,
                       ]}
-                      onPress={() => setSelectedAccountIndex(index)}
+                      onPress={() => setSelectedAccountId(acc.id)}
+                      accessibilityRole="tab" aria-selected={isSelected} accessibilityState={{ selected: isSelected }}
                     >
                       <Home
                         color={isSelected ? '#FFFFFF' : Colors.textMuted}
@@ -140,7 +143,7 @@ export const AccountScreen: React.FC = () => {
                           isSelected && styles.accountPillTextSelected,
                         ]}
                       >
-                        {t('common.unitShort')} {acc.unit.unitNumber}
+                        {acc.unit.building.blockName} · {t('common.unitShort')} {acc.unit.unitNumber}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -201,9 +204,9 @@ export const AccountScreen: React.FC = () => {
                   ]}
                 >
                   {currentAccount.balance < 0
-                    ? `-${Math.abs(currentAccount.balance).toLocaleString()} ₸`
+                    ? `-${Math.abs(currentAccount.balance).toLocaleString(i18n.language)} ₸`
                     : currentAccount.balance > 0
-                    ? `+${currentAccount.balance.toLocaleString()} ₸`
+                    ? `+${currentAccount.balance.toLocaleString(i18n.language)} ₸`
                     : '0 ₸'}
                 </Text>
               </View>
@@ -262,6 +265,7 @@ export const AccountScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.tabButton, activeTab === 'charges' && styles.tabButtonActive]}
                 onPress={() => setActiveTab('charges')}
+                accessibilityRole="tab" aria-selected={activeTab === 'charges'} accessibilityState={{ selected: activeTab === 'charges' }}
               >
                 <Calendar
                   color={activeTab === 'charges' ? Colors.primary : Colors.textMuted}
@@ -280,6 +284,7 @@ export const AccountScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.tabButton, activeTab === 'payments' && styles.tabButtonActive]}
                 onPress={() => setActiveTab('payments')}
+                accessibilityRole="tab" aria-selected={activeTab === 'payments'} accessibilityState={{ selected: activeTab === 'payments' }}
               >
                 <Coins
                   color={activeTab === 'payments' ? Colors.primary : Colors.textMuted}
@@ -321,7 +326,7 @@ export const AccountScreen: React.FC = () => {
                         </Text>
                       </View>
                       <Text style={styles.itemChargeAmount}>
-                        {charge.amount.toLocaleString()} ₸
+                        {charge.amount.toLocaleString(i18n.language)} ₸
                       </Text>
                     </View>
                   ))
@@ -354,7 +359,7 @@ export const AccountScreen: React.FC = () => {
                         </Text>
                       </View>
                       <Text style={styles.itemPaymentAmount}>
-                        +{payment.amount.toLocaleString()} ₸
+                        +{payment.amount.toLocaleString(i18n.language)} ₸
                       </Text>
                     </View>
                   ))
@@ -384,6 +389,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E8F0',
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 6,
     marginLeft: -6,
   },
@@ -409,6 +418,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   accountPill: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -432,8 +442,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   balanceCard: {
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     marginBottom: 16,
@@ -448,8 +458,8 @@ const styles = StyleSheet.create({
     borderColor: '#FECDD3',
   },
   balanceCardCredit: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: Colors.primaryBg,
+    borderColor: Colors.primaryLight,
   },
   balanceCardZero: {
     backgroundColor: '#FFFFFF',
@@ -495,7 +505,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   balanceAmountText: {
-    fontSize: 30,
+    fontSize: 36,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
@@ -536,6 +546,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tabButton: {
+    minHeight: 48,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -553,6 +564,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   tabButtonText: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: 13,
     fontWeight: '600',
     color: '#64748B',

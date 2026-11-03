@@ -1,18 +1,21 @@
+import { ScreenHero } from '../../components/common/ScreenHero';
+import { LoadError } from '../../components/common/LoadError';
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { VotingsApi, MeetingItem } from '../../api/votings';
 import { Card } from '../../components/common/Card';
+import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { LoadingState } from '../../components/common/LoadingState';
 import { Colors } from '../../constants/colors';
@@ -27,18 +30,22 @@ export const VotingsListScreen: React.FC = () => {
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'COMPLETED'>('ALL');
 
   const fetchMeetings = async () => {
     if (!tenantId) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
     try {
       const data = await VotingsApi.getMeetings(tenantId);
       setMeetings(data);
+      setLoadFailed(false);
     } catch (e) {
+      setLoadFailed(true);
       console.warn('Failed to load meetings:', e);
     } finally {
       setLoading(false);
@@ -51,6 +58,7 @@ export const VotingsListScreen: React.FC = () => {
   }, [tenantId]);
 
   const onRefresh = () => {
+    if (refreshing) return;
     setRefreshing(true);
     fetchMeetings();
   };
@@ -61,40 +69,35 @@ export const VotingsListScreen: React.FC = () => {
     return true;
   });
 
-  if (loading) {
-    return <LoadingState message={t('votings.loadingMeetings')} />;
-  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('votings.title')}</Text>
-        <Text style={styles.subtitle}>
-          {t('votings.subtitle')}
-        </Text>
-      </View>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
+      <ScreenHero title={t('votings.title')} subtitle={t('votings.subtitle')} style={{ marginHorizontal: 16, marginTop: 16 }} />
 
       {/* Filter Tabs */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
           style={[styles.tab, filter === 'ALL' && styles.tabActive]}
           onPress={() => setFilter('ALL')}
+          accessibilityRole="tab" aria-selected={filter === 'ALL'} accessibilityState={{ selected: filter === 'ALL' }}
         >
           <Text style={[styles.tabText, filter === 'ALL' && styles.tabTextActive]}>
-            {t('votings.tabAll', { count: meetings.length })}
+            {loading || (loadFailed && !meetings.length) ? '—' : t('votings.tabAll', { count: meetings.length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, filter === 'ACTIVE' && styles.tabActive]}
           onPress={() => setFilter('ACTIVE')}
+          accessibilityRole="tab" aria-selected={filter === 'ACTIVE'} accessibilityState={{ selected: filter === 'ACTIVE' }}
         >
           <Text style={[styles.tabText, filter === 'ACTIVE' && styles.tabTextActive]}>
-            {t('votings.tabActive', { count: meetings.filter((m) => m.status === 'ACTIVE').length })}
+            {loading || (loadFailed && !meetings.length) ? '—' : t('votings.tabActive', { count: meetings.filter((m) => m.status === 'ACTIVE').length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, filter === 'COMPLETED' && styles.tabActive]}
           onPress={() => setFilter('COMPLETED')}
+          accessibilityRole="tab" aria-selected={filter === 'COMPLETED'} accessibilityState={{ selected: filter === 'COMPLETED' }}
         >
           <Text style={[styles.tabText, filter === 'COMPLETED' && styles.tabTextActive]}>
             {t('votings.tabCompleted')}
@@ -103,6 +106,7 @@ export const VotingsListScreen: React.FC = () => {
       </View>
 
       <FlatList
+        ListHeaderComponent={loadFailed ? <LoadError onRetry={onRefresh} retrying={refreshing} /> : undefined}
         data={filteredMeetings}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
@@ -113,13 +117,14 @@ export const VotingsListScreen: React.FC = () => {
             colors={[Colors.primary]}
           />
         }
-        ListEmptyComponent={
+        ListEmptyComponent={loading ? <LoadingState message={t('votings.loadingMeetings')} /> : loadFailed ? undefined :
           <View style={styles.emptyContainer}>
             <Vote color={Colors.textLight} size={48} />
-            <Text style={styles.emptyTitle}>{t('votings.emptyMeetingsTitle')}</Text>
+            <Text style={styles.emptyTitle}>{t(meetings.length ? 'common.noMatches' : 'votings.emptyMeetingsTitle')}</Text>
             <Text style={styles.emptySubtitle}>
-              {t('votings.emptyMeetingsSubtitle')}
+              {t(meetings.length ? 'common.changeFilters' : 'votings.emptyMeetingsSubtitle')}
             </Text>
+            {meetings.length > 0 && <Button title={t('common.resetFilters')} onPress={() => setFilter('ALL')} variant="outline" style={{ marginTop: 16 }} />}
           </View>
         }
         renderItem={({ item }) => {
@@ -131,7 +136,7 @@ export const VotingsListScreen: React.FC = () => {
             >
               <View style={styles.cardHeader}>
                 <Badge
-                  label={isActive ? t('votings.votingStatusActive') : t('votings.votingStatusCompleted')}
+                  label={t(`votings.votingStatus${{ ACTIVE: 'Active', COMPLETED: 'Completed', CANCELLED: 'Cancelled', DRAFT: 'Draft' }[item.status]}`)}
                   variant={isActive ? 'success' : 'default'}
                 />
                 <Text style={styles.dateText}>
@@ -152,7 +157,7 @@ export const VotingsListScreen: React.FC = () => {
                   <View
                     style={[
                       styles.quorumFill,
-                      { width: `${Math.min(item.quorumPercent || 0, 100)}%` },
+                      { width: `${Math.max(0, Math.min(Number.isFinite(item.quorumPercent) ? item.quorumPercent : 0, 100))}%` },
                       item.isQuorumReached && styles.quorumReached,
                     ]}
                   />
@@ -189,30 +194,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginTop: 4,
-    lineHeight: 18,
-  },
   tabsRow: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginTop: 10,
+    marginTop: 0,
     marginBottom: 10,
     gap: 8,
   },
   tab: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
@@ -237,10 +229,13 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   meetingCard: {
+    borderRadius: 22,
     marginBottom: 12,
   },
   cardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
@@ -283,6 +278,8 @@ const styles = StyleSheet.create({
   },
   quorumMeta: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
@@ -303,6 +300,8 @@ const styles = StyleSheet.create({
   },
   cardFooter: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 8,

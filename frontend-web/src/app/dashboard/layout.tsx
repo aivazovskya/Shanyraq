@@ -148,9 +148,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const visibleNavigation = navigation.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
   const activeItem = visibleNavigation.find((item) => item.href === '/dashboard' ? pathname === item.href : pathname.startsWith(item.href));
   const sidebar = (
-    <div className="flex h-full flex-col bg-slate-950 text-white">
+    <div className="flex h-full flex-col bg-[#102a2b] text-white">
       <div className="flex min-h-20 items-center gap-3 border-b border-white/10 px-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-500"><Building2 className="h-6 w-6" aria-hidden="true" /></div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-600 shadow-lg shadow-black/10"><Building2 className="h-6 w-6" aria-hidden="true" /></div>
         <div className="min-w-0 flex-1"><p className="text-lg font-bold tracking-tight">Shanyraq</p><p className="truncate text-xs text-slate-400" title={user?.tenantName || undefined}>{user?.tenantName || t('dashboard.defaultComplex')}</p></div>
         <button onClick={() => setMenuOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 lg:hidden" aria-label={t('shell.closeMenu')}><X size={20} /></button>
       </div>
@@ -158,11 +158,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {groups.map((group) => {
           const items = group.paths.map((path) => visibleNavigation.find((item) => item.href === (path === 'dashboard' ? '/dashboard' : `/dashboard/${path}`))).filter((item): item is typeof navigation[number] => Boolean(item));
           if (!items.length) return null;
-          return <div key={group.key}><p className="mb-2 px-3 text-xs font-semibold tracking-wide text-slate-500">{t(`shell.${group.key}`)}</p><div className="space-y-1">{items.map((item) => {
+          return <div key={group.key}><p className="mb-2 px-3 text-xs font-semibold tracking-wide text-slate-400">{t(`shell.${group.key}`)}</p><div className="space-y-1">{items.map((item) => {
             const Icon = item.icon;
             const active = item === activeItem;
             return <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)} aria-current={active ? 'page' : undefined}
-              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${active ? 'bg-sky-500/15 font-semibold text-sky-300 ring-1 ring-inset ring-sky-400/20' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${active ? 'bg-sky-400/15 font-semibold text-sky-200 ring-1 ring-inset ring-sky-300/20' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
               <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" /><span>{item.name}</span>
             </Link>;
           })}</div></div>;
@@ -177,13 +177,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="min-h-dvh bg-slate-50 lg:pl-[264px]">
+    <div className="workspace min-h-dvh lg:pl-[264px]">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:p-3 focus:text-slate-900">{t('shell.skipContent')}</a>
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] lg:block">{sidebar}</aside>
       <dialog ref={menuDialog} aria-label={t('shell.navigation')} onCancel={() => setMenuOpen(false)} onClose={() => setMenuOpen(false)}
         onClick={(event) => { if (event.target === event.currentTarget) setMenuOpen(false); }}
         className="m-0 h-dvh max-h-none w-[min(320px,88vw)] max-w-none border-0 bg-slate-950 p-0 backdrop:bg-slate-950/50 lg:hidden">{sidebar}</dialog>
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3">
           <button ref={menuButton} onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-label={t('shell.openMenu')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden"><Menu size={21} /></button>
           <div className="min-w-0 flex-1"><p className="truncate text-xs text-slate-500">{user?.tenantName || t('dashboard.defaultComplex')}</p><p className="truncate text-sm font-semibold text-slate-900">{activeItem?.name || t('navigation.dashboard')}</p></div>
@@ -197,7 +197,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1664px] min-w-0 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main id="main-content" tabIndex={-1} className="workspace-content mx-auto max-w-[1664px] min-w-0 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">{children}</main>
     </div>
   );
 }

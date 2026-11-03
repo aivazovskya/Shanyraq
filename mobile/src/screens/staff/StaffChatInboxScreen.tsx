@@ -1,3 +1,4 @@
+import { Button } from '../../components/common/Button';
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -7,10 +8,10 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  SafeAreaView,
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -207,7 +208,7 @@ export const StaffChatInboxScreen: React.FC = () => {
 
     return (
       <TouchableOpacity
-        style={[styles.conversationRow, unreadCount > 0 && styles.conversationRowUnread]}
+        accessibilityRole="button" style={[styles.conversationRow, unreadCount > 0 && styles.conversationRowUnread]}
         onPress={handlePress}
         activeOpacity={0.7}
       >
@@ -244,7 +245,7 @@ export const StaffChatInboxScreen: React.FC = () => {
             {lastMsg?.text && (
               <Text
                 style={[styles.previewText, unreadCount > 0 && styles.previewTextUnread]}
-                numberOfLines={1}
+                numberOfLines={2}
               >
                 {lastMsg.text}
               </Text>
@@ -267,15 +268,15 @@ export const StaffChatInboxScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleGroup}>
           <View style={styles.headerIconCircle}>
             <MessageSquare size={20} color={Colors.primary} />
           </View>
-          <View>
-            <Text style={styles.headerTitle}>{t('staff.chat.inboxTitle')}</Text>
+          <View style={{ flex: 1 }}>
+            <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.chat.inboxTitle')}</Text>
             <Text style={styles.headerSubtitle}>
               {user?.tenant?.name || t('staff.chat.inboxSubtitle')}
             </Text>
@@ -284,7 +285,7 @@ export const StaffChatInboxScreen: React.FC = () => {
 
         <TouchableOpacity
           onPress={() => loadConversations(false)}
-          disabled={refreshing}
+          accessibilityRole="button" accessibilityLabel={t('common.retry')} disabled={refreshing || loading}
           style={styles.refreshBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -299,7 +300,7 @@ export const StaffChatInboxScreen: React.FC = () => {
       <View style={styles.searchContainer}>
         <Search size={16} color={Colors.textMuted} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          accessibilityLabel={t('staff.chat.searchPlaceholder')} style={styles.searchInput}
           placeholder={t('staff.chat.searchPlaceholder')}
           placeholderTextColor={Colors.textLight}
           value={searchQuery}
@@ -310,7 +311,7 @@ export const StaffChatInboxScreen: React.FC = () => {
 
       {/* Filter Tabs */}
       <View style={styles.filterSection}>
-        <ScrollView
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
@@ -331,7 +332,7 @@ export const StaffChatInboxScreen: React.FC = () => {
                   setSelectedFilter(opt.key);
                   loadConversations(false, opt.key);
                 }}
-                activeOpacity={0.8}
+                accessibilityRole="tab" accessibilityState={{ selected: isActive }} activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                   {opt.label}
@@ -355,8 +356,10 @@ export const StaffChatInboxScreen: React.FC = () => {
       ) : filteredConversations.length === 0 ? (
         <View style={styles.centerContainer}>
           <MessageSquare size={48} color={Colors.border} style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>{t('staff.chat.noConversations')}</Text>
-          <Text style={styles.emptySubtitle}>{t('staff.chat.noConversationsSub')}</Text>
+          {!errorMsg && <Text style={styles.emptyTitle}>{t(searchQuery.trim() ? 'common.noMatches' : 'staff.chat.noConversations')}</Text>}
+          {!errorMsg && <Text style={styles.emptySubtitle}>{t(searchQuery.trim() ? 'common.changeFilters' : 'staff.chat.noConversationsSub')}</Text>}
+          {(searchQuery.trim() || selectedFilter !== 'ALL') && !errorMsg && <Button title={t('common.resetFilters')} variant="outline" style={{ marginTop: 16 }} onPress={() => { setSearchQuery(''); setSelectedFilter('ALL'); loadConversations(false, 'ALL'); }} />}
+          {!!errorMsg && <Button title={t('common.retry')} style={{ marginTop: 16 }} onPress={() => loadConversations(false)} />}
         </View>
       ) : (
         <FlatList
@@ -387,11 +390,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingTop: 18,
+    paddingBottom: 18,
+    margin: 16,
+    marginBottom: 0,
+    borderRadius: 24,
+    backgroundColor: Colors.primaryBg,
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
   },
   headerTitleGroup: {
     flexDirection: 'row',
@@ -408,7 +414,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: '700',
     color: Colors.text,
   },
@@ -417,20 +424,23 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   refreshBtn: {
-    padding: 8,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
     paddingHorizontal: 12,
-    height: 40,
+    height: 48,
   },
   searchIcon: {
     marginRight: 8,
@@ -449,6 +459,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
@@ -507,14 +519,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.surface,
     padding: 14,
-    borderRadius: 12,
-    marginBottom: 8,
+    borderRadius: 24,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   conversationRowUnread: {
     borderColor: Colors.primary,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: Colors.primaryBg,
   },
   avatarCircle: {
     width: 44,
@@ -530,21 +542,25 @@ const styles = StyleSheet.create({
   },
   conversationInfo: {
     flex: 1,
+    minWidth: 0,
   },
   nameTimeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
+    gap: 6,
+    alignItems: 'flex-start',
     marginBottom: 2,
   },
   nameWithBadge: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    flex: 1,
+    width: '100%',
     gap: 6,
     marginRight: 8,
   },
   residentName: {
+    flexShrink: 1,
+    maxWidth: '100%',
     fontSize: 15,
     fontWeight: '600',
     color: Colors.text,

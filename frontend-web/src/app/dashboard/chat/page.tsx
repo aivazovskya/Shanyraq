@@ -1,5 +1,7 @@
 'use client';
 
+import { ImagePreview } from '@/components/ImagePreview';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import '@/i18n';
@@ -18,6 +20,7 @@ import {
   CheckCheck,
   Download,
   AlertCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import { apiRequest, apiDownload, getStoredSession, AuthUser } from '@/lib/api';
 import { createRealtimeSocket } from '@/lib/socket';
@@ -93,9 +96,18 @@ export default function DispatcherChatPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [showPhotoInput, setShowPhotoInput] = useState(false);
+  const activeConversation = useRef(selectedConversationId);
+  activeConversation.current = selectedConversationId;
+  const drafts = useRef(new Map<string, { text: string; photo: string }>());
+  const updateDraft = (text: string, photo: string) => {
+    if (selectedConversationId) drafts.current.set(selectedConversationId, { text, photo });
+    setReplyText(text);
+    setPhotoUrl(photo);
+  };
   const [sending, setSending] = useState(false);
   const [resolving, setResolving] = useState(false);
 
@@ -131,7 +143,7 @@ export default function DispatcherChatPage() {
       );
     } catch (err: any) {
       console.error('Failed to resolve conversation:', err);
-      alert(err.message || t('chat.resolveError'));
+      setErrorMsg(err.message || t('chat.resolveError'));
     } finally {
       setResolving(false);
     }
@@ -148,7 +160,6 @@ export default function DispatcherChatPage() {
       );
     } catch (err: any) {
       setExportError(err.message || t('chat.exportError'));
-      setTimeout(() => setExportError(null), 5000);
     } finally {
       setExportingCsv(false);
     }
@@ -185,6 +196,7 @@ export default function DispatcherChatPage() {
       }
     } catch (err: any) {
       console.error('Failed to load tenants:', err);
+      setErrorMsg(err.message || t('chat.loadError'));
     } finally {
       setLoadingTenants(false);
     }
@@ -231,11 +243,13 @@ export default function DispatcherChatPage() {
     async (convId: string, isSilent = false) => {
       if (!convId) return;
       if (!isSilent) setLoadingMessages(true);
+      setMessageError(null);
 
       try {
         const data = await apiRequest<{ messages: ChatMessageItem[] }>(
           `/chat/conversations/${convId}/messages`,
         );
+        if (activeConversation.current !== convId) return;
         setMessages(data.messages || []);
 
         // Also update unread count locally in conversations list
@@ -244,8 +258,9 @@ export default function DispatcherChatPage() {
         );
       } catch (err: any) {
         console.error('Failed to load messages:', err);
+        if (activeConversation.current === convId) setMessageError(err.message || t('chat.loadError'));
       } finally {
-        setLoadingMessages(false);
+        if (activeConversation.current === convId) setLoadingMessages(false);
       }
     },
     [],
@@ -253,6 +268,11 @@ export default function DispatcherChatPage() {
 
   useEffect(() => {
     if (selectedConversationId) {
+      setMessages([]);
+      const draft = drafts.current.get(selectedConversationId);
+      setReplyText(draft?.text || '');
+      setPhotoUrl(draft?.photo || '');
+      setShowPhotoInput(Boolean(draft?.photo));
       loadMessages(selectedConversationId);
     } else {
       setMessages([]);
@@ -392,6 +412,7 @@ export default function DispatcherChatPage() {
     if (!selectedConversationId || (!textToSend && !photoToSend) || sending) return;
 
     setSending(true);
+    const conversationId = selectedConversationId;
     try {
       const newMsg = await apiRequest<ChatMessageItem>(
         `/chat/conversations/${selectedConversationId}/messages`,
@@ -404,10 +425,17 @@ export default function DispatcherChatPage() {
         },
       );
 
-      setMessages((prev) => [...prev, newMsg]);
-      setReplyText('');
-      setPhotoUrl('');
-      setShowPhotoInput(false);
+      const draft = drafts.current.get(conversationId);
+      const draftUnchanged = !draft || (draft.text.trim() === textToSend && draft.photo.trim() === photoToSend);
+      if (draftUnchanged) drafts.current.delete(conversationId);
+      if (activeConversation.current === conversationId) {
+        setMessages((prev) => prev.some((message) => message.id === newMsg.id) ? prev : [...prev, newMsg]);
+        if (draftUnchanged) {
+          setReplyText('');
+          setPhotoUrl('');
+          setShowPhotoInput(false);
+        }
+      }
 
       // Refresh conversations list to update last message preview
       if (tenantId) {
@@ -415,7 +443,7 @@ export default function DispatcherChatPage() {
       }
     } catch (err: any) {
       console.error('Failed to send message:', err);
-      alert(err.message || t('chat.sendError'));
+      setErrorMsg(err.message || t('chat.sendError'));
     } finally {
       setSending(false);
     }
@@ -456,11 +484,11 @@ export default function DispatcherChatPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-5rem)] flex flex-col">
+    <div className="h-[calc(100dvh-13rem)] min-h-[480px] lg:h-[calc(100dvh-9rem)] flex flex-col">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
+          <h1 className="page-title text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <MessageSquare className="w-6 h-6 text-sky-600" />
             <span>{t('chat.pageTitle')}</span>
           </h1>
@@ -501,10 +529,15 @@ export default function DispatcherChatPage() {
         </div>
       </div>
 
+      {errorMsg && <div role="alert" className="mt-3 flex shrink-0 items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p className="min-w-0 flex-1 break-words">{errorMsg}</p>
+        <button onClick={() => setErrorMsg(null)} aria-label={t('requestUi.close')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-rose-100"><X size={16} /></button>
+      </div>}
       {/* Main Two-Column Inbox Container */}
       <div className="flex-1 min-h-0 pt-4 flex gap-4">
         {/* Left Column: Conversation List */}
-        <div className="w-80 md:w-96 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden shrink-0">
+        <div className={`surface-card w-full md:w-72 xl:w-96 flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden shrink-0 ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
           {/* Search bar & Status Filter */}
           <div className="p-3 border-b border-slate-100">
             <div className="relative">
@@ -649,12 +682,17 @@ export default function DispatcherChatPage() {
         </div>
 
         {/* Right Column: Selected Thread */}
-        <div className="flex-1 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className={`surface-card min-w-0 flex-1 flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden ${selectedConversationId ? 'flex' : 'hidden md:flex'}`}>
           {selectedConv ? (
             <>
               {/* Thread Header */}
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 shrink-0">
-                <div className="flex items-center gap-3">
+              <div className="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50 shrink-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <button type="button" onClick={() => setSelectedConversationId(null)}
+                    aria-label={t('chat.backToInbox')}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 md:hidden">
+                    <ArrowLeft size={20} aria-hidden="true" />
+                  </button>
                   <div className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm">
                     {selectedConv.resident?.firstName?.charAt(0) || 'Ж'}
                   </div>
@@ -664,7 +702,7 @@ export default function DispatcherChatPage() {
                         ? `${selectedConv.resident.firstName} ${selectedConv.resident.lastName}`
                         : t('chat.residentFallback')}
                     </h2>
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       {selectedConv.resident?.phone && (
                         <a
                           href={`tel:${selectedConv.resident.phone}`}
@@ -736,13 +774,17 @@ export default function DispatcherChatPage() {
                 </div>
               </div>
 
+              {messageError && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <span>{messageError}</span>
+                <button onClick={() => selectedConversationId && loadMessages(selectedConversationId)} disabled={loadingMessages} className="min-h-11 font-semibold underline">{t('common.refresh')}</button>
+              </div>}
               {exportError && (
                 <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                     <span>{exportError}</span>
                   </div>
-                  <button onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
+                  <button aria-label={t('common.close')} onClick={() => setExportError(null)} className="text-rose-400 hover:text-rose-600">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -755,7 +797,7 @@ export default function DispatcherChatPage() {
                     <RefreshCw className="w-5 h-5 animate-spin mr-2 text-sky-600" />
                     {t('common.loading')}
                   </div>
-                ) : messages.length === 0 ? (
+                ) : messageError && messages.length === 0 ? null : messages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-8">
                     <MessageSquare className="w-10 h-10 text-slate-300 mb-2" />
                     <p className="text-sm font-medium text-slate-600">{t('chat.noMessages')}</p>
@@ -792,12 +834,13 @@ export default function DispatcherChatPage() {
                           {/* Attached Photo */}
                           {msg.photoUrl && (
                             <div className="mb-2">
+                              <button type="button" onClick={() => setPreviewPhoto(msg.photoUrl)} aria-label={t('common.imagePreview')} className="block max-w-full rounded-xl">
                               <img
                                 src={msg.photoUrl}
-                                alt="Attachment"
-                                onClick={() => setPreviewPhoto(msg.photoUrl)}
+                                alt={t('common.imagePreview')}
                                 className="max-h-60 rounded-xl object-cover cursor-pointer hover:opacity-95 transition-opacity"
                               />
+                              </button>
                             </div>
                           )}
 
@@ -820,13 +863,13 @@ export default function DispatcherChatPage() {
                       type="url"
                       placeholder={t('chat.photoUrlPlaceholder')}
                       value={photoUrl}
-                      onChange={(e) => setPhotoUrl(e.target.value)}
+                      onChange={(e) => updateDraft(replyText, e.target.value)}
                       className="flex-1 bg-transparent text-xs text-slate-800 focus:outline-none"
                     />
                     {photoUrl && (
-                      <button
+                      <button aria-label={t('common.close')}
                         type="button"
-                        onClick={() => setPhotoUrl('')}
+                        onClick={() => updateDraft(replyText, '')}
                         className="text-slate-400 hover:text-slate-600"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -853,14 +896,15 @@ export default function DispatcherChatPage() {
                     rows={2}
                     placeholder={t('chat.replyPlaceholder')}
                     value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
+                    onChange={(e) => updateDraft(e.target.value, photoUrl)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
+                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                         e.preventDefault();
                         handleSendMessage();
                       }
                     }}
-                    className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
+                    aria-label={t('chat.replyPlaceholder')}
+                    className="min-w-0 flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
                   />
 
                   <button
@@ -889,26 +933,7 @@ export default function DispatcherChatPage() {
       </div>
 
       {/* Image Preview Modal */}
-      {previewPhoto && (
-        <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setPreviewPhoto(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] bg-transparent">
-            <button
-              onClick={() => setPreviewPhoto(null)}
-              className="absolute -top-10 right-0 text-white hover:text-slate-300 p-1"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <img
-              src={previewPhoto}
-              alt="Full Preview"
-              className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl"
-            />
-          </div>
-        </div>
-      )}
+      {previewPhoto && <ImagePreview key={previewPhoto} src={previewPhoto} onClose={() => setPreviewPhoto(null)} />}
     </div>
   );
 }

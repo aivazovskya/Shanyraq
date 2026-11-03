@@ -1,14 +1,17 @@
-﻿import React, { useState, useCallback } from 'react';
+import { ScreenHero } from '../../components/common/ScreenHero';
+﻿import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   TouchableOpacity,
   TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -42,6 +45,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
   const [newContent, setNewContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const posting = useRef(false);
 
   const tenantId = user?.tenantId;
   const canPost = user?.role !== 'HOA_CHAIRMAN';
@@ -83,19 +87,22 @@ export const StaffShiftHandoverScreen: React.FC = () => {
 
   const handleCreateNote = async () => {
     const trimmed = newContent.trim();
-    if (!trimmed || !tenantId || submitting) return;
+    if (!trimmed || !tenantId || posting.current) return;
+    posting.current = true;
 
     setSubmitting(true);
     setSubmitError(null);
 
     try {
-      await ShiftHandoverApi.createNote(tenantId, trimmed);
+      const added = await ShiftHandoverApi.createNote(tenantId, trimmed);
+      setNotes((previous) => [added, ...previous.filter((note) => note.id !== added.id)]);
       setNewContent('');
       await fetchNotes(true);
     } catch (err: any) {
       console.warn('Failed to create shift handover note:', err);
       setSubmitError(getApiErrorMessage(err) || t('staff.shiftHandover.postError'));
     } finally {
+      posting.current = false;
       setSubmitting(false);
     }
   };
@@ -171,7 +178,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
   };
 
   const renderEmptyComponent = () => {
-    if (loading) return null;
+    if (loading || fetchError) return null;
     return (
       <View style={styles.emptyContainer}>
         <View style={styles.emptyIconContainer}>
@@ -187,7 +194,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
     <SafeAreaView style={styles.safeArea}>
       {/* Top Navigation Header */}
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           accessibilityLabel={t('common.back')}
@@ -195,10 +202,11 @@ export const StaffShiftHandoverScreen: React.FC = () => {
           <ArrowLeft size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{t('staff.shiftHandover.screenTitle')}</Text>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.shiftHandover.screenTitle')}</Text>
         </View>
         <TouchableOpacity
           style={styles.refreshIconButton}
+          accessibilityRole="button" accessibilityLabel={t('common.retry')}
           onPress={() => fetchNotes(true)}
           disabled={loading || refreshing}
         >
@@ -209,11 +217,13 @@ export const StaffShiftHandoverScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
       {/* Main Content */}
       {loading && !refreshing && notes.length === 0 ? (
         <LoadingState message={t('common.loading')} />
       ) : (
         <FlatList
+          keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
           data={notes}
           keyExtractor={(item) => item.id}
           renderItem={renderNoteItem}
@@ -230,6 +240,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
           }
           ListHeaderComponent={
             <>
+              <ScreenHero title={user?.tenant?.name || t('staff.shiftHandover.screenTitle')} subtitle={t('staff.shiftHandover.cardSubtitle')} />
               {/* Error banner if fetching failed */}
               {fetchError && (
                 <View style={styles.bannerError}>
@@ -259,6 +270,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
                   <TextInput
                     style={styles.composeInput}
                     value={newContent}
+                    accessibilityLabel={t('staff.shiftHandover.cardTitle')}
                     onChangeText={(text) => {
                       setNewContent(text);
                       if (submitError) setSubmitError(null);
@@ -275,7 +287,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
                   {submitError && (
                     <View style={styles.submitErrorContainer}>
                       <AlertCircle size={14} color={Colors.danger} />
-                      <Text style={styles.submitErrorText}>{submitError}</Text>
+                      <Text style={styles.submitErrorText} accessibilityLiveRegion="polite">{submitError}</Text>
                     </View>
                   )}
 
@@ -300,6 +312,7 @@ export const StaffShiftHandoverScreen: React.FC = () => {
           }
         />
       )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -320,6 +333,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
     marginRight: 8,
   },
@@ -327,12 +344,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
     color: Colors.text,
   },
   refreshIconButton: {
-    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listContent: {
     padding: 16,
@@ -367,6 +388,7 @@ const styles = StyleSheet.create({
     color: Colors.danger,
   },
   composeCard: {
+    borderRadius: 24,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,
@@ -413,6 +435,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   composeFooter: {
+    flexWrap: 'wrap',
+    gap: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -423,6 +447,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   noteCard: {
+    borderRadius: 24,
     padding: 14,
     marginBottom: 12,
   },

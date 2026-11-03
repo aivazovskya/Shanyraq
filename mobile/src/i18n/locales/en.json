@@ -1,17 +1,31 @@
 {
   "photos": {
-  "limit": "Up to {{count}} photos, 15 MB each.",
-  "uploading": "Preparing and uploading photo…",
-  "tooLarge": "Choose a photo smaller than 15 MB.",
-  "library": "Choose from library",
-  "failed": "Could not upload the photo. Please retry.",
-  "settings": "Open settings",
-  "cameraPermission": "Allow camera access in settings or choose a photo from your library.",
-  "preview": "Photo {{count}}",
-  "pending": "Photo awaiting upload",
-  "camera": "Take photo"
-},
+    "loadError": "Could not load the photo.",
+    "previous": "Previous photo",
+    "next": "Next photo",
+    "limit": "Up to {{count}} photos, 15 MB each.",
+    "uploading": "Preparing and uploading photo…",
+    "tooLarge": "Choose a photo smaller than 15 MB.",
+    "library": "Choose from library",
+    "failed": "Could not upload the photo. Please retry.",
+    "settings": "Open settings",
+    "cameraPermission": "Allow camera access in settings or choose a photo from your library.",
+    "preview": "Photo {{count}}",
+    "pending": "Photo awaiting upload",
+    "camera": "Take photo"
+  },
   "common": {
+    "noComplex": "No residential complex is linked to your profile. Check your apartment registration.",
+    "unsavedTitle": "Leave without saving?",
+    "unsavedMessage": "Your text and selected photos will be lost.",
+    "keepEditing": "Keep editing",
+    "discardChanges": "Leave without saving",
+    "savingTitle": "Please wait",
+    "savingMessage": "Data is being sent or a photo is being uploaded. You can close this message and wait for the result in the form.",
+    "loadFailed": "Could not refresh data. Check your connection and try again.",
+    "noMatches": "No results found",
+    "changeFilters": "Try choosing another filter.",
+    "resetFilters": "Reset filters",
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
@@ -32,7 +46,10 @@
     "appName": "Shanyraq",
     "all": "All",
     "unitShort": "apt.",
-    "sqm": "m²"
+    "sqm": "m²",
+    "networkUnavailable": "Cannot connect to the server. Check your internet connection and try again.",
+    "requestTimedOut": "The server did not respond in time. Check the result before sending again.",
+    "unexpectedError": "Could not complete the action. Please try again."
   },
   "navigation": {
     "home": "Home",
@@ -91,10 +108,10 @@
     "prefAnnouncementSub": "Management news and alerts",
     "prefFinanceTitle": "Bills & Finance",
     "prefFinanceSub": "Debt reminders and payment invoices",
-    "signatureTitle": "Digital Vote Signature",
-    "signatureSub": "SMS-OTP HMAC-SHA256 vote verification",
-    "pinTitle": "Access PIN Code (ACS)",
-    "pinSub": "2FA protection for opening barriers and gates",
+    "signatureTitle": "Vote confirmation",
+    "signatureSub": "Your meeting vote is confirmed with a code sent by SMS.",
+    "pinTitle": "Access PIN",
+    "pinSub": "For opening entrance doors and vehicle gates.",
     "logoutButton": "Log Out",
     "logoutDialogTitle": "Log Out",
     "logoutDialogMessage": "Are you sure you want to log out? Your session will be revoked.",
@@ -104,6 +121,7 @@
     "appVersion": "App version 1.0.0 (Build 2026)"
   },
   "onboarding": {
+    "invalidShare": "Enter a share between 0.01 and 100%.",
     "pendingTitle": "Request Under Review",
     "pendingSubtitle": "You requested verification for apartment #{{unit}} ({{block}}).",
     "statusLabel": "Status:",
@@ -128,6 +146,15 @@
     "claimSentSuccess": "Apartment link request submitted to management!"
   },
   "access": {
+    "holdHint": "Hold the button until the indicator completes.",
+    "pinLength": "Digits entered: {{count}}",
+    "deleteDigit": "Delete the last digit",
+    "pointsLoadError": "Could not load access points.",
+    "pinStatusError": "Could not check PIN setup. Try loading it again.",
+    "passesLoadError": "Could not load pass history.",
+    "structureLoadError": "Could not load apartments in the complex.",
+    "pointInactive": "Disabled",
+    "noGuestPasses": "No guest passes yet.",
     "title": "Access Control",
     "subtitle": "Barriers, gates, guest passes, and security cameras",
     "unverifiedNotice": "⚠️ Your apartment is being verified by management. Barrier access will be available upon verification.",
@@ -200,10 +227,10 @@
     "pinValidationLength": "PIN code must be exactly 4 or 6 digits",
     "pinValidationSame": "Repeated digits are not allowed (e.g. 0000 or 1111)",
     "pinValidationWeak": "PIN code is too simple. Choose a stronger combination",
-    "pinSetupTitle": "Set Up Access PIN",
-    "pinChangeTitle": "Change Access PIN",
-    "pinForgotTitle": "Reset Forgotten PIN",
-    "pinSetupSubtitle": "PIN code provides 2FA security when opening barriers and entry gates.",
+    "pinSetupTitle": "Create an access PIN",
+    "pinChangeTitle": "Change your PIN",
+    "pinForgotTitle": "Recover your PIN",
+    "pinSetupSubtitle": "Your PIN confirms opening the building’s doors, barriers and vehicle gates.",
     "pinStatusActive": "Access PIN is active. Verification will be required before opening barriers.",
     "pinStatusInactive": "PIN is not set. Set a PIN for secure barrier management.",
     "currentPinLabel": "Current PIN code",
@@ -232,6 +259,10 @@
     "holdToOpenIntercom": "Hold to open door"
   },
   "votings": {
+    "votingStatusDraft": "Draft",
+    "votingStatusCancelled": "Cancelled",
+    "verifiedOwnerRequired": "Voting is available after ownership in this complex is verified.",
+    "selectedChoice": "Your choice: {{choice}}",
     "title": "General Meetings (HOA)",
     "subtitle": "Owners meetings with area-proportional voting weight per Kazakhstan law",
     "tabAll": "All ({{count}})",
@@ -244,14 +275,14 @@
     "votingStatusActive": "Voting in progress",
     "votingStatusCompleted": "Completed",
     "untilDate": "until {{date}}",
-    "quorumMeta": "Quorum: {{current}}% of {{required}}%",
+    "quorumMeta": "Participation: {{current}}%",
     "quorumReached": "Quorum reached",
     "agendaCount": "Agenda questions: {{count}}",
     "navTitle": "General Meeting",
     "periodDates": "Period: from {{start}} to {{end}}",
     "quorumHeader": "Meeting Quorum",
-    "quorumPassedNotice": "✅ Quorum achieved (>50% of owners area). Decisions are legally binding.",
-    "quorumInProgressNotice": "⏳ Collecting quorum. Quorum requires >50% participation by area.",
+    "quorumPassedNotice": "Quorum reached.",
+    "quorumInProgressNotice": "Quorum has not been reached yet.",
     "agendaTitle": "Agenda Items ({{count}})",
     "questionNumber": "Question #{{index}}",
     "qualifiedMajority": "Qualified majority (2/3)",
@@ -260,13 +291,13 @@
     "voteChoiceFor": "FOR",
     "voteChoiceAgainst": "AGAINST",
     "voteChoiceAbstain": "ABSTAIN",
-    "signatureHash": "HMAC-SHA256: {{hash}}...",
+    "signatureHash": "Confirmation: {{hash}}…",
     "voteOnQuestion": "Vote on Question",
     "resultsByArea": "Results by complex area:",
     "resultsFor": "For: {{percent}}% ({{area}} m²)",
     "resultsAgainst": "Against: {{percent}}% ({{area}} m²)",
     "resultsAbstain": "Abstained: {{percent}}% ({{area}} m²)",
-    "modalLegalTitle": "Legal Vote Submission",
+    "modalLegalTitle": "Confirm your vote",
     "step1Title": "Step 1 of 2: Select your vote",
     "step2Title": "Step 2 of 2: Enter SMS code",
     "smsSentNotice": "A 6-digit digital signature code was sent to {{phone}}",
@@ -283,6 +314,7 @@
     "devSmsBody": "Code: {{code}}"
   },
   "requests": {
+    "sendComment": "Send comment",
     "serviceDesk": "Service Desk",
     "subtitle": "Maintenance, plumbing, and facility repair requests",
     "createBtn": "Create",
@@ -422,7 +454,7 @@
     "transparencyCharged": "Charged",
     "transparencyCollectionRate": "Collection Rate",
     "transparencyExpenseCount": "Categories",
-    "transparencyByTariff": "Income by Tariff",
+    "transparencyByTariff": "Charges by tariff",
     "transparencyByTariffSub": "Monthly billed services breakdown",
     "transparencyNoTariffs": "No tariff charges recorded",
     "transparencyByCategory": "Expenses by Category",
@@ -432,6 +464,7 @@
     "transparencySafeNotice": "This report is generated automatically from HOA records. Residents' personal data and apartment numbers are protected and never displayed in the aggregate report."
   },
   "meters": {
+    "validationNumberError": "Enter a number, for example 124.5.",
     "title": "Meter Readings",
     "emptyTitle": "No meters found",
     "emptyDesc": "No meter devices registered for the selected unit yet. Please contact your HOA or property management.",
@@ -469,6 +502,10 @@
     "unitWater": "m³"
   },
   "bookings": {
+    "invalidTime": "Enter a time in HH:MM format, for example 10:30.",
+    "timeOrder": "The end time must be later than the start.",
+    "timePast": "Choose a future time or another day.",
+    "cancelConfirm": "Cancel this booking?",
     "title": "Common Spaces",
     "tabSpaces": "Spaces",
     "tabMy": "My Bookings",
@@ -575,6 +612,7 @@
     "publishAction": "Publish Listing"
   },
   "chat": {
+    "sendButton": "Send message",
     "screenTitle": "Dispatcher Chat",
     "screenSubtitle": "Support Team",
     "inputPlaceholder": "Write a message to dispatcher...",
@@ -591,7 +629,8 @@
     "dispatcherFallback": "Dispatcher",
     "supportTeam": "Support Team",
     "today": "Today",
-    "photoLabel": "Photo"
+    "photoLabel": "Photo",
+    "attachPhoto": "Attach photo"
   },
   "errors": {
     "AUTH": {
@@ -852,6 +891,8 @@
     "logoutDialogMessage": "Are you sure you want to log out?",
     "sosTab": "SOS Alerts",
     "sos": {
+      "incompleteData": "Data may be incomplete.",
+      "noTenant": "No residential complex is assigned in the profile.",
       "title": "Emergency Alerts (SOS)",
       "subtitle": "Real-time monitoring of resident emergency alarms",
       "activeAlerts": "Active Alarms",
@@ -1002,6 +1043,7 @@
     }
   },
   "notifications": {
+    "expandHint": "Tap to expand or collapse the notification text.",
     "title": "Notifications",
     "empty": "No notifications",
     "emptySubtitle": "Important events and updates will appear here",
@@ -1011,6 +1053,40 @@
     "minutesAgo": "{{count}}m ago",
     "hoursAgo": "{{count}}h ago",
     "daysAgo": "{{count}}d ago",
-    "allRead": "All notifications read"
+    "allRead": "All notifications read",
+    "filterUnread": "Unread",
+    "emptyUnread": "No unread notifications",
+    "emptyUnreadSubtitle": "There are no unread messages among the loaded notifications.",
+    "latestItems": "Showing the latest 50 notifications"
+  },
+  "residentUi": {
+    "metersTitle": "Your meters",
+    "metersHint": "Review the latest readings and submit new values with a photo of the meter.",
+    "readingMinimum": "Previous verified value: {{value}}. The new value must be at least this amount.",
+    "spacesTitle": "Space for your plans",
+    "spacesHint": "Choose a space, check occupied slots and select a convenient time.",
+    "boardTitle": "For your neighbours",
+    "boardHint": "Buy, sell and give away items within your community.",
+    "requestTitle": "Tell us what happened",
+    "requestHint": "Describe the problem and where help is needed. Details and photos help the dispatcher.",
+    "listingTitle": "Share with neighbours",
+    "listingHint": "Add a clear description, price and photos. Contact visibility follows your profile settings.",
+    "showDetails": "Show details",
+    "hideDetails": "Show less",
+    "newsTitle": "News from your community",
+    "newsHint": "Management announcements and important updates for residents.",
+    "importantNews": "Important",
+    "sosHistoryTitle": "Your calls",
+    "sosHistoryHint": "Call status and the security team’s response are saved here.",
+    "reportTitle": "Your building’s finances",
+    "reportHint": "Collections, expenses and the balance for the selected month. This report covers the whole building.",
+    "chargedShare": "{{percent}}% of charges",
+    "expenseShare": "{{percent}}% of expenses",
+    "noAgenda": "No agenda items have been published yet.",
+    "balancedBudget": "Collections and expenses are equal.",
+    "claimIntro": "Choose your building",
+    "changeComplex": "Choose another complex",
+    "noUnitsHint": "No units are available in this complex yet. Choose another complex or contact management.",
+    "guestPassHint": "The pass is valid for 12 hours from creation. Enter the guest’s name so security can identify them."
   }
 }

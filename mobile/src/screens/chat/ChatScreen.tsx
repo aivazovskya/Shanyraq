@@ -1,19 +1,21 @@
+import { LoadError } from '../../components/common/LoadError';
+import { PhotoGallery } from '../../components/common/PhotoGallery';
+import { getApiErrorMessage } from '../../api/client';
 import { PhotoAttachments } from '../../components/common/PhotoAttachments';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TextInput,
   TouchableOpacity,
-  Image,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
@@ -29,10 +31,11 @@ import {
   ShieldCheck,
   Building2,
   RefreshCw,
+  Paperclip,
 } from 'lucide-react-native';
 
 export const ChatScreen: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const navigation = useNavigation<any>();
   const { user } = useAuth();
@@ -40,23 +43,37 @@ export const ChatScreen: React.FC = () => {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const actionLock = useRef(false);
   const [sending, setSending] = useState(false);
   const [inputText, setInputText] = useState('');
   const [attachedPhoto, setAttachedPhoto] = useState<string | null>(null);
+  const [attachmentOptionsVisible, setAttachmentOptionsVisible] = useState(false);
   const [unverifiedError, setUnverifiedError] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const conversationRef = useRef<Conversation | null>(null);
+  const loadVersion = useRef(0);
 
   const loadConversation = useCallback(async (isSilent = false) => {
+    const version = ++loadVersion.current;
     if (!isSilent) setLoading(true);
     setUnverifiedError(false);
 
     try {
       const conv = await ChatApi.getMyConversation();
+      if (version !== loadVersion.current) return null;
+      conversationRef.current = conv;
+      socketRef.current?.emit('chat:join', { conversationId: conv.id });
       setConversation(conv);
+      setLoadFailed(false);
       setMessages(conv.messages || []);
       return conv;
     } catch (err: any) {
+      if (version !== loadVersion.current) return null;
+      setLoadFailed(true);
       if (err?.response?.status === 403) {
         setUnverifiedError(true);
       } else if (!isSilent) {
@@ -64,7 +81,7 @@ export const ChatScreen: React.FC = () => {
       }
       return null;
     } finally {
-      if (!isSilent) setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   }, []);
 
@@ -75,7 +92,7 @@ export const ChatScreen: React.FC = () => {
       let active = true;
 
       const initSocket = async () => {
-        const conv = await loadConversation();
+        await loadConversation();
         if (!active) return;
 
         const token = await TokenStorage.getAccessToken();
@@ -87,22 +104,23 @@ export const ChatScreen: React.FC = () => {
           autoConnect: true,
         });
 
+        socketRef.current = socket;
         socket.on('connect', () => {
-          if (conv?.id) {
-            socket?.emit('chat:join', { conversationId: conv.id });
+          if (conversationRef.current?.id) {
+            socket?.emit('chat:join', { conversationId: conversationRef.current.id });
           }
         });
 
         socket.on('reconnect', () => {
-          if (conv?.id) {
-            socket?.emit('chat:join', { conversationId: conv.id });
+          if (conversationRef.current?.id) {
+            socket?.emit('chat:join', { conversationId: conversationRef.current.id });
           }
           // Reconciliation fetch on reconnect
           loadConversation(true);
         });
 
         socket.on('chat:message', (newMsg: ChatMessage) => {
-          if (newMsg) {
+          if (newMsg && newMsg.conversationId === conversationRef.current?.id) {
             setMessages((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
               return [...prev, newMsg];
@@ -118,6 +136,8 @@ export const ChatScreen: React.FC = () => {
 
       return () => {
         active = false;
+        loadVersion.current++;
+        socketRef.current = null;
         if (socket) {
           socket.disconnect();
         }
@@ -129,21 +149,25 @@ export const ChatScreen: React.FC = () => {
   const handleSendMessage = async () => {
     const textToSend = inputText.trim();
     if (!textToSend && !attachedPhoto) return;
-    if (sending || uploadingPhoto) return;
+    if (actionLock.current || uploadingPhoto || !conversation) return;
+    actionLock.current = true;
+    setSendError(null);
 
     setSending(true);
     try {
       const newMsg = await ChatApi.sendMessage(textToSend || undefined, attachedPhoto || undefined);
-      setMessages((prev) => [...prev, newMsg]);
+      setMessages((prev) => prev.some((message) => message.id === newMsg.id) ? prev : [...prev, newMsg]);
       setInputText('');
       setAttachedPhoto(null);
+      setAttachmentOptionsVisible(false);
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (err: any) {
-      Alert.alert(t('common.error'), err?.response?.data?.message || t('chat.sendError'));
+      setSendError(getApiErrorMessage(err));
     } finally {
+      actionLock.current = false;
       setSending(false);
     }
   };
@@ -151,7 +175,7 @@ export const ChatScreen: React.FC = () => {
   const formatMessageTime = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
     } catch {
       return '';
     }
@@ -176,11 +200,7 @@ export const ChatScreen: React.FC = () => {
           )}
 
           {item.photoUrl && (
-            <Image
-              source={{ uri: item.photoUrl }}
-              style={styles.messageImage}
-              resizeMode="cover"
-            />
+            <PhotoGallery images={[item.photoUrl]} variant="message" />
           )}
 
           {item.text ? (
@@ -201,7 +221,7 @@ export const ChatScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} style={styles.backBtn} onPress={() => navigation.goBack()}>
           <ArrowLeft color={Colors.text} size={24} />
         </TouchableOpacity>
 
@@ -210,11 +230,12 @@ export const ChatScreen: React.FC = () => {
           <Text style={styles.headerSub}>{t('chat.screenSubtitle')}</Text>
         </View>
 
-        <TouchableOpacity style={styles.refreshBtn} onPress={() => loadConversation()}>
+        <TouchableOpacity style={styles.refreshBtn} onPress={() => loadConversation()} disabled={loading || sending} accessibilityRole="button" accessibilityLabel={t('common.retry')}>
           <RefreshCw color={Colors.textMuted} size={20} />
         </TouchableOpacity>
       </View>
 
+      {loadFailed && !unverifiedError && <LoadError onRetry={() => loadConversation()} retrying={loading} />}
       {/* Main Content Area */}
       {loading ? (
         <View style={styles.centerContainer}>
@@ -233,7 +254,7 @@ export const ChatScreen: React.FC = () => {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          {messages.length === 0 ? (
+          {loadFailed && messages.length === 0 ? <View style={{ flex: 1 }} /> : messages.length === 0 ? (
             <View style={styles.emptyMessagesContainer}>
               <View style={styles.emptyIconCircle}>
                 <MessageSquare color={Colors.primary} size={32} />
@@ -252,17 +273,25 @@ export const ChatScreen: React.FC = () => {
             />
           )}
 
-          <PhotoAttachments value={attachedPhoto ? [attachedPhoto] : []}
+          {sendError && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, padding: 12 }}>{sendError}</Text>}
+          <View style={[styles.attachments, !attachmentOptionsVisible && !attachedPhoto && styles.attachmentsHidden]}><PhotoAttachments value={attachedPhoto ? [attachedPhoto] : []}
             onChange={(urls) => setAttachedPhoto(urls[0] || null)} onBusyChange={setUploadingPhoto}
-            disabled={sending} maxPhotos={1} />
+            disabled={sending || !conversation} maxPhotos={1} /></View>
           {/* Input Row */}
           <View style={styles.inputContainer}>
-
+            <TouchableOpacity style={[styles.attachBtn, attachmentOptionsVisible && styles.attachBtnActive]}
+              onPress={() => setAttachmentOptionsVisible(previous => !previous)} disabled={sending || uploadingPhoto || !conversation}
+              accessibilityRole="button" accessibilityLabel={t('chat.attachPhoto')} aria-expanded={attachmentOptionsVisible}
+              accessibilityState={{ expanded: attachmentOptionsVisible, disabled: sending || uploadingPhoto || !conversation }}>
+              <Paperclip size={21} color={Colors.primary} />
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
               placeholder={t('chat.inputPlaceholder')}
               placeholderTextColor={Colors.textLight}
               value={inputText}
+              editable={!sending}
+              accessibilityLabel={t('chat.inputPlaceholder')}
               onChangeText={setInputText}
               multiline
               maxLength={1000}
@@ -271,10 +300,11 @@ export const ChatScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.sendBtn,
-                (!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto ? styles.sendBtnDisabled : null,
+                (!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto || !conversation ? styles.sendBtnDisabled : null,
               ]}
               onPress={handleSendMessage}
-              disabled={(!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto}
+              disabled={(!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto || !conversation}
+              accessibilityRole="button" accessibilityLabel={t('chat.sendButton')} accessibilityState={{ busy: sending, disabled: (!inputText.trim() && !attachedPhoto) || sending || uploadingPhoto || !conversation }}
             >
               {sending ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -292,7 +322,7 @@ export const ChatScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -304,6 +334,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 4,
     marginRight: 12,
   },
@@ -322,7 +356,12 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   refreshBtn: {
-    padding: 6,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: Colors.primaryBg,
   },
   keyboardView: {
     flex: 1,
@@ -401,7 +440,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#0284C7',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -409,8 +448,8 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '78%',
-    borderRadius: 18,
-    paddingHorizontal: 14,
+    borderRadius: 22,
+    paddingHorizontal: 16,
     paddingVertical: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -431,7 +470,7 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0284C7',
+    color: Colors.primaryDark,
     marginBottom: 4,
   },
   messageImage: {
@@ -495,11 +534,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachBtn: {
-    padding: 8,
-    marginBottom: 2,
+    width: 44,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
   },
+  attachBtnActive: { backgroundColor: Colors.primaryLight },
+  attachments: { paddingHorizontal: 16, paddingTop: 12, backgroundColor: Colors.surface },
+  attachmentsHidden: { display: 'none' },
   input: {
     flex: 1,
+    minHeight: 48,
+    outlineWidth: 0,
     backgroundColor: '#F1F5F9',
     borderRadius: 20,
     paddingHorizontal: 14,
@@ -510,9 +557,9 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',

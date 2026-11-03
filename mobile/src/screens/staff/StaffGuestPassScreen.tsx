@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { LoadError } from '../../components/common/LoadError';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
   FlatList,
   Alert,
   Share,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-native-qrcode-svg';
@@ -55,6 +58,10 @@ export const StaffGuestPassScreen: React.FC = () => {
 
   const [structure, setStructure] = useState<TenantStructureResponse | null>(null);
   const [loadingStructure, setLoadingStructure] = useState(true);
+  const [structureFailed, setStructureFailed] = useState(false);
+  const [passesFailed, setPassesFailed] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const passLock = useRef(false);
   const [selectedUnit, setSelectedUnit] = useState<SelectedUnitInfo | null>(null);
   const [guestName, setGuestName] = useState('');
   const [guestPlate, setGuestPlate] = useState('');
@@ -74,12 +81,13 @@ export const StaffGuestPassScreen: React.FC = () => {
   const isStaff = isStaffUser(user?.role);
 
   const fetchTenantPasses = async () => {
-    if (!user?.tenantId) return;
+    if (!user?.tenantId) { setRefreshing(false); return; }
     try {
       setLoadingPasses(true);
       const data = await AccessApi.getTenantGuestPasses(user.tenantId);
-      setTenantPasses(data);
+      setTenantPasses(data); setPassesFailed(false);
     } catch (err) {
+      setPassesFailed(true);
       console.warn('Failed to load tenant guest passes:', err);
     } finally {
       setLoadingPasses(false);
@@ -87,25 +95,19 @@ export const StaffGuestPassScreen: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchStructure = async () => {
-      if (!user?.tenantId) {
-        setLoadingStructure(false);
-        return;
-      }
-      try {
-        const data = await PropertiesApi.getTenantStructure(user.tenantId);
-        setStructure(data);
-      } catch (err) {
-        console.warn('Failed to load tenant structure:', err);
-      } finally {
-        setLoadingStructure(false);
-      }
-    };
-
-    fetchStructure();
-    fetchTenantPasses();
+  const fetchStructure = useCallback(async () => {
+    if (!user?.tenantId) { setLoadingStructure(false); return; }
+    setLoadingStructure(true);
+    try {
+      const data = await PropertiesApi.getTenantStructure(user.tenantId);
+      setStructure(data); setStructureFailed(false);
+    } catch { setStructureFailed(true); }
+    finally { setLoadingStructure(false); }
   }, [user?.tenantId]);
+  useEffect(() => {
+    void fetchStructure();
+    void fetchTenantPasses();
+  }, [fetchStructure]);
 
   // Flatten units from all buildings
   const allUnits = useMemo<SelectedUnitInfo[]>(() => {
@@ -136,21 +138,25 @@ export const StaffGuestPassScreen: React.FC = () => {
   }, [allUnits, unitSearchQuery]);
 
   const handleSelectUnit = (unit: SelectedUnitInfo) => {
+    setCreateError(null);
     setSelectedUnit(unit);
     setUnitModalVisible(false);
     setUnitSearchQuery('');
   };
 
   const handleCreatePass = async () => {
+    if (passLock.current) return;
     if (!selectedUnit) {
-      Alert.alert(t('common.error'), t('staff.guestPass.selectUnitWarning'));
+      setCreateError(t('staff.guestPass.selectUnitWarning'));
       return;
     }
     if (!guestName.trim()) {
-      Alert.alert(t('common.error'), t('staff.guestPass.enterGuestNameWarning'));
+      setCreateError(t('staff.guestPass.enterGuestNameWarning'));
       return;
     }
 
+    passLock.current = true;
+    setCreateError(null);
     setSubmitting(true);
     try {
       const now = new Date();
@@ -167,13 +173,15 @@ export const StaffGuestPassScreen: React.FC = () => {
       setCreatedPass(pass);
       fetchTenantPasses();
     } catch (e: any) {
-      Alert.alert(t('common.error'), getApiErrorMessage(e));
+      setCreateError(getApiErrorMessage(e));
     } finally {
+      passLock.current = false;
       setSubmitting(false);
     }
   };
 
   const onRefresh = () => {
+    if (refreshing || loadingPasses) return;
     setRefreshing(true);
     fetchTenantPasses();
   };
@@ -188,6 +196,8 @@ export const StaffGuestPassScreen: React.FC = () => {
           text: t('access.revokePassBtn'),
           style: 'destructive',
           onPress: async () => {
+            if (passLock.current) return;
+            passLock.current = true;
             setRevokingPassId(pass.id);
             try {
               await AccessApi.revokeGuestPass(pass.id);
@@ -196,6 +206,7 @@ export const StaffGuestPassScreen: React.FC = () => {
             } catch (err: any) {
               Alert.alert(t('common.error'), getApiErrorMessage(err));
             } finally {
+              passLock.current = false;
               setRevokingPassId(null);
             }
           },
@@ -213,6 +224,8 @@ export const StaffGuestPassScreen: React.FC = () => {
         {
           text: t('access.redeemPassBtn'),
           onPress: async () => {
+            if (passLock.current) return;
+            passLock.current = true;
             setRedeemingPassId(pass.id);
             try {
               await AccessApi.redeemGuestPass(pass.id);
@@ -221,6 +234,7 @@ export const StaffGuestPassScreen: React.FC = () => {
             } catch (err: any) {
               Alert.alert(t('common.error'), getApiErrorMessage(err));
             } finally {
+              passLock.current = false;
               setRedeemingPassId(null);
             }
           },
@@ -262,10 +276,10 @@ export const StaffGuestPassScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} onPress={() => navigation.goBack()} style={styles.backButton}>
             <ArrowLeft size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('staff.guestPass.title')}</Text>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.guestPass.title')}</Text>
         </View>
         <View style={styles.content}>
           <Card style={styles.unauthorizedCard}>
@@ -284,33 +298,32 @@ export const StaffGuestPassScreen: React.FC = () => {
     );
   }
 
-  if (loadingStructure) {
-    return <LoadingState message={t('common.loading')} />;
-  }
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Top Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.back')} onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{t('staff.guestPass.title')}</Text>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{t('staff.guestPass.title')}</Text>
           <Text style={styles.headerSubtitle}>
             {user?.tenant?.name || structure?.tenantName || t('staff.complexInfo')}
           </Text>
         </View>
       </View>
 
-      <ScrollView
+<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {createdPass ? (
+        {structureFailed && <LoadError message={t('access.structureLoadError')} onRetry={fetchStructure} retrying={loadingStructure} />}
+        {loadingStructure ? <LoadingState /> : createdPass ? (
           // ==================== SUCCESS / QR DISPLAY ====================
           <Card style={styles.resultCard}>
             <View style={styles.qrResultContainer}>
@@ -389,6 +402,7 @@ export const StaffGuestPassScreen: React.FC = () => {
             <Text style={styles.sectionLabel}>{t('staff.guestPass.selectUnitStep')}</Text>
             <TouchableOpacity
               onPress={() => setUnitModalVisible(true)}
+              disabled={submitting || !structure} accessibilityRole="button"
               activeOpacity={0.8}
             >
               <Card style={styles.unitSelectorCard}>
@@ -427,14 +441,18 @@ export const StaffGuestPassScreen: React.FC = () => {
                 label={t('access.guestInputLabel')}
                 placeholder={t('access.guestInputPlaceholder')}
                 value={guestName}
-                onChangeText={setGuestName}
+                editable={!submitting}
+                onChangeText={(value) => { setGuestName(value); setCreateError(null); }}
                 leftIcon={<User size={18} color={Colors.textMuted} />}
               />
 
               <Input
                 label={t('access.plateInputLabel')}
                 placeholder={t('access.plateInputPlaceholder')}
+                autoCapitalize="characters"
+                autoCorrect={false}
                 value={guestPlate}
+                editable={!submitting}
                 onChangeText={setGuestPlate}
                 leftIcon={<Car size={18} color={Colors.textMuted} />}
                 helper={t('access.plateHelper')}
@@ -448,10 +466,12 @@ export const StaffGuestPassScreen: React.FC = () => {
                 </Text>
               </View>
 
+              {createError && <Text accessibilityLiveRegion="polite" style={{ color: Colors.danger, paddingVertical: 12 }}>{createError}</Text>}
               <Button
                 title={t('access.generateQrBtn')}
                 onPress={handleCreatePass}
                 loading={submitting}
+                disabled={revokingPassId !== null || redeemingPassId !== null || !structure}
                 size="lg"
                 style={{ marginTop: 16 }}
               />
@@ -462,7 +482,8 @@ export const StaffGuestPassScreen: React.FC = () => {
               <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
                 {t('staff.guestPass.historyTitle')}
               </Text>
-              {tenantPasses.length === 0 ? (
+              {passesFailed && <LoadError message={t('access.passesLoadError')} onRetry={onRefresh} retrying={loadingPasses} />}
+              {loadingPasses && !tenantPasses.length ? <LoadingState /> : passesFailed && !tenantPasses.length ? null : tenantPasses.length === 0 ? (
                 <Card style={styles.emptyHistoryCard}>
                   <Text style={styles.emptyHistoryText}>
                     {t('staff.guestPass.noHistory')}
@@ -543,6 +564,7 @@ export const StaffGuestPassScreen: React.FC = () => {
                               title={t('access.redeemPassBtn')}
                               onPress={() => handleRedeemPass(pass)}
                               loading={redeemingPassId === pass.id}
+                              disabled={submitting || redeemingPassId !== null || revokingPassId !== null}
                               size="sm"
                               style={styles.redeemButton}
                             />
@@ -550,6 +572,7 @@ export const StaffGuestPassScreen: React.FC = () => {
                               title={t('access.revokePassBtn')}
                               onPress={() => handleRevokePass(pass)}
                               loading={revokingPassId === pass.id}
+                              disabled={submitting || redeemingPassId !== null || revokingPassId !== null}
                               variant="outline"
                               size="sm"
                               style={styles.revokeButton}
@@ -564,15 +587,15 @@ export const StaffGuestPassScreen: React.FC = () => {
             </View>
           </View>
         )}
-      </ScrollView>
+      </ScrollView></KeyboardAvoidingView>
 
       {/* ==================== UNIT PICKER MODAL ==================== */}
-      <Modal visible={unitModalVisible} animationType="slide" transparent>
+      <Modal visible={unitModalVisible} animationType="slide" transparent onRequestClose={() => setUnitModalVisible(false)}>
         <SafeAreaView style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('staff.guestPass.chooseUnitTitle')}</Text>
-              <TouchableOpacity onPress={() => setUnitModalVisible(false)}>
+              <TouchableOpacity onPress={() => setUnitModalVisible(false)} accessibilityRole="button" accessibilityLabel={t('common.close')} style={{ minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' }}>
                 <X size={24} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -581,14 +604,16 @@ export const StaffGuestPassScreen: React.FC = () => {
               <Input
                 placeholder={t('staff.guestPass.searchUnitPlaceholder')}
                 value={unitSearchQuery}
+                accessibilityLabel={t('staff.guestPass.searchUnitPlaceholder')}
                 onChangeText={setUnitSearchQuery}
                 leftIcon={<Search size={18} color={Colors.textMuted} />}
-                style={{ marginBottom: 0 }}
+                containerStyle={{ marginBottom: 0 }}
               />
             </View>
 
             <FlatList
               data={filteredUnits}
+              keyboardShouldPersistTaps="handled"
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.unitList}
               renderItem={({ item }) => {
@@ -596,6 +621,7 @@ export const StaffGuestPassScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     onPress={() => handleSelectUnit(item)}
+                    accessibilityRole="radio" accessibilityState={{ checked: isSelected }}
                     activeOpacity={0.7}
                     style={[styles.unitItem, isSelected && styles.unitItemSelected]}
                   >
@@ -647,6 +673,10 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   backButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 6,
     marginRight: 8,
   },
@@ -654,7 +684,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: '700',
     color: Colors.text,
   },
@@ -681,6 +712,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   unitSelectorCard: {
+    borderRadius: 24,
     padding: 14,
   },
   unitSelectorRow: {
@@ -714,15 +746,18 @@ const styles = StyleSheet.create({
     fontWeight: 'normal',
   },
   formCard: {
+    borderRadius: 24,
     padding: 16,
   },
   validityNotice: {
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.background,
-    padding: 10,
-    borderRadius: 8,
+    backgroundColor: Colors.primaryBg,
+    padding: 14,
+    borderRadius: 16,
     marginTop: 4,
   },
   validityText: {
@@ -731,6 +766,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   resultCard: {
+    borderRadius: 24,
     padding: 20,
   },
   qrResultContainer: {
@@ -772,6 +808,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   passMetaText: {
+    flex: 1,
     fontSize: 14,
     color: Colors.text,
     fontWeight: '500',
